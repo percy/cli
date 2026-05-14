@@ -813,6 +813,186 @@ describe('PercyClient', () => {
     });
   });
 
+  describe('#getSmartsnapSnapshotNameToCommit()', () => {
+    const stubEnv = (overrides = {}) => {
+      Object.defineProperty(client.env, 'git', { value: overrides.git ?? {}, configurable: true });
+      Object.defineProperty(client.env, 'target', { value: overrides.target ?? {}, configurable: true });
+      Object.defineProperty(client.env, 'pullRequest', { value: overrides.pullRequest ?? null, configurable: true });
+      Object.defineProperty(client.env, 'partial', { value: overrides.partial ?? false, configurable: true });
+    };
+
+    beforeEach(() => stubEnv());
+
+    it('issues a GET with snapshot_names[] params and no git/PR context when env is empty', async () => {
+      const path = '/smartsnap/snapshot-name-to-commit?snapshot_names%5B%5D=foo&snapshot_names%5B%5D=bar';
+      api.reply(path, () => [200, { data: { foo: 'sha-foo', bar: 'sha-bar' } }]);
+
+      await expectAsync(
+        client.getSmartsnapSnapshotNameToCommit(['foo', 'bar'])
+      ).toBeResolvedTo({ data: { foo: 'sha-foo', bar: 'sha-bar' } });
+
+      expect(api.requests[path]).toBeDefined();
+      expect(api.requests[path][0].method).toBe('GET');
+    });
+
+    it('handles null/undefined snapshotNames without throwing', async () => {
+      // empty query string is normalized away by URL parsing
+      api.reply('/smartsnap/snapshot-name-to-commit', () => [200, { data: {} }]);
+
+      await expectAsync(client.getSmartsnapSnapshotNameToCommit()).toBeResolvedTo({ data: {} });
+      await expectAsync(client.getSmartsnapSnapshotNameToCommit(null)).toBeResolvedTo({ data: {} });
+    });
+
+    it('appends git/target/PR/partial context when present in env', async () => {
+      stubEnv({
+        git: { branch: 'feature/x', sha: 'commit-sha-1' },
+        target: { branch: 'main', commit: 'commit-sha-2' },
+        pullRequest: 42,
+        partial: true
+      });
+
+      const expectedPath = '/smartsnap/snapshot-name-to-commit?' + [
+        'snapshot_names%5B%5D=a',
+        'branch=feature%2Fx',
+        'target_branch=main',
+        'commit_sha=commit-sha-1',
+        'target_commit_sha=commit-sha-2',
+        'pull_request_number=42',
+        'partial=true'
+      ].join('&');
+
+      api.reply(expectedPath, () => [200, { data: { a: 'sha-a' } }]);
+
+      await expectAsync(
+        client.getSmartsnapSnapshotNameToCommit(['a'])
+      ).toBeResolvedTo({ data: { a: 'sha-a' } });
+
+      expect(api.requests[expectedPath]).toBeDefined();
+      expect(api.requests[expectedPath][0].method).toBe('GET');
+    });
+
+    it('includes pull_request_number=0 when env.pullRequest is 0 (not null)', async () => {
+      stubEnv({ pullRequest: 0 });
+
+      const expectedPath = '/smartsnap/snapshot-name-to-commit?snapshot_names%5B%5D=a&pull_request_number=0';
+      api.reply(expectedPath, () => [200, { data: {} }]);
+
+      await expectAsync(
+        client.getSmartsnapSnapshotNameToCommit(['a'])
+      ).toBeResolvedTo({ data: {} });
+
+      expect(api.requests[expectedPath]).toBeDefined();
+    });
+  });
+
+  describe('#generateSmartsnapGraph()', () => {
+    it('POSTs build_id and graph payload to smartsnap/generate-graph', async () => {
+      api.reply('/smartsnap/generate-graph', () => [202, { status: 'queued' }]);
+
+      await expectAsync(client.generateSmartsnapGraph('build-1', {
+        files: ['a.js', 'b.js'],
+        modules: [{ id: 1, name: 'mod' }],
+        storybookPaths: ['stories/a.js'],
+        affectedNodes: ['node-1']
+      })).toBeResolvedTo({ status: 'queued' });
+
+      expect(api.requests['/smartsnap/generate-graph']).toBeDefined();
+      expect(api.requests['/smartsnap/generate-graph'][0].method).toBe('POST');
+      expect(api.requests['/smartsnap/generate-graph'][0].body).toEqual({
+        build_id: 'build-1',
+        files: ['a.js', 'b.js'],
+        modules: [{ id: 1, name: 'mod' }],
+        storybook_paths: ['stories/a.js'],
+        affected_nodes: ['node-1']
+      });
+    });
+
+    it('sends undefined fields when called without payload', async () => {
+      api.reply('/smartsnap/generate-graph', () => [202, { status: 'queued' }]);
+
+      await expectAsync(client.generateSmartsnapGraph('build-2')).toBeResolvedTo({ status: 'queued' });
+
+      // JSON.stringify drops undefined values, so only build_id should remain in body
+      expect(api.requests['/smartsnap/generate-graph'][0].body).toEqual({ build_id: 'build-2' });
+    });
+
+    it('rejects when API returns an error', async () => {
+      api.reply('/smartsnap/generate-graph', () => [500, { error: 'boom' }]);
+
+      await expectAsync(client.generateSmartsnapGraph('build-3', {}))
+        .toBeRejected();
+    });
+  });
+
+  describe('#getSmartsnapGraphStatus()', () => {
+    it('GETs the graph status for the given build_id', async () => {
+      api.reply('/smartsnap/generate-graph?build_id=build-1', () => [
+        200, { status: 'in_progress' }
+      ]);
+
+      await expectAsync(client.getSmartsnapGraphStatus('build-1'))
+        .toBeResolvedTo({ status: 'in_progress' });
+
+      expect(api.requests['/smartsnap/generate-graph?build_id=build-1']).toBeDefined();
+      expect(api.requests['/smartsnap/generate-graph?build_id=build-1'][0].method).toBe('GET');
+    });
+
+    it('URL-encodes the build_id query param', async () => {
+      const path = '/smartsnap/generate-graph?build_id=build+with+spaces';
+      api.reply(path, () => [200, { status: 'ready' }]);
+
+      await expectAsync(client.getSmartsnapGraphStatus('build with spaces'))
+        .toBeResolvedTo({ status: 'ready' });
+
+      expect(api.requests[path]).toBeDefined();
+    });
+
+    it('rejects when the API returns an error', async () => {
+      api.reply('/smartsnap/generate-graph?build_id=build-err', () => [500]);
+
+      await expectAsync(client.getSmartsnapGraphStatus('build-err')).toBeRejected();
+    });
+  });
+
+  describe('#getSmartsnapGraphData()', () => {
+    it('GETs graph data for the given build_id without trace by default', async () => {
+      api.reply('/smartsnap/generate-graph/data?build_id=build-1', () => [
+        200, { graph: { nodes: [] } }
+      ]);
+
+      await expectAsync(client.getSmartsnapGraphData('build-1'))
+        .toBeResolvedTo({ graph: { nodes: [] } });
+
+      expect(api.requests['/smartsnap/generate-graph/data?build_id=build-1']).toBeDefined();
+      expect(api.requests['/smartsnap/generate-graph/data?build_id=build-1'][0].method).toBe('GET');
+    });
+
+    it('appends trace=true when trace option is set', async () => {
+      const path = '/smartsnap/generate-graph/data?build_id=build-1&trace=true';
+      api.reply(path, () => [200, { graph: {}, trace: [] }]);
+
+      await expectAsync(client.getSmartsnapGraphData('build-1', { trace: true }))
+        .toBeResolvedTo({ graph: {}, trace: [] });
+
+      expect(api.requests[path]).toBeDefined();
+    });
+
+    it('does not append trace when trace option is false', async () => {
+      api.reply('/smartsnap/generate-graph/data?build_id=build-1', () => [200, { graph: {} }]);
+
+      await expectAsync(client.getSmartsnapGraphData('build-1', { trace: false }))
+        .toBeResolvedTo({ graph: {} });
+
+      expect(api.requests['/smartsnap/generate-graph/data?build_id=build-1']).toBeDefined();
+    });
+
+    it('rejects when the API returns an error', async () => {
+      api.reply('/smartsnap/generate-graph/data?build_id=build-err', () => [500]);
+
+      await expectAsync(client.getSmartsnapGraphData('build-err')).toBeRejected();
+    });
+  });
+
   describe('#getDeviceDetails()', () => {
     it('in case of error return []', async () => {
       api.reply('/discovery/device-details', () => [500]);
