@@ -737,6 +737,19 @@ export function shouldAttachAuth(authorization, requestUrl, snapshotUrl) {
   }
 }
 
+// Race a promise against a timeout. Resolves with the promise's value if it
+// settles within `ms`, otherwise rejects with `new Error(message)`. The
+// internal timer is always cleared so the event loop can exit cleanly.
+export function raceWithTimeout(promise, ms, message) {
+  let timerId;
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => {
+      timerId = setTimeout(() => reject(new Error(message)), ms);
+    })
+  ]).finally(() => clearTimeout(timerId));
+}
+
 // Make a new request with Node based on a network request. Cookies are read
 // from the page session because worker/auxiliary sessions have a partial
 // Network domain where Network.getCookies throws "Internal error".
@@ -782,15 +795,13 @@ async function captureResourceDirectly(network, request, session) {
   let url = originURL(request);
   let meta = { ...network.meta, url };
 
-  let timerId;
   try {
     log.debug('- Requesting resource directly (responseReceived timeout fallback)', meta);
-    let { body, status } = await Promise.race([
+    let { body, status } = await raceWithTimeout(
       makeDirectRequest(network, request, session),
-      new Promise((_, reject) => {
-        timerId = setTimeout(() => reject(new Error(`Direct fetch timed out after ${DIRECT_FETCH_TIMEOUT}ms`)), DIRECT_FETCH_TIMEOUT);
-      })
-    ]);
+      DIRECT_FETCH_TIMEOUT,
+      `Direct fetch timed out after ${DIRECT_FETCH_TIMEOUT}ms`
+    );
 
     if (body.length > MAX_RESOURCE_SIZE) {
       logAssetInstrumentation(log, 'asset_not_uploaded', 'resource_too_large', {
@@ -812,8 +823,6 @@ async function captureResourceDirectly(network, request, session) {
     network.intercept.saveResource(resource);
   } catch (error) {
     log.debug(`Direct fetch failed for ${url} - ${error.message}`, meta);
-  } finally {
-    clearTimeout(timerId);
   }
 }
 

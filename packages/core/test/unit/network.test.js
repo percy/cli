@@ -1,5 +1,5 @@
 import { setupTest } from '../helpers/index.js';
-import { Network, AbortCodes, pickCookieSession, shouldAttachAuth } from '../../src/network.js';
+import { Network, AbortCodes, pickCookieSession, shouldAttachAuth, raceWithTimeout } from '../../src/network.js';
 import { AbortError } from '../../src/utils.js';
 
 describe('Unit / Network', () => {
@@ -94,6 +94,26 @@ describe('Unit / Network', () => {
     it('returns false when either URL is malformed (defensive)', () => {
       expect(shouldAttachAuth({ username: 'u' }, 'not a url', 'http://a.com')).toBe(false);
       expect(shouldAttachAuth({ username: 'u' }, 'http://a.com', undefined)).toBe(false);
+    });
+  });
+
+  // raceWithTimeout — caps any async work at a wall-clock budget. The
+  // direct-fetch fallback uses this to keep a hanging worker host from
+  // blocking the snapshot pipeline.
+  describe('raceWithTimeout', () => {
+    it('resolves with the promise value when it settles before the timeout', async () => {
+      let value = await raceWithTimeout(Promise.resolve('ok'), 50, 'timeout');
+      expect(value).toBe('ok');
+    });
+
+    it('rejects with the timeout message when the promise hangs past the budget', async () => {
+      let neverSettles = new Promise(() => {});
+      await expectAsync(raceWithTimeout(neverSettles, 10, 'too slow')).toBeRejectedWithError('too slow');
+    });
+
+    it('propagates the original rejection when the promise rejects before the timeout', async () => {
+      let failing = Promise.reject(new Error('boom'));
+      await expectAsync(raceWithTimeout(failing, 50, 'timeout')).toBeRejectedWithError('boom');
     });
   });
 });
