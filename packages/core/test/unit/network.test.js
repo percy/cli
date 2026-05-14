@@ -1,5 +1,5 @@
 import { setupTest } from '../helpers/index.js';
-import { Network, AbortCodes } from '../../src/network.js';
+import { Network, AbortCodes, pickCookieSession, shouldAttachAuth } from '../../src/network.js';
 import { AbortError } from '../../src/utils.js';
 
 describe('Unit / Network', () => {
@@ -51,6 +51,49 @@ describe('Unit / Network', () => {
       expect(err.code).toBe('ABORTED');
       expect(err.reason).toBe('browser-aborted');
       expect(err.message).toBe('msg');
+    });
+  });
+
+  // pickCookieSession — prefer the page's full Network domain, fall back to
+  // the request's own session for worker/auxiliary paths.
+  describe('pickCookieSession', () => {
+    it('returns the page session when network.page.session is set', () => {
+      let pageSession = { id: 'page' };
+      let fallback = { id: 'fallback' };
+      expect(pickCookieSession({ page: { session: pageSession } }, fallback)).toBe(pageSession);
+    });
+
+    it('falls back to the passed session when network.page is undefined', () => {
+      let fallback = { id: 'fallback' };
+      expect(pickCookieSession({ page: undefined }, fallback)).toBe(fallback);
+    });
+
+    it('falls back to the passed session when network.page lacks a session', () => {
+      let fallback = { id: 'fallback' };
+      expect(pickCookieSession({ page: {} }, fallback)).toBe(fallback);
+    });
+  });
+
+  // shouldAttachAuth — re-enforces the same-origin rule for the Node-side
+  // direct fetch to avoid leaking Basic auth credentials cross-origin.
+  describe('shouldAttachAuth', () => {
+    it('returns false when authorization is missing or has no username', () => {
+      expect(shouldAttachAuth(undefined, 'http://a.com/x', 'http://a.com')).toBe(false);
+      expect(shouldAttachAuth({}, 'http://a.com/x', 'http://a.com')).toBe(false);
+      expect(shouldAttachAuth({ username: '' }, 'http://a.com/x', 'http://a.com')).toBe(false);
+    });
+
+    it('returns true when authorization is set and origins match', () => {
+      expect(shouldAttachAuth({ username: 'u' }, 'http://a.com/x.css', 'http://a.com/page')).toBe(true);
+    });
+
+    it('returns false when origins differ (cross-origin auth must not leak)', () => {
+      expect(shouldAttachAuth({ username: 'u' }, 'http://a.com/x.css', 'http://b.com/page')).toBe(false);
+    });
+
+    it('returns false when either URL is malformed (defensive)', () => {
+      expect(shouldAttachAuth({ username: 'u' }, 'not a url', 'http://a.com')).toBe(false);
+      expect(shouldAttachAuth({ username: 'u' }, 'http://a.com', undefined)).toBe(false);
     });
   });
 });

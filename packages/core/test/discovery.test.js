@@ -3324,6 +3324,41 @@ describe('Discovery', () => {
         jasmine.stringMatching(/Skipping resource larger than 25MB/)
       ]));
     });
+
+    it('falls back to application/javascript mimetype on direct-fetch when URL has no extension', async () => {
+      // Mirrors the same-origin direct-fetch test scaffolding but uses a URL
+      // with no recognizable extension so mime.lookup returns falsy and the
+      // captureResourceDirectly path falls through to 'application/javascript'.
+      spyOn(percy.browser, '_handleMessage').and.callFake(function(data) {
+        let parsed; try { parsed = JSON.parse(data); } catch { /* binary */ }
+        if (parsed?.method === 'Network.responseReceived' &&
+            parsed?.params?.response?.url?.endsWith('/asset-no-ext')) {
+          return;
+        }
+        this._handleMessage.and.originalFn.call(this, data);
+      });
+
+      let assetHits = 0;
+      server.reply('/asset-no-ext', () => {
+        assetHits += 1;
+        if (assetHits === 1) return [200, 'text/css', 'p { color: blue; }'];
+        return [200, 'application/octet-stream', 'p { color: red; }'];
+      });
+
+      let targetDOM = '<html><head><link href="asset-no-ext" rel="stylesheet"/></head><body><p>x</p></body></html>';
+
+      await percy.snapshot({
+        name: 'unknown extension direct-fetch snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot: targetDOM
+      });
+
+      await percy.idle();
+
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
+        jasmine.stringMatching(/Saving direct-fetched resource sha=[a-f0-9]+ mimetype=application\/javascript/)
+      ]));
+    });
   });
 
   describe('with remote resources', () => {

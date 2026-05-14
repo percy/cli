@@ -716,12 +716,33 @@ async function sendResponseResource(network, request, session) {
   }
 }
 
+// Pick the CDP session for Network.getCookies. Worker/auxiliary sessions
+// expose a partial Network domain where Network.getCookies throws
+// "Internal error", so prefer the page's session whenever available and
+// fall back to the request's own session otherwise.
+export function pickCookieSession(network, session) {
+  return network.page?.session ?? session;
+}
+
+// Decide whether to attach a Basic auth header to the Node-side direct fetch.
+// The browser's URLLoader origin-scopes Basic auth; this fallback runs in
+// Node, so we re-enforce the same-origin rule explicitly to avoid leaking
+// credentials cross-origin. Malformed URLs fall through to `false` defensively.
+export function shouldAttachAuth(authorization, requestUrl, snapshotUrl) {
+  if (!authorization?.username) return false;
+  try {
+    return new URL(requestUrl).origin === new URL(snapshotUrl).origin;
+  } catch {
+    return false;
+  }
+}
+
 // Make a new request with Node based on a network request. Cookies are read
 // from the page session because worker/auxiliary sessions have a partial
 // Network domain where Network.getCookies throws "Internal error".
 async function makeDirectRequest(network, request, session) {
   let cookies = [];
-  let cookieSession = network.page?.session ?? session;
+  let cookieSession = pickCookieSession(network, session);
   try {
     ({ cookies } = await cookieSession.send('Network.getCookies', { urls: [request.url] }));
   } catch (error) {
@@ -744,18 +765,10 @@ async function makeDirectRequest(network, request, session) {
     cookie: cookies.map(cookie => `${cookie.name}=${cookie.value}`).join('; ')
   };
 
-  if (network.authorization?.username) {
-    // Browser's URLLoader origin-scopes Basic auth; this fallback runs in Node, so
-    // we re-enforce the same-origin rule explicitly to avoid leaking creds.
-    let targetOrigin, pageOrigin;
-    try { targetOrigin = new URL(request.url).origin; } catch {}
-    try { pageOrigin = new URL(network.meta?.snapshotURL).origin; } catch {}
-
-    if (targetOrigin && pageOrigin && targetOrigin === pageOrigin) {
-      let { username, password } = network.authorization;
-      let token = Buffer.from([username, password || ''].join(':')).toString('base64');
-      headers.Authorization = `Basic ${token}`;
-    }
+  if (shouldAttachAuth(network.authorization, request.url, network.meta?.snapshotURL)) {
+    let { username, password } = network.authorization;
+    let token = Buffer.from([username, password || ''].join(':')).toString('base64');
+    headers.Authorization = `Basic ${token}`;
   }
 
   return makeRequest(request.url, { buffer: true, headers }, (body, res) => ({ body, status: res.statusCode }));
