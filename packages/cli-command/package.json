@@ -41,7 +41,9 @@
     "@percy/core": "1.31.14-beta.3",
     "@percy/logger": "1.31.14-beta.3",
     "glob-to-regexp": "^0.4.1",
-    "snyk-nodejs-lockfile-parser": "2.7.1",
     "stream-json": "^1.8.0"
+  },
+  "optionalDependencies": {
+    "snyk-nodejs-lockfile-parser": "2.7.1"
   }
 }

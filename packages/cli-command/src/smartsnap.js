@@ -295,11 +295,21 @@ export async function applySmartSnap(percy, snapshots, smartSnapConfig, buildDir
       const packageJson = fs.readFileSync(path.join(absManifestDir, 'package.json'), 'utf8');
       const packageJsonRepoPath = manifestDir === '.' ? "package.json" : `${manifestDir}/package.json`;
       const oldPackageJson = git(['show', `${baseRef}:${packageJsonRepoPath}`]);
-      const packageAffected = await diffLockfileDeps({
-        packageJson, oldLockfile, newLockfile, lockfileType: lockfileName,
-        oldPackageJson
-      });
-      log.debug(`SmartSnap: lockfile diff produced ${packageAffected.length} affected packages: ${packageAffected.join(', ')}`);
+      try {
+        const packageAffected = await diffLockfileDeps({
+          packageJson, oldLockfile, newLockfile, lockfileType: lockfileName,
+          oldPackageJson
+        });
+        log.debug(`SmartSnap: lockfile diff produced ${packageAffected.length} affected packages: ${packageAffected.join(', ')}`);
+      } catch (e) {
+        // snyk-nodejs-lockfile-parser is an optionalDependency (requires Node >=18).
+        // When it's missing we can't reason about the manifest change, so we
+        // conservatively bail to a full snapshot rather than under-snapshotting.
+        if (e.code === 'SNYK_LOCKFILE_PARSER_UNAVAILABLE') {
+          throw new SmartSnapBailError(`SmartSnap: ${e.message}; running full snapshot set`);
+        }
+        throw e;
+      }
     }
   }
 

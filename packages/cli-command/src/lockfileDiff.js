@@ -1,17 +1,35 @@
 import { createRequire } from 'module';
+import logger from '@percy/logger';
 
-// snyk-nodejs-lockfile-parser is CommonJS. Load via createRequire so the
-// named imports resolve correctly under "type": "module".
+// snyk-nodejs-lockfile-parser is a CommonJS optionalDependency. It requires
+// Node >=18 while the CLI supports Node >=14, so we defer the require to call
+// time — that way importing this module never throws on older Node versions
+// (or when the optional install was skipped for any other reason). Cached on
+// first successful load so the require only resolves once per process.
 const require = createRequire(import.meta.url);
-const { buildDepTree, LockfileType } = require('snyk-nodejs-lockfile-parser');
+let _snykModule;
+function loadSnyk() {
+  if (_snykModule) return _snykModule;
+  try {
+    _snykModule = require('snyk-nodejs-lockfile-parser');
+    return _snykModule;
+  } catch (e) {
+    // Surface the underlying require failure so callers can distinguish
+    // "not installed" (engine mismatch / optional skip) from genuine parse
+    // failures that happen later inside buildDepTree.
+    const err = new Error(`snyk-nodejs-lockfile-parser is not available (requires Node >=18, or the optional install was skipped): ${e.message}`);
+    err.code = 'SNYK_LOCKFILE_PARSER_UNAVAILABLE';
+    throw err;
+  }
+}
 
-// Map the on-disk filename to snyk's LockfileType enum. yarn.lock could be
-// either yarn classic (v1) or berry (v2+); we default to yarn v1 here and
-// can refine by sniffing the lockfile header in a follow-up if needed.
-const TYPE_BY_FILENAME = {
-  'package-lock.json': LockfileType.npm,
-  'yarn.lock': LockfileType.yarn,
-  'pnpm-lock.yaml': LockfileType.pnpm
+// Map the on-disk filename to snyk's LockfileType enum key. We can't resolve
+// the enum value at module-eval time because the snyk import is deferred, so
+// we look up the value inside diffLockfileDeps after loadSnyk() runs.
+const TYPE_KEY_BY_FILENAME = {
+  'package-lock.json': 'npm',
+  'yarn.lock': 'yarn',
+  'pnpm-lock.yaml': 'pnpm'
 };
 
 // Walk snyk's PkgTree (a recursive `{ name, version, dependencies: { ... } }`
@@ -63,15 +81,37 @@ function topLevelDeps(packageJsonContents) {
 //      bumped `^5.8.3` to `^5.18.0` but the lockfile already resolved to
 //      5.18.0 under the old range, so the resolved tree looks identical.
 export async function diffLockfileDeps({ packageJson, oldPackageJson, oldLockfile, newLockfile, lockfileType }) {
-  const type = TYPE_BY_FILENAME[lockfileType];
+  const log = logger('storybook:smartsnap:lockfile');
+  const { buildDepTree, LockfileType } = loadSnyk();
+  const typeKey = TYPE_KEY_BY_FILENAME[lockfileType];
+  const type = typeKey && LockfileType[typeKey];
   if (!type) {
     throw new Error(`Unsupported lockfile type: ${lockfileType}`);
   }
 
-  const [oldTree, newTree] = await Promise.all([
-    buildDepTree(oldPackageJson, oldLockfile, true, type),
-    buildDepTree(packageJson, newLockfile, true, type)
-  ]);
+  // The two buildDepTree calls are kept sequential (not Promise.all'd) so that
+  // when one of them throws the log message identifies *which* side failed —
+  // old vs. new lockfile parsing behave differently when the user's lockfile
+  // is in an unexpected state.
+  let oldTree;
+  try {
+    log.debug('buildDepTree: parsing OLD lockfile...');
+    oldTree = await buildDepTree(oldPackageJson, oldLockfile, true, type);
+    log.debug('buildDepTree: OLD lockfile parsed successfully');
+  } catch (e) {
+    log.warn(`buildDepTree: OLD lockfile failed to parse: ${e.message}`);
+    throw e;
+  }
+
+  let newTree;
+  try {
+    log.debug('buildDepTree: parsing NEW lockfile...');
+    newTree = await buildDepTree(packageJson, newLockfile, true, type);
+    log.debug('buildDepTree: NEW lockfile parsed successfully');
+  } catch (e) {
+    log.warn(`buildDepTree: NEW lockfile failed to parse: ${e.message}`);
+    throw e;
+  }
 
   const oldPkgs = flattenPkgTree(oldTree);
   const newPkgs = flattenPkgTree(newTree);
