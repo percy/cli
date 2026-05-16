@@ -17,9 +17,15 @@
 // of platform; firstMatch() parses to `{x, y, width, height}` integers.
 //
 // Android primary: direct gRPC to `MaestroDriver/viewHierarchy` on
-// `127.0.0.1:${PERCY_ANDROID_GRPC_PORT}` — talks the same gRPC transport
-// Maestro's CLI uses, but as a stateless RPC that doesn't open a parallel
-// flow context (avoids session-collision with the running Maestro test flow).
+// `127.0.0.1:${PERCY_ANDROID_GRPC_PORT}`. Forward-compatibility path for
+// Maestro distributions that install the `dev.mobile.maestro` instrumentation
+// APK and bind tcp:6790 device-side. Empirically (2026-05-16 investigation,
+// docs/solutions/best-practices/2026-05-16-grpc-unavailable-investigation.md),
+// none of the Maestro versions BS currently ships (1.39.13 / 1.39.15 / 2.0.7 /
+// 2.4.0) install that package during `maestro test` or `maestro hierarchy` —
+// they fetch the hierarchy via uiautomator-based IPC instead. On those
+// distros, the gRPC primary correctly classifies the failure as
+// `channel-broken: UNAVAILABLE` and the cascade falls through gracefully.
 // PERCY_ANDROID_GRPC_PORT is realmobile/mobile-injected; absence skips gRPC.
 // Kill switch: PERCY_MAESTRO_GRPC=0 force-skips gRPC (in-process emergency
 // rollback distinct from removing the env injection).
