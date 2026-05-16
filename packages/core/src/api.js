@@ -511,13 +511,61 @@ export function createPercyServer(percy, port) {
       if (req.body.labels) payload.labels = req.body.labels;
       if (req.body.thTestCaseExecutionId) payload.thTestCaseExecutionId = req.body.thTestCaseExecutionId;
 
-      // Transform and forward regions if present.
+      // ───────────────────────────────────────────────────────────────────
+      // REGIONS — end-to-end architecture
+      // ───────────────────────────────────────────────────────────────────
       //
-      // Resolver: cross-platform `maestroDump({ platform, sessionId })`. Android
-      // dispatches to `maestro hierarchy` CLI shell-out; iOS dispatches to
-      // `runIosHttpDump` (HTTP primary against Maestro's iOS XCTestRunner) with
-      // `runMaestroIosDump` as the CLI shell-out fallback.
-      // Coordinate regions transform to boundingBox unchanged.
+      // Regions tell Percy's diff engine which parts of a mobile screenshot
+      // to ignore / consider / layout-compare. Two ways to specify one:
+      //
+      //   1. Coordinate region — caller already knows the pixel rectangle.
+      //      Shape: { top, left, right, bottom }. Forwarded as-is after
+      //      transform to `{x, y, width, height}` boundingBox.
+      //
+      //   2. Element region — caller knows a selector (`resource-id`, `text`,
+      //      `content-desc`, `class`, `id`) but not the on-screen bounds.
+      //      Resolved at relay-time against the live device's view hierarchy.
+      //
+      // ── Data flow (element region case) ────────────────────────────────
+      //
+      //   SDK (percy-screenshot.js)
+      //     │  POST /percy/maestro-screenshot
+      //     │   { name, sessionId, platform, regions:[{element:{...}}], ... }
+      //     ▼
+      //   Relay (this handler)
+      //     │  validate selector shape (SELECTOR_KEYS_WHITELIST)
+      //     │  maestroDump({ platform, sessionId, grpcClientCache })  ← lazy + memoized per request
+      //     │      │
+      //     │      ├─ Android cascade (maestro-hierarchy.js)
+      //     │      │    gRPC primary → maestro-CLI → adb uiautomator
+      //     │      │    Three-class taxonomy: schema-class (drift bit, no
+      //     │      │    fallback) / channel-broken (evict cache, fall back) /
+      //     │      │    contention-class (keep cache, skip CLI → adb).
+      //     │      │
+      //     │      └─ iOS cascade
+      //     │           HTTP primary (Maestro XCTestRunner /viewHierarchy)
+      //     │           → maestro-CLI shell-out. AUT-root detection skips
+      //     │           SpringBoard frames.
+      //     │
+      //     │  firstMatch(nodes, selector) → bbox or null (warn-skip).
+      //     │  payload.regions[i].elementSelector.boundingBox = bbox
+      //     ▼
+      //   Percy backend — compares masked regions across builds.
+      //
+      // ── Observability ──────────────────────────────────────────────────
+      //
+      // /percy/healthcheck exposes maestroHierarchyDrift per platform:
+      //   { lastFailureClass, fallbackCount, succeededVia, code?, reason?, firstSeenAt? }
+      // Every primary→fallback transition also emits one info-level line:
+      //   [percy] hierarchy: <primary> failed (<class>: <reason>) → falling back to <next>
+      //
+      // ── Failure shape ──────────────────────────────────────────────────
+      //
+      // Element regions degrade gracefully: resolver failure → warn-skip
+      // those regions only; the snapshot itself still uploads. Coordinate
+      // regions don't depend on the resolver and always pass through.
+      //
+      // ───────────────────────────────────────────────────────────────────
       if (req.body.regions && Array.isArray(req.body.regions)) {
         let resolvedRegions = [];
         let elementRegionCount = req.body.regions.filter(r => r && r.element).length;
