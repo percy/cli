@@ -108,7 +108,9 @@ describe('percy upload', () => {
                 'resource-url': 'http://local/test-1',
                 mimetype: 'text/html',
                 'for-widths': null,
-                'is-root': true
+                'is-root': true,
+                'content-md5': jasmine.any(String),
+                'content-length': jasmine.any(Number)
               }
             }, {
               type: 'resources',
@@ -117,7 +119,9 @@ describe('percy upload', () => {
                 'resource-url': 'http://local/test-1.png',
                 mimetype: 'image/png',
                 'for-widths': null,
-                'is-root': null
+                'is-root': null,
+                'content-md5': jasmine.any(String),
+                'content-length': jasmine.any(Number)
               }
             }])
           }

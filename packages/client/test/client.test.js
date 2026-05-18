@@ -1772,8 +1772,12 @@ describe('PercyClient', () => {
             client.sendSnapshot(123, {
               name: 'forced-legacy',
               resources: [{
-                url: '/x', sha: sha256hash(content), content, mimetype: 'text/plain',
-                md5: md5base64(content), contentLength: Buffer.byteLength(content, 'utf-8')
+                url: '/x',
+                sha: sha256hash(content),
+                content,
+                mimetype: 'text/plain',
+                md5: md5base64(content),
+                contentLength: Buffer.byteLength(content, 'utf-8')
               }]
             })
           ).toBeResolved();
@@ -1794,8 +1798,13 @@ describe('PercyClient', () => {
           client.sendSnapshot(123, {
             name: 'fallback',
             resources: [{
-              url: '/x', sha: sha256hash(content), content, mimetype: 'text/plain',
-              md5: md5base64(content), contentLength: Buffer.byteLength(content, 'utf-8'), root: true
+              url: '/x',
+              sha: sha256hash(content),
+              content,
+              mimetype: 'text/plain',
+              md5: md5base64(content),
+              contentLength: Buffer.byteLength(content, 'utf-8'),
+              root: true
             }]
           })
         ).toBeResolved();
@@ -1815,8 +1824,12 @@ describe('PercyClient', () => {
           client.sendSnapshot(123, {
             name: 'fail-loud',
             resources: [{
-              url: '/x', sha: sha256hash(content), content, mimetype: 'text/plain',
-              md5: md5base64(content), contentLength: Buffer.byteLength(content, 'utf-8')
+              url: '/x',
+              sha: sha256hash(content),
+              content,
+              mimetype: 'text/plain',
+              md5: md5base64(content),
+              contentLength: Buffer.byteLength(content, 'utf-8')
             }]
           })
         ).toBeRejected();
