@@ -1836,6 +1836,37 @@ describe('PercyClient', () => {
 
         expect(api.requests['/builds/123/resources']).toBeUndefined();
       });
+
+      it('skips missing-resource entries whose SHA was not sent in the request', async () => {
+        api.reply('/builds/123/snapshots', () => [201, {
+          data: {
+            id: '4567',
+            relationships: {
+              'missing-resources': {
+                data: [{ id: 'orphan-sha-not-in-request' }]
+              }
+            }
+          }
+        }]);
+
+        let content = 'orphan';
+        await expectAsync(
+          client.sendSnapshot(123, {
+            name: 'orphan',
+            resources: [{
+              url: '/x',
+              sha: sha256hash(content),
+              content,
+              mimetype: 'text/plain',
+              md5: md5base64(content),
+              contentLength: Buffer.byteLength(content, 'utf-8')
+            }]
+          })
+        ).toBeResolved();
+
+        expect(gcsReply).not.toHaveBeenCalled();
+        expect(api.requests['/builds/123/resources']).toBeUndefined();
+      });
     });
   });
 
