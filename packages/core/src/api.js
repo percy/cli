@@ -165,7 +165,13 @@ export function createPercyServer(percy, port) {
     .route('post', '/percy/comparison', async (req, res) => {
       let data;
       if (percy.syncMode(req.body)) {
-        const snapshotPromise = new Promise((resolve, reject) => percy.upload(req.body, { resolve, reject }, 'app'));
+        // percy.upload returns an async generator that must be drained for #snapshots.push to run.
+        const snapshotPromise = new Promise((resolve, reject) => {
+          const upload = percy.upload(req.body, { resolve, reject }, 'app');
+          (async () => {
+            try { for await (const _ of upload) { /* drain */ } } catch (e) { reject(e); }
+          })();
+        });
         data = await handleSyncJob(snapshotPromise, percy, 'comparison');
       } else {
         let upload = percy.upload(req.body, null, 'app');
@@ -641,7 +647,14 @@ export function createPercyServer(percy, port) {
 
       let data;
       if (percy.syncMode(payload)) {
-        const snapshotPromise = new Promise((resolve, reject) => percy.upload(payload, { resolve, reject }, 'app'));
+        // percy.upload returns an async generator that must be drained for #snapshots.push to run.
+        // See docs/solutions/best-practices/2026-05-20-maestro-sync-promise-bug-investigation.md.
+        const snapshotPromise = new Promise((resolve, reject) => {
+          const upload = percy.upload(payload, { resolve, reject }, 'app');
+          (async () => {
+            try { for await (const _ of upload) { /* drain */ } } catch (e) { reject(e); }
+          })();
+        });
         data = await handleSyncJob(snapshotPromise, percy, 'comparison');
         return res.json(200, { success: true, data });
       }
@@ -670,7 +683,13 @@ export function createPercyServer(percy, port) {
       let comparisonData = await WebdriverUtils.captureScreenshot(req.body);
 
       if (percy.syncMode(comparisonData)) {
-        const snapshotPromise = new Promise((resolve, reject) => percy.upload(comparisonData, { resolve, reject }, 'automate'));
+        // percy.upload returns an async generator that must be drained for #snapshots.push to run.
+        const snapshotPromise = new Promise((resolve, reject) => {
+          const upload = percy.upload(comparisonData, { resolve, reject }, 'automate');
+          (async () => {
+            try { for await (const _ of upload) { /* drain */ } } catch (e) { reject(e); }
+          })();
+        });
         data = await handleSyncJob(snapshotPromise, percy, 'comparison');
       } else {
         percy.upload(comparisonData, null, 'automate');

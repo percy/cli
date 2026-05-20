@@ -280,6 +280,33 @@ describe('API Server', () => {
     expect(percy.client.getComparisonDetails).toHaveBeenCalled();
   });
 
+  // Cross-consumer drain canary for /percy/comparison. Mirrors the maestro-screenshot
+  // canary at the bottom of this file. See docs/solutions/best-practices/
+  // 2026-05-20-maestro-sync-promise-bug-investigation.md.
+  it('/comparison sync mode: drains the upload generator (real return shape, no mock)', async () => {
+    let iterCount = 0;
+    spyOn(percy.client, 'getComparisonDetails').and.returnValue(getSnapshotDetailsResponse);
+    spyOn(percy, 'upload').and.callFake((_, callback) => {
+      return (async function*() {
+        iterCount++;
+        callback.resolve();
+        yield;
+      })();
+    });
+    await percy.start();
+
+    await expectAsync(request('/percy/comparison', {
+      method: 'POST',
+      body: {
+        name: 'Drain canary',
+        sync: true,
+        tag: { name: 'Tag', osName: 'OS', osVersion: '1', width: 1, height: 1, orientation: 'portrait' }
+      }
+    })).toBeResolvedTo(jasmine.objectContaining({ data: getSnapshotDetailsResponse }));
+
+    expect(iterCount).toBeGreaterThan(0);
+  });
+
   it('includes links in the /comparison endpoint response', async () => {
     spyOn(percy, 'upload').and.resolveTo();
     await percy.start();
@@ -467,6 +494,35 @@ describe('API Server', () => {
 
     expect(percy.client.getComparisonDetails).toHaveBeenCalled();
     expect(percy.upload).toHaveBeenCalledOnceWith({ sync: true }, jasmine.objectContaining({}), 'automate');
+  });
+
+  // Cross-consumer drain canary for /percy/automateScreenshot. Mirrors the
+  // maestro-screenshot and /comparison canaries elsewhere in this file. See
+  // docs/solutions/best-practices/2026-05-20-maestro-sync-promise-bug-investigation.md.
+  it('/automateScreenshot sync mode: drains the upload generator (real return shape, no mock)', async () => {
+    let iterCount = 0;
+    spyOn(percy.client, 'getComparisonDetails').and.returnValue(getSnapshotDetailsResponse);
+    spyOn(WebdriverUtils, 'captureScreenshot').and.returnValue({ sync: true });
+    spyOn(percy, 'upload').and.callFake((_, callback) => {
+      return (async function*() {
+        iterCount++;
+        callback.resolve();
+        yield;
+      })();
+    });
+    await percy.start();
+
+    await expectAsync(request('/percy/automateScreenshot', {
+      method: 'post',
+      body: {
+        name: 'Drain canary',
+        client_info: 'client',
+        environment_info: 'environment',
+        options: { sync: true }
+      }
+    })).toBeResolvedTo(jasmine.objectContaining({ data: getSnapshotDetailsResponse }));
+
+    expect(iterCount).toBeGreaterThan(0);
   });
 
   it('has a /events endpoint that calls #sendBuildEvents() async with provided options with clientInfo present', async () => {
@@ -1179,6 +1235,53 @@ describe('API Server', () => {
       expect(payload.thTestCaseExecutionId).toBe('TH-42');
       expect(payload.tiles[0]).toEqual(jasmine.objectContaining({ statusBarHeight: 50, navBarHeight: 48, fullscreen: true }));
       expect(payload.sync).toBe(true);
+    });
+
+    // Sync mode bug fix coverage — see docs/solutions/best-practices/
+    // 2026-05-20-maestro-sync-promise-bug-investigation.md.
+    // Before the fix, the relay's `new Promise(executor => percy.upload(...))`
+    // returned an async generator that was never iterated, so #snapshots.push
+    // never ran and the promise hung forever. The fix drains the generator.
+    it('sync mode: surfaces upload reject error as data.error (200 with error field)', async () => {
+      spyOn(percy, 'upload').and.callFake((_, callback) => callback.reject(new Error('boom')));
+      await percy.start();
+
+      await expectAsync(postMaestro({
+        name: SS_NAME,
+        sessionId: SID,
+        platform: 'android',
+        sync: true
+      })).toBeResolvedTo(jasmine.objectContaining({
+        data: { error: 'boom' }
+      }));
+    });
+
+    it('sync mode: drains the upload generator (real percy.upload return shape, no mock)', async () => {
+      // Canary for the structural bug: spy on percy.upload but have it return a real
+      // async generator-shaped object that records whether it gets iterated.
+      // Before the fix, this iteration count would stay at 0 and the test would time out.
+      let iterCount = 0;
+      spyOn(percy.client, 'getComparisonDetails').and.returnValue(getSnapshotDetailsResponse);
+      spyOn(percy, 'upload').and.callFake((options, callback) => {
+        return (async function*() {
+          iterCount++;
+          // Simulate the queue-task path: the syncQueue would invoke callback.resolve.
+          callback.resolve();
+          yield;
+        })();
+      });
+      await percy.start();
+
+      await expectAsync(postMaestro({
+        name: SS_NAME,
+        sessionId: SID,
+        platform: 'android',
+        sync: true
+      })).toBeResolvedTo(jasmine.objectContaining({ data: getSnapshotDetailsResponse }));
+
+      // Iteration count > 0 proves the relay drained the generator (vs the old
+      // bug where the generator was discarded).
+      expect(iterCount).toBeGreaterThan(0);
     });
 
     it('returns 404 when the screenshot file is missing', async () => {
