@@ -1190,6 +1190,57 @@ describe('API Server', () => {
         .toBeRejectedWithError(/ignoreRegions exceeds maximum of 50/);
     });
 
+    // Algorithm pass-through. The relay does NOT validate algorithm — the
+    // downstream comparison schema enforces the enum
+    // ('standard'|'layout'|'ignore'|'intelliignore') at upload time. Any
+    // string the SDK supplies travels verbatim into payload.regions[].algorithm.
+    // Tests below cover the default, a non-default valid value, and an
+    // invalid value (relay still passes it through; backend rejects).
+
+    it('regions[].algorithm passes through "ignore" verbatim', async () => {
+      spyOn(percy, 'upload').and.resolveTo();
+      await percy.start();
+      await postMaestro({
+        name: SS_NAME, sessionId: SID, platform: 'android',
+        regions: [{ top: 0, bottom: 10, left: 0, right: 10, algorithm: 'ignore' }]
+      });
+      let [payload] = percy.upload.calls.mostRecent().args;
+      expect(payload.regions[0].algorithm).toBe('ignore');
+    });
+
+    it('regions[].algorithm passes through "standard" verbatim', async () => {
+      spyOn(percy, 'upload').and.resolveTo();
+      await percy.start();
+      await postMaestro({
+        name: SS_NAME, sessionId: SID, platform: 'android',
+        regions: [{ top: 0, bottom: 10, left: 0, right: 10, algorithm: 'standard' }]
+      });
+      let [payload] = percy.upload.calls.mostRecent().args;
+      expect(payload.regions[0].algorithm).toBe('standard');
+    });
+
+    it('regions[].algorithm passes through invalid values verbatim (relay does not validate)', async () => {
+      spyOn(percy, 'upload').and.resolveTo();
+      await percy.start();
+      await postMaestro({
+        name: SS_NAME, sessionId: SID, platform: 'android',
+        regions: [{ top: 0, bottom: 10, left: 0, right: 10, algorithm: 'bogus' }]
+      });
+      let [payload] = percy.upload.calls.mostRecent().args;
+      expect(payload.regions[0].algorithm).toBe('bogus');
+    });
+
+    it('regions[].algorithm defaults to "ignore" when omitted', async () => {
+      spyOn(percy, 'upload').and.resolveTo();
+      await percy.start();
+      await postMaestro({
+        name: SS_NAME, sessionId: SID, platform: 'android',
+        regions: [{ top: 0, bottom: 10, left: 0, right: 10 }]
+      });
+      let [payload] = percy.upload.calls.mostRecent().args;
+      expect(payload.regions[0].algorithm).toBe('ignore');
+    });
+
     it('accepts the boundary case of 50+50+50 = 150 total regions', async () => {
       spyOn(percy, 'upload').and.resolveTo();
       await percy.start();
