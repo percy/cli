@@ -1166,6 +1166,106 @@ describe('API Server', () => {
       })).toBeRejectedWithError(/must be a non-empty string/);
     });
 
+    // ignoreRegions / considerRegions — parallel top-level inputs that emit
+    // to payload.ignoredElementsData.ignoreElementsData[] and
+    // payload.consideredElementsData.considerElementsData[]. Same per-item
+    // shape and validation as regions[]; algorithm is implicit.
+
+    it('rejects non-array ignoreRegions with 400', async () => {
+      await percy.start();
+      await expectAsync(postMaestro({ name: SS_NAME, sessionId: SID, ignoreRegions: 'nope' }))
+        .toBeRejectedWithError(/ignoreRegions must be an array/);
+    });
+
+    it('rejects non-array considerRegions with 400', async () => {
+      await percy.start();
+      await expectAsync(postMaestro({ name: SS_NAME, sessionId: SID, considerRegions: {} }))
+        .toBeRejectedWithError(/considerRegions must be an array/);
+    });
+
+    it('rejects too-many ignoreRegions with 400', async () => {
+      await percy.start();
+      let ignoreRegions = new Array(51).fill({ top: 0, bottom: 1, left: 0, right: 1 });
+      await expectAsync(postMaestro({ name: SS_NAME, sessionId: SID, ignoreRegions }))
+        .toBeRejectedWithError(/ignoreRegions exceeds maximum of 50/);
+    });
+
+    it('accepts the boundary case of 50+50+50 = 150 total regions', async () => {
+      spyOn(percy, 'upload').and.resolveTo();
+      await percy.start();
+      let one = { top: 0, bottom: 1, left: 0, right: 1 };
+      await expectAsync(postMaestro({
+        name: SS_NAME, sessionId: SID, platform: 'android',
+        regions: new Array(50).fill(one),
+        ignoreRegions: new Array(50).fill(one),
+        considerRegions: new Array(50).fill(one)
+      })).toBeResolvedTo(jasmine.objectContaining({ success: true }));
+    });
+
+    it('rejects ignoreRegions element selector value longer than 512 chars', async () => {
+      await percy.start();
+      await expectAsync(postMaestro({
+        name: SS_NAME, sessionId: SID, platform: 'android',
+        ignoreRegions: [{ element: { 'resource-id': 'a'.repeat(513) } }]
+      })).toBeRejectedWithError(/exceeds maximum length of 512/);
+    });
+
+    it('emits coordinate ignoreRegions under payload.ignoredElementsData.ignoreElementsData', async () => {
+      spyOn(percy, 'upload').and.resolveTo();
+      await percy.start();
+
+      await expectAsync(postMaestro({
+        name: SS_NAME, sessionId: SID, platform: 'android',
+        ignoreRegions: [{ top: 10, bottom: 60, left: 20, right: 80 }]
+      })).toBeResolvedTo(jasmine.objectContaining({ success: true }));
+
+      let [payload] = percy.upload.calls.mostRecent().args;
+      expect(payload.ignoredElementsData).toEqual({
+        ignoreElementsData: [{ coOrdinates: { top: 10, left: 20, bottom: 60, right: 80 } }]
+      });
+      expect(payload.consideredElementsData).toBeUndefined();
+    });
+
+    it('emits coordinate considerRegions under payload.consideredElementsData.considerElementsData', async () => {
+      spyOn(percy, 'upload').and.resolveTo();
+      await percy.start();
+
+      await expectAsync(postMaestro({
+        name: SS_NAME, sessionId: SID, platform: 'android',
+        considerRegions: [{ top: 5, bottom: 15, left: 5, right: 25 }]
+      })).toBeResolvedTo(jasmine.objectContaining({ success: true }));
+
+      let [payload] = percy.upload.calls.mostRecent().args;
+      expect(payload.consideredElementsData).toEqual({
+        considerElementsData: [{ coOrdinates: { top: 5, left: 5, bottom: 15, right: 25 } }]
+      });
+      expect(payload.ignoredElementsData).toBeUndefined();
+    });
+
+    it('emits all three region inputs to three parallel payload fields', async () => {
+      spyOn(percy, 'upload').and.resolveTo();
+      await percy.start();
+
+      await expectAsync(postMaestro({
+        name: SS_NAME, sessionId: SID, platform: 'android',
+        regions: [{ top: 0, bottom: 10, left: 0, right: 10, algorithm: 'ignore' }],
+        ignoreRegions: [{ top: 20, bottom: 30, left: 20, right: 30 }],
+        considerRegions: [{ top: 40, bottom: 50, left: 40, right: 50 }]
+      })).toBeResolvedTo(jasmine.objectContaining({ success: true }));
+
+      let [payload] = percy.upload.calls.mostRecent().args;
+      expect(payload.regions).toEqual([{
+        elementSelector: { boundingBox: { x: 0, y: 0, width: 10, height: 10 } },
+        algorithm: 'ignore'
+      }]);
+      expect(payload.ignoredElementsData).toEqual({
+        ignoreElementsData: [{ coOrdinates: { top: 20, left: 20, bottom: 30, right: 30 } }]
+      });
+      expect(payload.consideredElementsData).toEqual({
+        considerElementsData: [{ coOrdinates: { top: 40, left: 40, bottom: 50, right: 50 } }]
+      });
+    });
+
     it('accepts a coordinate-only android request and forwards a transformed region', async () => {
       spyOn(percy, 'upload').and.resolveTo();
       await percy.start();

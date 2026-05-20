@@ -362,33 +362,38 @@ export function createPercyServer(percy, port) {
       }
 
       // Validate regions input shape early (before file I/O and ADB work) so
-      // malformed requests don't consume resolver/relay work.
-      if (req.body.regions !== undefined) {
-        if (!Array.isArray(req.body.regions)) {
-          throw new ServerError(400, 'regions must be an array');
+      // malformed requests don't consume resolver/relay work. Three parallel
+      // input arrays share the same per-item shape; algorithm semantics differ
+      // per array (regions only — ignoreRegions/considerRegions are implicit).
+      const REGION_INPUT_FIELDS = ['regions', 'ignoreRegions', 'considerRegions'];
+      for (let fieldName of REGION_INPUT_FIELDS) {
+        let input = req.body[fieldName];
+        if (input === undefined) continue;
+        if (!Array.isArray(input)) {
+          throw new ServerError(400, `${fieldName} must be an array`);
         }
-        if (req.body.regions.length > 50) {
-          throw new ServerError(400, 'regions exceeds maximum of 50');
+        if (input.length > 50) {
+          throw new ServerError(400, `${fieldName} exceeds maximum of 50`);
         }
-        for (let [idx, region] of req.body.regions.entries()) {
+        for (let [idx, region] of input.entries()) {
           if (region && region.element !== undefined) {
             if (typeof region.element !== 'object' || region.element === null || Array.isArray(region.element)) {
-              throw new ServerError(400, `regions[${idx}].element must be an object`);
+              throw new ServerError(400, `${fieldName}[${idx}].element must be an object`);
             }
             let keys = Object.keys(region.element);
             if (keys.length !== 1) {
-              throw new ServerError(400, `regions[${idx}].element must have exactly one selector key`);
+              throw new ServerError(400, `${fieldName}[${idx}].element must have exactly one selector key`);
             }
             let [key] = keys;
             if (!SELECTOR_KEYS_WHITELIST.includes(key)) {
-              throw new ServerError(400, `regions[${idx}].element: unsupported selector key "${key}" (allowed: ${SELECTOR_KEYS_WHITELIST.join(', ')})`);
+              throw new ServerError(400, `${fieldName}[${idx}].element: unsupported selector key "${key}" (allowed: ${SELECTOR_KEYS_WHITELIST.join(', ')})`);
             }
             let value = region.element[key];
             if (typeof value !== 'string' || value.length === 0) {
-              throw new ServerError(400, `regions[${idx}].element.${key} must be a non-empty string`);
+              throw new ServerError(400, `${fieldName}[${idx}].element.${key} must be a non-empty string`);
             }
             if (value.length > 512) {
-              throw new ServerError(400, `regions[${idx}].element.${key} exceeds maximum length of 512`);
+              throw new ServerError(400, `${fieldName}[${idx}].element.${key} exceeds maximum length of 512`);
             }
           }
         }
@@ -572,74 +577,107 @@ export function createPercyServer(percy, port) {
       // regions don't depend on the resolver and always pass through.
       //
       // ───────────────────────────────────────────────────────────────────
-      if (req.body.regions && Array.isArray(req.body.regions)) {
-        let resolvedRegions = [];
-        let elementRegionCount = req.body.regions.filter(r => r && r.element).length;
-        let cachedDump = null;
-        let elementSkipWarned = false;
+      // Shared resolver state across regions/ignoreRegions/considerRegions —
+      // one hierarchy dump per request, one warn-once skip notice.
+      let cachedDump = null;
+      let elementSkipWarned = false;
+      const totalElementRegionCount = REGION_INPUT_FIELDS.reduce((sum, f) => {
+        let arr = req.body[f];
+        return sum + (Array.isArray(arr) ? arr.filter(r => r && r.element).length : 0);
+      }, 0);
 
-        for (let region of req.body.regions) {
-          let resolved = null;
-
-          if (region.top != null && region.bottom != null && region.left != null && region.right != null) {
-            // Coordinate-based region
-            resolved = {
-              elementSelector: {
-                boundingBox: {
-                  x: region.left,
-                  y: region.top,
-                  width: region.right - region.left,
-                  height: region.bottom - region.top
-                }
-              },
-              algorithm: region.algorithm || 'ignore'
-            };
-          } else if (region.element) {
-            // Lazy dump + memoize result (including errors), then per-region firstMatch.
-            // sessionId is threaded through so the iOS HTTP path can scrub-log
-            // a correlation tag (sid prefix) without leaking the full id.
-            if (cachedDump === null) {
-              // Thread the per-Percy gRPC client cache so the Android gRPC
-              // primary path can reuse channels across snapshots in the same
-              // session (D9 of 2026-05-07-002 plan). iOS path ignores it.
-              cachedDump = await maestroDump({
-                platform,
-                sessionId,
-                grpcClientCache: percy.grpcClientCache
-              });
-            }
-            if (cachedDump.kind !== 'hierarchy') {
-              if (!elementSkipWarned) {
-                percy.log.warn(
-                  `Element-region resolver ${cachedDump.kind} (${cachedDump.reason}) — skipping ${elementRegionCount} element regions`
-                );
-                elementSkipWarned = true;
-              }
-              continue;
-            }
-            let bbox = maestroFirstMatch(cachedDump.nodes, region.element);
-            if (!bbox) {
-              percy.log.warn(`Element region not found: ${JSON.stringify(region.element)} — skipping`);
-              continue;
-            }
-            resolved = {
-              elementSelector: { boundingBox: bbox },
-              algorithm: region.algorithm || 'ignore'
-            };
-          } else {
-            percy.log.warn('Invalid region format, skipping');
-            continue;
+      // Resolve one region input to {x, y, width, height}, or null when the
+      // region is invalid or the resolver couldn't match it. Mutates the
+      // shared cachedDump / warn-flag state above.
+      async function resolveBbox(region) {
+        if (region.top != null && region.bottom != null && region.left != null && region.right != null) {
+          return {
+            x: region.left,
+            y: region.top,
+            width: region.right - region.left,
+            height: region.bottom - region.top
+          };
+        }
+        if (region.element) {
+          if (cachedDump === null) {
+            // Thread the per-Percy gRPC client cache so the Android gRPC
+            // primary path can reuse channels across snapshots in the same
+            // session (D9 of 2026-05-07-002 plan). iOS path ignores it.
+            cachedDump = await maestroDump({
+              platform,
+              sessionId,
+              grpcClientCache: percy.grpcClientCache
+            });
           }
+          if (cachedDump.kind !== 'hierarchy') {
+            if (!elementSkipWarned) {
+              percy.log.warn(
+                `Element-region resolver ${cachedDump.kind} (${cachedDump.reason}) — skipping ${totalElementRegionCount} element regions`
+              );
+              elementSkipWarned = true;
+            }
+            return null;
+          }
+          let bbox = maestroFirstMatch(cachedDump.nodes, region.element);
+          if (!bbox) {
+            percy.log.warn(`Element region not found: ${JSON.stringify(region.element)} — skipping`);
+            return null;
+          }
+          return bbox;
+        }
+        percy.log.warn('Invalid region format, skipping');
+        return null;
+      }
 
+      // regions[]: comparison-shape items with algorithm. Default algorithm is
+      // 'ignore' (back-compat with SDK ≤ 0.3).
+      if (Array.isArray(req.body.regions)) {
+        let resolvedRegions = [];
+        for (let region of req.body.regions) {
+          let bbox = await resolveBbox(region);
+          if (!bbox) continue;
+          let resolved = {
+            elementSelector: { boundingBox: bbox },
+            algorithm: region.algorithm || 'ignore'
+          };
           if (region.configuration) resolved.configuration = region.configuration;
           if (region.padding) resolved.padding = region.padding;
           if (region.assertion) resolved.assertion = region.assertion;
           resolvedRegions.push(resolved);
         }
+        if (resolvedRegions.length > 0) payload.regions = resolvedRegions;
+      }
 
-        if (resolvedRegions.length > 0) {
-          payload.regions = resolvedRegions;
+      // ignoreRegions[] and considerRegions[]: parallel top-level payload
+      // fields. Each item is shaped per regionsSchema (config.js:792) —
+      // { coOrdinates: {top, left, bottom, right} } with an optional selector
+      // hint preserved when the caller supplied an element selector.
+      const REGION_OUTPUT_MAP = {
+        ignoreRegions: { payloadKey: 'ignoredElementsData', innerKey: 'ignoreElementsData' },
+        considerRegions: { payloadKey: 'consideredElementsData', innerKey: 'considerElementsData' }
+      };
+      for (let [inputField, { payloadKey, innerKey }] of Object.entries(REGION_OUTPUT_MAP)) {
+        let input = req.body[inputField];
+        if (!Array.isArray(input)) continue;
+        let resolved = [];
+        for (let region of input) {
+          let bbox = await resolveBbox(region);
+          if (!bbox) continue;
+          let item = {
+            coOrdinates: {
+              top: bbox.y,
+              left: bbox.x,
+              bottom: bbox.y + bbox.height,
+              right: bbox.x + bbox.width
+            }
+          };
+          if (region.element) {
+            let [key] = Object.keys(region.element);
+            item.selector = `${key}=${region.element[key]}`;
+          }
+          resolved.push(item);
         }
+        if (resolved.length > 0) payload[payloadKey] = { [innerKey]: resolved };
       }
 
       // Upload via percy — sync or fire-and-forget
