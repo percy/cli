@@ -11,6 +11,16 @@ import install from './install.js';
 import Session from './session.js';
 import Page from './page.js';
 
+// Chrome features Percy disables for v143 new-headless asset discovery.
+const DISABLED_FEATURES = [
+  'Translate', // suppress translate prompt overlay
+  'OptimizationGuideModelDownloading', // suppress background model fetches
+  'IsolateOrigins', // [headless-only] keep cross-origin sub-resources on the page session for CDP capture
+  'site-per-process', // companion to IsolateOrigins
+  'HttpsFirstBalancedModeAutoEnable', // allow HTTP customer URLs (CI / local dev / staging)
+  'LocalNetworkAccessChecks' // allow loopback/RFC1918 sub-resources (Chrome 143 LNA gating)
+];
+
 export class Browser extends EventEmitter {
   log = logger('core:browser');
   sessions = new Map();
@@ -21,8 +31,7 @@ export class Browser extends EventEmitter {
   #lastid = 0;
 
   args = [
-    // disable the translate popup and optimization downloads
-    '--disable-features=Translate,OptimizationGuideModelDownloading',
+    `--disable-features=${DISABLED_FEATURES.join(',')}`,
     // disable several subsystems which run network requests in the background
     '--disable-background-networking',
     // disable task throttling of timer tasks from background pages
@@ -300,9 +309,11 @@ export class Browser extends EventEmitter {
         if (match) cleanup(() => resolve(match[1]));
       };
 
-      let handleExitClose = () => handleError();
+      let handleExitClose = () => handleError(
+        new Error('Browser exited before devtools address')
+      );
       let handleError = error => cleanup(() => reject(new Error(
-        `Failed to launch browser. ${error?.message ?? ''}\n${stderr}'\n\n`
+        `Failed to launch browser. ${error.message}\n${stderr}'\n\n`
       )));
 
       let cleanup = callback => {
