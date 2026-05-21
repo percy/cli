@@ -10,6 +10,24 @@ import postBuildEvents from './post-build-event.js';
 import flushSnapshots from './flush-snapshots.js';
 import captureAutomateScreenshot from './post-screenshot.js';
 import getResponsiveWidths from './get-responsive-widths.js';
+import { waitForReadyScript, getReadinessConfig, isReadinessDisabled } from './serialize-dom.js';
+
+// Iframe depth constants shared with @percy/dom's serialize-frames. Kept
+// here so external Percy SDKs (Capybara, Cypress, Playwright, etc.) can
+// clamp their own pre-CLI configuration to the same bounds the CLI enforces.
+//
+// MIRROR: must match @percy/dom/src/serialize-frames.js. The pair is kept
+// duplicated (rather than imported across the package boundary) because the
+// previous cross-package import broke Node 14 CI; the parity test below
+// enforces alignment instead. Don't change one without changing the other.
+const DEFAULT_MAX_IFRAME_DEPTH = 3;
+const HARD_MAX_IFRAME_DEPTH = 10;
+
+function clampIframeDepth(raw) {
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n < 1) return DEFAULT_MAX_IFRAME_DEPTH;
+  return Math.min(Math.floor(n), HARD_MAX_IFRAME_DEPTH);
+}
 
 export {
   logger,
@@ -23,7 +41,13 @@ export {
   flushSnapshots,
   captureAutomateScreenshot,
   postBuildEvents,
-  getResponsiveWidths
+  getResponsiveWidths,
+  DEFAULT_MAX_IFRAME_DEPTH,
+  HARD_MAX_IFRAME_DEPTH,
+  clampIframeDepth,
+  waitForReadyScript,
+  getReadinessConfig,
+  isReadinessDisabled
 };
 
 // export the namespace by default

@@ -246,7 +246,7 @@ describe('serializeCSSOM', () => {
         const baseContent = document.querySelector('#content');
         baseContent.innerHTML = '<input type="text>';
         const serialized = serializeDOM();
-        expect(serialized.warnings).toEqual(['Skipping `styleSheets` as it is not supported.']);
+        expect(serialized.warnings).toContain('Skipping `styleSheets` as it is not supported.');
       });
     });
   });
@@ -458,6 +458,96 @@ describe('serializeCSSOM', () => {
         }
       }
       expect(found).toBe(false);
+    });
+  });
+
+  describe('regression: cloned <style> text-node duplication', () => {
+    // serializeCSSOM decides whether to re-serialize each in-memory CSSOM
+    // stylesheet via styleSheetsMatch(liveSheet, cloneSheet). Cloned <style>
+    // elements in real snapshots can end up with the original text node
+    // appended twice (clone-dom assigns clone.textContent = ... and the
+    // subsequent generic walkTree re-clones the original text node). The
+    // parsed cloneSheet then has 2x the rules of liveSheet.
+    //
+    // Strict length equality (`lenA !== lenB`) treats that as a mismatch
+    // and forces re-serialization via Array.from(liveSheet.cssRules).map(
+    // r => r.cssText), which is NOT semantically identity-preserving:
+    // Chromium expands `all: initial` into hundreds of longhands and
+    // emits logical-property longhands (border-end-end-radius: initial,
+    // ...) AFTER the shorthand it sat next to in source, silently
+    // overriding `border-radius: var(--x)` with 0.
+    //
+    // styleSheetsMatch must therefore tolerate lenB > lenA when every
+    // live rule still appears in the clone (re-serialization is only
+    // required when the live sheet has rules the clone is missing).
+
+    it('skips re-serialization when clone <style> text duplicates the live rules — preserves `all: initial; border-radius: var(--x)` semantics', () => {
+      withExample('<div class="box"></div>', { withShadow: false });
+      withCSSOM('.box { all: initial; border-radius: var(--x); }', undefined, { withShadow: false });
+
+      const liveStyle = document.getElementById('test-style');
+      liveStyle.setAttribute('data-percy-element-id', 'dup-regression');
+      const liveRuleText = liveStyle.sheet.cssRules[0].cssText;
+
+      const clone = document.createDocumentFragment();
+      const cloneOwner = document.createElement('style');
+      cloneOwner.setAttribute('data-percy-element-id', 'dup-regression');
+      // Duplicate the source rule — what clone-dom currently produces.
+      // styleSheetFromNode will parse this into a sheet with 2 rules,
+      // while the live sheet has 1.
+      cloneOwner.textContent = liveRuleText + '\n' + liveRuleText;
+      clone.appendChild(cloneOwner);
+
+      serializeCSSOM({
+        dom: document,
+        clone,
+        resources: new Set(),
+        cache: new Map(),
+        warnings: new Set()
+      });
+
+      // Re-serialization would have removed cloneOwner and inserted a new
+      // <style data-percy-cssom-serialized="true"> in its place. With the
+      // correct match logic, cloneOwner stays put with its source text
+      // intact, so the cascade-correct shorthand survives the snapshot.
+      expect(cloneOwner.parentNode).toBe(clone);
+      expect(cloneOwner.textContent).toBe(liveRuleText + '\n' + liveRuleText);
+      expect(clone.querySelector('[data-percy-cssom-serialized]')).toBeNull();
+    });
+
+    it('still re-serializes when live sheet has rules the clone is missing (CSSOM insertRule case)', () => {
+      // Sanity-check the other direction: when live has MORE rules than
+      // clone (e.g. a rule was added via sheet.insertRule at runtime),
+      // re-serialization must still run so the snapshot captures it.
+      withExample('<div class="box"></div>', { withShadow: false });
+      withCSSOM(
+        ['.live-only { color: red; }', '.box { width: 10px; }'],
+        undefined,
+        { withShadow: false }
+      );
+
+      const liveStyle = document.getElementById('test-style');
+      liveStyle.setAttribute('data-percy-element-id', 'insert-rule-case');
+
+      const clone = document.createDocumentFragment();
+      const cloneOwner = document.createElement('style');
+      cloneOwner.setAttribute('data-percy-element-id', 'insert-rule-case');
+      // Clone only has one of the two live rules — the second was added
+      // via CSSOM (insertRule) after the <style> was authored.
+      cloneOwner.textContent = '.box { width: 10px; }';
+      clone.appendChild(cloneOwner);
+
+      serializeCSSOM({
+        dom: document,
+        clone,
+        resources: new Set(),
+        cache: new Map(),
+        warnings: new Set()
+      });
+
+      const reserialized = clone.querySelector('[data-percy-cssom-serialized]');
+      expect(reserialized).not.toBeNull();
+      expect(reserialized.textContent).toContain('.live-only');
     });
   });
 });

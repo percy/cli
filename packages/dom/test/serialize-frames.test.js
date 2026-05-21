@@ -1,16 +1,21 @@
 import { when } from 'interactor.js';
 import { assert, withExample, parseDOM, platforms, platformDOM, getTestBrowser, chromeBrowser, firefoxBrowser } from './helpers';
 import serializeDOM from '../src/serialize-dom';
-import { resetPolicy } from '../src/serialize-frames';
+import { resetPolicy, serializeFrames } from '../src/serialize-frames';
 
 describe('serializeFrames', () => {
   let serialized, cache = { shadow: {}, plain: {} };
 
-  const getFrame = (id, dom = document) => when(() => {
+  const getFrame = (id, dom = document, ready = null) => when(() => {
     let $frame = dom.getElementById(id);
     let accessible = !!$frame.contentDocument;
     let loaded = accessible && $frame.contentWindow.performance.timing.loadEventEnd;
-    assert(!accessible || loaded, `#${id} did not load in time`);
+    // For srcdoc iframes in Firefox, `loadEventEnd` can fire for the placeholder
+    // about:blank document before the srcdoc content commits. A caller-supplied
+    // `ready(contentDocument)` predicate closes that race by waiting for the
+    // expected post-srcdoc content (e.g. an <input/>) to actually be queryable.
+    let contentReady = !ready || (accessible && ready($frame.contentDocument));
+    assert(!accessible || (loaded && contentReady), `#${id} did not load in time`);
     return $frame;
   }, 5000);
 
@@ -33,15 +38,15 @@ describe('serializeFrames', () => {
 
     for (const platform of platforms) {
       let dom = platformDOM(platform);
-      let $frameInput = await getFrame('frame-input', dom);
+      let $frameInput = await getFrame('frame-input', dom, d => d.querySelector('input'));
       $frameInput.contentDocument.querySelector('input').value = 'iframe with an input';
 
-      let $frameJS = await getFrame('frame-js-no-src', dom);
+      let $frameJS = await getFrame('frame-js-no-src', dom, d => d.body);
       $frameJS.contentDocument.body.innerHTML = '<p>generated iframe</p><canvas id="canvas"/>';
       let $ctx = $frameJS.contentDocument.getElementById('canvas').getContext('2d');
       $ctx.fillRect(0, 0, 10, 10);
 
-      let $frameEmpty = await getFrame('frame-empty', dom);
+      let $frameEmpty = await getFrame('frame-empty', dom, d => d.querySelector('input'));
       $frameEmpty.contentDocument.querySelector('input').value = 'no document element';
       Object.defineProperty($frameEmpty.contentDocument, 'documentElement', { value: null });
 
@@ -301,6 +306,109 @@ describe('serializeFrames', () => {
       expect($('#frame-inject')).toHaveSize(0);
     });
 
+    it(`${platform}: warns for fully sandboxed iframes`, () => {
+      withExample('<iframe id="frame-sandbox-full" sandbox srcdoc="<p>test</p>"></iframe>');
+
+      let result = serializeDOM();
+      expect(result.warnings).toContain(
+        jasmine.stringMatching(/Sandboxed iframe.*frame-sandbox-full.*has no permissions/)
+      );
+    });
+
+    it(`${platform}: warns for sandboxed iframe without allow-scripts`, () => {
+      withExample('<iframe id="frame-sandbox-no-scripts" sandbox="allow-same-origin" srcdoc="<p>test</p>"></iframe>');
+
+      let result = serializeDOM();
+      expect(result.warnings).toContain(
+        jasmine.stringMatching(/Sandboxed iframe.*frame-sandbox-no-scripts.*scripts disabled/)
+      );
+    });
+
+    it(`${platform}: warns for sandboxed iframe without allow-same-origin`, () => {
+      withExample('<iframe id="frame-sandbox-no-origin" sandbox="allow-scripts" srcdoc="<p>test</p>"></iframe>');
+
+      let result = serializeDOM();
+      expect(result.warnings).toContain(
+        jasmine.stringMatching(/Sandboxed iframe.*frame-sandbox-no-origin.*allow-same-origin/)
+      );
+    });
+
+    it(`${platform}: does not warn for sandbox with allow-scripts and allow-same-origin`, () => {
+      withExample('<iframe id="frame-sandbox-ok" sandbox="allow-scripts allow-same-origin" srcdoc="<p>test</p>"></iframe>');
+
+      let result = serializeDOM();
+      let sandboxWarnings = result.warnings.filter(w => w.includes('frame-sandbox-ok'));
+      expect(sandboxWarnings).toEqual([]);
+    });
+
+    it(`${platform}: does not warn for iframes without sandbox attribute`, () => {
+      withExample('<iframe id="frame-no-sandbox" srcdoc="<p>test</p>"></iframe>');
+
+      let result = serializeDOM();
+      let sandboxWarnings = result.warnings.filter(w => w.includes('Sandboxed iframe'));
+      expect(sandboxWarnings).toEqual([]);
+    });
+
+    it(`${platform}: warns for sandboxed iframe without id using src as label`, () => {
+      withExample('<iframe src="about:blank" sandbox srcdoc="<p>test</p>"></iframe>');
+
+      let result = serializeDOM();
+      expect(result.warnings).toContain(
+        jasmine.stringMatching(/Sandboxed iframe.*has no permissions/)
+      );
+    });
+
+    it(`${platform}: warns for sandboxed iframe without id or src using percyElementId or unknown as label`, () => {
+      withExample('<iframe sandbox srcdoc="<p>test</p>"></iframe>');
+
+      let result = serializeDOM();
+      expect(result.warnings).toContain(
+        jasmine.stringMatching(/Sandboxed iframe.*has no permissions/)
+      );
+    });
+
+    it(`${platform}: removes iframes with data-percy-ignore`, () => {
+      withExample('<iframe id="frame-ignored" data-percy-ignore srcdoc="<p>ignored</p>"></iframe>' +
+        '<iframe id="frame-kept" srcdoc="<p>kept</p>"></iframe>');
+
+      let result = serializeDOM();
+      let $parsed = parseDOM(result.html, platform);
+      expect($parsed('#frame-ignored')).toHaveSize(0);
+      expect($parsed('#frame-kept')).toHaveSize(1);
+    });
+
+    it(`${platform}: removes iframes matching ignoreIframeSelectors`, () => {
+      withExample('<iframe id="frame-ad" class="ad-frame" srcdoc="<p>ad</p>"></iframe>' +
+        '<iframe id="frame-track" data-tracking="true" srcdoc="<p>track</p>"></iframe>' +
+        '<iframe id="frame-normal" srcdoc="<p>normal</p>"></iframe>');
+
+      let result = serializeDOM({ ignoreIframeSelectors: ['.ad-frame', '[data-tracking]'] });
+      let $parsed = parseDOM(result.html, platform);
+      expect($parsed('#frame-ad')).toHaveSize(0);
+      expect($parsed('#frame-track')).toHaveSize(0);
+      expect($parsed('#frame-normal')).toHaveSize(1);
+    });
+
+    it(`${platform}: handles invalid selectors in ignoreIframeSelectors gracefully`, () => {
+      withExample('<iframe id="frame-ok" srcdoc="<p>ok</p>"></iframe>');
+
+      let result = serializeDOM({ ignoreIframeSelectors: ['[invalid==='] });
+      let $parsed = parseDOM(result.html, platform);
+      expect($parsed('#frame-ok')).toHaveSize(1);
+    });
+
+    it(`${platform}: does not remove iframes without data-percy-ignore`, () => {
+      withExample('<div data-percy-ignore>' +
+        '<iframe id="frame-inside-ignore-div" srcdoc="<p>kept</p>"></iframe>' +
+        '</div>' +
+        '<iframe id="frame-outside" srcdoc="<p>kept</p>"></iframe>');
+
+      let result = serializeDOM();
+      let $parsed = parseDOM(result.html, platform);
+      expect($parsed('#frame-inside-ignore-div')).toHaveSize(1);
+      expect($parsed('#frame-outside')).toHaveSize(1);
+    });
+
     if (platform === 'plain') {
       it('uses Trusted Types policy to create srcdoc when available', () => {
         let createHTML = jasmine.createSpy('createHTML').and.callFake(html => html);
@@ -382,5 +490,67 @@ describe('serializeFrames', () => {
         }
       });
     }
+  });
+
+  describe('iframe depth limit', () => {
+    it('clamps non-finite or out-of-range maxIframeDepth to the default', () => {
+      // Non-finite (NaN), zero, and negative values must fall back to
+      // DEFAULT_MAX_IFRAME_DEPTH (3) — exercises clampIframeDepth's invalid path.
+      withExample('<iframe id="cl-frame" srcdoc="<input/>"></iframe>');
+      // No await needed — even if the iframe isn't fully loaded, the call shouldn't throw.
+      expect(() => serializeDOM({ maxIframeDepth: 'not a number' })).not.toThrow();
+      expect(() => serializeDOM({ maxIframeDepth: 0 })).not.toThrow();
+      expect(() => serializeDOM({ maxIframeDepth: -5 })).not.toThrow();
+    });
+
+    it('caps user-supplied maxIframeDepth at the hard maximum (10)', () => {
+      // Values above HARD_MAX_IFRAME_DEPTH (10) get clamped to 10.
+      withExample('<iframe id="cap-frame" srcdoc="<input/>"></iframe>');
+      let result = serializeDOM({ maxIframeDepth: 999 });
+      expect(result).toBeDefined();
+      expect(result.html).toBeDefined();
+    });
+
+    it('skips recursion into iframes past the depth limit', async () => {
+      // With maxIframeDepth=1, the very first iframe (depth 0) trips the
+      // iframeDepth+1 >= 1 guard and is skipped — its srcdoc is left as
+      // the original literal markup rather than being replaced with
+      // serialized HTML (which would contain a <!DOCTYPE>).
+      withExample('<iframe id="depth-skip" srcdoc="<p>untouched</p>"></iframe>');
+      await getFrame('depth-skip');
+      let result = serializeDOM({ maxIframeDepth: 1 });
+      // Recursion would have replaced srcdoc with serialized HTML; absence
+      // of <!DOCTYPE inside the iframe's srcdoc proves recursion was skipped.
+      let match = result.html.match(/id="depth-skip"\s+srcdoc="([^"]*)"/);
+      expect(match).not.toBeNull();
+      expect(match[1]).not.toContain('DOCTYPE');
+      expect(match[1]).toContain('untouched');
+    });
+  });
+
+  describe('serializeFrames direct invocation', () => {
+    it('uses the iframeDepth=0 default when called without it', () => {
+      // serializeDOM always passes iframeDepth, but a direct caller (test, or
+      // future consumer) can omit it. The destructure default exists for
+      // exactly this case and must be reachable in tests.
+      withExample('', { withShadow: false });
+      let dom = document.implementation.createHTMLDocument('TopFrame');
+      // nosemgrep: javascript.browser.security.insecure-document-method.insecure-document-method
+      dom.body.innerHTML = '<iframe id="dd" srcdoc="<p>x</p>" data-percy-element-id="_dd"></iframe>';
+      let clone = document.implementation.createHTMLDocument('Clone');
+      // nosemgrep: javascript.browser.security.insecure-document-method.insecure-document-method
+      clone.body.innerHTML = dom.body.innerHTML;
+
+      // No iframeDepth in the args → exercises the `= 0` default.
+      expect(() => serializeFrames({
+        dom,
+        clone,
+        warnings: new Set(),
+        resources: new Set(),
+        enableJavaScript: false,
+        disableShadowDOM: false,
+        maxIframeDepth: 3
+      })).not.toThrow();
+    });
   });
 });

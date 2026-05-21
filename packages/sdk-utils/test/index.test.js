@@ -648,4 +648,161 @@ describe('SDK Utils', () => {
       ]);
     });
   });
+
+  describe('iframe depth constants', () => {
+    let { DEFAULT_MAX_IFRAME_DEPTH, HARD_MAX_IFRAME_DEPTH, clampIframeDepth } = utils;
+
+    it('exposes the default and hard-cap depth values', () => {
+      expect(DEFAULT_MAX_IFRAME_DEPTH).toEqual(3);
+      expect(HARD_MAX_IFRAME_DEPTH).toEqual(10);
+    });
+
+    it('clamps a user-supplied depth to the hard cap', () => {
+      expect(clampIframeDepth(50)).toEqual(10);
+      expect(clampIframeDepth(11)).toEqual(10);
+      expect(clampIframeDepth(10)).toEqual(10);
+    });
+
+    it('passes through valid in-range values', () => {
+      expect(clampIframeDepth(1)).toEqual(1);
+      expect(clampIframeDepth(5)).toEqual(5);
+      expect(clampIframeDepth(9)).toEqual(9);
+    });
+
+    it('floors fractional values', () => {
+      expect(clampIframeDepth(3.7)).toEqual(3);
+    });
+
+    it('falls back to the default for invalid input', () => {
+      expect(clampIframeDepth(undefined)).toEqual(3);
+      expect(clampIframeDepth(null)).toEqual(3);
+      expect(clampIframeDepth(0)).toEqual(3);
+      expect(clampIframeDepth(-1)).toEqual(3);
+      expect(clampIframeDepth(NaN)).toEqual(3);
+      expect(clampIframeDepth('abc')).toEqual(3);
+    });
+
+    // Node-only: reads the dom file from disk via fs to enforce parity
+    // with @percy/sdk-utils' duplicated constants/clamp body. The karma
+    // (browser) runs of this suite have a `process` polyfill but no real
+    // `process.cwd`/`fs`, so guard on cwd being callable.
+    const isNode = typeof process !== 'undefined' &&
+      typeof process.cwd === 'function' &&
+      !!(process.versions && process.versions.node);
+    const itNode = isNode ? it : xit;
+
+    itNode('stays in lockstep with @percy/dom/src/serialize-frames.js', async () => {
+      // The constants + clampIframeDepth body are intentionally duplicated
+      // across @percy/sdk-utils and @percy/dom (cross-package import broke
+      // Node 14 CI in an earlier attempt). This test reads the dom source
+      // and asserts the literal values + clamp body match — drift fails
+      // loudly instead of silently.
+      const fs = await import('fs');
+      const path = await import('path');
+      // sdk-utils tests run with cwd at the sdk-utils package root.
+      const domSource = fs.readFileSync(
+        path.resolve(process.cwd(), '../dom/src/serialize-frames.js'),
+        'utf8'
+      );
+      expect(domSource).toContain('export const DEFAULT_MAX_IFRAME_DEPTH = 3;');
+      expect(domSource).toContain('export const HARD_MAX_IFRAME_DEPTH = 10;');
+      expect(domSource).toMatch(/function clampIframeDepth\(raw\) \{[^}]*Number\(raw\)[^}]*Number\.isFinite[^}]*DEFAULT_MAX_IFRAME_DEPTH[^}]*Math\.min\(Math\.floor\(n\), HARD_MAX_IFRAME_DEPTH\)/);
+    });
+  });
+
+  describe('waitForReadyScript(config[, flags])', () => {
+    let { waitForReadyScript } = utils;
+
+    it('returns JS code that calls PercyDOM.waitForReady with graceful fallback', () => {
+      let script = waitForReadyScript({ preset: 'balanced' });
+      expect(script).toContain('PercyDOM.waitForReady');
+      expect(script).toContain('"preset":"balanced"');
+    });
+
+    it('checks for PercyDOM.waitForReady existence before calling', () => {
+      let script = waitForReadyScript();
+      expect(script).toContain("typeof PercyDOM.waitForReady === 'function'");
+      expect(script).toContain("typeof PercyDOM !== 'undefined'");
+    });
+
+    it('generates callback variant for executeAsyncScript', () => {
+      let script = waitForReadyScript({ preset: 'fast' }, { callback: true });
+      expect(script).toContain('arguments[arguments.length - 1]');
+      expect(script).toContain('.then(');
+      expect(script).toContain('.catch(');
+      expect(script).toContain('done()');
+    });
+
+    it('callback variant catches errors gracefully', () => {
+      let script = waitForReadyScript({}, { callback: true });
+      expect(script).toContain('catch(function() { done(); })');
+      expect(script).toContain('} catch(e) { done(); }');
+    });
+
+    it('default variant returns the waitForReady result', () => {
+      let script = waitForReadyScript({ preset: 'strict' });
+      expect(script).toContain('return PercyDOM.waitForReady');
+      expect(script).not.toContain('arguments[arguments.length - 1]');
+    });
+
+    it('escapes U+2028 and U+2029 in interpolated config so older engines can parse the source', () => {
+      // U+2028 (LINE SEPARATOR) and U+2029 (PARAGRAPH SEPARATOR) are valid in JSON strings but
+      // were illegal in JS source string literals before ES2019.
+      let script = waitForReadyScript({
+        readySelectors: ['header\u2028footer', 'main\u2029aside']
+      });
+      expect(script).toContain('\\u2028');
+      expect(script).toContain('\\u2029');
+      // raw separators must not be present in the emitted source
+      expect(script.includes('\u2028')).toBe(false);
+      expect(script.includes('\u2029')).toBe(false);
+    });
+  });
+
+  describe('getReadinessConfig(snapshotOptions)', () => {
+    let { getReadinessConfig, percy } = utils;
+
+    it('returns empty object when no config exists (triggers balanced default)', () => {
+      percy.config = undefined;
+      expect(getReadinessConfig()).toEqual({});
+      expect(getReadinessConfig({})).toEqual({});
+    });
+
+    it('returns global readiness config from percy.config', () => {
+      percy.config = { snapshot: { readiness: { preset: 'strict' } } };
+      expect(getReadinessConfig()).toEqual({ preset: 'strict' });
+      percy.config = undefined;
+    });
+
+    it('returns per-snapshot readiness over global config', () => {
+      percy.config = { snapshot: { readiness: { preset: 'balanced' } } };
+      expect(getReadinessConfig({ readiness: { preset: 'fast' } })).toEqual({ preset: 'fast' });
+      percy.config = undefined;
+    });
+  });
+
+  describe('isReadinessDisabled(snapshotOptions)', () => {
+    let { isReadinessDisabled, percy } = utils;
+
+    it('returns false when no config (readiness is ON by default)', () => {
+      percy.config = undefined;
+      expect(isReadinessDisabled()).toBe(false);
+    });
+
+    it('returns true when preset is disabled', () => {
+      percy.config = { snapshot: { readiness: { preset: 'disabled' } } };
+      expect(isReadinessDisabled()).toBe(true);
+      percy.config = undefined;
+    });
+
+    it('returns true for per-snapshot disabled', () => {
+      expect(isReadinessDisabled({ readiness: { preset: 'disabled' } })).toBe(true);
+    });
+
+    it('returns false for any other preset', () => {
+      percy.config = { snapshot: { readiness: { preset: 'strict' } } };
+      expect(isReadinessDisabled()).toBe(false);
+      percy.config = undefined;
+    });
+  });
 });

@@ -1,6 +1,6 @@
 {
   "name": "@percy/core",
-  "version": "1.31.11-beta.0",
+  "version": "1.31.14",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -9,7 +9,7 @@
   },
   "publishConfig": {
     "access": "public",
-    "tag": "beta"
+    "tag": "latest"
   },
   "engines": {
     "node": ">=14"
@@ -30,6 +30,7 @@
     },
     "./utils": "./dist/utils.js",
     "./config": "./dist/config.js",
+    "./archive": "./dist/archive.js",
     "./install": "./dist/install.js",
     "./test/helpers": "./test/helpers/index.js",
     "./test/helpers/server": "./test/helpers/server.js"
@@ -43,12 +44,12 @@
     "test:types": "tsd"
   },
   "dependencies": {
-    "@percy/client": "1.31.11-beta.0",
-    "@percy/config": "1.31.11-beta.0",
-    "@percy/dom": "1.31.11-beta.0",
-    "@percy/logger": "1.31.11-beta.0",
-    "@percy/monitoring": "1.31.11-beta.0",
-    "@percy/webdriver-utils": "1.31.11-beta.0",
+    "@percy/client": "1.31.14",
+    "@percy/config": "1.31.14",
+    "@percy/dom": "1.31.14",
+    "@percy/logger": "1.31.14",
+    "@percy/monitoring": "1.31.14",
+    "@percy/webdriver-utils": "1.31.14",
     "@grpc/grpc-js": "^1.14.3",
     "@grpc/proto-loader": "^0.8.0",
     "content-disposition": "^0.5.4",
@@ -66,6 +67,6 @@
     "yaml": "^2.4.1"
   },
   "optionalDependencies": {
-    "@percy/cli-doctor": "1.31.11-beta.0"
+    "@percy/cli-doctor": "1.31.14"
   }
 }

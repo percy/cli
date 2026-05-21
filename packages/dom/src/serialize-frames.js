@@ -42,12 +42,66 @@ function setBaseURI(dom, warnings) {
   dom.querySelector('head')?.prepend($base);
 }
 
-// Recursively serializes iframe documents into srcdoc attributes.
-export function serializeFrames({ dom, clone, warnings, resources, enableJavaScript, disableShadowDOM }) {
+// Per-spec: nested iframes are captured up to a configurable depth (default 3).
+// Beyond that we skip recursion to bound runtime and prevent pathological pages
+// (e.g. cyclic iframe trees) from blowing the call stack.
+//
+// MIRROR: these constants + `clampIframeDepth` are duplicated in
+// @percy/sdk-utils/src/index.js (where external SDKs read them to clamp their
+// own pre-CLI config to the same bounds). The values must stay aligned —
+// drift is enforced by a parity test in @percy/sdk-utils/test/index.test.js.
+// Don't change one without changing the other.
+export const DEFAULT_MAX_IFRAME_DEPTH = 3;
+// Hard ceiling for any user-supplied maxIframeDepth — values above this are
+// clamped down. 10 levels is well past any realistic UI nesting and keeps
+// the recursion cost predictable.
+export const HARD_MAX_IFRAME_DEPTH = 10;
+
+function clampIframeDepth(raw) {
+  let n = Number(raw);
+  if (!Number.isFinite(n) || n < 1) return DEFAULT_MAX_IFRAME_DEPTH;
+  return Math.min(Math.floor(n), HARD_MAX_IFRAME_DEPTH);
+}
+
+// Recursively serializes iframe documents into srcdoc attributes. `iframeDepth`
+// is the current nesting level (0 at the top-level document, +1 per recursion).
+// The default fires for direct callers that don't set it (e.g. tests, or
+// any future caller that doesn't go through serializeDOM).
+export function serializeFrames({ dom, clone, warnings, resources, enableJavaScript, disableShadowDOM, ignoreIframeSelectors, forceShadowAsLightDOM, maxIframeDepth, iframeDepth = 0 }) {
+  maxIframeDepth = clampIframeDepth(maxIframeDepth);
+
   for (let frame of dom.querySelectorAll('iframe')) {
     let percyElementId = frame.getAttribute('data-percy-element-id');
     let cloneEl = clone.querySelector(`[data-percy-element-id="${percyElementId}"]`);
+
+    // Skip iframes with data-percy-ignore attribute or matching configured selectors
+    let matchesSelector = ignoreIframeSelectors?.length &&
+      ignoreIframeSelectors.some(sel => { try { return frame.matches(sel); } catch { return false; } });
+    if (frame.hasAttribute('data-percy-ignore') || matchesSelector) {
+      cloneEl?.remove();
+      continue;
+    }
     let builtWithJs = !frame.srcdoc && (!frame.src || frame.src.split(':')[0] === 'javascript');
+    let sandboxAttr = frame.getAttribute('sandbox');
+
+    // Warn about sandboxed iframes lacking the permissions Percy needs to
+    // render with fidelity. Fully-permissive sandboxes (allow-scripts +
+    // allow-same-origin) capture fine.
+    if (sandboxAttr !== null) {
+      let frameLabel = frame.id || frame.src || frame.getAttribute('name') || '<unnamed iframe>';
+      let tokens = sandboxAttr.split(/\s+/).filter(Boolean);
+
+      if (tokens.length === 0) {
+        warnings.add(`Sandboxed iframe "${frameLabel}" has no permissions — content may not render with full fidelity in Percy`);
+      } else {
+        if (!tokens.includes('allow-scripts')) {
+          warnings.add(`Sandboxed iframe "${frameLabel}" has scripts disabled — JS-dependent content will not render in Percy`);
+        }
+        if (!tokens.includes('allow-same-origin')) {
+          warnings.add(`Sandboxed iframe "${frameLabel}" lacks allow-same-origin — styles and resources may not load correctly in Percy`);
+        }
+      }
+    }
 
     // delete frames within the head since they usually break pages when
     // rerendered and do not effect the visuals of a page
@@ -62,12 +116,22 @@ export function serializeFrames({ dom, clone, warnings, resources, enableJavaScr
       // the frame has yet to load and wasn't built with js, it is unsafe to serialize
       if (!builtWithJs && !frame.contentWindow.performance.timing.loadEventEnd) continue;
 
-      // recersively serialize contents
+      // Bound recursion at the configured depth so nested iframes can't
+      // blow the call stack on pathological pages.
+      if (iframeDepth + 1 >= maxIframeDepth) continue;
+
+      // recersively serialize contents — propagate ignoreIframeSelectors,
+      // forceShadowAsLightDOM, and the depth counter so nested iframes/shadow
+      // trees honor the same user options as the top-level capture.
       let serialized = serializeDOM({
         domTransformation: (dom) => setBaseURI(dom, warnings),
         dom: frame.contentDocument,
         enableJavaScript,
-        disableShadowDOM
+        disableShadowDOM,
+        forceShadowAsLightDOM,
+        ignoreIframeSelectors,
+        maxIframeDepth,
+        iframeDepth: iframeDepth + 1
       });
 
       // append serialized warnings and resources

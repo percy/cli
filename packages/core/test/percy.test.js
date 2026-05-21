@@ -1,9 +1,10 @@
-import { logger, api, setupTest, createTestServer } from './helpers/index.js';
+import { logger, api, setupTest, createTestServer, fs } from './helpers/index.js';
 import { generatePromise, AbortController, base64encode } from '../src/utils.js';
 import Percy from '@percy/core';
 import Pako from 'pako';
 import DetectProxy from '@percy/client/detect-proxy';
 import { validateSnapshotOptions } from '../src/snapshot.js';
+import { Page, WAIT_FOR_CUSTOM_ELEMENTS_BODY } from '../src/page.js';
 
 describe('Percy', () => {
   let percy, server;
@@ -83,7 +84,8 @@ describe('Percy', () => {
       responsiveSnapshotCapture: false,
       ignoreCanvasSerializationErrors: false,
       ignoreStyleSheetSerializationErrors: false,
-      forceShadowAsLightDOM: false
+      forceShadowAsLightDOM: false,
+      ignoreIframeSelectors: []
     });
   });
 
@@ -110,7 +112,7 @@ describe('Percy', () => {
     });
 
     // expect required arguments are passed to PercyDOM.serialize
-    expect(evalSpy.calls.allArgs()[3]).toEqual(jasmine.arrayContaining([jasmine.anything(), { enableJavaScript: undefined, disableShadowDOM: true, domTransformation: undefined, reshuffleInvalidTags: undefined, ignoreCanvasSerializationErrors: undefined, ignoreStyleSheetSerializationErrors: undefined, forceShadowAsLightDOM: undefined, pseudoClassEnabledElements: undefined }]));
+    expect(evalSpy.calls.allArgs()[4]).toEqual(jasmine.arrayContaining([jasmine.anything(), { enableJavaScript: undefined, disableShadowDOM: true, domTransformation: undefined, reshuffleInvalidTags: undefined, ignoreCanvasSerializationErrors: undefined, ignoreStyleSheetSerializationErrors: undefined, ignoreIframeSelectors: undefined, forceShadowAsLightDOM: undefined, pseudoClassEnabledElements: undefined }]));
 
     expect(snapshot.url).toEqual('http://localhost:8000/');
     expect(snapshot.domSnapshot).toEqual(jasmine.objectContaining({
@@ -118,6 +120,224 @@ describe('Percy', () => {
         `<p>Hello there, Percy!</p>${img}`
       ) + '</body></html>'
     }));
+  });
+
+  it('Page._logShadowDebug forwards messages to log.debug with page meta', () => {
+    // Covers the callback Page passes to exposeClosedShadowRoots. Real
+    // snapshot tests don't fire it (no closed shadows in their HTML, no
+    // CDP error path), so exercise the method directly via Object.create
+    // with a stubbed log/meta.
+    let page = Object.create(Page.prototype);
+    let calls = [];
+    page.log = { debug: (msg, meta) => calls.push([msg, meta]) };
+    page.meta = { snapshot: { name: 'parity' } };
+    page._logShadowDebug('found 3 closed shadow root(s)');
+    expect(calls).toEqual([['found 3 closed shadow root(s)', page.meta]]);
+  });
+
+  it('skips closed-shadow CDP discovery when snapshot.disableShadowDOM is set', async () => {
+    // When the per-snapshot disableShadowDOM flag is true, page.snapshot()
+    // skips the exposeClosedShadowRoots CDP call. Verify by inspecting
+    // session.send call args — the DOM.getDocument send (driven only by
+    // exposeClosedShadowRoots) must not appear during this snapshot.
+    server.reply('/', () => [200, 'text/html', '<p>hi</p>']);
+    await percy.browser.launch();
+    let page = await percy.browser.page();
+    let sendSpy = spyOn(page.session, 'send').and.callThrough();
+    await page.goto('http://localhost:8000');
+    sendSpy.calls.reset();
+    await page.snapshot({ disableShadowDOM: true });
+    let domGetDocSends = sendSpy.calls.allArgs().filter(a => a[0] === 'DOM.getDocument');
+    expect(domGetDocSends.length).toBe(0);
+  });
+
+  it('skips pre-snapshot wait and closed-shadow capture when the session is already closed', async () => {
+    // Regression for the closedReason gate: when the page session has
+    // already terminated, page.snapshot() must skip the customElements
+    // wait + exposeClosedShadowRoots so the proper close error surfaces
+    // from the downstream insertPercyDom (which gates on the same
+    // session) rather than leaking a confusing CDP error first.
+    //
+    // network.idle() ALSO checks closedReason and throws upstream of the
+    // gate, so we stub it to resolve cleanly — the test must reach line
+    // 261 with closedReason already set in order to exercise the false
+    // branch of the if.
+    server.reply('/', () => [200, 'text/html', '<p>hi</p>']);
+    await percy.browser.launch();
+    let page = await percy.browser.page();
+    let sendSpy = spyOn(page.session, 'send').and.callThrough();
+    let evalSpy = spyOn(page, 'eval').and.callThrough();
+    await page.goto('http://localhost:8000');
+    sendSpy.calls.reset();
+    evalSpy.calls.reset();
+
+    spyOn(page.network, 'idle').and.resolveTo(undefined);
+    page.session.closedReason = 'session closed';
+
+    await expectAsync(page.snapshot({})).toBeRejected();
+
+    // Both pre-snapshot best-effort steps must have been skipped. Match the
+    // wait body by identity against the exported constant so a future
+    // rename of internals inside the body doesn't silently turn this
+    // filter into a no-op.
+    let waitEvals = evalSpy.calls.allArgs().filter(([body]) =>
+      body === WAIT_FOR_CUSTOM_ELEMENTS_BODY);
+    expect(waitEvals.length).toBe(0);
+    let domGetDocSends = sendSpy.calls.allArgs().filter(a => a[0] === 'DOM.getDocument');
+    expect(domGetDocSends.length).toBe(0);
+  });
+
+  it('continues the snapshot when the customElements wait throws', async () => {
+    // The wait is best-effort — a flaky page that errors during the
+    // customElements.whenDefined poll must not break the snapshot. Force
+    // the wait eval to throw and assert that (a) the snapshot still
+    // resolves and (b) the failure is captured in the debug log.
+    server.reply('/', () => [200, 'text/html', '<p>hi</p>']);
+    await percy.browser.launch();
+    let page = await percy.browser.page();
+    logger.loglevel('debug');
+    await page.goto('http://localhost:8000');
+
+    let originalEval = page.eval.bind(page);
+    spyOn(page, 'eval').and.callFake((body, ...args) => {
+      // Identity-match the exported constant rather than substring-matching
+      // implementation details inside the body — a rename of any internal
+      // local would otherwise silently turn this fake into a passthrough.
+      if (body === WAIT_FOR_CUSTOM_ELEMENTS_BODY) {
+        throw new Error('boom');
+      }
+      return originalEval(body, ...args);
+    });
+
+    await expectAsync(page.snapshot({ disableShadowDOM: true })).toBeResolved();
+
+    expect(logger.stderr).toEqual(jasmine.arrayContaining([
+      jasmine.stringMatching(/Custom elements wait failed: boom/)
+    ]));
+  });
+
+  it('runs readiness check before serializing when readiness option is set', async () => {
+    server.reply('/', () => [200, 'text/html', '<p>Hello Percy!</p>']);
+
+    await percy.browser.launch();
+    let page = await percy.browser.page();
+    await page.goto('http://localhost:8000');
+
+    percy.loglevel('debug');
+
+    let snapshot = await page.snapshot({
+      readiness: { preset: 'fast', timeoutMs: 1000 }
+    });
+
+    expect(logger.stderr).toEqual(jasmine.arrayContaining([
+      jasmine.stringMatching(/Waiting for readiness/)
+    ]));
+    expect(snapshot.url).toEqual('http://localhost:8000/');
+  });
+
+  it('skips readiness check when readiness preset is disabled', async () => {
+    server.reply('/', () => [200, 'text/html', '<p>Hello Percy!</p>']);
+
+    await percy.browser.launch();
+    let page = await percy.browser.page();
+    await page.goto('http://localhost:8000');
+
+    percy.loglevel('debug');
+
+    let snapshot = await page.snapshot({
+      readiness: { preset: 'disabled' }
+    });
+
+    expect(logger.stderr).not.toEqual(jasmine.arrayContaining([
+      jasmine.stringMatching(/Waiting for readiness/)
+    ]));
+    expect(snapshot.url).toEqual('http://localhost:8000/');
+  });
+
+  it('logs when readiness times out and continues to capture', async () => {
+    server.reply('/', () => [200, 'text/html', '<p>Hello Percy!</p>']);
+
+    await percy.browser.launch();
+    let page = await percy.browser.page();
+    await page.goto('http://localhost:8000');
+
+    percy.loglevel('debug');
+
+    // Force the readiness eval to resolve with a timed_out diagnostics
+    // payload while letting all other eval calls (PercyDOM injection,
+    // serialize, etc.) pass through untouched. The readiness eval is the
+    // only call whose first arg is a config object containing `preset`.
+    let originalEval = page.eval.bind(page);
+    spyOn(page, 'eval').and.callFake((fn, ...args) => {
+      if (args[0] && typeof args[0] === 'object' && 'preset' in args[0]) {
+        return Promise.resolve({ timed_out: true, total_duration_ms: 1234 });
+      }
+      return originalEval(fn, ...args);
+    });
+
+    let snapshot = await page.snapshot({
+      readiness: { preset: 'balanced' }
+    });
+
+    expect(logger.stderr).toEqual(jasmine.arrayContaining([
+      jasmine.stringMatching(/Waiting for readiness/),
+      jasmine.stringMatching(/Readiness timed out, capturing anyway/)
+    ]));
+    expect(snapshot.url).toEqual('http://localhost:8000/');
+    // diagnostics should be attached to the captured DOM snapshot so the
+    // backend/UI can surface readiness metrics
+    expect(snapshot.domSnapshot).toEqual(jasmine.objectContaining({
+      readiness_diagnostics: { timed_out: true, total_duration_ms: 1234 }
+    }));
+  });
+
+  it('debug logs when the readiness eval rejects and continues to capture', async () => {
+    server.reply('/', () => [200, 'text/html', '<p>Hello Percy!</p>']);
+
+    await percy.browser.launch();
+    let page = await percy.browser.page();
+    await page.goto('http://localhost:8000');
+
+    percy.loglevel('debug');
+
+    // Reject only the readiness eval (its first arg is the readiness config
+    // object containing `preset`); all other evals pass through.
+    let originalEval = page.eval.bind(page);
+    spyOn(page, 'eval').and.callFake((fn, ...args) => {
+      if (args[0] && typeof args[0] === 'object' && 'preset' in args[0]) {
+        return Promise.reject(new Error('boom'));
+      }
+      return originalEval(fn, ...args);
+    });
+
+    let snapshot = await page.snapshot({
+      readiness: { preset: 'fast' }
+    });
+
+    expect(logger.stderr).toEqual(jasmine.arrayContaining([
+      jasmine.stringMatching(/Readiness check failed: Error: boom/)
+    ]));
+    // serialize still runs after a readiness failure
+    expect(snapshot.url).toEqual('http://localhost:8000/');
+  });
+
+  it('falls back to the percy config readiness when none is set per snapshot', async () => {
+    server.reply('/', () => [200, 'text/html', '<p>Hello Percy!</p>']);
+
+    percy.config.snapshot.readiness = { preset: 'fast', timeoutMs: 1000 };
+
+    await percy.browser.launch();
+    let page = await percy.browser.page();
+    await page.goto('http://localhost:8000');
+
+    percy.loglevel('debug');
+
+    let snapshot = await page.snapshot({});
+
+    expect(logger.stderr).toEqual(jasmine.arrayContaining([
+      jasmine.stringMatching(/Waiting for readiness/)
+    ]));
+    expect(snapshot.url).toEqual('http://localhost:8000/');
   });
 
   describe('.start()', () => {
@@ -1180,7 +1400,7 @@ describe('Percy', () => {
       percy.log.info('cli_test');
       percy.log.info('ci_test', {}, true);
       const logsObject = {
-        clilogs: Array.from(logger.instance.messages)
+        clilogs: logger.instance.query(() => true)
       };
 
       const content = base64encode(Pako.gzip(JSON.stringify(logsObject)));
@@ -2208,6 +2428,135 @@ describe('Percy', () => {
       // Should not contain "allowed domains" text
       expect(logger.stdout).not.toEqual(jasmine.arrayContaining([
         jasmine.stringMatching(/allowed domains/)
+      ]));
+    });
+  });
+
+  describe('archive flow', () => {
+    it('validates and logs the archive directory when starting', async () => {
+      percy = new Percy({ token: 'PERCY_TOKEN', archiveDir: './percy-archive' });
+      await expectAsync(percy.start()).toBeResolved();
+
+      // Windows resolves to backslash separators; match either / or \.
+      expect(percy.archiveDir).toMatch(/[\\/]percy-archive$/);
+      expect(logger.stdout).toEqual(jasmine.arrayContaining([
+        jasmine.stringMatching(/Archiving snapshots to: .*[\\/]percy-archive/)
+      ]));
+    });
+
+    it('respects an explicit skipUploads when archiveDir is set', () => {
+      percy = new Percy({
+        token: 'PERCY_TOKEN',
+        archiveDir: './percy-archive',
+        skipUploads: false
+      });
+      expect(percy.skipUploads).toBe(false);
+    });
+
+    it('pulls archiveDir from percy config when not passed at the top level', () => {
+      // Mirrors how `percy exec --archive-dir` reaches Percy: the flag has
+      // `percyrc: 'percy.archiveDir'`, so the value arrives nested under
+      // `percy.archiveDir` rather than as a top-level constructor option.
+      percy = new Percy({
+        token: 'PERCY_TOKEN',
+        percy: { archiveDir: './percy-archive' }
+      });
+
+      expect(percy.archiveDir).toMatch(/[\\/]percy-archive$/);
+      expect(percy.skipUploads).toBe(true);
+    });
+
+    it('logs the archive summary when stopping with snapshots', async () => {
+      percy = new Percy({
+        token: 'PERCY_TOKEN',
+        archiveDir: './percy-archive',
+        skipDiscovery: true
+      });
+      await percy.start();
+
+      await percy.snapshot({
+        name: 'Archived Snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot: '<html></html>',
+        widths: [1000]
+      });
+
+      await expectAsync(percy.stop()).toBeResolved();
+
+      expect(logger.stdout).toEqual(jasmine.arrayContaining([
+        jasmine.stringMatching(/Archived 1 snapshot\(s\) to: .*[\\/]percy-archive/)
+      ]));
+    });
+
+    it('logs an error when archiving a snapshot fails', async () => {
+      percy = new Percy({
+        token: 'PERCY_TOKEN',
+        archiveDir: './percy-archive',
+        skipDiscovery: true
+      });
+      await percy.start();
+
+      // memfs spy is already in place; override it to fail for archive writes
+      fs.writeFileSync.and.callFake((p, ...rest) => {
+        if (typeof p === 'string' && p.includes('percy-archive')) {
+          throw new Error('disk full');
+        }
+        return fs.$vol.writeFileSync(p, ...rest);
+      });
+
+      await percy.snapshot({
+        name: 'Failing Snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot: '<html></html>',
+        widths: [1000]
+      });
+
+      // give the dynamic import + .catch chain a chance to settle
+      await new Promise(r => setTimeout(r, 50));
+      await percy.stop();
+
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
+        jasmine.stringMatching(/Failed to archive snapshot "Failing Snapshot": disk full/)
+      ]));
+    });
+  });
+
+  describe('#replaySnapshot()', () => {
+    let archived;
+
+    beforeEach(() => {
+      archived = {
+        name: 'Replay Snapshot',
+        url: 'http://localhost:8000',
+        widths: [1000],
+        resources: []
+      };
+    });
+
+    it('throws when percy is not running', () => {
+      expect(() => [...percy.yield.replaySnapshot(archived)])
+        .toThrowError('Not running');
+    });
+
+    it('throws when the build has errored', async () => {
+      await percy.start();
+      percy.build.error = 'build error';
+
+      expect(() => [...percy.yield.replaySnapshot(archived)])
+        .toThrowError('build error');
+    });
+
+    it('logs and pushes the snapshot when running', async () => {
+      await percy.start();
+
+      let result = [...percy.yield.replaySnapshot(archived)];
+      expect(result).toEqual([]);
+
+      expect(archived.meta).toEqual({
+        snapshot: { name: 'Replay Snapshot', testCase: undefined }
+      });
+      expect(logger.stdout).toEqual(jasmine.arrayContaining([
+        '[percy] Replaying snapshot: Replay Snapshot'
       ]));
     });
   });

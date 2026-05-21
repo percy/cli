@@ -52,12 +52,46 @@ jobs:
         run: npm install resedit
       - name: Update exe metadata
         run: node ./scripts/win-metadata-update.js
-      - name: Sign binary
-        uses: lando/code-sign-action@v3
-        with:
-          file: ./percy.exe
-          certificate-data: ${{ secrets.WINDOWS_CERT }}
-          certificate-password: ${{ secrets.WINDOWS_CERT_KEY }}
+      - name: Install Google Cloud KMS CNG Provider
+        run: |
+          $cngUrl = "https://github.com/GoogleCloudPlatform/kms-integrations/releases/download/cng-v1.3/kmscng-1.3-windows-amd64.zip"
+          Invoke-WebRequest -Uri $cngUrl -OutFile kmscng.zip
+          Expand-Archive -Path kmscng.zip -DestinationPath kmscng
+          $msi = Get-ChildItem -Path kmscng -Filter *.msi -Recurse | Select-Object -First 1
+          Write-Host "Found MSI: $($msi.FullName)"
+          Start-Process msiexec.exe -ArgumentList '/i', $msi.FullName, '/quiet', '/norestart' -Wait -NoNewWindow
+          $output = certutil -csplist 2>&1
+          $LASTEXITCODE = 0
+          if ($output -match "Google Cloud KMS Provider") {
+            Write-Host "CNG Provider installed successfully."
+          } else {
+            Write-Error "CNG Provider not found"
+            exit 1
+          }
+      - name: Write GCP credentials
+        run: |
+          [System.IO.File]::WriteAllBytes("$PWD\gcp-sa-key.json", [System.Convert]::FromBase64String($Env:GCP_SA_B64))
+        env:
+          GCP_SA_B64: ${{ secrets.GCP_WIN_CODESIGN_SA_KEY_B64 }}
+      - name: Write certificate chain
+        run: |
+          [System.IO.File]::WriteAllBytes("$PWD\comodo_signing_cert.crt", [System.Convert]::FromBase64String($Env:CERT_B64))
+        env:
+          CERT_B64: ${{ secrets.WIN_CODESIGN_CERT_CHAIN_B64 }}
+      - name: Sign binary with Google Cloud KMS
+        run: |
+          $env:GOOGLE_APPLICATION_CREDENTIALS = "$PWD\gcp-sa-key.json"
+          $signtool = Get-ChildItem -Path "C:\Program Files (x86)\Windows Kits" -Filter signtool.exe -Recurse | Where-Object { $_.FullName -match "x64" } | Select-Object -First 1
+          Write-Host "Using signtool: $($signtool.FullName)"
+          & $signtool.FullName sign /fd sha256 /tr http://timestamp.sectigo.com /td sha256 /f comodo_signing_cert.crt /csp "Google Cloud KMS Provider" /kc "${{ secrets.GCP_KMS_KEY_PATH }}" percy.exe
+          if ($LASTEXITCODE -ne 0) { Write-Error "Code signing failed!"; exit 1 }
+          Write-Host "Code signing succeeded."
+          & $signtool.FullName verify /pa /v percy.exe
+      - name: Clean up credentials
+        if: always()
+        run: |
+          Remove-Item -Force gcp-sa-key.json -ErrorAction SilentlyContinue
+          Remove-Item -Force comodo_signing_cert.crt -ErrorAction SilentlyContinue
       - name: Verify executable
         run: ./percy.exe --version
       - run: |
