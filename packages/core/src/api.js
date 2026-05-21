@@ -215,6 +215,29 @@ export function createPercyServer(percy, port) {
 
       res.json(200, { success: true });
     })
+  // forwards a TurboSnap request to the Percy API and returns the response.
+  // On any internal error we reply 200 with a bail envelope so the SDK
+  // transparently falls back to a full snapshot instead of surfacing an error.
+    .route('post', '/percy/turbosnap', async (req, res) => {
+      let buildId = percy.build?.id;
+      if (!buildId) {
+        return res.json(400, { error: 'No active build', success: false });
+      }
+
+      try {
+        let result = await percy.client.turbosnap(buildId, req.body);
+        return res.json(200, result);
+      } catch (e) {
+        percy.log.warn(`TurboSnap API error: ${e.message}. Falling back to full snapshot.`);
+        return res.json(200, {
+          data: {
+            id: buildId,
+            type: 'turbosnap-results',
+            attributes: { bail: true, 'bail-reason': 'API request failed' }
+          }
+        });
+      }
+    })
   // stops percy at the end of the current event loop
     .route('/percy/stop', (req, res) => {
       setImmediate(() => percy.stop());
