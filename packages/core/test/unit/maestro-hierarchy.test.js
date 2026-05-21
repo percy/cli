@@ -523,6 +523,26 @@ describe('Unit / maestro-hierarchy', () => {
       expect(res.kind).toBe('hierarchy');
       expect(res.nodes.length).toBeGreaterThan(0);
     });
+
+    it('PERCY_MAESTRO_GRPC=0 kill switch: skips iOS HTTP primary, routes to maestro-cli fallback', async () => {
+      // Verifies D3 kill switch invariant 2: the env var that gates Android gRPC
+      // ALSO gates the iOS HTTP primary. With kill switch on, runIosHttpDump must
+      // not be invoked — runMaestroIosDump is the only path to a hierarchy result.
+      const httpRequest = jasmine.createSpy('httpRequest');
+      const iosCliStdout = fs.readFileSync(
+        path.resolve(url.fileURLToPath(import.meta.url), '../../fixtures/maestro-ios-hierarchy/maestro-cli-ios-stdout.json'),
+        'utf8'
+      );
+      const execMaestro = async () => ({ stdout: iosCliStdout, stderr: '', exitCode: 0 });
+      const getEnv = key => ({
+        PERCY_IOS_DEVICE_UDID: '00008110-000065081404401E',
+        PERCY_IOS_DRIVER_HOST_PORT: '11100',
+        PERCY_MAESTRO_GRPC: '0'
+      })[key];
+      const res = await dump({ platform: 'ios', getEnv, httpRequest, execMaestro });
+      expect(res.kind).toBe('hierarchy');
+      expect(httpRequest).not.toHaveBeenCalled();
+    });
   });
 
   describe('iOS HTTP dump (runIosHttpDump primary path)', () => {
@@ -1872,6 +1892,34 @@ describe('Unit / maestro-hierarchy', () => {
         });
         expect(res.kind).toBe('hierarchy');
         expect(factory.created.length).toBe(0);
+      });
+
+      it('kill switch is re-read on every dump call (not cached): toggling mid-process flips behavior', async () => {
+        // Verifies D3 kill switch invariant 3: PERCY_MAESTRO_GRPC is read at the
+        // top of dump() on every invocation. The same cache + factory are reused
+        // across two dumps; only the env getter changes between calls. First call
+        // (switch=0) must skip gRPC; second call (switch unset) must build a client.
+        const cache = new Map();
+        const factory = makeFakeFactory(() => makeFixedClient({ response: { hierarchy: simpleXml } }));
+        const maestroSimple = loadFixture('maestro-simple.json');
+        const execMaestro = async () => ({ stdout: maestroSimple, stderr: '', exitCode: 0 });
+        const execAdb = () => Promise.resolve({ stdout: '', stderr: '', exitCode: 0 });
+
+        const res1 = await dump({
+          platform: 'android',
+          getEnv: makeAndroidEnv({ PERCY_MAESTRO_GRPC: '0' }),
+          grpcClient: factory, grpcClientCache: cache, execMaestro, execAdb
+        });
+        expect(res1.kind).toBe('hierarchy');
+        expect(factory.created.length).toBe(0);
+
+        const res2 = await dump({
+          platform: 'android',
+          getEnv: makeAndroidEnv(),
+          grpcClient: factory, grpcClientCache: cache, execMaestro, execAdb
+        });
+        expect(res2.kind).toBe('hierarchy');
+        expect(factory.created.length).toBe(1);
       });
 
       it('env absent: gRPC NOT attempted; maestro CLI primary; adb fallback', async () => {

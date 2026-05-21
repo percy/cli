@@ -27,8 +27,12 @@
 // distros, the gRPC primary correctly classifies the failure as
 // `channel-broken: UNAVAILABLE` and the cascade falls through gracefully.
 // PERCY_ANDROID_GRPC_PORT is realmobile/mobile-injected; absence skips gRPC.
-// Kill switch: PERCY_MAESTRO_GRPC=0 force-skips gRPC (in-process emergency
-// rollback distinct from removing the env injection).
+// Kill switch: PERCY_MAESTRO_GRPC=0 force-skips BOTH Maestro hierarchy
+// primaries — Android gRPC AND iOS HTTP — and routes each platform straight
+// to its maestro-CLI fallback. In-process emergency rollback distinct from
+// removing the env injection (which requires a coordinated mobile/realmobile
+// deploy). Read fresh on every dump() call so an on-call can toggle it
+// mid-process without a CLI restart.
 // Android fallback chain (per error class):
 //   - schema-class                   → drift bit set; no fallback (return error)
 //   - channel-broken (UNAVAILABLE,
@@ -1091,11 +1095,20 @@ export async function dump({
       return { kind: 'unavailable', reason: 'env-missing' };
     }
 
+    // D3 kill switch (PERCY_MAESTRO_GRPC=0): same env name gates BOTH Maestro
+    // primaries. On iOS this skips runIosHttpDump and routes straight to the
+    // maestro-CLI fallback below. Read every call so toggling at runtime is
+    // honored without a CLI restart.
+    const iosKillSwitch = getEnv('PERCY_MAESTRO_GRPC') === '0';
+    if (iosKillSwitch) {
+      log.warn('PERCY_MAESTRO_GRPC=0 kill switch active; skipping iOS HTTP primary');
+    }
+
     // Validate driver-host-port range before attempting HTTP. Out-of-range
     // values skip the HTTP path entirely and fall through to maestro-CLI.
     const driverHostPort = parseIosDriverHostPort(driverHostPortRaw);
     let httpResult = null;
-    if (driverHostPort !== null) {
+    if (!iosKillSwitch && driverHostPort !== null) {
       httpResult = await runIosHttpDump({ port: driverHostPort, sessionId, httpRequest });
       if (httpResult.kind === 'hierarchy') {
         log.debug(`dump took ${Date.now() - started}ms via maestro-http (${httpResult.nodes.length} nodes)`);
@@ -1115,7 +1128,7 @@ export async function dump({
       const httpClass = failureClassFromReason(httpResult.reason);
       recordResolverFallback({ platform: 'ios', failureClass: httpClass });
       log.info(`[percy] hierarchy: maestro-http failed (${httpClass}: ${httpResult.reason}) → falling back to maestro-cli-fallback`);
-    } else {
+    } else if (!iosKillSwitch) {
       const oorReason = `out-of-range-port-${driverHostPortRaw}`;
       recordResolverFallback({ platform: 'ios', failureClass: 'other' });
       log.info(`[percy] hierarchy: maestro-http failed (other: ${oorReason}) → falling back to maestro-cli-fallback`);
