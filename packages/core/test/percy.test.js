@@ -2453,6 +2453,19 @@ describe('Percy', () => {
       expect(percy.skipUploads).toBe(false);
     });
 
+    it('pulls archiveDir from percy config when not passed at the top level', () => {
+      // Mirrors how `percy exec --archive-dir` reaches Percy: the flag has
+      // `percyrc: 'percy.archiveDir'`, so the value arrives nested under
+      // `percy.archiveDir` rather than as a top-level constructor option.
+      percy = new Percy({
+        token: 'PERCY_TOKEN',
+        percy: { archiveDir: './percy-archive' }
+      });
+
+      expect(percy.archiveDir).toMatch(/[\\/]percy-archive$/);
+      expect(percy.skipUploads).toBe(true);
+    });
+
     it('logs the archive summary when stopping with snapshots', async () => {
       percy = new Percy({
         token: 'PERCY_TOKEN',
