@@ -77,7 +77,7 @@ jobs:
           restore-keys: >
             ${{ runner.os }}/node-${{ matrix.node }}/
             ${{ hashFiles('.github/.cache-key') }}/
-      - uses: actions/download-artifact@v5
+      - uses: actions/download-artifact@v8
         with:
           name: dist
           path: packages
@@ -115,7 +115,7 @@ jobs:
           restore-keys: >
             ${{ runner.os }}/node-14/
             ${{ hashFiles('.github/.cache-key') }}/
-      - uses: actions/download-artifact@v5
+      - uses: actions/download-artifact@v8
         with:
           name: dist
           path: packages
