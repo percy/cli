@@ -9,6 +9,7 @@ import {
   request,
   formatBytes,
   sha256hash,
+  md5base64,
   base64encode,
   getPackageJSON,
   waitForTimeout,
@@ -21,6 +22,15 @@ import {
 // Default client API URL can be set with an env var for API development
 const { PERCY_CLIENT_API_URL = 'https://percy.io/api/v1' } = process.env;
 let pkg = getPackageJSON(import.meta.url);
+
+// Strict boolean env var parser. Only "1" or "true" (case-insensitive) count as
+// enabled. Avoids the JS-truthy trap where "0" or "false" would silently enable
+// a flag because both are non-empty strings.
+function envBool(value) {
+  if (value == null) return false;
+  let v = String(value).toLowerCase();
+  return v === '1' || v === 'true';
+}
 // minimum polling interval milliseconds
 const MIN_POLLING_INTERVAL = 1_000;
 const INVALID_TOKEN_ERROR_MESSAGE = 'Unable to retrieve snapshot details with write access token. Kindly use a full access token for retrieving snapshot details with Synchronous CLI.';
@@ -310,6 +320,15 @@ export class PercyClient {
     });
   }
 
+  // Returns capability headers advertised on snapshot creation. `direct-upload-v1`
+  // tells percy-api to mint Content-MD5/Content-Length-bound GCS signed URLs in
+  // the missing-resources response. PERCY_DISABLE_DIRECT_UPLOAD is the
+  // customer-side escape hatch that forces fallback to POST /resources.
+  directUploadCapabilityHeaders() {
+    if (envBool(process.env.PERCY_DISABLE_DIRECT_UPLOAD)) return {};
+    return { 'X-Percy-Capabilities': 'direct-upload-v1' };
+  }
+
   // Creates a build with optional build resources. Only one build can be
   // created at a time per instance so snapshots and build finalization can be
   // done more seamlessly without manually tracking build ids
@@ -562,6 +581,66 @@ export class PercyClient {
     }, this, uploadConcurrency);
   }
 
+  // PUTs a single resource directly to its percy-api-issued GCS signed URL.
+  // Returns the resource when the upload hits a transport-class failure
+  // (caller falls back to legacy POST /resources). Throws on correctness-class
+  // failures (400 BadDigest, 412 if-generation-match) — those signal a real
+  // bug in the declared md5/length or a leaked URL replay, and must not be
+  // silently masked by the fallback path.
+  async uploadResourceDirect(resource, meta = {}) {
+    let { signedUploadUrl, content, md5, contentLength, url, mimetype } = resource;
+    this.log.debug(`Direct-uploading ${formatBytes(contentLength)} resource: ${url}`, meta);
+    this.mayBeLogUploadSize(contentLength, meta);
+
+    let headers = {
+      'Content-MD5': md5,
+      'Content-Length': contentLength
+    };
+    if (mimetype) headers['Content-Type'] = mimetype;
+
+    try {
+      await request(signedUploadUrl, {
+        method: 'PUT',
+        rawBody: true,
+        body: content,
+        headers,
+        meta
+      });
+      return null;
+    } catch (err) {
+      let status = err.response?.statusCode;
+      if (status === 400 || status === 412) throw err;
+      this.log.debug(`Direct upload failed for ${url}, falling back to legacy: ${err.message}`, meta);
+      return resource;
+    }
+  }
+
+  // Uploads resources directly to GCS signed URLs concurrently. Returns the
+  // list of resources that hit transport-class failures so the caller can
+  // route them through the legacy upload path. Concurrency is shared with
+  // the legacy uploader via PERCY_RESOURCE_UPLOAD_CONCURRENCY.
+  async uploadResourcesDirect(resources, meta = {}) {
+    this.log.debug(`Direct-uploading ${resources.length} resource(s)...`, meta);
+
+    const uploadConcurrency = parseInt(process.env.PERCY_RESOURCE_UPLOAD_CONCURRENCY) || 2;
+    let fallback = [];
+
+    await pool(function*() {
+      for (let resource of resources) {
+        let resourceMeta = {
+          url: resource.url,
+          sha: resource.sha,
+          ...meta
+        };
+        yield this.uploadResourceDirect(resource, resourceMeta).then(failed => {
+          if (failed) fallback.push(failed);
+        });
+      }
+    }, this, uploadConcurrency);
+
+    return fallback;
+  }
+
   // Creates a snapshot for the active build using the provided attributes.
   async createSnapshot(buildId, {
     name,
@@ -630,13 +709,15 @@ export class PercyClient {
                 'resource-url': r.url || null,
                 'is-root': r.root || null,
                 'for-widths': r.widths || null,
-                mimetype: r.mimetype || null
+                mimetype: r.mimetype || null,
+                'content-md5': r.md5 ?? (r.content != null ? md5base64(r.content) : null),
+                'content-length': r.contentLength ?? (r.content != null ? Buffer.byteLength(r.content, 'utf-8') : null)
               }
             }))
           }
         }
       }
-    }, { identifier: 'snapshot.post', ...meta });
+    }, { identifier: 'snapshot.post', ...meta }, this.directUploadCapabilityHeaders());
   }
 
   // Finalizes a snapshot.
@@ -657,7 +738,29 @@ export class PercyClient {
     this.log.debug(`${missing?.length || 0} Missing resources: ${options.name}...`, meta);
     if (missing?.length) {
       let resources = options.resources.reduce((acc, r) => Object.assign(acc, { [r.sha]: r }), {});
-      await this.uploadResources(buildId, missing.map(({ id }) => resources[id]), meta);
+      let disabled = envBool(process.env.PERCY_DISABLE_DIRECT_UPLOAD);
+      let direct = [];
+      let legacy = [];
+
+      for (let entry of missing) {
+        let resource = resources[entry.id];
+        if (!resource) continue;
+        let signedUploadUrl = entry.attributes?.['signed-upload-url'];
+        if (!disabled && signedUploadUrl) {
+          direct.push({ ...resource, signedUploadUrl });
+        } else {
+          legacy.push(resource);
+        }
+      }
+
+      if (direct.length) {
+        let failed = await this.uploadResourcesDirect(direct, meta);
+        legacy.push(...failed);
+      }
+
+      if (legacy.length) {
+        await this.uploadResources(buildId, legacy, meta);
+      }
     }
     this.log.debug(`Resources uploaded: ${options.name}...`, meta);
 

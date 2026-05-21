@@ -1,5 +1,5 @@
 import { sha256hash, base64encode } from '@percy/client/utils';
-import { logger, api, setupTest, createTestServer, dedent } from './helpers/index.js';
+import { logger, api, mockRequests, setupTest, createTestServer, dedent } from './helpers/index.js';
 import { waitFor } from '@percy/core/utils';
 import Percy from '@percy/core';
 import { handleSyncJob } from '../src/snapshot.js';
@@ -2176,6 +2176,139 @@ describe('Snapshot', () => {
           ]));
         });
       });
+    });
+  });
+
+  describe('direct bucket upload (end-to-end)', () => {
+    const GCS_BASE = 'https://storage.googleapis.com';
+    let gcsReply;
+
+    function withSignedUrls(reqBody) {
+      return [201, {
+        data: {
+          id: '4567',
+          attributes: reqBody.attributes,
+          relationships: {
+            'missing-resources': {
+              data: reqBody.data.relationships.resources.data.map(({ id }) => ({
+                id,
+                attributes: {
+                  'signed-upload-url': `${GCS_BASE}/percy-resources/ns_gid_${id}?sig=fake`
+                }
+              }))
+            }
+          }
+        }
+      }];
+    }
+
+    beforeEach(async () => {
+      gcsReply = await mockRequests(GCS_BASE);
+    });
+
+    it('PUTs DOM + asset bytes direct to GCS when the API hands back signed URLs, and finalizes the snapshot', async () => {
+      gcsReply.and.callFake(() => [200]);
+      api.reply('/builds/123/snapshots', ({ body }) => withSignedUrls(body));
+
+      await percy.snapshot({
+        name: 'direct-upload-e2e',
+        url: 'http://localhost:8000',
+        domSnapshot: testDOM
+      });
+      await percy.idle();
+
+      // capability header reached percy-api on snapshot creation
+      expect(api.requests['/builds/123/snapshots'][0].headers['X-Percy-Capabilities'])
+        .toBe('direct-upload-v1');
+
+      // every declared resource carried content-md5 + content-length
+      const declared = api.requests['/builds/123/snapshots'][0].body.data.relationships.resources.data;
+      for (const entry of declared) {
+        expect(entry.attributes['content-md5']).toEqual(jasmine.any(String));
+        expect(entry.attributes['content-length']).toEqual(jasmine.any(Number));
+      }
+
+      // every missing resource PUT to GCS (one call per resource)
+      expect(gcsReply).toHaveBeenCalledTimes(declared.length);
+
+      // each PUT carried Content-MD5 and Content-Length
+      const puts = gcsReply.calls.allArgs().map(([req]) => req);
+      for (const put of puts) {
+        expect(put.method).toBe('PUT');
+        expect(put.headers['Content-MD5']).toEqual(jasmine.any(String));
+        expect(put.headers['Content-Length']).toEqual(jasmine.any(Number));
+      }
+
+      // when direct succeeds, legacy POST /resources path is NOT used
+      expect(api.requests['/builds/123/resources']).toBeUndefined();
+
+      // snapshot still finalizes
+      expect(api.requests['/snapshots/4567/finalize']).toBeDefined();
+    });
+
+    it('falls back to legacy POST /resources for any resource that fails the direct PUT (transport-class)', async () => {
+      api.reply('/builds/123/snapshots', ({ body }) => withSignedUrls(body));
+      gcsReply.and.callFake(() => [403, 'expired']);
+
+      await percy.snapshot({
+        name: 'fallback-e2e',
+        url: 'http://localhost:8000',
+        domSnapshot: testDOM
+      });
+      await percy.idle();
+
+      expect(gcsReply).toHaveBeenCalled();
+
+      const declared = api.requests['/builds/123/snapshots'][0].body.data.relationships.resources.data;
+      expect(api.requests['/builds/123/resources']).toBeDefined();
+      expect(api.requests['/builds/123/resources'].length).toBe(declared.length);
+
+      expect(api.requests['/snapshots/4567/finalize']).toBeDefined();
+    });
+
+    it('PERCY_DISABLE_DIRECT_UPLOAD forces every resource through legacy end-to-end', async () => {
+      process.env.PERCY_DISABLE_DIRECT_UPLOAD = '1';
+      api.reply('/builds/123/snapshots', ({ body }) => withSignedUrls(body));
+
+      try {
+        await percy.snapshot({
+          name: 'forced-legacy-e2e',
+          url: 'http://localhost:8000',
+          domSnapshot: testDOM
+        });
+        await percy.idle();
+
+        expect(api.requests['/builds/123/snapshots'][0].headers['X-Percy-Capabilities']).toBeUndefined();
+        expect(gcsReply).not.toHaveBeenCalled();
+
+        const declared = api.requests['/builds/123/snapshots'][0].body.data.relationships.resources.data;
+        expect(api.requests['/builds/123/resources'].length).toBe(declared.length);
+      } finally {
+        delete process.env.PERCY_DISABLE_DIRECT_UPLOAD;
+      }
+    });
+
+    it('Content-MD5 sent to GCS matches the declared md5 from snapshot creation (integrity end-to-end)', async () => {
+      gcsReply.and.callFake(() => [200]);
+      api.reply('/builds/123/snapshots', ({ body }) => withSignedUrls(body));
+
+      await percy.snapshot({
+        name: 'integrity-e2e',
+        url: 'http://localhost:8000',
+        domSnapshot: testDOM
+      });
+      await percy.idle();
+
+      // declared md5 keyed by sha (which is the resource id and also embedded
+      // in the signed-upload URL path)
+      const declared = api.requests['/builds/123/snapshots'][0].body.data.relationships.resources.data;
+      const md5BySha = Object.fromEntries(declared.map(e => [e.id, e.attributes['content-md5']]));
+
+      for (const [req] of gcsReply.calls.allArgs()) {
+        const m = req.path.match(/_(?<sha>[a-f0-9]{64})/);
+        expect(m).withContext(`PUT path missing sha: ${req.path}`).not.toBeNull();
+        expect(req.headers['Content-MD5']).toBe(md5BySha[m.groups.sha]);
+      }
     });
   });
 });

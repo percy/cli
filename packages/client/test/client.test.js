@@ -1,7 +1,7 @@
 import fs from 'fs';
 import logger from '@percy/logger/test/helpers';
 import { mockgit } from '@percy/env/test/helpers';
-import { sha256hash, base64encode } from '@percy/client/utils';
+import { md5base64, sha256hash, base64encode } from '@percy/client/utils';
 import PercyClient from '@percy/client';
 import api, { mockRequests } from './helpers.js';
 import * as CoreConfig from '@percy/core/config';
@@ -1142,6 +1142,129 @@ describe('PercyClient', () => {
     });
   });
 
+  describe('#uploadResourceDirect() / #uploadResourcesDirect()', () => {
+    const GCS_BASE = 'https://storage.googleapis.com';
+    let gcsReply;
+
+    function makeResource(overrides = {}) {
+      const content = overrides.content ?? 'foo';
+      return {
+        url: '/foo.css',
+        sha: sha256hash(content),
+        mimetype: 'text/css',
+        content,
+        md5: md5base64(content),
+        contentLength: Buffer.byteLength(content, 'utf-8'),
+        signedUploadUrl: `${GCS_BASE}/percy-resources/ns_gid_${sha256hash(content)}?sig=fake`,
+        ...overrides
+      };
+    }
+
+    beforeEach(async () => {
+      gcsReply = await mockRequests(GCS_BASE);
+    });
+
+    it('PUTs raw bytes with Content-MD5, Content-Length, Content-Type headers and resolves to null on 200', async () => {
+      gcsReply.and.callFake(() => [200]);
+
+      const resource = makeResource({ content: 'p { color: purple; }' });
+      await expectAsync(client.uploadResourceDirect(resource)).toBeResolvedTo(null);
+
+      const req = gcsReply.calls.mostRecent().args[0];
+      expect(req.method).toBe('PUT');
+      expect(req.headers['Content-MD5']).toBe(resource.md5);
+      expect(req.headers['Content-Length']).toBe(resource.contentLength);
+      expect(req.headers['Content-Type']).toBe('text/css');
+    });
+
+    it('returns the resource for fallback on 403 (signed URL expired)', async () => {
+      gcsReply.and.callFake(() => [403, 'expired']);
+
+      const resource = makeResource();
+      await expectAsync(client.uploadResourceDirect(resource)).toBeResolvedTo(resource);
+    });
+
+    it('returns the resource for fallback on 429 (rate limited)', async () => {
+      gcsReply.and.callFake(() => [429]);
+
+      const resource = makeResource();
+      await expectAsync(client.uploadResourceDirect(resource)).toBeResolvedTo(resource);
+    });
+
+    it('returns the resource for fallback on 5xx after retries', async () => {
+      gcsReply.and.callFake(() => [503]);
+
+      const resource = makeResource();
+      await expectAsync(client.uploadResourceDirect(resource)).toBeResolvedTo(resource);
+    });
+
+    it('throws on 400 BadDigest (correctness failure must surface, not be masked)', async () => {
+      gcsReply.and.callFake(() => [400, '<Error><Code>BadDigest</Code></Error>']);
+
+      const resource = makeResource();
+      await expectAsync(client.uploadResourceDirect(resource)).toBeRejected();
+    });
+
+    it('throws on 412 Precondition Failed (object already exists — replay or bug)', async () => {
+      gcsReply.and.callFake(() => [412, '<Error><Code>PreconditionFailed</Code></Error>']);
+
+      const resource = makeResource();
+      await expectAsync(client.uploadResourceDirect(resource)).toBeRejected();
+    });
+
+    it('omits Content-Type when resource has no mimetype', async () => {
+      gcsReply.and.callFake(() => [200]);
+
+      const resource = makeResource();
+      delete resource.mimetype;
+      await client.uploadResourceDirect(resource);
+
+      const req = gcsReply.calls.mostRecent().args[0];
+      expect(req.headers['Content-Type']).toBeUndefined();
+    });
+
+    describe('#uploadResourcesDirect()', () => {
+      it('resolves to empty fallback list when every resource succeeds', async () => {
+        gcsReply.and.callFake(() => [200]);
+
+        await expectAsync(client.uploadResourcesDirect([
+          makeResource({ content: 'a' }),
+          makeResource({ content: 'b' })
+        ])).toBeResolvedTo([]);
+      });
+
+      it('collects transport-failed resources for fallback while letting successes pass', async () => {
+        const resources = [
+          makeResource({ content: 'a' }),
+          makeResource({ content: 'b' }),
+          makeResource({ content: 'c' })
+        ];
+
+        // succeed for 'a' and 'c', 5xx for 'b'
+        gcsReply.and.callFake(({ path }) => {
+          if (path.includes(resources[1].sha)) return [503];
+          return [200];
+        });
+
+        const fallback = await client.uploadResourcesDirect(resources);
+        expect(fallback.length).toBe(1);
+        expect(fallback[0].sha).toBe(resources[1].sha);
+      });
+
+      it('propagates correctness failures from any resource', async () => {
+        gcsReply.and.callFake(() => [400, '<Error><Code>BadDigest</Code></Error>']);
+
+        await expectAsync(client.uploadResourcesDirect([
+          makeResource()
+        ])).toBeRejected();
+      });
+
+      it('does nothing for an empty resource list', async () => {
+        await expectAsync(client.uploadResourcesDirect([])).toBeResolvedTo([]);
+      });
+    });
+  });
+
   describe('#createSnapshot()', () => {
     it('throws when missing a build id', async () => {
       await expectAsync(client.createSnapshot())
@@ -1222,7 +1345,9 @@ describe('PercyClient', () => {
                   'resource-url': '/foo',
                   mimetype: 'text/html',
                   'for-widths': [1000],
-                  'is-root': true
+                  'is-root': true,
+                  'content-md5': md5base64('foo'),
+                  'content-length': Buffer.byteLength('foo', 'utf-8')
                 }
               }, {
                 type: 'resources',
@@ -1231,7 +1356,9 @@ describe('PercyClient', () => {
                   'resource-url': '/bar',
                   mimetype: 'image/png',
                   'for-widths': null,
-                  'is-root': null
+                  'is-root': null,
+                  'content-md5': md5base64('bar'),
+                  'content-length': Buffer.byteLength('bar', 'utf-8')
                 }
               }]
             }
@@ -1314,7 +1441,9 @@ describe('PercyClient', () => {
                     'resource-url': '/foo',
                     mimetype: 'text/html',
                     'for-widths': [1000],
-                    'is-root': true
+                    'is-root': true,
+                    'content-md5': md5base64('foo'),
+                    'content-length': Buffer.byteLength('foo', 'utf-8')
                   }
                 }, {
                   type: 'resources',
@@ -1323,7 +1452,9 @@ describe('PercyClient', () => {
                     'resource-url': '/bar',
                     mimetype: 'image/png',
                     'for-widths': null,
-                    'is-root': null
+                    'is-root': null,
+                    'content-md5': md5base64('bar'),
+                    'content-length': Buffer.byteLength('bar', 'utf-8')
                   }
                 }]
               }
@@ -1365,13 +1496,86 @@ describe('PercyClient', () => {
                   'resource-url': null,
                   'for-widths': null,
                   'is-root': null,
-                  mimetype: null
+                  mimetype: null,
+                  'content-md5': null,
+                  'content-length': null
                 }
               }]
             }
           }
         }
       });
+    });
+
+    it('advertises direct-upload-v1 capability header by default', async () => {
+      await expectAsync(
+        client.createSnapshot(123, { name: 'cap-test', resources: [{ sha: 'sha' }] })
+      ).toBeResolved();
+
+      expect(api.requests['/builds/123/snapshots'][0].headers).toEqual(
+        jasmine.objectContaining({ 'X-Percy-Capabilities': 'direct-upload-v1' })
+      );
+    });
+
+    it('suppresses capability header when PERCY_DISABLE_DIRECT_UPLOAD is set', async () => {
+      process.env.PERCY_DISABLE_DIRECT_UPLOAD = '1';
+      try {
+        await expectAsync(
+          client.createSnapshot(123, { name: 'cap-test', resources: [{ sha: 'sha' }] })
+        ).toBeResolved();
+
+        expect(api.requests['/builds/123/snapshots'][0].headers['X-Percy-Capabilities']).toBeUndefined();
+      } finally {
+        delete process.env.PERCY_DISABLE_DIRECT_UPLOAD;
+      }
+    });
+
+    it('PERCY_DISABLE_DIRECT_UPLOAD uses strict parsing — "0" / "false" / "anything-else" do NOT disable', async () => {
+      // regression guard: an earlier !!process.env.X would treat any non-empty
+      // string as truthy, so PERCY_DISABLE_DIRECT_UPLOAD=0 would silently
+      // disable direct upload despite reading like "off"
+      for (const v of ['0', 'false', 'no', 'off', 'garbage']) {
+        process.env.PERCY_DISABLE_DIRECT_UPLOAD = v;
+        try {
+          await client.createSnapshot(123, { name: `cap-${v}`, resources: [{ sha: 'sha' }] });
+          const last = api.requests['/builds/123/snapshots'].slice(-1)[0];
+          expect(last.headers['X-Percy-Capabilities']).toBe('direct-upload-v1');
+        } finally {
+          delete process.env.PERCY_DISABLE_DIRECT_UPLOAD;
+        }
+      }
+    });
+
+    it('PERCY_DISABLE_DIRECT_UPLOAD strict-true values (1/true, case-insensitive) all disable', async () => {
+      for (const v of ['1', 'true', 'True', 'TRUE']) {
+        process.env.PERCY_DISABLE_DIRECT_UPLOAD = v;
+        try {
+          await client.createSnapshot(123, { name: `cap-${v}`, resources: [{ sha: 'sha' }] });
+          const last = api.requests['/builds/123/snapshots'].slice(-1)[0];
+          expect(last.headers['X-Percy-Capabilities']).toBeUndefined();
+        } finally {
+          delete process.env.PERCY_DISABLE_DIRECT_UPLOAD;
+        }
+      }
+    });
+
+    it('prefers caller-supplied md5/contentLength over recomputing from content', async () => {
+      await expectAsync(
+        client.createSnapshot(123, {
+          name: 'precomputed',
+          resources: [{
+            url: '/x',
+            sha: 'precomputed-sha',
+            content: 'foo',
+            md5: 'caller-md5-base64',
+            contentLength: 999
+          }]
+        })
+      ).toBeResolved();
+
+      const attrs = api.requests['/builds/123/snapshots'][0].body.data.relationships.resources.data[0].attributes;
+      expect(attrs['content-md5']).toBe('caller-md5-base64');
+      expect(attrs['content-length']).toBe(999);
     });
   });
 
@@ -1438,7 +1642,9 @@ describe('PercyClient', () => {
                   mimetype: 'text/html',
                   'resource-url': null,
                   'for-widths': [1000],
-                  'is-root': true
+                  'is-root': true,
+                  'content-md5': md5base64(testDOM),
+                  'content-length': Buffer.byteLength(testDOM, 'utf-8')
                 }
               }]
             }
@@ -1474,6 +1680,193 @@ describe('PercyClient', () => {
     it('finalizes a snapshot', async () => {
       await expectAsync(client.sendSnapshot(123, { name: 'test snapshot name' })).toBeResolved();
       expect(api.requests['/snapshots/4567/finalize']).toBeDefined();
+    });
+
+    describe('direct bucket upload', () => {
+      const GCS_BASE = 'https://storage.googleapis.com';
+      let gcsReply;
+
+      function withSignedUrls(reqBody, includeFor = () => true) {
+        return {
+          data: {
+            id: '4567',
+            attributes: reqBody.attributes,
+            relationships: {
+              'missing-resources': {
+                data: reqBody.data.relationships.resources.data.map(({ id }) => (
+                  includeFor(id)
+                    ? { id, attributes: { 'signed-upload-url': `${GCS_BASE}/percy-resources/ns_gid_${id}?sig=fake` } }
+                    : { id }
+                ))
+              }
+            }
+          }
+        };
+      }
+
+      beforeEach(async () => {
+        gcsReply = await mockRequests(GCS_BASE);
+      });
+
+      it('PUTs directly to GCS when the server returns signed-upload-url', async () => {
+        gcsReply.and.callFake(() => [200]);
+        api.reply('/builds/123/snapshots', ({ body }) => [201, withSignedUrls(body)]);
+
+        let content = 'foo-content';
+        await expectAsync(
+          client.sendSnapshot(123, {
+            name: 'direct-test',
+            resources: [{
+              url: '/foo.css',
+              sha: sha256hash(content),
+              mimetype: 'text/css',
+              content,
+              md5: md5base64(content),
+              contentLength: Buffer.byteLength(content, 'utf-8'),
+              root: true
+            }]
+          })
+        ).toBeResolved();
+
+        expect(gcsReply).toHaveBeenCalledTimes(1);
+        expect(gcsReply.calls.mostRecent().args[0].method).toBe('PUT');
+        expect(gcsReply.calls.mostRecent().args[0].headers['Content-MD5']).toBe(md5base64(content));
+        // legacy upload path NOT used when direct succeeds
+        expect(api.requests['/builds/123/resources']).toBeUndefined();
+        expect(api.requests['/snapshots/4567/finalize']).toBeDefined();
+      });
+
+      it('partitions per-resource: signed URL → direct, no URL → legacy', async () => {
+        gcsReply.and.callFake(() => [200]);
+        let directContent = 'direct-bytes';
+        let legacyContent = 'legacy-bytes';
+        let directSha = sha256hash(directContent);
+        let legacySha = sha256hash(legacyContent);
+
+        api.reply('/builds/123/snapshots', ({ body }) => [201, withSignedUrls(body, id => id === directSha)]);
+
+        await expectAsync(
+          client.sendSnapshot(123, {
+            name: 'mixed',
+            resources: [
+              { url: '/d', sha: directSha, content: directContent, mimetype: 'text/plain', md5: md5base64(directContent), contentLength: Buffer.byteLength(directContent, 'utf-8') },
+              { url: '/l', sha: legacySha, content: legacyContent, mimetype: 'text/plain', md5: md5base64(legacyContent), contentLength: Buffer.byteLength(legacyContent, 'utf-8') }
+            ]
+          })
+        ).toBeResolved();
+
+        expect(gcsReply).toHaveBeenCalledTimes(1);
+        expect(api.requests['/builds/123/resources']).toBeDefined();
+        expect(api.requests['/builds/123/resources'].length).toBe(1);
+        expect(api.requests['/builds/123/resources'][0].body.data.id).toBe(legacySha);
+      });
+
+      it('PERCY_DISABLE_DIRECT_UPLOAD forces every resource through legacy even when URLs are returned', async () => {
+        gcsReply.and.callFake(() => [200]);
+        api.reply('/builds/123/snapshots', ({ body }) => [201, withSignedUrls(body)]);
+
+        let content = 'forced-legacy';
+        process.env.PERCY_DISABLE_DIRECT_UPLOAD = '1';
+        try {
+          await expectAsync(
+            client.sendSnapshot(123, {
+              name: 'forced-legacy',
+              resources: [{
+                url: '/x',
+                sha: sha256hash(content),
+                content,
+                mimetype: 'text/plain',
+                md5: md5base64(content),
+                contentLength: Buffer.byteLength(content, 'utf-8')
+              }]
+            })
+          ).toBeResolved();
+
+          expect(gcsReply).not.toHaveBeenCalled();
+          expect(api.requests['/builds/123/resources'].length).toBe(1);
+        } finally {
+          delete process.env.PERCY_DISABLE_DIRECT_UPLOAD;
+        }
+      });
+
+      it('falls back to legacy when the direct PUT hits a transport error (e.g., 403)', async () => {
+        gcsReply.and.callFake(() => [403, 'expired']);
+        api.reply('/builds/123/snapshots', ({ body }) => [201, withSignedUrls(body)]);
+
+        let content = 'falls-back';
+        await expectAsync(
+          client.sendSnapshot(123, {
+            name: 'fallback',
+            resources: [{
+              url: '/x',
+              sha: sha256hash(content),
+              content,
+              mimetype: 'text/plain',
+              md5: md5base64(content),
+              contentLength: Buffer.byteLength(content, 'utf-8'),
+              root: true
+            }]
+          })
+        ).toBeResolved();
+
+        expect(gcsReply).toHaveBeenCalled();
+        expect(api.requests['/builds/123/resources']).toBeDefined();
+        expect(api.requests['/builds/123/resources'][0].body.data.id).toBe(sha256hash(content));
+        expect(api.requests['/snapshots/4567/finalize']).toBeDefined();
+      });
+
+      it('propagates correctness failures (400 BadDigest) and does not fall back to legacy', async () => {
+        gcsReply.and.callFake(() => [400, '<Error><Code>BadDigest</Code></Error>']);
+        api.reply('/builds/123/snapshots', ({ body }) => [201, withSignedUrls(body)]);
+
+        let content = 'bad-digest';
+        await expectAsync(
+          client.sendSnapshot(123, {
+            name: 'fail-loud',
+            resources: [{
+              url: '/x',
+              sha: sha256hash(content),
+              content,
+              mimetype: 'text/plain',
+              md5: md5base64(content),
+              contentLength: Buffer.byteLength(content, 'utf-8')
+            }]
+          })
+        ).toBeRejected();
+
+        expect(api.requests['/builds/123/resources']).toBeUndefined();
+      });
+
+      it('skips missing-resource entries whose SHA was not sent in the request', async () => {
+        api.reply('/builds/123/snapshots', () => [201, {
+          data: {
+            id: '4567',
+            relationships: {
+              'missing-resources': {
+                data: [{ id: 'orphan-sha-not-in-request' }]
+              }
+            }
+          }
+        }]);
+
+        let content = 'orphan';
+        await expectAsync(
+          client.sendSnapshot(123, {
+            name: 'orphan',
+            resources: [{
+              url: '/x',
+              sha: sha256hash(content),
+              content,
+              mimetype: 'text/plain',
+              md5: md5base64(content),
+              contentLength: Buffer.byteLength(content, 'utf-8')
+            }]
+          })
+        ).toBeResolved();
+
+        expect(gcsReply).not.toHaveBeenCalled();
+        expect(api.requests['/builds/123/resources']).toBeUndefined();
+      });
     });
   });
 

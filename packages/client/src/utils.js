@@ -25,6 +25,15 @@ export function sha256hash(content) {
     .digest('hex');
 }
 
+// Returns a base64-encoded MD5 of a string or buffer. Used as Content-MD5 for
+// GCS direct-bucket-upload integrity (RFC 1864), declared alongside the SHA-256.
+export function md5base64(content) {
+  return crypto
+    .createHash('md5')
+    .update(content, 'utf-8')
+    .digest('base64');
+}
+
 // Returns a base64 encoding of a string or buffer.
 export function base64encode(content) {
   return Buffer
@@ -132,7 +141,7 @@ export async function request(url, options = {}, callback) {
   // gather request options
   let {
     body, headers, retries, retryNotFound,
-    interval, noProxy, buffer, meta = {}, ...requestOptions
+    interval, noProxy, buffer, rawBody, meta = {}, ...requestOptions
   } = options;
   let { protocol, hostname, port, pathname, search, hash } = new URL(url);
 
@@ -142,8 +151,9 @@ export async function request(url, options = {}, callback) {
   let { default: http } = protocol === 'https:' ? await import('https') : await import('http');
   let { proxyAgentFor } = await import('./proxy.js');
 
-  // automatically stringify body content
-  if (body !== undefined && typeof body !== 'string') {
+  // rawBody: send body and headers verbatim (e.g. binary PUT to a GCS signed URL).
+  // Otherwise stringify non-string bodies as JSON.
+  if (!rawBody && body !== undefined && typeof body !== 'string') {
     headers = { 'Content-Type': 'application/json', ...headers };
     body = JSON.stringify(body);
   }

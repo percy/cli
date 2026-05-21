@@ -210,6 +210,51 @@ describe('Unit / Request', () => {
       .toBeRejectedWithError('403 \nSTOP');
   });
 
+  describe('rawBody', () => {
+    it('JSON-stringifies non-string bodies and forces application/json by default', async () => {
+      await server.request('/', {
+        method: 'POST',
+        body: { hello: 'world' }
+      });
+
+      const req = server.received[0];
+      expect(req.headers['content-type']).toBe('application/json');
+      expect(req.body).toBe('{"hello":"world"}');
+    });
+
+    it('sends Buffer body verbatim with caller-supplied headers when rawBody is true', async () => {
+      const payload = Buffer.from('raw-bytes-here', 'utf-8');
+
+      await server.request('/', {
+        method: 'PUT',
+        rawBody: true,
+        body: payload,
+        headers: {
+          'Content-Type': 'image/png',
+          'Content-MD5': 'fakebase64md5==',
+          'Content-Length': payload.length
+        }
+      });
+
+      const req = server.received[0];
+      expect(req.headers['content-type']).toBe('image/png');
+      expect(req.headers['content-md5']).toBe('fakebase64md5==');
+      expect(req.headers['content-length']).toBe(String(payload.length));
+      expect(Buffer.from(req.body).toString('utf-8')).toBe('raw-bytes-here');
+    });
+
+    it('does not inject Content-Type when rawBody is true and caller omits one', async () => {
+      await server.request('/', {
+        method: 'PUT',
+        rawBody: true,
+        body: Buffer.from('x')
+      });
+
+      const req = server.received[0];
+      expect(req.headers['content-type']).toBeUndefined();
+    });
+  });
+
   describe('retries', () => {
     it('automatically retries server 500 errors', async () => {
       let responses = [[502], [503], [520], [200]];
