@@ -836,4 +836,96 @@ describe('SDK Utils', () => {
       percy.config = undefined;
     });
   });
+
+  describe('runReadinessGate(evalScript, snapshotOptions[, opts])', () => {
+    let { runReadinessGate, percy } = utils;
+
+    afterEach(() => { percy.config = undefined; });
+
+    it('returns null and skips evalScript when preset is disabled', async () => {
+      let called = false;
+      let result = await runReadinessGate(
+        () => { called = true; return { passed: true }; },
+        { readiness: { preset: 'disabled' } }
+      );
+      expect(result).toBe(null);
+      expect(called).toBe(false);
+    });
+
+    it('returns null and skips evalScript when global preset is disabled', async () => {
+      percy.config = { snapshot: { readiness: { preset: 'disabled' } } };
+      let called = false;
+      let result = await runReadinessGate(() => { called = true; });
+      expect(result).toBe(null);
+      expect(called).toBe(false);
+    });
+
+    it('passes the merged shallow-merge config script to evalScript and returns its result', async () => {
+      percy.config = { snapshot: { readiness: { preset: 'balanced', timeoutMs: 8000, stabilityWindowMs: 200 } } };
+      let captured;
+      let diagnostics = { passed: true, timed_out: false, preset: 'balanced' };
+      let result = await runReadinessGate(
+        (script) => { captured = script; return Promise.resolve(diagnostics); },
+        { readiness: { stabilityWindowMs: 500 } }
+      );
+      expect(result).toEqual(diagnostics);
+      // Shallow-merged: per-snapshot stabilityWindowMs wins, global preset+timeoutMs inherited.
+      expect(captured).toContain('"preset":"balanced"');
+      expect(captured).toContain('"timeoutMs":8000');
+      expect(captured).toContain('"stabilityWindowMs":500');
+    });
+
+    it('emits callback-mode script when opts.callback is true', async () => {
+      let captured;
+      await runReadinessGate(
+        (script) => { captured = script; return null; },
+        {},
+        { callback: true }
+      );
+      expect(captured).toContain('arguments[arguments.length - 1]');
+      expect(captured).toContain('PercyDOM.waitForReady');
+    });
+
+    it('emits promise-mode script by default', async () => {
+      let captured;
+      await runReadinessGate(
+        (script) => { captured = script; return null; },
+        {}
+      );
+      expect(captured).toContain('return PercyDOM.waitForReady');
+      expect(captured).not.toContain('arguments[arguments.length - 1]');
+    });
+
+    it('returns null and never throws when evalScript rejects (with Error)', async () => {
+      let logged;
+      let result = await runReadinessGate(
+        () => Promise.reject(new Error('readiness boom')),
+        {},
+        { log: { debug: (m) => { logged = m; } } }
+      );
+      expect(result).toBe(null);
+      expect(logged).toContain('readiness boom');
+    });
+
+    it('returns null and never throws when evalScript rejects (non-Error)', async () => {
+      let logged;
+      let result = await runReadinessGate(
+        () => Promise.reject('plain-string-rejection'),
+        {},
+        { log: { debug: (m) => { logged = m; } } }
+      );
+      expect(result).toBe(null);
+      expect(logged).toContain('plain-string-rejection');
+    });
+
+    it('returns null and never throws when evalScript throws synchronously', async () => {
+      let result = await runReadinessGate(() => { throw new Error('sync boom'); }, {});
+      expect(result).toBe(null);
+    });
+
+    it('tolerates absent log (no opts.log)', async () => {
+      let result = await runReadinessGate(() => Promise.reject(new Error('no log')), {});
+      expect(result).toBe(null);
+    });
+  });
 });
