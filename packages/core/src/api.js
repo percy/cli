@@ -440,9 +440,10 @@ export function createPercyServer(percy, port) {
                 // `name` is upstream-validated by SAFE_ID (`^[a-zA-Z0-9_-]+$`) at the top
                 // of the route handler; `entry.name` comes from readdir on a path under
                 // /tmp/${sessionId} where sessionId is also SAFE_ID-validated. Depth is
-                // capped at 15 above. semgrep cannot follow the upstream validation chain.
+                // capped at 15 above. Path-traversal sinks suppressed at file level in
+                // .semgrepignore with the same rationale.
                 for (let entry of entries) {
-                  let full = path.join(dir, entry.name); // nosemgrep: javascript.lang.security.audit.path-traversal.path-join-resolve-traversal.path-join-resolve-traversal
+                  let full = path.join(dir, entry.name);
                   if (entry.isDirectory()) {
                     await walk(full, depth + 1);
                   } else if (entry.isFile() && entry.name === `${name}.png` && full.includes('_maestro_debug_')) {
@@ -457,9 +458,10 @@ export function createPercyServer(percy, port) {
               // `name` and `sessionId` are both upstream-validated by SAFE_ID
               // (`^[a-zA-Z0-9_-]+$`); `dir` comes from readdir on a path under
               // /tmp/${sessionId}_test_suite/logs. The path components cannot contain
-              // traversal sequences. semgrep cannot follow the upstream validation chain.
+              // traversal sequences. Path-traversal sinks suppressed at file level in
+              // .semgrepignore with the same rationale.
               for (let dir of logDirs) {
-                let screenshotPath = path.join(baseDir, dir, 'screenshots', `${name}.png`); // nosemgrep: javascript.lang.security.audit.path-traversal.path-join-resolve-traversal.path-join-resolve-traversal, javascript.express.security.audit.express-path-join-resolve-traversal.express-path-join-resolve-traversal
+                let screenshotPath = path.join(baseDir, dir, 'screenshots', `${name}.png`);
                 try {
                   await fs.promises.access(screenshotPath);
                   files.push(screenshotPath);
