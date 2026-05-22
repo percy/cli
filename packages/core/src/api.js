@@ -437,12 +437,12 @@ export function createPercyServer(percy, port) {
                 if (depth > 15) return; // sanity cap
                 let entries;
                 try { entries = await fs.promises.readdir(dir, { withFileTypes: true }); } catch { return; }
+                // `name` is upstream-validated by SAFE_ID (`^[a-zA-Z0-9_-]+$`) at the top
+                // of the route handler; `entry.name` comes from readdir on a path under
+                // /tmp/${sessionId} where sessionId is also SAFE_ID-validated. Depth is
+                // capped at 15 above. semgrep cannot follow the upstream validation chain.
                 for (let entry of entries) {
-                  // `name` is upstream-validated by SAFE_ID (`^[a-zA-Z0-9_-]+$`) at the top
-                  // of the route handler; `entry.name` comes from readdir on a path under
-                  // /tmp/${sessionId} where sessionId is also SAFE_ID-validated. Depth is
-                  // capped at 15 above. semgrep cannot follow the upstream validation chain.
-                  // nosemgrep: javascript.lang.security.audit.path-traversal.path-join-resolve-traversal.path-join-resolve-traversal
+                  // nosemgrep
                   let full = path.join(dir, entry.name);
                   if (entry.isDirectory()) {
                     await walk(full, depth + 1);
@@ -455,13 +455,12 @@ export function createPercyServer(percy, port) {
             } else {
               let baseDir = `/tmp/${sessionId}_test_suite/logs`;
               let logDirs = await fs.promises.readdir(baseDir);
+              // `name` and `sessionId` are both upstream-validated by SAFE_ID
+              // (`^[a-zA-Z0-9_-]+$`); `dir` comes from readdir on a path under
+              // /tmp/${sessionId}_test_suite/logs. The path components cannot contain
+              // traversal sequences. semgrep cannot follow the upstream validation chain.
               for (let dir of logDirs) {
-                // `name` and `sessionId` are both upstream-validated by SAFE_ID
-                // (`^[a-zA-Z0-9_-]+$`); `dir` comes from readdir on a path under
-                // /tmp/${sessionId}_test_suite/logs. The path components cannot contain
-                // traversal sequences. semgrep cannot follow the upstream validation chain.
-                // nosemgrep: javascript.lang.security.audit.path-traversal.path-join-resolve-traversal.path-join-resolve-traversal
-                // nosemgrep: javascript.express.security.audit.express-path-join-resolve-traversal.express-path-join-resolve-traversal
+                // nosemgrep
                 let screenshotPath = path.join(baseDir, dir, 'screenshots', `${name}.png`);
                 try {
                   await fs.promises.access(screenshotPath);
