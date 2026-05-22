@@ -166,15 +166,25 @@ async function readStats(statsFile, projectRoot) {
   return { files, modules, buildId };
 }
 
+// Polls `job_status?sync=true&type=smartsnap_graph` — the sync response blocks
+// server-side until the job moves off `in_progress`, but the API enforces a
+// shorter timeout than the job can take, so we retry up to POLL_ATTEMPTS
+// times. On `done` the response also carries the graph payload (affected
+// stories, trace HTML); the caller reads it directly, no second fetch needed.
+//
+// Response shape is `{ <buildId>: { status, data? } }` — the job_status
+// endpoint accepts a comma-separated id list and always keys the response
+// by id, even for a single id.
 async function pollGraphStatus(percy, buildId, log) {
   for (let i = 0; i < POLL_ATTEMPTS; i++) {
     await new Promise(r => setTimeout(r, POLL_INTERVAL_MS));
-    const res = await percy.client.getSmartsnapGraphStatus(buildId);
-    const status = res?.status;
+    const res = await percy.client.getStatus('smartsnap_graph', [buildId]);
+    const entry = res?.[buildId];
+    const status = entry?.status;
     log.debug(`SmartSnap: graph status (attempt ${i + 1}) = ${status}`);
-    if (status === 'done' || status === 'failure') return status;
+    if (status === 'done' || status === 'failure') return { status, data: entry?.data };
   }
-  return null;
+  return { status: null };
 }
 
 // Given the mapped snapshots and storybook.smartSnap config, returns the subset of snapshots
@@ -206,12 +216,13 @@ export async function applySmartSnap(percy, snapshots, smartSnapConfig, buildDir
     throw new SmartSnapBailError(`SmartSnap: stats file "${statsName}" in ${buildDir} is not a regular file; running full snapshot set`);
   }
 
-  const snapshotNames = snapshots.map(s => s.name);
   // New API shape: `{ base_build_commit_sha, snapshots: { <name>: <review_state> } }`.
   // The single base-build commit replaces the previous per-snapshot commit map —
   // baseline prediction now happens server-side via `Percy::BaseBuildService`,
-  // so we just diff against whatever commit it picked.
-  const baseLookup = await percy.client.getSmartsnapSnapshotNameToCommit(snapshotNames);
+  // so we just diff against whatever commit it picked. The set of snapshot
+  // names is no longer sent; the API resolves baselines from the project +
+  // git/PR context alone.
+  const baseLookup = await percy.client.getSmartsnapSnapshotNameToCommit();
   log.debug(`SmartSnap: base lookup ${JSON.stringify(baseLookup)}`);
 
   let affectedNodes;
@@ -333,19 +344,34 @@ export async function applySmartSnap(percy, snapshots, smartSnapConfig, buildDir
     throw new SmartSnapBailError(`SmartSnap: stats file at ${resolvedStatsPath} is missing a top-level "buildId" — running full snapshot set`);
   }
 
-  // Storybook's `parameters.fileName` (and v7+ `entries[id].importPath`)
-  // both come back with a leading `./` (or `.\` on Windows) — e.g.
-  // `./src/stories/Foo.stories.tsx`. The compactor's `files` array uses
-  // `path.relative(projectRoot, ...)` which produces `src/stories/Foo.stories.tsx`
-  // with no prefix. Normalize using the platform's separator (and also strip
-  // the POSIX form for Storybook builds on Windows that emit `./` regardless).
+  // Storybook's `entries[id].importPath` (and v6 `parameters.fileName`)
+  // is resolved relative to the directory percy was invoked from — for a
+  // monorepo storybook that's typically the package dir (e.g.
+  // `frontend/packages/design-stack`), not the git root. Example:
+  // `./modules/AgentCard/AgentCard.stories.tsx`.
+  //
+  // `affectedNodes` from `git diff --name-only` and the `files` array
+  // built by the stats compactor are both project-root-relative
+  // (e.g. `packages/design-stack/modules/AgentCard/AgentCard.stories.tsx`).
+  // Project them into the same frame so the BE matches importPath against
+  // affectedNodes without a cross-frame translation.
   const dotPosix = './';
   const dotPlatform = `.${path.sep}`;
+  const invocationDir = process.cwd();
   const normalizeImportPath = p => {
-    if (typeof p !== 'string') return p;
-    if (p.startsWith(dotPlatform)) return p.slice(dotPlatform.length);
-    if (p.startsWith(dotPosix)) return p.slice(dotPosix.length);
-    return p;
+    if (typeof p !== 'string' || !p) return p;
+    let rel = p;
+    if (rel.startsWith(dotPlatform)) rel = rel.slice(dotPlatform.length);
+    else if (rel.startsWith(dotPosix)) rel = rel.slice(dotPosix.length);
+    // If the importPath happens to be absolute (older Storybook configs),
+    // path.resolve treats it as the target directly; otherwise it's joined
+    // against `invocationDir`. Then re-base against the git project root.
+    const abs = path.resolve(invocationDir, rel);
+    const projRel = path.relative(projectRoot, abs);
+    // path.relative('','') → '' and `path.relative` produces backslashes
+    // on Windows; the stats `files` array uses the same — leave platform
+    // sep alone so the two stay byte-identical for the BE match.
+    return projRel || rel;
   };
 
   const storybookPaths = [...new Set(snapshots.map(s => normalizeImportPath(s.importPath)).filter(Boolean))];
@@ -364,19 +390,20 @@ export async function applySmartSnap(percy, snapshots, smartSnapConfig, buildDir
     files, modules, storybookPaths, affectedNodes
   });
 
-  const status = await pollGraphStatus(percy, buildId, log);
+  const { status, data } = await pollGraphStatus(percy, buildId, log);
   if (status !== 'done') {
     throw new SmartSnapBailError(`SmartSnap: graph generation did not complete (status: ${status ?? 'timed out'}); running full snapshot set`);
   }
 
-  const data = await percy.client.getSmartsnapGraphData(buildId, { trace: trace });
-
-  // Persist the rendered Drawflow visualization next to where the user ran
-  // percy, so they can open it after the build finishes.
+  // The sync status response carries the graph payload directly on completion,
+  // so there's no second fetch — `data` here is the same response body that
+  // used to come from `getSmartsnapGraphData`.
 
   log.debug(`SmartSnap: affected stories result ${JSON.stringify(data?.affected_stories)}`);
 
-  if (data?.trace_graph_html) {
+  // The API always returns trace_graph_html now; only persist it when the
+  // user opted in via the `trace` config flag.
+  if (trace && data?.trace_graph_html) {
     const tracePath = path.resolve(process.cwd(), 'trace.html');
     try {
       fs.writeFileSync(tracePath, data.trace_graph_html);

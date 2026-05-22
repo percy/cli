@@ -413,23 +413,27 @@ export class PercyClient {
   }
 
   // Retrieves snapshot/comparison data by id. Requires a read access token.
+  // For `smartsnap_graph`, the API blocks (sync=true) until the graph job
+  // finishes and returns the graph payload directly in the response — there
+  // is no separate "data" endpoint to fetch after polling.
   async getStatus(type, ids) {
-    if (!['snapshot', 'comparison'].includes(type)) throw new Error('Invalid type passed');
+    if (!['snapshot', 'comparison', 'smartsnap_graph'].includes(type)) throw new Error('Invalid type passed');
     this.log.debug(`Getting ${type} status for ids ${ids}`);
     return this.get(`job_status?sync=true&type=${type}&id=${ids.join()}`);
   }
 
   // SmartSnap endpoints authenticate against the project attached to the
-  // current Percy token (via the Authorization header). The three graph
-  // endpoints additionally take a `build_id` (sourced from the bundler-
-  // emitted stats file) so multiple concurrent storybook builds for the
-  // same project don't share Redis state. `snapshot-name-to-commit` is
-  // project-scoped only and takes no buildId.
+  // current Percy token (via the Authorization header). `generate-graph`
+  // takes a `build_id` (sourced from the bundler-emitted stats file) so
+  // multiple concurrent storybook builds for the same project don't share
+  // Redis state. `snapshot-name-to-commit` is project-scoped only.
+  // Graph status is polled through the shared `getStatus()` helper with
+  // type `smartsnap_graph` — the sync response returns the graph payload
+  // directly on completion.
 
-  async getSmartsnapSnapshotNameToCommit(snapshotNames) {
+  async getSmartsnapSnapshotNameToCommit() {
     this.log.debug('Smartsnap: looking up baselines...');
     const qs = new URLSearchParams();
-    for (const name of (snapshotNames || [])) qs.append('snapshot_names[]', name);
 
     // Same git/PR context `createBuild` sends — the API uses these to predict
     // the base build that *would* be selected if we called createBuild now,
@@ -442,8 +446,9 @@ export class PercyClient {
     if (this.env.pullRequest != null) qs.append('pull_request_number', String(this.env.pullRequest));
     if (this.env.partial) qs.append('partial', 'true');
 
+    const query = qs.toString();
     return this.get(
-      `smartsnap/snapshot-name-to-commit?${qs.toString()}`,
+      query ? `smartsnap/snapshot-name-to-commit?${query}` : 'smartsnap/snapshot-name-to-commit',
       { identifier: 'smartsnap.snapshot_name_to_commit' }
     );
   }
@@ -462,27 +467,6 @@ export class PercyClient {
       storybook_paths: storybookPaths,
       affected_nodes: affectedNodes
     }, { identifier: 'smartsnap.generate_graph' });
-  }
-
-  async getSmartsnapGraphStatus(buildId) {
-    this.log.debug(`Smartsnap: polling graph status for build ${buildId}...`);
-    const qs = new URLSearchParams();
-    qs.append('build_id', buildId);
-    return this.get(
-      `smartsnap/generate-graph?${qs.toString()}`,
-      { identifier: 'smartsnap.graph_status' }
-    );
-  }
-
-  async getSmartsnapGraphData(buildId, { trace = false } = {}) {
-    this.log.debug(`Smartsnap: fetching graph data for build ${buildId}...`);
-    const qs = new URLSearchParams();
-    qs.append('build_id', buildId);
-    if (trace) qs.append('trace', 'true');
-    return this.get(
-      `smartsnap/generate-graph/data?${qs.toString()}`,
-      { identifier: 'smartsnap.graph_data' }
-    );
   }
 
   // Returns device details enabled on project associated with given token
