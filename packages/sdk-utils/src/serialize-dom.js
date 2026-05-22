@@ -1,12 +1,20 @@
 import percy from './percy-info.js';
 
 // Returns the readiness config for a snapshot.
-// Priority: per-snapshot options > global percy.config > empty object (triggers balanced default).
+// Shallow-merge of global .percy.yml config with per-snapshot overrides:
+// per-snapshot keys win, unspecified keys are inherited from the global config.
 // SDKs obtain percy.config via the healthcheck endpoint in isPercyEnabled().
+//
+// Why shallow-merge instead of `||`:
+//   - `options.readiness = {}` would otherwise wipe the global config entirely.
+//   - A partial per-snapshot override like `{ stabilityWindowMs: 500 }` would
+//     drop a global `preset: disabled` kill switch — silently re-enabling the
+//     gate for a snapshot the user thought was opted out.
 export function getReadinessConfig(snapshotOptions = {}) {
-  return snapshotOptions?.readiness ||
-    percy.config?.snapshot?.readiness ||
-    {};
+  return {
+    ...(percy.config?.snapshot?.readiness || {}),
+    ...(snapshotOptions?.readiness || {})
+  };
 }
 
 // Returns true if readiness should be skipped for this snapshot.

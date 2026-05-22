@@ -779,6 +779,37 @@ describe('SDK Utils', () => {
       expect(getReadinessConfig({ readiness: { preset: 'fast' } })).toEqual({ preset: 'fast' });
       percy.config = undefined;
     });
+
+    it('shallow-merges per-snapshot overrides into global config', () => {
+      percy.config = {
+        snapshot: {
+          readiness: { preset: 'balanced', timeoutMs: 8000, stabilityWindowMs: 200 }
+        }
+      };
+      // Partial override — `preset` and `timeoutMs` are inherited; `stabilityWindowMs` wins.
+      expect(getReadinessConfig({ readiness: { stabilityWindowMs: 500 } })).toEqual({
+        preset: 'balanced',
+        timeoutMs: 8000,
+        stabilityWindowMs: 500
+      });
+      percy.config = undefined;
+    });
+
+    it('inherits global preset: disabled when per-snapshot omits preset', () => {
+      percy.config = { snapshot: { readiness: { preset: 'disabled' } } };
+      // A partial override must NOT silently re-enable the kill switch.
+      expect(getReadinessConfig({ readiness: { stabilityWindowMs: 500 } })).toEqual({
+        preset: 'disabled',
+        stabilityWindowMs: 500
+      });
+      percy.config = undefined;
+    });
+
+    it('empty per-snapshot readiness does not wipe the global config', () => {
+      percy.config = { snapshot: { readiness: { preset: 'strict' } } };
+      expect(getReadinessConfig({ readiness: {} })).toEqual({ preset: 'strict' });
+      percy.config = undefined;
+    });
   });
 
   describe('isReadinessDisabled(snapshotOptions)', () => {
