@@ -1,4 +1,4 @@
-// Direct unit tests for readiness-browser.js internal helpers.
+// Direct unit tests for readiness.js internal helpers.
 //
 // These helpers were previously covered only indirectly through
 // MutationObserver-driven integration tests and marked with
@@ -12,7 +12,7 @@ import {
   normalizeOptions,
   createAbortHandle,
   resolveSelector
-} from '../src/readiness-browser.js';
+} from '../src/readiness';
 
 describe('readiness helpers', () => {
   describe('parseStyleProps', () => {

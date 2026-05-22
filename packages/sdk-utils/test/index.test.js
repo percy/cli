@@ -909,6 +909,9 @@ describe('SDK Utils', () => {
 
     it('returns null and never throws when evalScript rejects (non-Error)', async () => {
       let logged;
+      // eslint-disable-next-line prefer-promise-reject-errors -- intentional:
+      // exercising the `err?.message || err` second branch where the rejection
+      // value has no `.message`.
       let result = await runReadinessGate(
         () => Promise.reject('plain-string-rejection'),
         {},
