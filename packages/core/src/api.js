@@ -442,8 +442,7 @@ export function createPercyServer(percy, port) {
                 // /tmp/${sessionId} where sessionId is also SAFE_ID-validated. Depth is
                 // capped at 15 above. semgrep cannot follow the upstream validation chain.
                 for (let entry of entries) {
-                  // nosemgrep
-                  let full = path.join(dir, entry.name);
+                  let full = path.join(dir, entry.name); // nosemgrep: javascript.lang.security.audit.path-traversal.path-join-resolve-traversal.path-join-resolve-traversal
                   if (entry.isDirectory()) {
                     await walk(full, depth + 1);
                   } else if (entry.isFile() && entry.name === `${name}.png` && full.includes('_maestro_debug_')) {
@@ -460,8 +459,7 @@ export function createPercyServer(percy, port) {
               // /tmp/${sessionId}_test_suite/logs. The path components cannot contain
               // traversal sequences. semgrep cannot follow the upstream validation chain.
               for (let dir of logDirs) {
-                // nosemgrep
-                let screenshotPath = path.join(baseDir, dir, 'screenshots', `${name}.png`);
+                let screenshotPath = path.join(baseDir, dir, 'screenshots', `${name}.png`); // nosemgrep: javascript.lang.security.audit.path-traversal.path-join-resolve-traversal.path-join-resolve-traversal, javascript.express.security.audit.express-path-join-resolve-traversal.express-path-join-resolve-traversal
                 try {
                   await fs.promises.access(screenshotPath);
                   files.push(screenshotPath);
