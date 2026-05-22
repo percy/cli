@@ -16,6 +16,7 @@
   },
   "files": [
     "dist",
+    "src/readiness-browser.js",
     "test/server.js",
     "test/client.js",
     "test/helpers.js"
@@ -27,6 +28,7 @@
       "node": "./dist/index.js",
       "default": "./dist/bundle.js"
     },
+    "./readiness-browser": "./src/readiness-browser.js",
     "./test/helpers": {
       "node": "./test/helpers.js",
       "default": "./test/client.js"
