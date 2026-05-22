@@ -1137,7 +1137,9 @@ describe('API Server', () => {
     it('rejects element region with unsupported selector key', async () => {
       await percy.start();
       await expectAsync(postMaestro({
-        name: SS_NAME, sessionId: SID, platform: 'android',
+        name: SS_NAME,
+        sessionId: SID,
+        platform: 'android',
         regions: [{ element: { xpath: '//foo' }, algorithm: 'ignore' }]
       })).toBeRejectedWithError(/unsupported selector key/);
     });
@@ -1145,7 +1147,9 @@ describe('API Server', () => {
     it('rejects element region with multiple selector keys', async () => {
       await percy.start();
       await expectAsync(postMaestro({
-        name: SS_NAME, sessionId: SID, platform: 'android',
+        name: SS_NAME,
+        sessionId: SID,
+        platform: 'android',
         regions: [{ element: { 'resource-id': 'a', text: 'b' } }]
       })).toBeRejectedWithError(/exactly one selector key/);
     });
@@ -1153,7 +1157,9 @@ describe('API Server', () => {
     it('rejects element selector value longer than 512 chars', async () => {
       await percy.start();
       await expectAsync(postMaestro({
-        name: SS_NAME, sessionId: SID, platform: 'android',
+        name: SS_NAME,
+        sessionId: SID,
+        platform: 'android',
         regions: [{ element: { 'resource-id': 'a'.repeat(513) } }]
       })).toBeRejectedWithError(/exceeds maximum length of 512/);
     });
@@ -1161,7 +1167,9 @@ describe('API Server', () => {
     it('rejects element region with empty selector value', async () => {
       await percy.start();
       await expectAsync(postMaestro({
-        name: SS_NAME, sessionId: SID, platform: 'android',
+        name: SS_NAME,
+        sessionId: SID,
+        platform: 'android',
         regions: [{ element: { 'resource-id': '' } }]
       })).toBeRejectedWithError(/must be a non-empty string/);
     });
@@ -1201,7 +1209,9 @@ describe('API Server', () => {
       spyOn(percy, 'upload').and.resolveTo();
       await percy.start();
       await postMaestro({
-        name: SS_NAME, sessionId: SID, platform: 'android',
+        name: SS_NAME,
+        sessionId: SID,
+        platform: 'android',
         regions: [{ top: 0, bottom: 10, left: 0, right: 10, algorithm: 'ignore' }]
       });
       let [payload] = percy.upload.calls.mostRecent().args;
@@ -1212,7 +1222,9 @@ describe('API Server', () => {
       spyOn(percy, 'upload').and.resolveTo();
       await percy.start();
       await postMaestro({
-        name: SS_NAME, sessionId: SID, platform: 'android',
+        name: SS_NAME,
+        sessionId: SID,
+        platform: 'android',
         regions: [{ top: 0, bottom: 10, left: 0, right: 10, algorithm: 'standard' }]
       });
       let [payload] = percy.upload.calls.mostRecent().args;
@@ -1223,7 +1235,9 @@ describe('API Server', () => {
       spyOn(percy, 'upload').and.resolveTo();
       await percy.start();
       await postMaestro({
-        name: SS_NAME, sessionId: SID, platform: 'android',
+        name: SS_NAME,
+        sessionId: SID,
+        platform: 'android',
         regions: [{ top: 0, bottom: 10, left: 0, right: 10, algorithm: 'bogus' }]
       });
       let [payload] = percy.upload.calls.mostRecent().args;
@@ -1234,7 +1248,9 @@ describe('API Server', () => {
       spyOn(percy, 'upload').and.resolveTo();
       await percy.start();
       await postMaestro({
-        name: SS_NAME, sessionId: SID, platform: 'android',
+        name: SS_NAME,
+        sessionId: SID,
+        platform: 'android',
         regions: [{ top: 0, bottom: 10, left: 0, right: 10 }]
       });
       let [payload] = percy.upload.calls.mostRecent().args;
@@ -1246,7 +1262,9 @@ describe('API Server', () => {
       await percy.start();
       let one = { top: 0, bottom: 1, left: 0, right: 1 };
       await expectAsync(postMaestro({
-        name: SS_NAME, sessionId: SID, platform: 'android',
+        name: SS_NAME,
+        sessionId: SID,
+        platform: 'android',
         regions: new Array(50).fill(one),
         ignoreRegions: new Array(50).fill(one),
         considerRegions: new Array(50).fill(one)
@@ -1256,7 +1274,9 @@ describe('API Server', () => {
     it('rejects ignoreRegions element selector value longer than 512 chars', async () => {
       await percy.start();
       await expectAsync(postMaestro({
-        name: SS_NAME, sessionId: SID, platform: 'android',
+        name: SS_NAME,
+        sessionId: SID,
+        platform: 'android',
         ignoreRegions: [{ element: { 'resource-id': 'a'.repeat(513) } }]
       })).toBeRejectedWithError(/exceeds maximum length of 512/);
     });
@@ -1266,7 +1286,9 @@ describe('API Server', () => {
       await percy.start();
 
       await expectAsync(postMaestro({
-        name: SS_NAME, sessionId: SID, platform: 'android',
+        name: SS_NAME,
+        sessionId: SID,
+        platform: 'android',
         ignoreRegions: [{ top: 10, bottom: 60, left: 20, right: 80 }]
       })).toBeResolvedTo(jasmine.objectContaining({ success: true }));
 
@@ -1282,7 +1304,9 @@ describe('API Server', () => {
       await percy.start();
 
       await expectAsync(postMaestro({
-        name: SS_NAME, sessionId: SID, platform: 'android',
+        name: SS_NAME,
+        sessionId: SID,
+        platform: 'android',
         considerRegions: [{ top: 5, bottom: 15, left: 5, right: 25 }]
       })).toBeResolvedTo(jasmine.objectContaining({ success: true }));
 
@@ -1298,7 +1322,9 @@ describe('API Server', () => {
       await percy.start();
 
       await expectAsync(postMaestro({
-        name: SS_NAME, sessionId: SID, platform: 'android',
+        name: SS_NAME,
+        sessionId: SID,
+        platform: 'android',
         regions: [{ top: 0, bottom: 10, left: 0, right: 10, algorithm: 'ignore' }],
         ignoreRegions: [{ top: 20, bottom: 30, left: 20, right: 30 }],
         considerRegions: [{ top: 40, bottom: 50, left: 40, right: 50 }]
@@ -1322,7 +1348,9 @@ describe('API Server', () => {
       await percy.start();
 
       await expectAsync(postMaestro({
-        name: SS_NAME, sessionId: SID, platform: 'android',
+        name: SS_NAME,
+        sessionId: SID,
+        platform: 'android',
         regions: [{ top: 0, bottom: 50, left: 0, right: 100, algorithm: 'ignore' }]
       })).toBeResolvedTo(jasmine.objectContaining({ success: true }));
 
@@ -1343,7 +1371,9 @@ describe('API Server', () => {
       await percy.start();
 
       let response = await postMaestro({
-        name: SS_NAME, sessionId: SID, platform: 'ios',
+        name: SS_NAME,
+        sessionId: SID,
+        platform: 'ios',
         regions: [
           { element: { id: 'submitBtn' }, algorithm: 'ignore' },
           { top: 0, bottom: 20, left: 0, right: 20, algorithm: 'ignore' }
@@ -1479,7 +1509,9 @@ describe('API Server', () => {
     it('rejects filePath that is not a string with 400', async () => {
       await percy.start();
       await expectAsync(postMaestro({
-        name: SS_NAME, sessionId: SID, platform: 'android',
+        name: SS_NAME,
+        sessionId: SID,
+        platform: 'android',
         filePath: 12345
       })).toBeRejectedWithError(/filePath.*must be a string/i);
     });
@@ -1487,7 +1519,9 @@ describe('API Server', () => {
     it('rejects filePath that is not an absolute path with 400', async () => {
       await percy.start();
       await expectAsync(postMaestro({
-        name: SS_NAME, sessionId: SID, platform: 'android',
+        name: SS_NAME,
+        sessionId: SID,
+        platform: 'android',
         filePath: 'relative/path/screenshot.png'
       })).toBeRejectedWithError(/filePath.*absolute/i);
     });
@@ -1495,7 +1529,9 @@ describe('API Server', () => {
     it('rejects filePath exceeding the maximum length with 400', async () => {
       await percy.start();
       await expectAsync(postMaestro({
-        name: SS_NAME, sessionId: SID, platform: 'android',
+        name: SS_NAME,
+        sessionId: SID,
+        platform: 'android',
         filePath: '/' + 'a'.repeat(1100)
       })).toBeRejectedWithError(/filePath.*maximum length/i);
     });
@@ -1503,7 +1539,9 @@ describe('API Server', () => {
     it('returns 404 when filePath points to a missing file', async () => {
       await percy.start();
       await expectAsync(postMaestro({
-        name: SS_NAME, sessionId: SID, platform: 'android',
+        name: SS_NAME,
+        sessionId: SID,
+        platform: 'android',
         filePath: `${ANDROID_FILEPATH_DIR}/DoesNotExist.png`
       })).toBeRejectedWithError(/Screenshot not found/);
     });
@@ -1513,7 +1551,9 @@ describe('API Server', () => {
       fs.writeFileSync('/tmp/percy-outside.png', 'OUTSIDE');
       await percy.start();
       await expectAsync(postMaestro({
-        name: SS_NAME, sessionId: SID, platform: 'android',
+        name: SS_NAME,
+        sessionId: SID,
+        platform: 'android',
         filePath: '/tmp/percy-outside.png'
       })).toBeRejectedWithError(/Screenshot not found/);
     });
@@ -1524,7 +1564,9 @@ describe('API Server', () => {
       fs.writeFileSync(`${otherDir}/Foo.png`, 'OTHER-SID');
       await percy.start();
       await expectAsync(postMaestro({
-        name: 'Foo', sessionId: SID, platform: 'android',
+        name: 'Foo',
+        sessionId: SID,
+        platform: 'android',
         filePath: `${otherDir}/Foo.png`
       })).toBeRejectedWithError(/Screenshot not found/);
     });
@@ -1534,7 +1576,9 @@ describe('API Server', () => {
       await percy.start();
 
       await expectAsync(postMaestro({
-        name: SS_NAME, sessionId: SID, platform: 'android',
+        name: SS_NAME,
+        sessionId: SID,
+        platform: 'android',
         filePath: ''
       })).toBeResolvedTo(jasmine.objectContaining({ success: true }));
 

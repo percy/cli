@@ -363,7 +363,8 @@ describe('Unit / maestro-hierarchy', () => {
       const execMaestro = async () => okMaestro;
       const execAdb = async () => { throw new Error('should not hit adb'); };
       const res = await dump({
-        execMaestro, execAdb,
+        execMaestro,
+        execAdb,
         getEnv: k => (k === 'ANDROID_SERIAL' ? 'serial' : undefined)
       });
       const bbox = firstMatch(res.nodes, { 'content-desc': 'Open settings' });
@@ -769,8 +770,12 @@ describe('Unit / maestro-hierarchy', () => {
       // valid JSON regardless. Resolver must accept this.
       const validBody = JSON.stringify({
         axElement: {
-          identifier: 'com.example.app', frame: { X: 0, Y: 0, Width: 390, Height: 844 },
-          label: 'AUT', elementType: 1, enabled: true, children: []
+          identifier: 'com.example.app',
+          frame: { X: 0, Y: 0, Width: 390, Height: 844 },
+          label: 'AUT',
+          elementType: 1,
+          enabled: true,
+          children: []
         },
         depth: 1
       });
@@ -1070,9 +1075,17 @@ describe('Unit / maestro-hierarchy', () => {
     });
 
     const GRPC_STATUS = {
-      OK: 0, CANCELLED: 1, INVALID_ARGUMENT: 3, DEADLINE_EXCEEDED: 4,
-      RESOURCE_EXHAUSTED: 8, FAILED_PRECONDITION: 9, ABORTED: 10,
-      OUT_OF_RANGE: 11, UNIMPLEMENTED: 12, INTERNAL: 13, UNAVAILABLE: 14,
+      OK: 0,
+      CANCELLED: 1,
+      INVALID_ARGUMENT: 3,
+      DEADLINE_EXCEEDED: 4,
+      RESOURCE_EXHAUSTED: 8,
+      FAILED_PRECONDITION: 9,
+      ABORTED: 10,
+      OUT_OF_RANGE: 11,
+      UNIMPLEMENTED: 12,
+      INTERNAL: 13,
+      UNAVAILABLE: 14,
       DATA_LOSS: 15
     };
 
@@ -1100,11 +1113,6 @@ describe('Unit / maestro-hierarchy', () => {
         close: () => {}
       });
     }
-
-    const adbHierarchyOk = makeFakeExecAdb([
-      { match: args => args[0] === 'devices', result: okDevices },
-      { match: args => args.includes('exec-out'), result: { stdout: loadFixture('simple.xml'), stderr: '', exitCode: 0 } }
-    ]);
 
     const maestroSimple = loadFixture('maestro-simple.json');
     const maestroHierarchyOk = async () => ({ stdout: maestroSimple, stderr: '', exitCode: 0 });
@@ -1533,7 +1541,8 @@ describe('Unit / maestro-hierarchy', () => {
         return undefined;
       };
       await dump({
-        platform: 'ios', getEnv,
+        platform: 'ios',
+        getEnv,
         httpRequest: async () => { throw new Error('should not run'); },
         execMaestro: maestroHierarchyOk
       });
@@ -1564,12 +1573,23 @@ describe('Unit / maestro-hierarchy', () => {
     // Inlined gRPC status enum — mirrors @grpc/grpc-js, kept inline so
     // classifier tests don't depend on the upstream runtime values.
     const GRPC_STATUS = {
-      OK: 0, CANCELLED: 1, UNKNOWN: 2,
-      INVALID_ARGUMENT: 3, DEADLINE_EXCEEDED: 4, NOT_FOUND: 5,
-      ALREADY_EXISTS: 6, PERMISSION_DENIED: 7, RESOURCE_EXHAUSTED: 8,
-      FAILED_PRECONDITION: 9, ABORTED: 10, OUT_OF_RANGE: 11,
-      UNIMPLEMENTED: 12, INTERNAL: 13, UNAVAILABLE: 14,
-      DATA_LOSS: 15, UNAUTHENTICATED: 16
+      OK: 0,
+      CANCELLED: 1,
+      UNKNOWN: 2,
+      INVALID_ARGUMENT: 3,
+      DEADLINE_EXCEEDED: 4,
+      NOT_FOUND: 5,
+      ALREADY_EXISTS: 6,
+      PERMISSION_DENIED: 7,
+      RESOURCE_EXHAUSTED: 8,
+      FAILED_PRECONDITION: 9,
+      ABORTED: 10,
+      OUT_OF_RANGE: 11,
+      UNIMPLEMENTED: 12,
+      INTERNAL: 13,
+      UNAVAILABLE: 14,
+      DATA_LOSS: 15,
+      UNAUTHENTICATED: 16
     };
 
     function makeFakeFactory(impl) {
@@ -1819,8 +1839,12 @@ describe('Unit / maestro-hierarchy', () => {
         const execMaestro = jasmine.createSpy('execMaestro');
         const execAdb = jasmine.createSpy('execAdb');
         const res = await dump({
-          platform: 'android', getEnv: makeAndroidEnv(), grpcClient: factory,
-          grpcClientCache: cache, execMaestro, execAdb
+          platform: 'android',
+          getEnv: makeAndroidEnv(),
+          grpcClient: factory,
+          grpcClientCache: cache,
+          execMaestro,
+          execAdb
         });
         expect(res.kind).toBe('hierarchy');
         expect(execMaestro).not.toHaveBeenCalled();
@@ -1836,8 +1860,12 @@ describe('Unit / maestro-hierarchy', () => {
         const execMaestro = jasmine.createSpy('execMaestro');
         const execAdb = jasmine.createSpy('execAdb');
         const res = await dump({
-          platform: 'android', getEnv: makeAndroidEnv(), grpcClient: factory,
-          grpcClientCache: cache, execMaestro, execAdb
+          platform: 'android',
+          getEnv: makeAndroidEnv(),
+          grpcClient: factory,
+          grpcClientCache: cache,
+          execMaestro,
+          execAdb
         });
         expect(res.reason).toBe('grpc-schema-unimplemented');
         expect(getMaestroHierarchyDrift().android).not.toBeNull();
@@ -1855,8 +1883,12 @@ describe('Unit / maestro-hierarchy', () => {
           { match: args => args.includes('exec-out'), result: { stdout: simpleXml, stderr: '', exitCode: 0 } }
         ]);
         const res = await dump({
-          platform: 'android', getEnv: makeAndroidEnv(), grpcClient: factory,
-          grpcClientCache: cache, execMaestro, execAdb
+          platform: 'android',
+          getEnv: makeAndroidEnv(),
+          grpcClient: factory,
+          grpcClientCache: cache,
+          execMaestro,
+          execAdb
         });
         expect(res.kind).toBe('hierarchy');
         expect(execMaestro).not.toHaveBeenCalled(); // CLI skipped per D10/D5
@@ -1872,8 +1904,12 @@ describe('Unit / maestro-hierarchy', () => {
         const execMaestro = async () => ({ stdout: maestroSimple, stderr: '', exitCode: 0 });
         const execAdb = jasmine.createSpy('execAdb');
         const res = await dump({
-          platform: 'android', getEnv: makeAndroidEnv(), grpcClient: factory,
-          grpcClientCache: cache, execMaestro, execAdb
+          platform: 'android',
+          getEnv: makeAndroidEnv(),
+          grpcClient: factory,
+          grpcClientCache: cache,
+          execMaestro,
+          execAdb
         });
         expect(res.kind).toBe('hierarchy');
         expect(execAdb).not.toHaveBeenCalled(); // CLI succeeded
@@ -1887,8 +1923,10 @@ describe('Unit / maestro-hierarchy', () => {
         const res = await dump({
           platform: 'android',
           getEnv: makeAndroidEnv({ PERCY_MAESTRO_GRPC: '0' }),
-          grpcClient: factory, grpcClientCache: cache,
-          execMaestro, execAdb: () => Promise.resolve({ stdout: '', stderr: '', exitCode: 0 })
+          grpcClient: factory,
+          grpcClientCache: cache,
+          execMaestro,
+          execAdb: () => Promise.resolve({ stdout: '', stderr: '', exitCode: 0 })
         });
         expect(res.kind).toBe('hierarchy');
         expect(factory.created.length).toBe(0);
@@ -1908,7 +1946,10 @@ describe('Unit / maestro-hierarchy', () => {
         const res1 = await dump({
           platform: 'android',
           getEnv: makeAndroidEnv({ PERCY_MAESTRO_GRPC: '0' }),
-          grpcClient: factory, grpcClientCache: cache, execMaestro, execAdb
+          grpcClient: factory,
+          grpcClientCache: cache,
+          execMaestro,
+          execAdb
         });
         expect(res1.kind).toBe('hierarchy');
         expect(factory.created.length).toBe(0);
@@ -1916,7 +1957,10 @@ describe('Unit / maestro-hierarchy', () => {
         const res2 = await dump({
           platform: 'android',
           getEnv: makeAndroidEnv(),
-          grpcClient: factory, grpcClientCache: cache, execMaestro, execAdb
+          grpcClient: factory,
+          grpcClientCache: cache,
+          execMaestro,
+          execAdb
         });
         expect(res2.kind).toBe('hierarchy');
         expect(factory.created.length).toBe(1);
@@ -1930,7 +1974,9 @@ describe('Unit / maestro-hierarchy', () => {
         const res = await dump({
           platform: 'android',
           getEnv: makeAndroidEnv({ PERCY_ANDROID_GRPC_PORT: undefined }),
-          grpcClient: factory, grpcClientCache: cache, execMaestro,
+          grpcClient: factory,
+          grpcClientCache: cache,
+          execMaestro,
           execAdb: () => Promise.resolve({ stdout: '', stderr: '', exitCode: 0 })
         });
         expect(res.kind).toBe('hierarchy');
@@ -1945,7 +1991,9 @@ describe('Unit / maestro-hierarchy', () => {
         const res = await dump({
           platform: 'android',
           getEnv: makeAndroidEnv({ PERCY_ANDROID_GRPC_PORT: 'abc' }),
-          grpcClient: factory, grpcClientCache: cache, execMaestro,
+          grpcClient: factory,
+          grpcClientCache: cache,
+          execMaestro,
           execAdb: () => Promise.resolve({ stdout: '', stderr: '', exitCode: 0 })
         });
         expect(res.kind).toBe('hierarchy');

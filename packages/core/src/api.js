@@ -169,6 +169,7 @@ export function createPercyServer(percy, port) {
         const snapshotPromise = new Promise((resolve, reject) => {
           const upload = percy.upload(req.body, { resolve, reject }, 'app');
           (async () => {
+            // eslint-disable-next-line no-unused-vars
             try { for await (const _ of upload) { /* drain */ } } catch (e) { reject(e); }
           })();
         });
@@ -199,6 +200,7 @@ export function createPercyServer(percy, port) {
   // post a comparison via multipart file upload
     .route('post', '/percy/comparison/upload', async (req, res) => {
       const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
+      const PNG_MAGIC_BYTES = Buffer.from([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]);
 
       let contentType = req.headers['content-type'] || '';
       if (!contentType.startsWith('multipart/form-data')) {
@@ -690,6 +692,7 @@ export function createPercyServer(percy, port) {
         const snapshotPromise = new Promise((resolve, reject) => {
           const upload = percy.upload(payload, { resolve, reject }, 'app');
           (async () => {
+            // eslint-disable-next-line no-unused-vars
             try { for await (const _ of upload) { /* drain */ } } catch (e) { reject(e); }
           })();
         });
@@ -705,7 +708,8 @@ export function createPercyServer(percy, port) {
         percy.client.apiUrl, '/comparisons/redirect?',
         encodeURLSearchParams(normalize({
           buildId: percy.build?.id,
-          snapshot: { name }, tag
+          snapshot: { name },
+          tag
         }, { snake: true }))
       ].join('');
 
@@ -725,6 +729,7 @@ export function createPercyServer(percy, port) {
         const snapshotPromise = new Promise((resolve, reject) => {
           const upload = percy.upload(comparisonData, { resolve, reject }, 'automate');
           (async () => {
+            // eslint-disable-next-line no-unused-vars
             try { for await (const _ of upload) { /* drain */ } } catch (e) { reject(e); }
           })();
         });
