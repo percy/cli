@@ -41,6 +41,28 @@ function encodeURLSearchParams(subj, prefix) {
   )).join('&') : `${prefix}=${encodeURIComponent(subj)}`;
 }
 
+// Parse PNG IHDR chunk for the screenshot's actual rendered dimensions.
+// Returns { width, height } when the buffer is a valid PNG with non-zero
+// dimensions, or null otherwise (non-PNG signature, truncated file, zero
+// IHDR values). PNG layout per W3C spec:
+//   bytes 0..7   PNG signature (89 50 4E 47 0D 0A 1A 0A)
+//   bytes 8..15  IHDR chunk header (length + type, fixed)
+//   bytes 16..19 width  (big-endian uint32)
+//   bytes 20..23 height (big-endian uint32)
+// No library dependency — pure stdlib Buffer access on the bytes the relay
+// has already read.
+export function parsePngDimensions(buffer) {
+  if (!buffer || buffer.length < 24) return null;
+  if (buffer[0] !== 0x89 || buffer[1] !== 0x50 || buffer[2] !== 0x4E || buffer[3] !== 0x47 ||
+      buffer[4] !== 0x0D || buffer[5] !== 0x0A || buffer[6] !== 0x1A || buffer[7] !== 0x0A) {
+    return null;
+  }
+  const width = buffer.readUInt32BE(16);
+  const height = buffer.readUInt32BE(20);
+  if (width <= 0 || height <= 0) return null;
+  return { width, height };
+}
+
 // Create a Percy CLI API server instance
 export function createPercyServer(percy, port) {
   let pkg = getPackageJSON(import.meta.url);
@@ -510,9 +532,24 @@ export function createPercyServer(percy, port) {
       let fileContent = await fs.promises.readFile(realPath);
       let base64Content = fileContent.toString('base64');
 
+      // Parse the PNG header for actual rendered dimensions. The PNG bytes
+      // ARE the source of truth — what Percy stores and compares against.
+      // Fills tag.width/height when the customer didn't supply them (or
+      // supplied invalid values); customer-supplied values continue to win
+      // for backward compat with any flow that pins a specific tag dim.
+      let pngDims = parsePngDimensions(fileContent);
+
       // Build tag from optional request body fields
       let tag = req.body.tag || { name: 'Unknown Device', osName: 'Android' };
       if (!tag.name) tag.name = 'Unknown Device';
+      if (pngDims) {
+        if (typeof tag.width !== 'number' || tag.width <= 0 || isNaN(tag.width)) {
+          tag.width = pngDims.width;
+        }
+        if (typeof tag.height !== 'number' || tag.height <= 0 || isNaN(tag.height)) {
+          tag.height = pngDims.height;
+        }
+      }
 
       // Construct comparison payload with tile metadata from request
       let payload = {

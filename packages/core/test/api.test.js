@@ -1586,5 +1586,133 @@ describe('API Server', () => {
       // Glob found the legacy fixture, not the filePath fixture
       expect(payload.tiles[0].content).toBe(Buffer.from('PNGBYTES-ANDROID').toString('base64'));
     });
+
+    // PNG-header fill: relay reads IHDR from the screenshot and populates
+    // payload.tag.width / payload.tag.height when missing. Source of truth
+    // for tag dims is the PNG bytes themselves — what Percy stores and
+    // compares against. See docs/plans/2026-05-23-001-refactor-maestro-screen-dims-via-png-header-plan.md.
+
+    // Helper: build a minimal-but-valid PNG header (signature + IHDR chunk)
+    // with the given pixel dimensions. The relay only inspects the first 24
+    // bytes for IHDR, so we don't need a full PNG — 24 bytes suffice.
+    function makePngHeader(width, height) {
+      const buf = Buffer.alloc(24);
+      Buffer.from([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]).copy(buf, 0);
+      buf.writeUInt32BE(13, 8);
+      Buffer.from('IHDR', 'ascii').copy(buf, 12);
+      buf.writeUInt32BE(width, 16);
+      buf.writeUInt32BE(height, 20);
+      return buf;
+    }
+
+    it('PNG-fill: populates tag.width/height from PNG IHDR when customer did not supply them', async () => {
+      // Replace the Android fixture with a real PNG header at known dims.
+      fs.writeFileSync(path.join(ANDROID_DIR, `${SS_NAME}.png`), makePngHeader(1008, 2244));
+      spyOn(percy, 'upload').and.resolveTo();
+      await percy.start();
+
+      await expectAsync(postMaestro({
+        name: SS_NAME, sessionId: SID, platform: 'android'
+      })).toBeResolvedTo(jasmine.objectContaining({ success: true }));
+
+      let [payload] = percy.upload.calls.mostRecent().args;
+      expect(payload.tag.width).toBe(1008);
+      expect(payload.tag.height).toBe(2244);
+    });
+
+    it('PNG-fill: customer-supplied tag.width/height continue to win (fill, not override)', async () => {
+      fs.writeFileSync(path.join(ANDROID_DIR, `${SS_NAME}.png`), makePngHeader(1008, 2244));
+      spyOn(percy, 'upload').and.resolveTo();
+      await percy.start();
+
+      // Customer pins their own tag dims; relay must NOT override.
+      await expectAsync(postMaestro({
+        name: SS_NAME, sessionId: SID, platform: 'android',
+        tag: { name: 'Pinned', width: 1080, height: 2400 }
+      })).toBeResolvedTo(jasmine.objectContaining({ success: true }));
+
+      let [payload] = percy.upload.calls.mostRecent().args;
+      expect(payload.tag.width).toBe(1080);
+      expect(payload.tag.height).toBe(2400);
+    });
+
+    it('PNG-fill: partial customer tag — fills only the missing field', async () => {
+      fs.writeFileSync(path.join(ANDROID_DIR, `${SS_NAME}.png`), makePngHeader(1008, 2244));
+      spyOn(percy, 'upload').and.resolveTo();
+      await percy.start();
+
+      // Customer pins width only; relay fills height from PNG.
+      await expectAsync(postMaestro({
+        name: SS_NAME, sessionId: SID, platform: 'android',
+        tag: { name: 'Partial', width: 1080 }
+      })).toBeResolvedTo(jasmine.objectContaining({ success: true }));
+
+      let [payload] = percy.upload.calls.mostRecent().args;
+      expect(payload.tag.width).toBe(1080);     // customer wins
+      expect(payload.tag.height).toBe(2244);    // PNG fills
+    });
+
+    it('PNG-fill: non-PNG signature → skip silently, tag dims unchanged', async () => {
+      // Default Android fixture is the string 'PNGBYTES-ANDROID' which fails
+      // the PNG signature check (first byte is 0x50 'P' not 0x89). Relay
+      // should NOT populate tag.width/height.
+      spyOn(percy, 'upload').and.resolveTo();
+      await percy.start();
+
+      await expectAsync(postMaestro({
+        name: SS_NAME, sessionId: SID, platform: 'android'
+      })).toBeResolvedTo(jasmine.objectContaining({ success: true }));
+
+      let [payload] = percy.upload.calls.mostRecent().args;
+      expect(payload.tag.width).toBeUndefined();
+      expect(payload.tag.height).toBeUndefined();
+    });
+
+    it('PNG-fill: truncated file (<24 bytes) but valid signature start → skip silently', async () => {
+      // 20-byte buffer with the PNG signature but no complete IHDR.
+      const truncated = Buffer.alloc(20);
+      Buffer.from([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]).copy(truncated, 0);
+      fs.writeFileSync(path.join(ANDROID_DIR, `${SS_NAME}.png`), truncated);
+      spyOn(percy, 'upload').and.resolveTo();
+      await percy.start();
+
+      await expectAsync(postMaestro({
+        name: SS_NAME, sessionId: SID, platform: 'android'
+      })).toBeResolvedTo(jasmine.objectContaining({ success: true }));
+
+      let [payload] = percy.upload.calls.mostRecent().args;
+      expect(payload.tag.width).toBeUndefined();
+      expect(payload.tag.height).toBeUndefined();
+    });
+
+    it('PNG-fill: PNG with width=0 → defensive skip (no orphan tag dim)', async () => {
+      fs.writeFileSync(path.join(ANDROID_DIR, `${SS_NAME}.png`), makePngHeader(0, 2244));
+      spyOn(percy, 'upload').and.resolveTo();
+      await percy.start();
+
+      await expectAsync(postMaestro({
+        name: SS_NAME, sessionId: SID, platform: 'android'
+      })).toBeResolvedTo(jasmine.objectContaining({ success: true }));
+
+      let [payload] = percy.upload.calls.mostRecent().args;
+      expect(payload.tag.width).toBeUndefined();
+      expect(payload.tag.height).toBeUndefined();
+    });
+
+    it('PNG-fill: filePath path also gets PNG dims populated', async () => {
+      // Write a valid PNG at the filePath fixture location.
+      fs.writeFileSync(path.join(ANDROID_FILEPATH_DIR, `${FILEPATH_NAME}.png`), makePngHeader(1179, 2556));
+      spyOn(percy, 'upload').and.resolveTo();
+      await percy.start();
+
+      await expectAsync(postMaestro({
+        name: FILEPATH_NAME, sessionId: SID, platform: 'android',
+        filePath: `${ANDROID_FILEPATH_DIR}/${FILEPATH_NAME}.png`
+      })).toBeResolvedTo(jasmine.objectContaining({ success: true }));
+
+      let [payload] = percy.upload.calls.mostRecent().args;
+      expect(payload.tag.width).toBe(1179);
+      expect(payload.tag.height).toBe(2556);
+    });
   });
 });
