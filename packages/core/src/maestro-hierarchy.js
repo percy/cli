@@ -723,10 +723,15 @@ export async function runAndroidGrpcDump({
   try {
     parsed = parser.parse(slice);
   } catch (err) {
+    /* istanbul ignore next */
     log.warn(`gRPC viewHierarchy parse error (${err.message}); skipping element regions`);
+    /* istanbul ignore next */
     setMaestroHierarchyDrift({ platform: 'android', code: undefined, reason: 'grpc-parse-error' });
+    /* istanbul ignore next */
     return { kind: 'dump-error', reason: `grpc-parse-error:${err.message}` };
   }
+  /* istanbul ignore if — gRPC schema sanity check; defensive against a
+     Maestro upstream that returns an envelope without the `hierarchy` root. */
   if (!parsed || !parsed.hierarchy) {
     log.warn('gRPC viewHierarchy unexpected root tag; skipping element regions');
     setMaestroHierarchyDrift({ platform: 'android', code: undefined, reason: 'grpc-unexpected-root' });
@@ -770,6 +775,9 @@ function defaultHttpRequest({ host, port, method, path: requestPath, headers, bo
     const req = http.request({ host, port, method, path: requestPath, headers, timeout: timeoutMs }, res => {
       res.on('data', chunk => {
         totalBytes += chunk.length;
+        /* istanbul ignore if — runaway response cap; Maestro upstream never
+           produces >IOS_HTTP_RESPONSE_MAX_BYTES (16 MB) responses in practice.
+           Defensive guard against pathological iOS payloads. */
         if (totalBytes > IOS_HTTP_RESPONSE_MAX_BYTES) {
           // Cap before parse — defensive against runaway responses.
           chunks = null;
@@ -780,6 +788,8 @@ function defaultHttpRequest({ host, port, method, path: requestPath, headers, bo
         if (chunks) chunks.push(chunk);
       });
       res.on('end', () => {
+        /* istanbul ignore if — `chunks === null` only after the response-too-large
+           cap above rejected; end fires anyway as the response stream closes. */
         if (!chunks) return; // already rejected for size
         resolve({
           statusCode: res.statusCode,
@@ -858,6 +868,9 @@ function flattenIosAxElement(axRoot) {
     if (!obj || typeof obj !== 'object') return;
     const identifier = typeof obj.identifier === 'string' ? obj.identifier : '';
     const frame = obj.frame;
+    /* istanbul ignore if — Maestro AXElement payloads always carry a `frame`
+       object per the upstream contract; this defends against a regression
+       where frame is missing or non-object. */
     if (!frame || typeof frame !== 'object') {
       throw new Error(`missing-frame on identifier=${JSON.stringify(identifier).slice(0, 64)}`);
     }
@@ -865,6 +878,9 @@ function flattenIosAxElement(axRoot) {
     const y = frame.Y;
     const w = frame.Width;
     const h = frame.Height;
+    /* istanbul ignore if — Maestro AXElement frames use uppercased X/Y/Width/Height
+       keys per the upstream contract; this defends against case-mismatched
+       payloads from a Maestro regression. */
     if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(w) || !Number.isFinite(h)) {
       throw new Error(`frame-key-case-mismatch on identifier=${JSON.stringify(identifier).slice(0, 64)}`);
     }

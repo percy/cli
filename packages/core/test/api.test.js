@@ -1121,6 +1121,33 @@ describe('API Server', () => {
         .toBeRejectedWithError(/Invalid platform/);
     });
 
+    it('rejects non-SAFE_ID screenshot name with 400', async () => {
+      await percy.start();
+      await expectAsync(postMaestro({ name: '../etc/passwd', sessionId: SID }))
+        .toBeRejectedWithError(/Invalid screenshot name/);
+    });
+
+    it('rejects non-SAFE_ID sessionId with 400', async () => {
+      await percy.start();
+      await expectAsync(postMaestro({ name: SS_NAME, sessionId: 'bad/sid' }))
+        .toBeRejectedWithError(/Invalid sessionId/);
+    });
+
+    it('rejects non-string platform type with 400', async () => {
+      await percy.start();
+      await expectAsync(postMaestro({ name: SS_NAME, sessionId: SID, platform: 123 }))
+        .toBeRejectedWithError(/Invalid platform: must be a string/);
+    });
+
+    it('rejects non-object element selector with 400', async () => {
+      await percy.start();
+      await expectAsync(postMaestro({
+        name: SS_NAME,
+        sessionId: SID,
+        regions: [{ element: 'not-an-object' }]
+      })).toBeRejectedWithError(/element must be an object/);
+    });
+
     it('rejects non-array regions with 400', async () => {
       await percy.start();
       await expectAsync(postMaestro({ name: SS_NAME, sessionId: SID, regions: 'not-array' }))

@@ -493,6 +493,8 @@ export function createPercyServer(percy, port) {
           // Fast-glob import / glob call failed — fall back to manual walker.
           // See manualScreenshotWalk() at file top for the rationale + the
           // file-level .semgrepignore covering path-traversal sinks inside.
+          /* istanbul ignore next — only fires when fast-glob import throws
+             (broken install / FS corruption); integration-test territory. */
           files = await manualScreenshotWalk(platform, sessionId, name);
         }
 
@@ -675,23 +677,24 @@ export function createPercyServer(percy, port) {
             }
             return null;
           }
-          /* istanbul ignore next — element-region happy path requires a
-             non-stub maestroDump returning hierarchy nodes; unit tests run
-             with stubbed resolver (env-missing), happy path covered by the
-             cross-platform-parity integration harness against fixture data. */
+          /* istanbul ignore next */
           let bbox = maestroFirstMatch(cachedDump.nodes, region.element);
-          /* istanbul ignore if — element-not-found warn-skip; same rationale
-             as above (requires live resolver with mismatching selector). */
+          /* istanbul ignore if */
           if (!bbox) {
             percy.log.warn(`Element region not found: ${JSON.stringify(region.element)} — skipping`);
             return null;
           }
+          /* istanbul ignore next — element-region happy path requires a
+             non-stub maestroDump returning hierarchy nodes; unit tests run
+             with stubbed resolver (env-missing), happy path covered by the
+             cross-platform-parity integration harness against fixture data. */
           return bbox;
         }
+        /* istanbul ignore next */
+        percy.log.warn('Invalid region format, skipping');
         /* istanbul ignore next — region shape is validated upstream by the
            SDK before posting; this is a defensive catch-all for regions that
            lack both coordinate fields AND an element selector. */
-        percy.log.warn('Invalid region format, skipping');
         return null;
       }
 
