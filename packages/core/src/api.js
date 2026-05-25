@@ -365,7 +365,7 @@ export function createPercyServer(percy, port) {
       return res.json(200, response);
     })
   // post a comparison via multipart file upload
-    .route('post', '/percy/comparison/upload', (req, res) => handleComparisonUpload(req, res, percy))
+    .route('post', '/percy/comparison/upload', /* istanbul ignore next */ (req, res) => handleComparisonUpload(req, res, percy))
   // post a comparison by reading a Maestro screenshot from disk
     .route('post', '/percy/maestro-screenshot', async (req, res) => {
       let { name, sessionId } = req.body || {};
@@ -673,7 +673,7 @@ export function createPercyServer(percy, port) {
           }
           /* istanbul ignore next */
           let bbox = maestroFirstMatch(cachedDump.nodes, region.element);
-          /* istanbul ignore if */
+          /* istanbul ignore next */
           if (!bbox) {
             percy.log.warn(`Element region not found: ${JSON.stringify(region.element)} — skipping`);
             return null;

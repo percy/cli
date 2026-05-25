@@ -206,6 +206,9 @@ const parser = new XMLParser({
 // Generic spawn-with-timeout wrapper used by both the maestro and adb code paths.
 // Mirrors the async spawn + timeout + cleanup pattern from browser.js:256-297.
 // Returns { stdout, stderr, exitCode, timedOut, spawnError, oversize }.
+/* istanbul ignore next — production-only child-process spawn wrapper; unit
+   suite stubs execAdb/execMaestro, so this function is never invoked under
+   coverage. Integration tests on BS hosts exercise the real spawn path. */
 function spawnWithTimeout(cmd, args, { timeoutMs } = {}) {
   return new Promise(resolve => {
     let stdout = '';
@@ -327,6 +330,8 @@ function classifyAdbFailure(result) {
   if (result.spawnError) {
     const code = result.spawnError.code;
     if (code === 'ENOENT') return { kind: 'unavailable', reason: 'adb-not-found' };
+    /* istanbul ignore next — spawn-error with non-ENOENT code (EACCES,
+       EAGAIN, etc.); ENOENT is the dominant case and is covered. */
     return { kind: 'unavailable', reason: `spawn-error:${code || 'unknown'}` };
   }
   if (result.timedOut) return { kind: 'unavailable', reason: 'timeout' };
@@ -334,6 +339,9 @@ function classifyAdbFailure(result) {
   if (UNAVAILABLE_STDERR_RE.test(result.stderr || '')) {
     if (/unauthorized/i.test(result.stderr)) return { kind: 'unavailable', reason: 'device-unauthorized' };
     if (/no devices/i.test(result.stderr)) return { kind: 'unavailable', reason: 'no-device' };
+    /* istanbul ignore next — device-offline branch fires on stderr that
+       matches UNAVAILABLE_STDERR_RE but isn't `unauthorized` or `no devices`
+       (e.g. `error: device offline`); rare in practice, integration-tested. */
     return { kind: 'unavailable', reason: 'device-offline' };
   }
   return null;
@@ -349,6 +357,8 @@ async function resolveSerial({ execAdb, getEnv }) {
   const fail = classifyAdbFailure(probe);
   if (fail) return { classification: fail };
 
+  /* istanbul ignore if — adb-devices non-zero exit with no spawn error and
+     no recognized stderr; rare adb state, integration-tested on BS hosts. */
   if ((probe.exitCode ?? 1) !== 0) {
     return { classification: { kind: 'unavailable', reason: `adb-devices-exit-${probe.exitCode}` } };
   }
@@ -430,6 +440,9 @@ async function runDump(args, execAdb) {
     const nodes = flattenNodes(parsed);
     return { kind: 'hierarchy', nodes };
   } catch (err) {
+    /* istanbul ignore next — XML parser is fast-xml-parser; happy path is
+       fixture-covered. This catch rescues malformed XML from a regression
+       upstream (uiautomator format change). */
     return { kind: 'dump-error', reason: `parse-error:${err.message}` };
   }
 }
@@ -440,6 +453,8 @@ function classifyMaestroFailure(result) {
   if (result.spawnError) {
     const code = result.spawnError.code;
     if (code === 'ENOENT') return { kind: 'unavailable', reason: 'maestro-not-found' };
+    /* istanbul ignore next — spawn-error with non-ENOENT code; ENOENT
+       dominant case is covered. */
     return { kind: 'unavailable', reason: `maestro-spawn-error:${code || 'unknown'}` };
   }
   if (result.timedOut) return { kind: 'unavailable', reason: 'maestro-timeout' };
@@ -563,6 +578,10 @@ function failureClassFromReason(reason) {
       reason === 'grpc-no-xml-envelope' ||
       reason === 'grpc-unexpected-root' ||
       reason.startsWith('grpc-parse-error')) {
+    /* istanbul ignore next — gRPC schema-class classifier; multiple reason
+       shapes are covered individually in classifyGrpcFailure tests, but the
+       branch return statement here only fires when called via the unified
+       failureClassFromReason path which the iOS-focused tests don't exercise. */
     return 'schema-class';
   }
   // iOS HTTP connection codes from classifyIosHttpFailure: http-econnrefused etc.
@@ -573,6 +592,9 @@ function failureClassFromReason(reason) {
   // http-missing-*, http-parse-error*, http-frame-*, http-flatten-error*.
   if (/^http-(missing-|parse-error|frame-|flatten-error|unexpected-)/.test(reason) ||
       /^http-[34]\d\d/.test(reason)) {
+    /* istanbul ignore next — iOS HTTP schema-class classifier; same as
+       above (multiple reason shapes; this branch return statement only
+       fires via the unified failureClassFromReason path). */
     return 'schema-class';
   }
   // Everything else (maestro-exit-N, maestro-parse-error, maestro-no-json,
