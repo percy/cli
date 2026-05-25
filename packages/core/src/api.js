@@ -37,6 +37,33 @@ function encodeURLSearchParams(subj, prefix) {
   )).join('&') : `${prefix}=${encodeURIComponent(subj)}`;
 }
 
+// Fields under discovery.launchOptions that can only be set via the static config file or CLI
+// args at startup — never over HTTP. They control the browser binary and flags (e.g.
+// --renderer-cmd-prefix, --gpu-launcher, --utility-cmd-prefix) so accepting them over the
+// local API would let any process on the machine execute arbitrary code as the Percy user.
+const BLOCKED_LAUNCH_OPTION_KEYS = ['executable', 'args'];
+
+// Returns a body with blocked launchOptions keys removed; logs a warning for each stripped
+// field. Returns the original body unchanged when nothing needs stripping so we don't pay
+// for a clone on every config request. Caller guarantees `body` is truthy.
+function stripBlockedConfigFields(body, log) {
+  let launchOptions = body.discovery?.launchOptions;
+  let present = launchOptions && BLOCKED_LAUNCH_OPTION_KEYS.filter(
+    k => Object.prototype.hasOwnProperty.call(launchOptions, k)
+  );
+  if (!present?.length) return body;
+
+  let stripped = {
+    ...body,
+    discovery: { ...body.discovery, launchOptions: { ...launchOptions } }
+  };
+  for (let k of present) {
+    delete stripped.discovery.launchOptions[k];
+    log.warn(`Ignoring \`discovery.launchOptions.${k}\` from /percy/config request: this field can only be set via the config file or CLI at startup.`);
+  }
+  return stripped;
+}
+
 // Create a Percy CLI API server instance
 export function createPercyServer(percy, port) {
   let pkg = getPackageJSON(import.meta.url);
@@ -113,10 +140,13 @@ export function createPercyServer(percy, port) {
       });
     })
   // get or set config options
-    .route(['get', 'post'], '/percy/config', async (req, res) => res.json(200, {
-      config: req.body ? percy.set(req.body) : percy.config,
-      success: true
-    }))
+    .route(['get', 'post'], '/percy/config', async (req, res) => {
+      let body = req.body && stripBlockedConfigFields(req.body, logger('core:server'));
+      return res.json(200, {
+        config: body ? percy.set(body) : percy.config,
+        success: true
+      });
+    })
   // responds once idle (may take a long time)
     .route('get', '/percy/idle', async (req, res) => res.json(200, {
       success: await percy.idle().then(() => true)

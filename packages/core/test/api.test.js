@@ -111,6 +111,55 @@ describe('API Server', () => {
     expect(percy.config).toEqual(expected);
   });
 
+  it('does not warn when /config POST contains launchOptions without blocked keys', async () => {
+    await percy.start();
+
+    await request('/percy/config', {
+      method: 'POST',
+      body: { discovery: { launchOptions: { headless: false, closeBrowser: false } } }
+    });
+
+    expect(percy.config.discovery.launchOptions.headless).toBe(false);
+    expect(percy.config.discovery.launchOptions.closeBrowser).toBe(false);
+    expect(logger.stderr).not.toEqual(jasmine.arrayContaining([
+      jasmine.stringMatching(/Ignoring `discovery\.launchOptions/)
+    ]));
+  });
+
+  it('strips security-sensitive launchOptions fields from /config POST', async () => {
+    await percy.start();
+
+    let before = percy.config.discovery.launchOptions;
+    expect(before.executable).toBeUndefined();
+    expect(before.args).toBeUndefined();
+
+    await request('/percy/config', {
+      method: 'POST',
+      body: {
+        discovery: {
+          launchOptions: {
+            executable: '/tmp/evil-binary',
+            args: ['--renderer-cmd-prefix=/tmp/payload'],
+            headless: false,
+            closeBrowser: false
+          }
+        }
+      }
+    });
+
+    // dangerous fields ignored
+    expect(percy.config.discovery.launchOptions.executable).toBeUndefined();
+    expect(percy.config.discovery.launchOptions.args).toBeUndefined();
+    // benign fields still settable
+    expect(percy.config.discovery.launchOptions.headless).toBe(false);
+    expect(percy.config.discovery.launchOptions.closeBrowser).toBe(false);
+
+    expect(logger.stderr).toEqual(jasmine.arrayContaining([
+      jasmine.stringMatching(/Ignoring `discovery\.launchOptions\.executable`/),
+      jasmine.stringMatching(/Ignoring `discovery\.launchOptions\.args`/)
+    ]));
+  });
+
   it('has an /idle endpoint that calls #idle()', async () => {
     spyOn(percy, 'idle').and.resolveTo();
     await percy.start();
