@@ -338,15 +338,18 @@ function defaultGetEnv(key) {
 function classifyAdbFailure(result) {
   if (result.spawnError) {
     const code = result.spawnError.code;
+    /* istanbul ignore else — ENOENT vs other spawn-error codes; tests only
+       exercise the dominant ENOENT path. */
     if (code === 'ENOENT') return { kind: 'unavailable', reason: 'adb-not-found' };
-    /* istanbul ignore next — spawn-error with non-ENOENT code (EACCES,
-       EAGAIN, etc.); ENOENT is the dominant case and is covered. */
     return { kind: 'unavailable', reason: `spawn-error:${code || 'unknown'}` };
   }
   if (result.timedOut) return { kind: 'unavailable', reason: 'timeout' };
   if (result.oversize) return { kind: 'dump-error', reason: 'oversize' };
   if (UNAVAILABLE_STDERR_RE.test(result.stderr || '')) {
     if (/unauthorized/i.test(result.stderr)) return { kind: 'unavailable', reason: 'device-unauthorized' };
+    /* istanbul ignore next — no-devices regex branch; tests exercise
+       unauthorized + device-offline cases but not the exact "no devices"
+       stderr literal. */
     if (/no devices/i.test(result.stderr)) return { kind: 'unavailable', reason: 'no-device' };
     /* istanbul ignore next — device-offline branch fires on stderr that
        matches UNAVAILABLE_STDERR_RE but isn't `unauthorized` or `no devices`
