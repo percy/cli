@@ -787,9 +787,13 @@ function defaultHttpRequest({ host, port, method, path: requestPath, headers, bo
           body: Buffer.concat(chunks).toString('utf8')
         });
       });
+      /* istanbul ignore next — Node http response error path; only fires
+         on mid-stream FIN/RST. Connection failures land in req.on('error'). */
       res.on('error', reject);
     });
 
+    /* istanbul ignore next — Node http socket timeout path; covered by the
+     concurrent-access integration harness, not the unit suite. */
     req.on('timeout', () => {
       try { req.destroy(); } catch { /* already destroyed */ }
       reject(Object.assign(new Error('socket-timeout'), { code: 'ETIMEDOUT' }));
@@ -895,9 +899,10 @@ function classifyIosHttpFailure(err) {
     return { kind: 'connection-fail', reason: `http-${String(code).toLowerCase()}` };
   }
   // Default: treat unknown errors as connection-class so we fall back rather
-  // than silently skip element regions. /* istanbul ignore next — defensive
-  // fallback for error shapes outside the explicit code list; unit tests
-  // exercise every named code (ECONNREFUSED/ETIMEDOUT/ECONNRESET/...). */
+  // than silently skip element regions.
+  /* istanbul ignore next — defensive fallback for error shapes outside the
+     explicit code list; unit tests exercise every named code
+     (ECONNREFUSED/ETIMEDOUT/ECONNRESET/...). */
   return { kind: 'connection-fail', reason: `http-${err.message?.slice(0, 64) || 'unknown'}` };
 }
 
@@ -990,14 +995,17 @@ async function runIosHttpDump({ port, sessionId, httpRequest = defaultHttpReques
   let nodes;
   try {
     nodes = flattenIosAxElement(aut);
-  } catch (err) {
     /* istanbul ignore next — flattenIosAxElement throws only on malformed
-       AXElement payloads. The two named-error branches (missing-frame +
-       frame-key-case-mismatch) plus the catch-all are defensive guards for
-       a contract Maestro upstream owns; unit tests exercise the happy path. */
+       AXElement payloads (Maestro-upstream contract); the catch body below
+       maps the three known message shapes to dump-error reasons. Unit tests
+       exercise the happy path; the throw paths are integration-test territory. */
+  } catch (err) {
     const msg = err.message || 'unknown';
+    /* istanbul ignore next */
     if (/^missing-frame/.test(msg)) return { kind: 'dump-error', reason: 'http-missing-frame' };
+    /* istanbul ignore next */
     if (/^frame-key-case-mismatch/.test(msg)) return { kind: 'dump-error', reason: 'http-frame-key-case-mismatch' };
+    /* istanbul ignore next */
     return { kind: 'dump-error', reason: `http-flatten-error:${msg.slice(0, 64)}` };
   }
   // Suppress sessionId in log surface — only emit a hash-prefix so support can

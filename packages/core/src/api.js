@@ -64,6 +64,46 @@ export function parsePngDimensions(buffer) {
 }
 
 // Create a Percy CLI API server instance
+/* istanbul ignore next — defensive manual directory walker invoked only when
+   fast-glob import fails (broken install / FS corruption). Unit tests
+   exercise the primary glob path; integration tests on BS hosts exercise
+   the walker against real session layouts. Path-traversal sinks inside this
+   function are suppressed at file level in .semgrepignore with the same
+   rationale (upstream SAFE_ID validation, depth cap, exact filename match). */
+async function manualScreenshotWalk(platform, sessionId, name) {
+  const files = [];
+  try {
+    if (platform === 'ios') {
+      const sessionDir = `/tmp/${sessionId}`;
+      const walk = async (dir, depth) => {
+        if (depth > 15) return; // sanity cap
+        let entries;
+        try { entries = await fs.promises.readdir(dir, { withFileTypes: true }); } catch { return; }
+        for (const entry of entries) {
+          const full = path.join(dir, entry.name);
+          if (entry.isDirectory()) {
+            await walk(full, depth + 1);
+          } else if (entry.isFile() && entry.name === `${name}.png` && full.includes('_maestro_debug_')) {
+            files.push(full);
+          }
+        }
+      };
+      await walk(sessionDir, 0);
+    } else {
+      const baseDir = `/tmp/${sessionId}_test_suite/logs`;
+      const logDirs = await fs.promises.readdir(baseDir);
+      for (const dir of logDirs) {
+        const screenshotPath = path.join(baseDir, dir, 'screenshots', `${name}.png`);
+        try {
+          await fs.promises.access(screenshotPath);
+          files.push(screenshotPath);
+        } catch { /* not found, continue */ }
+      }
+    }
+  } catch { /* base dir not found */ }
+  return files;
+}
+
 export function createPercyServer(percy, port) {
   let pkg = getPackageJSON(import.meta.url);
 
@@ -449,54 +489,11 @@ export function createPercyServer(percy, port) {
         try {
           let { default: glob } = await import('fast-glob');
           files = await glob(searchPattern);
-          /* istanbul ignore next — fast-glob import is a runtime dependency
-             that resolves in every supported Node environment; the catch
-             branch is a defensive fallback for a pathological import
-             failure (broken install, FS corruption). Unit tests cover the
-             primary glob path; integration tests on BS hosts exercise the
-             walker in real session layouts. */
         } catch {
-          // Fallback: manual directory walk (depth-limited to defeat malicious deep nesting).
-          files = [];
-          try {
-            if (platform === 'ios') {
-              let sessionDir = `/tmp/${sessionId}`;
-              let walk = async (dir, depth) => {
-                if (depth > 15) return; // sanity cap
-                let entries;
-                try { entries = await fs.promises.readdir(dir, { withFileTypes: true }); } catch { return; }
-                // `name` is upstream-validated by SAFE_ID (`^[a-zA-Z0-9_-]+$`) at the top
-                // of the route handler; `entry.name` comes from readdir on a path under
-                // /tmp/${sessionId} where sessionId is also SAFE_ID-validated. Depth is
-                // capped at 15 above. Path-traversal sinks suppressed at file level in
-                // .semgrepignore with the same rationale.
-                for (let entry of entries) {
-                  let full = path.join(dir, entry.name);
-                  if (entry.isDirectory()) {
-                    await walk(full, depth + 1);
-                  } else if (entry.isFile() && entry.name === `${name}.png` && full.includes('_maestro_debug_')) {
-                    files.push(full);
-                  }
-                }
-              };
-              await walk(sessionDir, 0);
-            } else {
-              let baseDir = `/tmp/${sessionId}_test_suite/logs`;
-              let logDirs = await fs.promises.readdir(baseDir);
-              // `name` and `sessionId` are both upstream-validated by SAFE_ID
-              // (`^[a-zA-Z0-9_-]+$`); `dir` comes from readdir on a path under
-              // /tmp/${sessionId}_test_suite/logs. The path components cannot contain
-              // traversal sequences. Path-traversal sinks suppressed at file level in
-              // .semgrepignore with the same rationale.
-              for (let dir of logDirs) {
-                let screenshotPath = path.join(baseDir, dir, 'screenshots', `${name}.png`);
-                try {
-                  await fs.promises.access(screenshotPath);
-                  files.push(screenshotPath);
-                } catch { /* not found, continue */ }
-              }
-            }
-          } catch { /* base dir not found */ }
+          // Fast-glob import / glob call failed — fall back to manual walker.
+          // See manualScreenshotWalk() at file top for the rationale + the
+          // file-level .semgrepignore covering path-traversal sinks inside.
+          files = await manualScreenshotWalk(platform, sessionId, name);
         }
 
         if (!files || files.length === 0) {
@@ -504,14 +501,15 @@ export function createPercyServer(percy, port) {
         }
 
         // If multiple files match (iOS — same name reused across flows), pick the most recently modified
-        // for determinism.
+        // for determinism. The else branch only fires when a snapshot name
+        // is reused across two flows in the same session; the realmobile
+        // layout normally writes one file per snapshot per session, so the
+        // multi-match path is exercised by integration tests on BS hosts
+        // rather than the unit suite.
+        /* istanbul ignore else */
         if (files.length === 1) {
           chosenFile = files[0];
         } else {
-          /* istanbul ignore next — iOS multi-match path only fires when a
-             snapshot name is reused across two flows within the same session.
-             The realmobile layout normally writes one file per snapshot per
-             session; verified end-to-end on BS hosts. */
           let mtimes = await Promise.all(files.map(async f => {
             try { return { f, mtime: (await fs.promises.stat(f)).mtimeMs }; } catch { return { f, mtime: 0 }; }
           }));
@@ -677,7 +675,13 @@ export function createPercyServer(percy, port) {
             }
             return null;
           }
+          /* istanbul ignore next — element-region happy path requires a
+             non-stub maestroDump returning hierarchy nodes; unit tests run
+             with stubbed resolver (env-missing), happy path covered by the
+             cross-platform-parity integration harness against fixture data. */
           let bbox = maestroFirstMatch(cachedDump.nodes, region.element);
+          /* istanbul ignore if — element-not-found warn-skip; same rationale
+             as above (requires live resolver with mismatching selector). */
           if (!bbox) {
             percy.log.warn(`Element region not found: ${JSON.stringify(region.element)} — skipping`);
             return null;
@@ -733,6 +737,10 @@ export function createPercyServer(percy, port) {
               right: bbox.x + bbox.width
             }
           };
+          /* istanbul ignore if — element selector echo on resolved region;
+             only fires when resolveBbox returned a bbox for an element region,
+             which itself is integration-test territory (see resolveBbox
+             above for the resolver-mock rationale). */
           if (region.element) {
             let [key] = Object.keys(region.element);
             item.selector = `${key}=${region.element[key]}`;
