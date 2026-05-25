@@ -1627,7 +1627,9 @@ describe('API Server', () => {
 
       // Customer pins their own tag dims; relay must NOT override.
       await expectAsync(postMaestro({
-        name: SS_NAME, sessionId: SID, platform: 'android',
+        name: SS_NAME,
+        sessionId: SID,
+        platform: 'android',
         tag: { name: 'Pinned', width: 1080, height: 2400 }
       })).toBeResolvedTo(jasmine.objectContaining({ success: true }));
 
@@ -1643,13 +1645,15 @@ describe('API Server', () => {
 
       // Customer pins width only; relay fills height from PNG.
       await expectAsync(postMaestro({
-        name: SS_NAME, sessionId: SID, platform: 'android',
+        name: SS_NAME,
+        sessionId: SID,
+        platform: 'android',
         tag: { name: 'Partial', width: 1080 }
       })).toBeResolvedTo(jasmine.objectContaining({ success: true }));
 
       let [payload] = percy.upload.calls.mostRecent().args;
-      expect(payload.tag.width).toBe(1080);     // customer wins
-      expect(payload.tag.height).toBe(2244);    // PNG fills
+      expect(payload.tag.width).toBe(1080); // customer wins
+      expect(payload.tag.height).toBe(2244); // PNG fills
     });
 
     it('PNG-fill: non-PNG signature → skip silently, tag dims unchanged', async () => {
@@ -1706,7 +1710,9 @@ describe('API Server', () => {
       await percy.start();
 
       await expectAsync(postMaestro({
-        name: FILEPATH_NAME, sessionId: SID, platform: 'android',
+        name: FILEPATH_NAME,
+        sessionId: SID,
+        platform: 'android',
         filePath: `${ANDROID_FILEPATH_DIR}/${FILEPATH_NAME}.png`
       })).toBeResolvedTo(jasmine.objectContaining({ success: true }));
 
