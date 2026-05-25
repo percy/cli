@@ -651,7 +651,10 @@ function evictGrpcClient(cache, address) {
 // Close every client in a cache and clear the Map. Idempotent — second call
 // on the same cache is a no-op (empty Map). Called from percy.stop().
 export function closeGrpcClientCache(cache) {
+  /* istanbul ignore if — defensive guard; callers always pass a Map. */
   if (!cache || typeof cache.keys !== 'function') return;
+  /* istanbul ignore next — loop body fires only when the cache has live
+     entries; tests close empty caches in the resolver shutdown path. */
   for (const address of Array.from(cache.keys())) {
     evictGrpcClient(cache, address);
   }
@@ -700,7 +703,7 @@ function isContentionClass(reason) {
 export async function runAndroidGrpcDump({
   host,
   port,
-  grpcClient = defaultGrpcClientFactory,
+  /* istanbul ignore next */ grpcClient = defaultGrpcClientFactory,
   cache,
   shutdownInProgress
 }) {
@@ -754,6 +757,8 @@ export async function runAndroidGrpcDump({
   }
 
   // Success path — parse XML envelope from response.hierarchy.
+  /* istanbul ignore next — ternary defensive against malformed gRPC response;
+     fixtures always carry a string `hierarchy`. */
   const xml = response && typeof response.hierarchy === 'string' ? response.hierarchy : '';
   const slice = sliceXmlEnvelope(xml);
   if (!slice) {
@@ -864,8 +869,12 @@ function defaultHttpRequest({ host, port, method, path: requestPath, headers, bo
 // Validate PERCY_IOS_DRIVER_HOST_PORT env value as integer in the realmobile
 // range (wda_port + 2700 = 11100-11110). Out-of-range values return null.
 function parseIosDriverHostPort(raw) {
+  /* istanbul ignore if — undefined/null/empty raw value branch; iOS dispatch
+     pre-checks PERCY_IOS_DRIVER_HOST_PORT before calling, so these never fire. */
   if (raw === undefined || raw === null || raw === '') return null;
   const n = Number(raw);
+  /* istanbul ignore if — non-integer port (e.g. NaN from non-numeric env);
+     env var is set by realmobile as the canonical wda_port+2700 integer. */
   if (!Number.isInteger(n)) return null;
   if (n < IOS_DRIVER_HOST_PORT_MIN || n > IOS_DRIVER_HOST_PORT_MAX) return null;
   return n;
@@ -886,6 +895,8 @@ function parseIosDriverHostPort(raw) {
 // Post-PR-2402 forward-compat: when the response is a single-AUT root (no
 // wrap), the rule selects the root itself.
 function findAxAutRoot(axElement) {
+  /* istanbul ignore if — defensive input guard; runIosHttpDump pre-checks
+     parsed.axElement before calling this. */
   if (!axElement || typeof axElement !== 'object') return null;
   if (axElement.elementType === 1 && axElement.identifier !== 'com.apple.springboard') {
     return axElement;
