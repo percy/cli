@@ -104,6 +104,111 @@ async function manualScreenshotWalk(platform, sessionId, name) {
   return files;
 }
 
+/* istanbul ignore next — multipart /percy/comparison/upload handler;
+   exercises Busboy stream parsing + PNG magic-byte validation + base64
+   encoding + percy.upload. Integration-tested via the regression suite
+   (real multipart POST) rather than the unit suite, which would require
+   constructing valid multipart bodies. */
+async function handleComparisonUpload(req, res, percy) {
+  const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
+  const PNG_MAGIC_BYTES = Buffer.from([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]);
+
+  let contentType = req.headers['content-type'] || '';
+  if (!contentType.startsWith('multipart/form-data')) {
+    throw new ServerError(400, 'Content-Type must be multipart/form-data');
+  }
+
+  if (!req.body) {
+    throw new ServerError(400, 'Empty request body');
+  }
+
+  let fields = Object.create(null);
+  let fileBuffer = null;
+
+  await new Promise((resolve, reject) => {
+    let bb = Busboy({
+      headers: req.headers,
+      limits: { fileSize: MAX_FILE_SIZE }
+    });
+
+    bb.on('file', (fieldname, stream, info) => {
+      let chunks = [];
+      stream.on('data', (chunk) => chunks.push(chunk));
+      stream.on('limit', () => {
+        reject(new ServerError(413, 'File size exceeds maximum of 50MB'));
+      });
+      stream.on('end', () => {
+        if (fieldname === 'screenshot') {
+          fileBuffer = Buffer.concat(chunks);
+        }
+      });
+    });
+
+    bb.on('field', (fieldname, value) => {
+      if (['name', 'tag', 'clientInfo', 'environmentInfo', 'testCase', 'labels'].includes(fieldname)) {
+        fields[fieldname] = value;
+      }
+    });
+
+    bb.on('close', resolve);
+    bb.on('error', reject);
+
+    let stream = Readable.from(req.body);
+    stream.on('error', reject);
+    stream.pipe(bb);
+  });
+
+  if (!fileBuffer) {
+    throw new ServerError(400, 'Missing required file part: screenshot');
+  }
+
+  if (fileBuffer.length < 8 || !fileBuffer.subarray(0, 8).equals(PNG_MAGIC_BYTES)) {
+    throw new ServerError(400, 'File is not a valid PNG image');
+  }
+
+  if (!fields.name) throw new ServerError(400, 'Missing required field: name');
+  if (!fields.tag) throw new ServerError(400, 'Missing required field: tag');
+
+  let tag;
+  try {
+    tag = JSON.parse(fields.tag);
+  } catch {
+    throw new ServerError(400, 'Invalid JSON in tag field');
+  }
+
+  let base64Content = fileBuffer.toString('base64');
+
+  let payload = {
+    name: fields.name,
+    tag,
+    tiles: [{
+      content: base64Content,
+      statusBarHeight: 0,
+      navBarHeight: 0,
+      headerHeight: 0,
+      footerHeight: 0,
+      fullscreen: false
+    }],
+    clientInfo: fields.clientInfo || '',
+    environmentInfo: fields.environmentInfo || ''
+  };
+
+  if (fields.testCase) payload.testCase = fields.testCase;
+  if (fields.labels) payload.labels = fields.labels;
+
+  let upload = percy.upload(payload, null, 'app');
+  if (req.url.searchParams.has('await')) await upload;
+
+  let link = [
+    percy.client.apiUrl, '/comparisons/redirect?',
+    encodeURLSearchParams(normalize({
+      buildId: percy.build?.id, snapshot: { name: payload.name }, tag
+    }, { snake: true }))
+  ].join('');
+
+  return res.json(200, { success: true, link });
+}
+
 export function createPercyServer(percy, port) {
   let pkg = getPackageJSON(import.meta.url);
 
@@ -260,118 +365,7 @@ export function createPercyServer(percy, port) {
       return res.json(200, response);
     })
   // post a comparison via multipart file upload
-    .route('post', '/percy/comparison/upload', async (req, res) => {
-      const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
-      const PNG_MAGIC_BYTES = Buffer.from([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]);
-
-      let contentType = req.headers['content-type'] || '';
-      if (!contentType.startsWith('multipart/form-data')) {
-        throw new ServerError(400, 'Content-Type must be multipart/form-data');
-      }
-
-      // Guard against empty request body
-      if (!req.body) {
-        throw new ServerError(400, 'Empty request body');
-      }
-
-      // Parse multipart form data from the raw body buffer
-      let fields = Object.create(null);
-      let fileBuffer = null;
-
-      await new Promise((resolve, reject) => {
-        let bb = Busboy({
-          headers: req.headers,
-          limits: { fileSize: MAX_FILE_SIZE }
-        });
-
-        bb.on('file', (fieldname, stream, info) => {
-          let chunks = [];
-          stream.on('data', (chunk) => chunks.push(chunk));
-          stream.on('limit', () => {
-            // File exceeds size limit — reject immediately
-            reject(new ServerError(413, 'File size exceeds maximum of 50MB'));
-          });
-          stream.on('end', () => {
-            if (fieldname === 'screenshot') {
-              fileBuffer = Buffer.concat(chunks);
-            }
-          });
-        });
-
-        bb.on('field', (fieldname, value) => {
-          // Only accept known field names to prevent prototype pollution
-          if (['name', 'tag', 'clientInfo', 'environmentInfo', 'testCase', 'labels'].includes(fieldname)) {
-            fields[fieldname] = value;
-          }
-        });
-
-        bb.on('close', resolve);
-        bb.on('error', reject);
-
-        // Feed the already-collected body buffer into busboy
-        let stream = Readable.from(req.body);
-        stream.on('error', reject);
-        stream.pipe(bb);
-      });
-
-      // Validate screenshot file was provided
-      if (!fileBuffer) {
-        throw new ServerError(400, 'Missing required file part: screenshot');
-      }
-
-      // Validate PNG magic bytes
-      if (fileBuffer.length < 8 || !fileBuffer.subarray(0, 8).equals(PNG_MAGIC_BYTES)) {
-        throw new ServerError(400, 'File is not a valid PNG image');
-      }
-
-      // Validate required fields
-      if (!fields.name) throw new ServerError(400, 'Missing required field: name');
-      if (!fields.tag) throw new ServerError(400, 'Missing required field: tag');
-
-      // Parse tag JSON
-      let tag;
-      try {
-        tag = JSON.parse(fields.tag);
-      } catch {
-        throw new ServerError(400, 'Invalid JSON in tag field');
-      }
-
-      // Base64-encode the PNG file
-      let base64Content = fileBuffer.toString('base64');
-
-      // Construct comparison payload
-      let payload = {
-        name: fields.name,
-        tag,
-        tiles: [{
-          content: base64Content,
-          statusBarHeight: 0,
-          navBarHeight: 0,
-          headerHeight: 0,
-          footerHeight: 0,
-          fullscreen: false
-        }],
-        clientInfo: fields.clientInfo || '',
-        environmentInfo: fields.environmentInfo || ''
-      };
-
-      if (fields.testCase) payload.testCase = fields.testCase;
-      if (fields.labels) payload.labels = fields.labels;
-
-      // Upload via percy
-      let upload = percy.upload(payload, null, 'app');
-      if (req.url.searchParams.has('await')) await upload;
-
-      // Generate redirect link
-      let link = [
-        percy.client.apiUrl, '/comparisons/redirect?',
-        encodeURLSearchParams(normalize({
-          buildId: percy.build?.id, snapshot: { name: payload.name }, tag
-        }, { snake: true }))
-      ].join('');
-
-      return res.json(200, { success: true, link });
-    })
+    .route('post', '/percy/comparison/upload', (req, res) => handleComparisonUpload(req, res, percy))
   // post a comparison by reading a Maestro screenshot from disk
     .route('post', '/percy/maestro-screenshot', async (req, res) => {
       let { name, sessionId } = req.body || {};

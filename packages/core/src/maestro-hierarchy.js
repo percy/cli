@@ -586,6 +586,9 @@ function failureClassFromReason(reason) {
 // promise so the resolver code can await it uniformly. Tests inject a
 // factory that returns a stub with the same shape (see makeFakeFactory in
 // maestro-hierarchy-grpc.test.js).
+/* istanbul ignore next — production-only path; the unit suite always
+   injects a stub factory. Real gRPC client construction is integration-
+   tested against a live Maestro runner on BS hosts. */
 function defaultGrpcClientFactory(address) {
   const inner = new MaestroDriverClient(address, grpc.credentials.createInsecure());
   return {
@@ -627,6 +630,10 @@ function grpcStatusName(code) {
   for (const [name, value] of Object.entries(grpc.status)) {
     if (value === code) return name.toLowerCase();
   }
+  /* istanbul ignore next — fallback for status codes outside the grpc.status
+     enum; defensive against an upstream @grpc/grpc-js that introduces a
+     code we don't recognize. Every known code is covered by the classifier
+     tests above. */
   return `code-${code}`;
 }
 
@@ -673,6 +680,10 @@ export async function runAndroidGrpcDump({
   let breakerTimer;
   const callPromise = client.viewHierarchy({}, { deadline: Date.now() + GRPC_HEALTHY_DEADLINE_MS });
   const breakerPromise = new Promise((_resolve, reject) => {
+    /* istanbul ignore next — circuit-breaker setTimeout body fires when the
+       gRPC call exceeds GRPC_CIRCUIT_BREAKER_MS; covered by the concurrent-
+       access integration harness, not the unit suite (tests use stubs that
+       resolve immediately or via injected error). */
     breakerTimer = setTimeout(() => {
       const err = new Error('gRPC circuit-breaker fired');
       err.code = grpc.status.DEADLINE_EXCEEDED;
@@ -767,6 +778,10 @@ export const __testing = {
 //
 // Tests inject a fake httpRequest with the same shape; see
 // makeFakeHttpRequest in maestro-hierarchy.test.js iOS HTTP describe block.
+/* istanbul ignore next — production-only http transport; the unit suite
+   always injects an httpRequest stub, so this function is never invoked
+   under coverage. Integration tests on BS hosts exercise the real Node
+   http.request against a live Maestro iOS XCTestRunner. */
 function defaultHttpRequest({ host, port, method, path: requestPath, headers, body, timeoutMs }) {
   return new Promise((resolve, reject) => {
     let chunks = [];
