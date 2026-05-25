@@ -261,10 +261,16 @@ function spawnWithTimeout(cmd, args, { timeoutMs } = {}) {
 
 // Maestro CLI path: honor MAESTRO_BIN env var (mobile-repo or deploy config sets this),
 // fall back to plain `maestro` on PATH. Never accepts a path from untrusted input.
+/* istanbul ignore next — production-only; unit suite injects a fake getEnv
+   that returns whatever the test specifies, so this helper's PATH-fallback
+   branch is not exercised. */
 function defaultMaestroBin(getEnv) {
   return getEnv('MAESTRO_BIN') || 'maestro';
 }
 
+/* istanbul ignore next — production-only maestro spawn wrapper; unit suite
+   injects a fake execMaestro. Composes defaultMaestroBin + spawnWithTimeout
+   (both already istanbul-ignored). */
 async function defaultExecMaestro(args, getEnv) {
   const bin = defaultMaestroBin(getEnv);
   return spawnWithTimeout(bin, args, { timeoutMs: MAESTRO_TIMEOUT_MS });
@@ -272,6 +278,9 @@ async function defaultExecMaestro(args, getEnv) {
 
 // Preserved for the adb fallback code path (signature unchanged — existing tests
 // pass a fake execAdb and assert -s <serial> is forwarded).
+/* istanbul ignore next — production-only adb spawn wrapper; unit suite
+   injects a fake execAdb. Has its own native spawn() inline rather than
+   going through spawnWithTimeout, so the ignore must be applied here too. */
 async function defaultExecAdb(args) {
   return new Promise(resolve => {
     let stdout = '';
