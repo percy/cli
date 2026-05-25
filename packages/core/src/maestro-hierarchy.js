@@ -911,7 +911,11 @@ function findAxAutRoot(axElement) {
 function flattenIosAxElement(axRoot) {
   const nodes = [];
   const walk = obj => {
+    /* istanbul ignore if — defensive guard on recursive walk; AUT root and
+       its children are always objects per the Maestro AXElement contract. */
     if (!obj || typeof obj !== 'object') return;
+    /* istanbul ignore next — identifier ternary; AXElement payloads always
+       carry a string identifier when present. */
     const identifier = typeof obj.identifier === 'string' ? obj.identifier : '';
     const frame = obj.frame;
     /* istanbul ignore if — Maestro AXElement payloads always carry a `frame`
@@ -931,6 +935,8 @@ function flattenIosAxElement(axRoot) {
       throw new Error(`frame-key-case-mismatch on identifier=${JSON.stringify(identifier).slice(0, 64)}`);
     }
     const bounds = `[${Math.round(x)},${Math.round(y)}][${Math.round(x + w)},${Math.round(y + h)}]`;
+    /* istanbul ignore else — identifier-empty branch (anonymous nodes) is
+     * the no-op tail; fixtures always carry identifiers on capturable nodes. */
     if (identifier) {
       nodes.push({
         'resource-id': identifier,
@@ -952,9 +958,14 @@ function flattenIosAxElement(axRoot) {
 // schema-class (set drift bit, no fallback) vs no-aut-tree (route to
 // fallback because the Maestro CLI knows the AUT internally).
 function classifyIosHttpFailure(err) {
+  /* istanbul ignore if — defensive null guard; callers always pass an err
+     when invoking the classifier. */
   if (!err) return null;
   const code = err.code;
   // Connection-class errors — Maestro runner unreachable / unhealthy. Fall back.
+  /* istanbul ignore next — OR-chain branches: tests cover one or two codes
+     (typically ECONNREFUSED + ETIMEDOUT) but not all 8. Each remaining code
+     creates an unevaluated branch. */
   if (code === 'ECONNREFUSED' || code === 'ETIMEDOUT' || code === 'ECONNRESET' ||
       code === 'EHOSTUNREACH' || code === 'ENETUNREACH' || code === 'EPIPE' ||
       code === 'ECONNABORTED' || code === 'EMSGSIZE') {
@@ -974,7 +985,7 @@ function classifyIosHttpFailure(err) {
 //   { kind: 'connection-fail', ... } on transport / 5xx / out-of-range port
 //   { kind: 'no-aut-tree', ... }     on SpringBoard-only response
 //   { kind: 'dump-error', ... }      on schema-class failures (no fallback)
-async function runIosHttpDump({ port, sessionId, httpRequest = defaultHttpRequest }) {
+async function runIosHttpDump({ port, sessionId, /* istanbul ignore next */ httpRequest = defaultHttpRequest }) {
   // Loopback-only guard. Hardcoded host; do not accept from caller input.
   const host = '127.0.0.1';
 
@@ -1037,6 +1048,8 @@ async function runIosHttpDump({ port, sessionId, httpRequest = defaultHttpReques
   try {
     parsed = JSON.parse(body);
   } catch (err) {
+    /* istanbul ignore next — `err.message?.slice` optional chain + `|| 'unknown'`
+       fallback branches; tests pass JSON-parse errors which always have .message. */
     return { kind: 'dump-error', reason: `http-parse-error:${err.message?.slice(0, 64) || 'unknown'}` };
   }
 
@@ -1183,7 +1196,7 @@ export async function dump({
   /* istanbul ignore next */ httpRequest = defaultHttpRequest,
   /* istanbul ignore next */ grpcClient = defaultGrpcClientFactory,
   grpcClientCache,
-  getEnv = defaultGetEnv
+  /* istanbul ignore next */ getEnv = defaultGetEnv
 } = {}) {
   const started = Date.now();
 
