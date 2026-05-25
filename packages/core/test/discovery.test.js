@@ -1,4 +1,5 @@
 import { sha256hash } from '@percy/client/utils';
+import { waitFor } from '@percy/core/utils';
 import { logger, api, setupTest, createTestServer, dedent, mockRequests } from './helpers/index.js';
 import Percy from '@percy/core';
 import { RESOURCE_CACHE_KEY, CACHE_STATS_KEY, DISK_SPILL_KEY } from '../src/discovery.js';
@@ -454,6 +455,48 @@ describe('Discovery', () => {
       jasmine.objectContaining({
         attributes: jasmine.objectContaining({
           'resource-url': dataUrl.replace('data:', 'data://')
+        })
+      })
+    ]));
+  });
+
+  it('captures favicon when the server provides one', async () => {
+    server.reply('/favicon.ico', () => [200, 'image/x-icon', pixel]);
+    let faviconDOM = testDOM.replace('</head>', '<link rel="icon" href="/favicon.ico"></head>');
+
+    await percy.snapshot({
+      name: 'favicon snapshot',
+      url: 'http://localhost:8000',
+      domSnapshot: faviconDOM
+    });
+
+    await percy.idle();
+
+    expect(captured[0]).toEqual(jasmine.arrayContaining([
+      jasmine.objectContaining({
+        attributes: jasmine.objectContaining({
+          'resource-url': 'http://localhost:8000/favicon.ico'
+        })
+      })
+    ]));
+  });
+
+  it('captures auto-fetched favicon when the page does not declare one', async () => {
+    percy.set({ discovery: { networkIdleTimeout: 1000 } });
+    server.reply('/favicon.ico', () => [200, 'image/x-icon', pixel]);
+
+    await percy.snapshot({
+      name: 'auto-fetch favicon snapshot',
+      url: 'http://localhost:8000',
+      domSnapshot: testDOM
+    });
+
+    await percy.idle();
+
+    expect(captured[0]).toEqual(jasmine.arrayContaining([
+      jasmine.objectContaining({
+        attributes: jasmine.objectContaining({
+          'resource-url': 'http://localhost:8000/favicon.ico'
         })
       })
     ]));
@@ -1166,6 +1209,8 @@ describe('Discovery', () => {
   });
 
   it('captures requests from workers', async () => {
+    percy.loglevel('debug');
+
     // Fetch and Network events are inherently racey because they come from different processes. The
     // bug we are testing here happens specifically when the Network event comes after the Fetch
     // event. Using a stub, we can cause Network events to happen a few milliseconds later than they
@@ -1208,6 +1253,21 @@ describe('Discovery', () => {
       jasmine.objectContaining({
         attributes: jasmine.objectContaining({
           'resource-url': 'http://localhost:8000/img.gif'
+        })
+      })
+    ]));
+
+    // Asserts the v143 worker-script timeout fired so a regression of the hang-fix is observable.
+    expect(logger.stderr).toEqual(jasmine.arrayContaining([
+      jasmine.stringMatching(/Skipping resource: responseReceived not received within 2000ms - http:\/\/localhost:8000\/worker\.js/)
+    ]));
+
+    // Worker scripts must still appear in captured resources for enableJavaScript:true,
+    // courtesy of the direct-fetch fallback that runs when the timeout fires.
+    expect(captured).toContain(jasmine.arrayContaining([
+      jasmine.objectContaining({
+        attributes: jasmine.objectContaining({
+          'resource-url': 'http://localhost:8000/worker.js'
         })
       })
     ]));
@@ -2969,6 +3029,336 @@ describe('Discovery', () => {
         `[percy:core:discovery] ${err.stack}`
       ]));
     });
+
+    it('logs gracefully when direct font request fails', async () => {
+      server.reply('/style.css', () => [200, 'text/css', [
+        '@font-face { font-family: "test"; src: url("/font.woff") format("woff"); }',
+        'body { font-family: "test", "sans-serif"; }'
+      ].join('')]);
+
+      // First hit (browser): octet-stream forces font fallback path.
+      // Second hit (makeDirectRequest): 400 makes the direct fetch throw without retrying.
+      let callCount = 0;
+      server.reply('/font.woff', () => {
+        if (++callCount === 1) return [200, 'application/octet-stream', '<font>'];
+        return [400, 'text/plain', 'bad request'];
+      });
+
+      await percy.snapshot({
+        name: 'font error snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot: testDOM
+      });
+
+      await percy.idle();
+
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
+        jasmine.stringMatching('Encountered an error processing resource: http://localhost:8000/font.woff')
+      ]));
+    });
+
+    it('continues responses gracefully when the request is untracked', async () => {
+      let snap = percy.snapshot({
+        name: 'untracked snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot: testDOM
+      });
+
+      await waitFor(() => percy.browser.sessions.size > 0);
+      let [session] = percy.browser.sessions.values();
+      let sentMethods = [];
+      let originalSend = session.send.bind(session);
+      spyOn(session, 'send').and.callFake((method, params) => {
+        sentMethods.push({ method, params });
+        return originalSend(method, params);
+      });
+
+      // Emit a response-stage Fetch.requestPaused for a request that was never
+      // tracked at the request stage — exercises the defensive null-request
+      // branch in _handleResponsePaused.
+      session.emit('Fetch.requestPaused', {
+        networkId: 'untracked-network-id',
+        requestId: 'untracked-intercept-id',
+        responseStatusCode: 200,
+        responseHeaders: [],
+        request: { url: 'http://example.com/orphan' }
+      });
+
+      await snap;
+
+      expect(sentMethods.some(c =>
+        c.method === 'Fetch.continueResponse' &&
+        c.params?.requestId === 'untracked-intercept-id'
+      )).toBe(true);
+    });
+
+    it('aborts oversized responses for untracked requests', async () => {
+      let snap = percy.snapshot({
+        name: 'untracked oversized snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot: testDOM
+      });
+
+      await waitFor(() => percy.browser.sessions.size > 0);
+      let [session] = percy.browser.sessions.values();
+      let sentMethods = [];
+      let originalSend = session.send.bind(session);
+      spyOn(session, 'send').and.callFake((method, params) => {
+        sentMethods.push({ method, params });
+        return originalSend(method, params);
+      });
+
+      // Emit a response-stage Fetch.requestPaused with malformed Content-Length
+      // for a request that was never tracked at the request stage — exercises
+      // the `if (request)` false branch inside the oversized/malformed handler.
+      session.emit('Fetch.requestPaused', {
+        networkId: 'untracked-malformed-id',
+        requestId: 'untracked-malformed-intercept',
+        responseStatusCode: 200,
+        responseHeaders: [{ name: 'Content-Length', value: 'NaN' }],
+        request: { url: 'http://example.com/orphan-malformed' }
+      });
+
+      await snap;
+
+      expect(sentMethods.some(c =>
+        c.method === 'Fetch.failRequest' &&
+        c.params?.requestId === 'untracked-malformed-intercept'
+      )).toBe(true);
+    });
+
+    it('logs gracefully when Fetch.failRequest fails during malformed-CL abort', async () => {
+      spyOn(Session.prototype, 'send').and.callFake(function(method, params) {
+        if (method === 'Fetch.failRequest' && params?.requestId === 'fail-request-intercept') {
+          return Promise.reject(new Error('Target closed'));
+        }
+        return Session.prototype.send.and.originalFn.call(this, method, params);
+      });
+
+      let snap = percy.snapshot({
+        name: 'fail-request error snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot: testDOM
+      });
+
+      await waitFor(() => percy.browser.sessions.size > 0);
+      let [session] = percy.browser.sessions.values();
+
+      session.emit('Fetch.requestPaused', {
+        networkId: 'fail-request-id',
+        requestId: 'fail-request-intercept',
+        responseStatusCode: 200,
+        responseHeaders: [{ name: 'Content-Length', value: 'NaN' }],
+        request: { url: 'http://example.com/orphan-fail-request' }
+      });
+
+      await snap;
+
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
+        jasmine.stringMatching(/Failed to abort oversized response for http:\/\/example\.com\/orphan-fail-request: Target closed/)
+      ]));
+    });
+
+    it('silently swallows Fetch.continueResponse benign races (ABORTED_MESSAGE)', async () => {
+      spyOn(Session.prototype, 'send').and.callFake(function(method, params) {
+        if (method === 'Fetch.continueResponse' && params?.requestId === 'continue-aborted-intercept') {
+          return Promise.reject(new Error('Request was aborted by browser'));
+        }
+        return Session.prototype.send.and.originalFn.call(this, method, params);
+      });
+
+      let snap = percy.snapshot({
+        name: 'continue-response aborted snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot: testDOM
+      });
+
+      await waitFor(() => percy.browser.sessions.size > 0);
+      let [session] = percy.browser.sessions.values();
+
+      session.emit('Fetch.requestPaused', {
+        networkId: 'continue-aborted-id',
+        requestId: 'continue-aborted-intercept',
+        responseStatusCode: 200,
+        responseHeaders: [],
+        request: { url: 'http://example.com/orphan-continue-aborted' }
+      });
+
+      await snap;
+
+      expect(logger.stderr).not.toEqual(jasmine.arrayContaining([
+        jasmine.stringMatching(/Failed to continue response for http:\/\/example\.com\/orphan-continue-aborted/)
+      ]));
+    });
+
+    it('logs gracefully when Fetch.continueResponse fails with unexpected error', async () => {
+      spyOn(Session.prototype, 'send').and.callFake(function(method, params) {
+        if (method === 'Fetch.continueResponse' && params?.requestId === 'continue-error-intercept') {
+          return Promise.reject(new Error('Target closed'));
+        }
+        return Session.prototype.send.and.originalFn.call(this, method, params);
+      });
+
+      let snap = percy.snapshot({
+        name: 'continue-response error snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot: testDOM
+      });
+
+      await waitFor(() => percy.browser.sessions.size > 0);
+      let [session] = percy.browser.sessions.values();
+
+      session.emit('Fetch.requestPaused', {
+        networkId: 'continue-error-id',
+        requestId: 'continue-error-intercept',
+        responseStatusCode: 200,
+        responseHeaders: [],
+        request: { url: 'http://example.com/orphan-continue-error' }
+      });
+
+      await snap;
+
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
+        jasmine.stringMatching(/Failed to continue response for http:\/\/example\.com\/orphan-continue-error: Target closed/)
+      ]));
+    });
+
+    it('logs gracefully when the direct-fetch fallback fails', async () => {
+      // Drop Network.responseReceived for one asset so it enters the
+      // RESPONSE_RECEIVED_TIMEOUT path that calls captureResourceDirectly,
+      // then make the direct fetch return 400 so the catch logs.
+      spyOn(percy.browser, '_handleMessage').and.callFake(function(data) {
+        let parsed; try { parsed = JSON.parse(data); } catch { /* binary */ }
+        if (parsed?.method === 'Network.responseReceived' &&
+            parsed?.params?.response?.url?.endsWith('/direct-fetch-target.css')) {
+          return;
+        }
+        this._handleMessage.and.originalFn.call(this, data);
+      });
+
+      let assetHits = 0;
+      server.reply('/direct-fetch-target.css', () => {
+        assetHits += 1;
+        if (assetHits === 1) return [200, 'text/css', 'p { color: blue; }'];
+        return [400, 'text/plain', 'bad request'];
+      });
+
+      let targetDOM = '<html><head><link href="direct-fetch-target.css" rel="stylesheet"/></head><body><p>x</p></body></html>';
+
+      await percy.snapshot({
+        name: 'direct-fetch failure snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot: targetDOM
+      });
+
+      await percy.idle();
+
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
+        jasmine.stringMatching(/Direct fetch failed for http:\/\/localhost:8000\/direct-fetch-target\.css -/)
+      ]));
+    });
+
+    it('logs when Network.getCookies fails during direct-fetch fallback', async () => {
+      spyOn(percy.browser, '_handleMessage').and.callFake(function(data) {
+        let parsed; try { parsed = JSON.parse(data); } catch { /* binary */ }
+        if (parsed?.method === 'Network.responseReceived' &&
+            parsed?.params?.response?.url?.endsWith('/cookies-fail.css')) {
+          return;
+        }
+        this._handleMessage.and.originalFn.call(this, data);
+      });
+
+      spyOn(Session.prototype, 'send').and.callFake(function(method, params) {
+        if (method === 'Network.getCookies' && params?.urls?.[0]?.includes('cookies-fail.css')) {
+          return Promise.reject(new Error('Internal error'));
+        }
+        return Session.prototype.send.and.originalFn.call(this, method, params);
+      });
+
+      server.reply('/cookies-fail.css', () => [200, 'text/css', 'p { color: blue; }']);
+      let targetDOM = '<html><head><link href="cookies-fail.css" rel="stylesheet"/></head><body><p>x</p></body></html>';
+
+      await percy.snapshot({
+        name: 'cookies fail snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot: targetDOM
+      });
+
+      await percy.idle();
+
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
+        jasmine.stringMatching(/Network\.getCookies unavailable for http:\/\/localhost:8000\/cookies-fail\.css: Internal error/)
+      ]));
+    });
+
+    it('skips direct-fetched resource when body exceeds 25MB', async () => {
+      spyOn(percy.browser, '_handleMessage').and.callFake(function(data) {
+        let parsed; try { parsed = JSON.parse(data); } catch { /* binary */ }
+        if (parsed?.method === 'Network.responseReceived' &&
+            parsed?.params?.response?.url?.endsWith('/oversized.css')) {
+          return;
+        }
+        this._handleMessage.and.originalFn.call(this, data);
+      });
+
+      let assetHits = 0;
+      // 17MB exceeds MAX_RESOURCE_SIZE (≈15.75 MB after base64 factor)
+      let oversizedBody = Buffer.alloc(17 * 1024 * 1024, 'x');
+      server.reply('/oversized.css', () => {
+        assetHits += 1;
+        if (assetHits === 1) return [200, 'text/css', 'p { color: blue; }'];
+        return [200, 'text/css', oversizedBody];
+      });
+
+      let targetDOM = '<html><head><link href="oversized.css" rel="stylesheet"/></head><body><p>x</p></body></html>';
+
+      await percy.snapshot({
+        name: 'oversized direct-fetch snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot: targetDOM
+      });
+
+      await percy.idle();
+
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
+        jasmine.stringMatching(/Skipping resource larger than 25MB/)
+      ]));
+    });
+
+    it('uses server Content-Type for direct-fetch mimetype when URL has no extension', async () => {
+      // For URLs with no recognizable extension, the direct-fetch path must
+      // honor the server's Content-Type response header rather than guessing
+      // a default. Server returns 'application/octet-stream' → that wins.
+      spyOn(percy.browser, '_handleMessage').and.callFake(function(data) {
+        let parsed; try { parsed = JSON.parse(data); } catch { /* binary */ }
+        if (parsed?.method === 'Network.responseReceived' &&
+            parsed?.params?.response?.url?.endsWith('/asset-no-ext')) {
+          return;
+        }
+        this._handleMessage.and.originalFn.call(this, data);
+      });
+
+      let assetHits = 0;
+      server.reply('/asset-no-ext', () => {
+        assetHits += 1;
+        if (assetHits === 1) return [200, 'text/css', 'p { color: blue; }'];
+        return [200, 'application/octet-stream', 'p { color: red; }'];
+      });
+
+      let targetDOM = '<html><head><link href="asset-no-ext" rel="stylesheet"/></head><body><p>x</p></body></html>';
+
+      await percy.snapshot({
+        name: 'unknown extension direct-fetch snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot: targetDOM
+      });
+
+      await percy.idle();
+
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
+        jasmine.stringMatching(/Saving direct-fetched resource sha=[a-f0-9]+ mimetype=application\/octet-stream/)
+      ]));
+    });
   });
 
   describe('with remote resources', () => {
@@ -3791,10 +4181,16 @@ describe('Discovery', () => {
 
       let validationCallCount = 0;
       let validationResolver;
+      let firstCallResolver;
+      let firstCallPromise = new Promise(resolve => { firstCallResolver = resolve; });
 
       // Mock validation to hang so we can test concurrent requests
       validationMock.and.callFake(() => {
         validationCallCount++;
+        if (firstCallResolver) {
+          firstCallResolver();
+          firstCallResolver = null;
+        }
         return new Promise(resolve => {
           validationResolver = resolve;
         });
@@ -3824,13 +4220,8 @@ describe('Discovery', () => {
         widths: [1000]
       });
 
-      // Wait for validation to be called at least once
-      let attempts = 0;
-      // eslint-disable-next-line no-unmodified-loop-condition
-      while (validationCallCount === 0 && attempts < 50) {
-        await new Promise(resolve => setTimeout(resolve, 10));
-        attempts++;
-      }
+      // Wait deterministically for the first validation call instead of polling
+      await firstCallPromise;
 
       // Validation should only be called once
       expect(validationCallCount).toBe(1);
@@ -4228,12 +4619,14 @@ describe('Discovery', () => {
     });
 
     it('should fail to launch if the devtools address is not logged', async () => {
+      // --version exits cleanly on Linux Chrome 143; --remote-debugging-port=null still exits on Windows.
+      let earlyExitArg = process.platform === 'win32' ? '--remote-debugging-port=null' : '--version';
       await expectAsync(Percy.start({
         token: 'PERCY_TOKEN',
         snapshot: { widths: [1000] },
         discovery: {
           launchOptions: {
-            args: ['--remote-debugging-port=null']
+            args: [earlyExitArg]
           }
         }
       })).toBeRejectedWithError(
