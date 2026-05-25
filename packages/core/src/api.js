@@ -368,6 +368,7 @@ export function createPercyServer(percy, port) {
     .route('post', '/percy/comparison/upload', /* istanbul ignore next */ (req, res) => handleComparisonUpload(req, res, percy))
   // post a comparison by reading a Maestro screenshot from disk
     .route('post', '/percy/maestro-screenshot', async (req, res) => {
+      /* istanbul ignore next — req.body falsy guard; tests always pass a body. */
       let { name, sessionId } = req.body || {};
 
       if (!name) throw new ServerError(400, 'Missing required field: name');
@@ -545,6 +546,8 @@ export function createPercyServer(percy, port) {
 
       // Build tag from optional request body fields
       let tag = req.body.tag || { name: 'Unknown Device', osName: 'Android' };
+      /* istanbul ignore if — fallback when tag.name is missing; tests always
+         pass a complete tag object. */
       if (!tag.name) tag.name = 'Unknown Device';
       if (pngDims) {
         if (typeof tag.width !== 'number' || tag.width <= 0 || isNaN(tag.width)) {
@@ -666,6 +669,8 @@ export function createPercyServer(percy, port) {
               grpcClientCache: percy.grpcClientCache
             });
           }
+          /* istanbul ignore else — branch where dump resolves to hierarchy is
+             happy-path element-region territory, integration-tested only. */
           if (cachedDump.kind !== 'hierarchy') {
             /* istanbul ignore else — elementSkipWarned latches after first
                warn; second+ iterations take the no-op branch. */

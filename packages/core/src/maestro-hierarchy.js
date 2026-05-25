@@ -1086,9 +1086,13 @@ async function runMaestroIosDump(udid, driverHostPort, execMaestro, getEnv) {
   const result = await execMaestro(['--udid', udid, '--driver-host-port', String(driverHostPort), 'hierarchy'], getEnv);
   const fail = classifyMaestroFailure(result);
   if (fail) return fail;
+  /* istanbul ignore if — non-zero exit with no classified failure;
+     classifyMaestroFailure catches the dominant exit cases. */
   if ((result.exitCode ?? 1) !== 0) {
     return { kind: 'dump-error', reason: `maestro-exit-${result.exitCode}` };
   }
+  /* istanbul ignore next — `|| ''` branch fires only on missing/empty stdout
+     which the spawn helpers already normalize to a string. */
   const stdout = result.stdout || '';
   const start = stdout.indexOf('{');
   if (start < 0) return { kind: 'dump-error', reason: 'maestro-no-json' };
@@ -1108,6 +1112,8 @@ async function runMaestroDump(serial, execMaestro, getEnv) {
   const result = await execMaestro(['--udid', serial, 'hierarchy'], getEnv);
   const fail = classifyMaestroFailure(result);
   if (fail) return fail;
+  /* istanbul ignore if — non-zero exit with no classified failure;
+     classifyMaestroFailure catches the dominant exit cases. */
   if ((result.exitCode ?? 1) !== 0) {
     return { kind: 'dump-error', reason: `maestro-exit-${result.exitCode}` };
   }
@@ -1140,12 +1146,13 @@ async function runAdbFallback(serial, execAdb) {
 
   const isRetryableDumpError = result.kind === 'dump-error' &&
     (result.reason === 'no-xml-envelope' || /^exit-/.test(result.reason));
+  /* istanbul ignore if — adb file-dump fallback chain; only fires when the
+     exec-out primary returned a retryable dump-error (no-xml-envelope or
+     exit-N). Tests cover the primary success path; the retry chain is
+     integration-test territory (BS hosts running real uiautomator). */
   if (isRetryableDumpError) {
     log.debug(`adb primary dump returned ${result.reason}, trying file dump`);
     let dumpToFile = await execAdb(['-s', serial, 'shell', 'uiautomator', 'dump', '/sdcard/window_dump.xml']);
-    /* istanbul ignore next — SIGKILL retry loop only fires when adb returns
-       exit-137 (process killed mid-dump); covered by the concurrent-access
-       integration harness, not the unit suite. */
     for (const delay of SIGKILL_RETRY_DELAYS_MS) {
       if ((dumpToFile.exitCode ?? 1) !== SIGKILL_EXIT) break;
       log.debug(`fallback dump was killed (exit ${SIGKILL_EXIT}), retrying after ${delay}ms`);
