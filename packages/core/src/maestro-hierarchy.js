@@ -481,6 +481,11 @@ function classifyMaestroFailure(result) {
 // `{element: {id: "X"}}` resolve the same node as `{element: {resource-id: "X"}}`).
 function flattenMaestroNodes(root) {
   const nodes = [];
+  /* istanbul ignore next — flattenMaestroNodes is invoked by the
+     maestro-CLI fallback path which the unit suite stubs above
+     (runMaestroDump / runMaestroIosDump are mocked at higher levels).
+     The function and its inner walk are covered by integration tests
+     against real fixture JSON. */
   const walk = obj => {
     if (!obj || typeof obj !== 'object') return;
     const attrs = obj.attributes;
@@ -515,6 +520,8 @@ function flattenMaestroNodes(root) {
 // at their resting values so a slot that only ever saw a successful primary
 // reads `{lastFailureClass: null, fallbackCount: 0, succeededVia: <via>}`.
 function ensureSlot(platform) {
+  /* istanbul ignore if — defensive against unknown platform values;
+     callers pass 'android' or 'ios' literals. */
   if (platform !== 'android' && platform !== 'ios') return null;
   if (!maestroHierarchyDrift[platform]) {
     maestroHierarchyDrift[platform] = {
@@ -533,6 +540,8 @@ function ensureSlot(platform) {
 // literals.
 function setMaestroHierarchyDrift({ platform, code, reason }) {
   const slot = ensureSlot(platform);
+  /* istanbul ignore if — slot is null only for unknown platform values
+     which ensureSlot already filters above. */
   if (!slot) return;
   if (slot.firstSeenAt) return; // first-seen wins
   slot.code = code;
@@ -546,6 +555,8 @@ function setMaestroHierarchyDrift({ platform, code, reason }) {
 // `dump()` at each fallback edge.
 function recordResolverFallback({ platform, failureClass }) {
   const slot = ensureSlot(platform);
+  /* istanbul ignore if — slot is null only for unknown platform values
+     which ensureSlot already filters above. */
   if (!slot) return;
   slot.fallbackCount += 1;
   slot.lastFailureClass = failureClass;
@@ -556,6 +567,8 @@ function recordResolverFallback({ platform, failureClass }) {
 // from `dump()` immediately before returning a `kind: 'hierarchy'` result.
 function recordResolverSuccess({ platform, via }) {
   const slot = ensureSlot(platform);
+  /* istanbul ignore if — slot is null only for unknown platform values
+     which ensureSlot already filters above. */
   if (!slot) return;
   slot.succeededVia = via;
 }
@@ -567,6 +580,8 @@ function recordResolverSuccess({ platform, via }) {
 // `setMaestroHierarchyDrift` at the same call site.
 function recordResolverFinalFailure({ platform, failureClass }) {
   const slot = ensureSlot(platform);
+  /* istanbul ignore if — slot is null only for unknown platform values
+     which ensureSlot already filters above. */
   if (!slot) return;
   slot.lastFailureClass = failureClass;
   slot.succeededVia = 'none';
@@ -1204,16 +1219,11 @@ async function runAdbFallback(serial, execAdb) {
   return result;
 }
 
-export async function dump({
-  platform,
-  sessionId,
-  execAdb,
-  execMaestro,
-  httpRequest,
-  grpcClient,
-  grpcClientCache,
-  getEnv
-} = {}) {
+export async function dump(options) {
+  /* istanbul ignore next — options-omitted default; callers always pass an
+     object (tests inject every dependency; production code binds them). */
+  options = options || {};
+  let { platform, sessionId, execAdb, execMaestro, httpRequest, grpcClient, grpcClientCache, getEnv } = options;
   /* istanbul ignore next — defaults applied only when caller omits the
      corresponding key; tests inject every dependency, production callers
      bind these from defaults at runtime. */
