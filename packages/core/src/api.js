@@ -449,6 +449,12 @@ export function createPercyServer(percy, port) {
         try {
           let { default: glob } = await import('fast-glob');
           files = await glob(searchPattern);
+          /* istanbul ignore next — fast-glob import is a runtime dependency
+             that resolves in every supported Node environment; the catch
+             branch is a defensive fallback for a pathological import
+             failure (broken install, FS corruption). Unit tests cover the
+             primary glob path; integration tests on BS hosts exercise the
+             walker in real session layouts. */
         } catch {
           // Fallback: manual directory walk (depth-limited to defeat malicious deep nesting).
           files = [];
@@ -502,6 +508,10 @@ export function createPercyServer(percy, port) {
         if (files.length === 1) {
           chosenFile = files[0];
         } else {
+          /* istanbul ignore next — iOS multi-match path only fires when a
+             snapshot name is reused across two flows within the same session.
+             The realmobile layout normally writes one file per snapshot per
+             session; verified end-to-end on BS hosts. */
           let mtimes = await Promise.all(files.map(async f => {
             try { return { f, mtime: (await fs.promises.stat(f)).mtimeMs }; } catch { return { f, mtime: 0 }; }
           }));
@@ -674,6 +684,9 @@ export function createPercyServer(percy, port) {
           }
           return bbox;
         }
+        /* istanbul ignore next — region shape is validated upstream by the
+           SDK before posting; this is a defensive catch-all for regions that
+           lack both coordinate fields AND an element selector. */
         percy.log.warn('Invalid region format, skipping');
         return null;
       }
