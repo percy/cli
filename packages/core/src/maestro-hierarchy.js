@@ -338,9 +338,10 @@ function defaultGetEnv(key) {
 function classifyAdbFailure(result) {
   if (result.spawnError) {
     const code = result.spawnError.code;
+    /* istanbul ignore else — non-ENOENT spawn-error fallback (EACCES, EAGAIN,
+       etc.); ENOENT is the dominant case and is covered, the else returns the
+       fallback below. */
     if (code === 'ENOENT') return { kind: 'unavailable', reason: 'adb-not-found' };
-    /* istanbul ignore next — non-ENOENT spawn-error fallback (EACCES, EAGAIN,
-       etc.); ENOENT is the dominant case and is covered. */
     return { kind: 'unavailable', reason: `spawn-error:${code || 'unknown'}` };
   }
   if (result.timedOut) return { kind: 'unavailable', reason: 'timeout' };
