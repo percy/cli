@@ -90,4 +90,15 @@ describe('WebdriverUtils.captureScreenshot', () => {
     await expectAsync(WebdriverUtils.captureScreenshot(baseArgs))
       .toBeRejectedWithError('boom');
   });
+
+  it('falls back to default options and buildInfo when caller omits them', async () => {
+    const { options, buildInfo, ...argsWithoutDefaults } = baseArgs;
+
+    const result = await WebdriverUtils.captureScreenshot(argsWithoutDefaults);
+
+    expect(result.labels).toBeUndefined();
+    expect(result.testCase).toBeUndefined();
+    expect(result.thTestCaseExecutionId).toBeUndefined();
+    expect(providerStub.screenshot).toHaveBeenCalledWith('snap', {});
+  });
 });
