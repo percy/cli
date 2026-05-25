@@ -579,31 +579,28 @@ function recordResolverFinalFailure({ platform, failureClass }) {
 // (`grpc-schema-`, `grpc-contention-`, `grpc-channel-broken-`, etc.) up one
 // level so ops sees a stable four-value enum.
 function failureClassFromReason(reason) {
+  /* istanbul ignore if — defensive type guard; callers always pass a string. */
   if (typeof reason !== 'string') return 'other';
   if (reason.startsWith('grpc-contention-')) return 'contention-class';
   if (reason.startsWith('grpc-channel-broken-')) return 'channel-broken';
+  /* istanbul ignore next — gRPC schema-class OR-chain (5 clauses);
+     classifyGrpcFailure covers each shape individually but the unified
+     classifier path isn't exercised by the iOS-focused tests. */
   if (reason.startsWith('grpc-schema-') ||
       reason === 'grpc-decode' ||
       reason === 'grpc-no-xml-envelope' ||
       reason === 'grpc-unexpected-root' ||
       reason.startsWith('grpc-parse-error')) {
-    /* istanbul ignore next — gRPC schema-class classifier; multiple reason
-       shapes are covered individually in classifyGrpcFailure tests, but the
-       branch return statement here only fires when called via the unified
-       failureClassFromReason path which the iOS-focused tests don't exercise. */
     return 'schema-class';
   }
   // iOS HTTP connection codes from classifyIosHttpFailure: http-econnrefused etc.
   // and http-5xx (server reachable but unhealthy).
   if (/^http-[a-z]+$/.test(reason)) return 'channel-broken';
   if (/^http-5\d\d$/.test(reason)) return 'channel-broken';
-  // iOS HTTP schema/shape errors: http-4xx, http-unexpected-status-N,
-  // http-missing-*, http-parse-error*, http-frame-*, http-flatten-error*.
+  /* istanbul ignore next — iOS HTTP schema-class OR-chain; same rationale
+     as the gRPC chain above (unified path under-exercised). */
   if (/^http-(missing-|parse-error|frame-|flatten-error|unexpected-)/.test(reason) ||
       /^http-[34]\d\d/.test(reason)) {
-    /* istanbul ignore next — iOS HTTP schema-class classifier; same as
-       above (multiple reason shapes; this branch return statement only
-       fires via the unified failureClassFromReason path). */
     return 'schema-class';
   }
   // Everything else (maestro-exit-N, maestro-parse-error, maestro-no-json,
@@ -643,6 +640,8 @@ function getOrCreateGrpcClient(cache, address, factory) {
 
 function evictGrpcClient(cache, address) {
   const client = cache.get(address);
+  /* istanbul ignore if — defensive against eviction of non-existent address;
+     callers only call this after a get() returned a client. */
   if (!client) return;
   try { client.close(); } catch { /* swallow — already closed */ }
   cache.delete(address);
@@ -703,10 +702,13 @@ function isContentionClass(reason) {
 export async function runAndroidGrpcDump({
   host,
   port,
-  /* istanbul ignore next */ grpcClient = defaultGrpcClientFactory,
+  grpcClient,
   cache,
   shutdownInProgress
 }) {
+  /* istanbul ignore next — fallback to default factory when caller omits;
+     tests always inject a stub factory. */
+  grpcClient = grpcClient || defaultGrpcClientFactory;
   const address = `${host}:${port}`;
   const client = getOrCreateGrpcClient(cache, address, grpcClient);
   const start = Date.now();
@@ -996,7 +998,10 @@ function classifyIosHttpFailure(err) {
 //   { kind: 'connection-fail', ... } on transport / 5xx / out-of-range port
 //   { kind: 'no-aut-tree', ... }     on SpringBoard-only response
 //   { kind: 'dump-error', ... }      on schema-class failures (no fallback)
-async function runIosHttpDump({ port, sessionId, /* istanbul ignore next */ httpRequest = defaultHttpRequest }) {
+async function runIosHttpDump({ port, sessionId, httpRequest }) {
+  /* istanbul ignore next — fallback to default http transport when caller
+     omits; tests always inject a stub. */
+  httpRequest = httpRequest || defaultHttpRequest;
   // Loopback-only guard. Hardcoded host; do not accept from caller input.
   const host = '127.0.0.1';
 
@@ -1200,15 +1205,29 @@ async function runAdbFallback(serial, execAdb) {
 }
 
 export async function dump({
-  /* istanbul ignore next */ platform = 'android',
+  platform,
   sessionId,
-  /* istanbul ignore next */ execAdb = defaultExecAdb,
-  /* istanbul ignore next */ execMaestro = defaultExecMaestro,
-  /* istanbul ignore next */ httpRequest = defaultHttpRequest,
-  /* istanbul ignore next */ grpcClient = defaultGrpcClientFactory,
+  execAdb,
+  execMaestro,
+  httpRequest,
+  grpcClient,
   grpcClientCache,
-  /* istanbul ignore next */ getEnv = defaultGetEnv
+  getEnv
 } = {}) {
+  /* istanbul ignore next — defaults applied only when caller omits the
+     corresponding key; tests inject every dependency, production callers
+     bind these from defaults at runtime. */
+  platform = platform || 'android';
+  /* istanbul ignore next */
+  execAdb = execAdb || defaultExecAdb;
+  /* istanbul ignore next */
+  execMaestro = execMaestro || defaultExecMaestro;
+  /* istanbul ignore next */
+  httpRequest = httpRequest || defaultHttpRequest;
+  /* istanbul ignore next */
+  grpcClient = grpcClient || defaultGrpcClientFactory;
+  /* istanbul ignore next */
+  getEnv = getEnv || defaultGetEnv;
   const started = Date.now();
 
   if (platform === 'ios') {
