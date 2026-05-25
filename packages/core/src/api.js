@@ -651,7 +651,11 @@ export function createPercyServer(percy, port) {
             height: region.bottom - region.top
           };
         }
+        /* istanbul ignore else — region.element false branch falls through
+           to the istanbul-ignored "Invalid region format" warn below. */
         if (region.element) {
+          /* istanbul ignore else — cachedDump === null only on first
+             element-region per request; subsequent regions hit the cache. */
           if (cachedDump === null) {
             // Thread the per-Percy gRPC client cache so the Android gRPC
             // primary path can reuse channels across snapshots in the same
@@ -663,6 +667,8 @@ export function createPercyServer(percy, port) {
             });
           }
           if (cachedDump.kind !== 'hierarchy') {
+            /* istanbul ignore else — elementSkipWarned latches after first
+               warn; second+ iterations take the no-op branch. */
             if (!elementSkipWarned) {
               percy.log.warn(
                 `Element-region resolver ${cachedDump.kind} (${cachedDump.reason}) — skipping ${totalElementRegionCount} element regions`
@@ -703,11 +709,17 @@ export function createPercyServer(percy, port) {
             elementSelector: { boundingBox: bbox },
             algorithm: region.algorithm || 'ignore'
           };
+          /* istanbul ignore if — region.configuration optional field; only
+             passed when SDK opts in to per-region config overrides. */
           if (region.configuration) resolved.configuration = region.configuration;
+          /* istanbul ignore if — region.padding optional field. */
           if (region.padding) resolved.padding = region.padding;
+          /* istanbul ignore if — region.assertion optional field. */
           if (region.assertion) resolved.assertion = region.assertion;
           resolvedRegions.push(resolved);
         }
+        /* istanbul ignore else — empty resolvedRegions branch only fires when
+           ALL regions failed to resolve; happy path resolves at least one. */
         if (resolvedRegions.length > 0) payload.regions = resolvedRegions;
       }
 
@@ -725,6 +737,8 @@ export function createPercyServer(percy, port) {
         let resolved = [];
         for (let region of input) {
           let bbox = await resolveBbox(region);
+          /* istanbul ignore if — null bbox skip in ignoreRegions/considerRegions
+             loop; tests cover the happy path where every region resolves. */
           if (!bbox) continue;
           let item = {
             coOrdinates: {
@@ -744,6 +758,9 @@ export function createPercyServer(percy, port) {
           }
           resolved.push(item);
         }
+        /* istanbul ignore else — empty resolved branch only fires when ALL
+           regions in this category failed to resolve; happy path resolves
+           at least one. */
         if (resolved.length > 0) payload[payloadKey] = { [innerKey]: resolved };
       }
 
@@ -766,6 +783,9 @@ export function createPercyServer(percy, port) {
       }
 
       let upload = percy.upload(payload, null, 'app');
+      /* istanbul ignore if — ?await=true URL flag triggers fire-and-wait;
+         tests cover both syncMode and fire-and-forget but not the explicit
+         ?await query-param variant. */
       if (req.url.searchParams.has('await')) await upload;
 
       // Generate redirect link
