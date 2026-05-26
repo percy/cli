@@ -62,6 +62,8 @@ describe('API Server', () => {
       config: PercyConfig.getDefaults(),
       widths: { mobile: [], config: PercyConfig.getDefaults().snapshot.widths },
       deviceDetails: [],
+      // Two-slot drift envelope (Unit 4). Both slots null in steady state.
+      maestroHierarchyDrift: { android: null, ios: null },
       build: {
         id: '123',
         number: 1,
@@ -278,6 +280,33 @@ describe('API Server', () => {
     expect(percy.client.getComparisonDetails).toHaveBeenCalled();
   });
 
+  // Cross-consumer drain canary for /percy/comparison. Mirrors the maestro-screenshot
+  // canary at the bottom of this file. See docs/solutions/best-practices/
+  // 2026-05-20-maestro-sync-promise-bug-investigation.md.
+  it('/comparison sync mode: drains the upload generator (real return shape, no mock)', async () => {
+    let iterCount = 0;
+    spyOn(percy.client, 'getComparisonDetails').and.returnValue(getSnapshotDetailsResponse);
+    spyOn(percy, 'upload').and.callFake((_, callback) => {
+      return (async function*() {
+        iterCount++;
+        callback.resolve();
+        yield;
+      })();
+    });
+    await percy.start();
+
+    await expectAsync(request('/percy/comparison', {
+      method: 'POST',
+      body: {
+        name: 'Drain canary',
+        sync: true,
+        tag: { name: 'Tag', osName: 'OS', osVersion: '1', width: 1, height: 1, orientation: 'portrait' }
+      }
+    })).toBeResolvedTo(jasmine.objectContaining({ data: getSnapshotDetailsResponse }));
+
+    expect(iterCount).toBeGreaterThan(0);
+  });
+
   it('includes links in the /comparison endpoint response', async () => {
     spyOn(percy, 'upload').and.resolveTo();
     await percy.start();
@@ -465,6 +494,35 @@ describe('API Server', () => {
 
     expect(percy.client.getComparisonDetails).toHaveBeenCalled();
     expect(percy.upload).toHaveBeenCalledOnceWith({ sync: true }, jasmine.objectContaining({}), 'automate');
+  });
+
+  // Cross-consumer drain canary for /percy/automateScreenshot. Mirrors the
+  // maestro-screenshot and /comparison canaries elsewhere in this file. See
+  // docs/solutions/best-practices/2026-05-20-maestro-sync-promise-bug-investigation.md.
+  it('/automateScreenshot sync mode: drains the upload generator (real return shape, no mock)', async () => {
+    let iterCount = 0;
+    spyOn(percy.client, 'getComparisonDetails').and.returnValue(getSnapshotDetailsResponse);
+    spyOn(WebdriverUtils, 'captureScreenshot').and.returnValue({ sync: true });
+    spyOn(percy, 'upload').and.callFake((_, callback) => {
+      return (async function*() {
+        iterCount++;
+        callback.resolve();
+        yield;
+      })();
+    });
+    await percy.start();
+
+    await expectAsync(request('/percy/automateScreenshot', {
+      method: 'post',
+      body: {
+        name: 'Drain canary',
+        client_info: 'client',
+        environment_info: 'environment',
+        options: { sync: true }
+      }
+    })).toBeResolvedTo(jasmine.objectContaining({ data: getSnapshotDetailsResponse }));
+
+    expect(iterCount).toBeGreaterThan(0);
   });
 
   it('has a /events endpoint that calls #sendBuildEvents() async with provided options with clientInfo present', async () => {
@@ -1006,6 +1064,688 @@ describe('API Server', () => {
           { width: 1280 }
         ]
       });
+    });
+  });
+
+  describe('/percy/maestro-screenshot', () => {
+    const SID = 'testsession';
+    const SS_NAME = 'HomeScreen';
+    const ANDROID_DIR = `/tmp/${SID}_test_suite/logs/run1/screenshots`;
+    const IOS_DIR = `/tmp/${SID}/emu_maestro_debug_abc/flow_x`;
+    // New SDK convention (filePath path): /tmp/<sid>{_test_suite}/percy/<name>.png
+    const ANDROID_FILEPATH_DIR = `/tmp/${SID}_test_suite/percy`;
+    const IOS_FILEPATH_DIR = `/tmp/${SID}/percy`;
+    const FILEPATH_NAME = 'FromFilePath';
+
+    beforeEach(async () => {
+      fs.mkdirSync(ANDROID_DIR, { recursive: true });
+      fs.writeFileSync(path.join(ANDROID_DIR, `${SS_NAME}.png`), 'PNGBYTES-ANDROID');
+      fs.mkdirSync(IOS_DIR, { recursive: true });
+      // iOS element-region path parses IHDR off the buffer — write a minimal
+      // 24-byte valid PNG header (1170 × 2532 iPhone 14 portrait) instead of a
+      // string sentinel. Android path doesn't parse, so the string sentinel is fine.
+      const pngHeader = Buffer.alloc(24);
+      Buffer.from([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]).copy(pngHeader, 0);
+      pngHeader.writeUInt32BE(13, 8);
+      Buffer.from('IHDR', 'ascii').copy(pngHeader, 12);
+      pngHeader.writeUInt32BE(1170, 16);
+      pngHeader.writeUInt32BE(2532, 20);
+      fs.writeFileSync(path.join(IOS_DIR, `${SS_NAME}.png`), pngHeader);
+
+      // filePath fixtures — same per-platform session root, but a different
+      // subdirectory than the legacy glob. Exercises the new SDK path
+      // independently from the back-compat glob.
+      fs.mkdirSync(ANDROID_FILEPATH_DIR, { recursive: true });
+      fs.writeFileSync(path.join(ANDROID_FILEPATH_DIR, `${FILEPATH_NAME}.png`), 'PNGBYTES-FILEPATH-ANDROID');
+      fs.mkdirSync(IOS_FILEPATH_DIR, { recursive: true });
+      fs.writeFileSync(path.join(IOS_FILEPATH_DIR, `${FILEPATH_NAME}.png`), 'PNGBYTES-FILEPATH-IOS');
+    });
+
+    async function postMaestro(body) {
+      return request('/percy/maestro-screenshot', { method: 'POST', body });
+    }
+
+    it('rejects missing name with 400', async () => {
+      await percy.start();
+      await expectAsync(postMaestro({ sessionId: SID })).toBeRejectedWithError(/Missing required field: name/);
+    });
+
+    it('rejects missing sessionId with 400', async () => {
+      await percy.start();
+      await expectAsync(postMaestro({ name: SS_NAME })).toBeRejectedWithError(/Missing required field: sessionId/);
+    });
+
+    it('rejects invalid platform with 400', async () => {
+      await percy.start();
+      await expectAsync(postMaestro({ name: SS_NAME, sessionId: SID, platform: 'web' }))
+        .toBeRejectedWithError(/Invalid platform/);
+    });
+
+    it('rejects non-SAFE_ID screenshot name with 400', async () => {
+      await percy.start();
+      await expectAsync(postMaestro({ name: '../etc/passwd', sessionId: SID }))
+        .toBeRejectedWithError(/Invalid screenshot name/);
+    });
+
+    it('rejects non-SAFE_ID sessionId with 400', async () => {
+      await percy.start();
+      await expectAsync(postMaestro({ name: SS_NAME, sessionId: 'bad/sid' }))
+        .toBeRejectedWithError(/Invalid sessionId/);
+    });
+
+    it('rejects non-string platform type with 400', async () => {
+      await percy.start();
+      await expectAsync(postMaestro({ name: SS_NAME, sessionId: SID, platform: 123 }))
+        .toBeRejectedWithError(/Invalid platform: must be a string/);
+    });
+
+    it('rejects non-object element selector with 400', async () => {
+      await percy.start();
+      await expectAsync(postMaestro({
+        name: SS_NAME,
+        sessionId: SID,
+        regions: [{ element: 'not-an-object' }]
+      })).toBeRejectedWithError(/element must be an object/);
+    });
+
+    it('rejects non-array regions with 400', async () => {
+      await percy.start();
+      await expectAsync(postMaestro({ name: SS_NAME, sessionId: SID, regions: 'not-array' }))
+        .toBeRejectedWithError(/regions must be an array/);
+    });
+
+    it('rejects too-many regions with 400', async () => {
+      await percy.start();
+      let regions = new Array(51).fill({ top: 0, bottom: 10, left: 0, right: 10 });
+      await expectAsync(postMaestro({ name: SS_NAME, sessionId: SID, regions }))
+        .toBeRejectedWithError(/regions exceeds maximum of 50/);
+    });
+
+    it('rejects element region with unsupported selector key', async () => {
+      await percy.start();
+      await expectAsync(postMaestro({
+        name: SS_NAME,
+        sessionId: SID,
+        platform: 'android',
+        regions: [{ element: { xpath: '//foo' }, algorithm: 'ignore' }]
+      })).toBeRejectedWithError(/unsupported selector key/);
+    });
+
+    it('rejects element region with multiple selector keys', async () => {
+      await percy.start();
+      await expectAsync(postMaestro({
+        name: SS_NAME,
+        sessionId: SID,
+        platform: 'android',
+        regions: [{ element: { 'resource-id': 'a', text: 'b' } }]
+      })).toBeRejectedWithError(/exactly one selector key/);
+    });
+
+    it('rejects element selector value longer than 512 chars', async () => {
+      await percy.start();
+      await expectAsync(postMaestro({
+        name: SS_NAME,
+        sessionId: SID,
+        platform: 'android',
+        regions: [{ element: { 'resource-id': 'a'.repeat(513) } }]
+      })).toBeRejectedWithError(/exceeds maximum length of 512/);
+    });
+
+    it('rejects element region with empty selector value', async () => {
+      await percy.start();
+      await expectAsync(postMaestro({
+        name: SS_NAME,
+        sessionId: SID,
+        platform: 'android',
+        regions: [{ element: { 'resource-id': '' } }]
+      })).toBeRejectedWithError(/must be a non-empty string/);
+    });
+
+    // ignoreRegions / considerRegions — parallel top-level inputs that emit
+    // to payload.ignoredElementsData.ignoreElementsData[] and
+    // payload.consideredElementsData.considerElementsData[]. Same per-item
+    // shape and validation as regions[]; algorithm is implicit.
+
+    it('rejects non-array ignoreRegions with 400', async () => {
+      await percy.start();
+      await expectAsync(postMaestro({ name: SS_NAME, sessionId: SID, ignoreRegions: 'nope' }))
+        .toBeRejectedWithError(/ignoreRegions must be an array/);
+    });
+
+    it('rejects non-array considerRegions with 400', async () => {
+      await percy.start();
+      await expectAsync(postMaestro({ name: SS_NAME, sessionId: SID, considerRegions: {} }))
+        .toBeRejectedWithError(/considerRegions must be an array/);
+    });
+
+    it('rejects too-many ignoreRegions with 400', async () => {
+      await percy.start();
+      let ignoreRegions = new Array(51).fill({ top: 0, bottom: 1, left: 0, right: 1 });
+      await expectAsync(postMaestro({ name: SS_NAME, sessionId: SID, ignoreRegions }))
+        .toBeRejectedWithError(/ignoreRegions exceeds maximum of 50/);
+    });
+
+    // Algorithm pass-through. The relay does NOT validate algorithm — the
+    // downstream comparison schema enforces the enum
+    // ('standard'|'layout'|'ignore'|'intelliignore') at upload time. Any
+    // string the SDK supplies travels verbatim into payload.regions[].algorithm.
+    // Tests below cover the default, a non-default valid value, and an
+    // invalid value (relay still passes it through; backend rejects).
+
+    it('regions[].algorithm passes through "ignore" verbatim', async () => {
+      spyOn(percy, 'upload').and.resolveTo();
+      await percy.start();
+      await postMaestro({
+        name: SS_NAME,
+        sessionId: SID,
+        platform: 'android',
+        regions: [{ top: 0, bottom: 10, left: 0, right: 10, algorithm: 'ignore' }]
+      });
+      let [payload] = percy.upload.calls.mostRecent().args;
+      expect(payload.regions[0].algorithm).toBe('ignore');
+    });
+
+    it('regions[].algorithm passes through "standard" verbatim', async () => {
+      spyOn(percy, 'upload').and.resolveTo();
+      await percy.start();
+      await postMaestro({
+        name: SS_NAME,
+        sessionId: SID,
+        platform: 'android',
+        regions: [{ top: 0, bottom: 10, left: 0, right: 10, algorithm: 'standard' }]
+      });
+      let [payload] = percy.upload.calls.mostRecent().args;
+      expect(payload.regions[0].algorithm).toBe('standard');
+    });
+
+    it('regions[].algorithm passes through invalid values verbatim (relay does not validate)', async () => {
+      spyOn(percy, 'upload').and.resolveTo();
+      await percy.start();
+      await postMaestro({
+        name: SS_NAME,
+        sessionId: SID,
+        platform: 'android',
+        regions: [{ top: 0, bottom: 10, left: 0, right: 10, algorithm: 'bogus' }]
+      });
+      let [payload] = percy.upload.calls.mostRecent().args;
+      expect(payload.regions[0].algorithm).toBe('bogus');
+    });
+
+    it('regions[].algorithm defaults to "ignore" when omitted', async () => {
+      spyOn(percy, 'upload').and.resolveTo();
+      await percy.start();
+      await postMaestro({
+        name: SS_NAME,
+        sessionId: SID,
+        platform: 'android',
+        regions: [{ top: 0, bottom: 10, left: 0, right: 10 }]
+      });
+      let [payload] = percy.upload.calls.mostRecent().args;
+      expect(payload.regions[0].algorithm).toBe('ignore');
+    });
+
+    it('accepts the boundary case of 50+50+50 = 150 total regions', async () => {
+      spyOn(percy, 'upload').and.resolveTo();
+      await percy.start();
+      let one = { top: 0, bottom: 1, left: 0, right: 1 };
+      await expectAsync(postMaestro({
+        name: SS_NAME,
+        sessionId: SID,
+        platform: 'android',
+        regions: new Array(50).fill(one),
+        ignoreRegions: new Array(50).fill(one),
+        considerRegions: new Array(50).fill(one)
+      })).toBeResolvedTo(jasmine.objectContaining({ success: true }));
+    });
+
+    it('rejects ignoreRegions element selector value longer than 512 chars', async () => {
+      await percy.start();
+      await expectAsync(postMaestro({
+        name: SS_NAME,
+        sessionId: SID,
+        platform: 'android',
+        ignoreRegions: [{ element: { 'resource-id': 'a'.repeat(513) } }]
+      })).toBeRejectedWithError(/exceeds maximum length of 512/);
+    });
+
+    it('emits coordinate ignoreRegions under payload.ignoredElementsData.ignoreElementsData', async () => {
+      spyOn(percy, 'upload').and.resolveTo();
+      await percy.start();
+
+      await expectAsync(postMaestro({
+        name: SS_NAME,
+        sessionId: SID,
+        platform: 'android',
+        ignoreRegions: [{ top: 10, bottom: 60, left: 20, right: 80 }]
+      })).toBeResolvedTo(jasmine.objectContaining({ success: true }));
+
+      let [payload] = percy.upload.calls.mostRecent().args;
+      expect(payload.ignoredElementsData).toEqual({
+        ignoreElementsData: [{ coOrdinates: { top: 10, left: 20, bottom: 60, right: 80 } }]
+      });
+      expect(payload.consideredElementsData).toBeUndefined();
+    });
+
+    it('emits coordinate considerRegions under payload.consideredElementsData.considerElementsData', async () => {
+      spyOn(percy, 'upload').and.resolveTo();
+      await percy.start();
+
+      await expectAsync(postMaestro({
+        name: SS_NAME,
+        sessionId: SID,
+        platform: 'android',
+        considerRegions: [{ top: 5, bottom: 15, left: 5, right: 25 }]
+      })).toBeResolvedTo(jasmine.objectContaining({ success: true }));
+
+      let [payload] = percy.upload.calls.mostRecent().args;
+      expect(payload.consideredElementsData).toEqual({
+        considerElementsData: [{ coOrdinates: { top: 5, left: 5, bottom: 15, right: 25 } }]
+      });
+      expect(payload.ignoredElementsData).toBeUndefined();
+    });
+
+    it('emits all three region inputs to three parallel payload fields', async () => {
+      spyOn(percy, 'upload').and.resolveTo();
+      await percy.start();
+
+      await expectAsync(postMaestro({
+        name: SS_NAME,
+        sessionId: SID,
+        platform: 'android',
+        regions: [{ top: 0, bottom: 10, left: 0, right: 10, algorithm: 'ignore' }],
+        ignoreRegions: [{ top: 20, bottom: 30, left: 20, right: 30 }],
+        considerRegions: [{ top: 40, bottom: 50, left: 40, right: 50 }]
+      })).toBeResolvedTo(jasmine.objectContaining({ success: true }));
+
+      let [payload] = percy.upload.calls.mostRecent().args;
+      expect(payload.regions).toEqual([{
+        elementSelector: { boundingBox: { x: 0, y: 0, width: 10, height: 10 } },
+        algorithm: 'ignore'
+      }]);
+      expect(payload.ignoredElementsData).toEqual({
+        ignoreElementsData: [{ coOrdinates: { top: 20, left: 20, bottom: 30, right: 30 } }]
+      });
+      expect(payload.consideredElementsData).toEqual({
+        considerElementsData: [{ coOrdinates: { top: 40, left: 40, bottom: 50, right: 50 } }]
+      });
+    });
+
+    it('accepts a coordinate-only android request and forwards a transformed region', async () => {
+      spyOn(percy, 'upload').and.resolveTo();
+      await percy.start();
+
+      await expectAsync(postMaestro({
+        name: SS_NAME,
+        sessionId: SID,
+        platform: 'android',
+        regions: [{ top: 0, bottom: 50, left: 0, right: 100, algorithm: 'ignore' }]
+      })).toBeResolvedTo(jasmine.objectContaining({ success: true }));
+
+      let [payload] = percy.upload.calls.mostRecent().args;
+      expect(payload.regions).toEqual([{
+        elementSelector: { boundingBox: { x: 0, y: 0, width: 100, height: 50 } },
+        algorithm: 'ignore'
+      }]);
+    });
+
+    it('iOS element region resolves via maestro-hierarchy; coord regions still forwarded', async () => {
+      // The unified iOS path uses maestroDump → runIosHttpDump → maestro-CLI fallback.
+      // In the test env (no PERCY_IOS_DEVICE_UDID/PERCY_IOS_DRIVER_HOST_PORT and no
+      // maestro binary on PATH) the resolver returns env-missing, element regions
+      // are skipped with a warning, and the snapshot uploads with only the coord
+      // region forwarded.
+      spyOn(percy, 'upload').and.resolveTo();
+      await percy.start();
+
+      let response = await postMaestro({
+        name: SS_NAME,
+        sessionId: SID,
+        platform: 'ios',
+        regions: [
+          { element: { id: 'submitBtn' }, algorithm: 'ignore' },
+          { top: 0, bottom: 20, left: 0, right: 20, algorithm: 'ignore' }
+        ]
+      });
+
+      expect(response).toEqual(jasmine.objectContaining({ success: true }));
+      let [payload] = percy.upload.calls.mostRecent().args;
+      // Coord region forwarded; element region skipped (resolver unavailable in test env).
+      expect(payload.regions).toEqual([{
+        elementSelector: { boundingBox: { x: 0, y: 0, width: 20, height: 20 } },
+        algorithm: 'ignore'
+      }]);
+      const log = logger.stderr.join('\n');
+      expect(log).toMatch(/Element-region resolver unavailable/);
+    });
+
+    it('forwards testCase, labels, thTestCaseExecutionId, tile metadata, and sync mode', async () => {
+      spyOn(percy.client, 'getComparisonDetails').and.returnValue(getSnapshotDetailsResponse);
+      spyOn(percy, 'upload').and.callFake((_, callback) => callback.resolve());
+      await percy.start();
+
+      await expectAsync(postMaestro({
+        name: SS_NAME,
+        sessionId: SID,
+        platform: 'android',
+        tag: { name: 'Pixel 7', osName: 'Android', osVersion: '14', width: 1080, height: 2400, orientation: 'portrait' },
+        testCase: 'smoke-tests',
+        labels: 'nightly,smoke',
+        thTestCaseExecutionId: 'TH-42',
+        statusBarHeight: 50,
+        navBarHeight: 48,
+        fullscreen: true,
+        sync: true
+      })).toBeResolvedTo(jasmine.objectContaining({ data: getSnapshotDetailsResponse }));
+
+      let [payload] = percy.upload.calls.mostRecent().args;
+      expect(payload.testCase).toBe('smoke-tests');
+      expect(payload.labels).toBe('nightly,smoke');
+      expect(payload.thTestCaseExecutionId).toBe('TH-42');
+      expect(payload.tiles[0]).toEqual(jasmine.objectContaining({ statusBarHeight: 50, navBarHeight: 48, fullscreen: true }));
+      expect(payload.sync).toBe(true);
+    });
+
+    // Sync mode bug fix coverage — see docs/solutions/best-practices/
+    // 2026-05-20-maestro-sync-promise-bug-investigation.md.
+    // Before the fix, the relay's `new Promise(executor => percy.upload(...))`
+    // returned an async generator that was never iterated, so #snapshots.push
+    // never ran and the promise hung forever. The fix drains the generator.
+    it('sync mode: surfaces upload reject error as data.error (200 with error field)', async () => {
+      spyOn(percy, 'upload').and.callFake((_, callback) => callback.reject(new Error('boom')));
+      await percy.start();
+
+      await expectAsync(postMaestro({
+        name: SS_NAME,
+        sessionId: SID,
+        platform: 'android',
+        sync: true
+      })).toBeResolvedTo(jasmine.objectContaining({
+        data: { error: 'boom' }
+      }));
+    });
+
+    it('sync mode: drains the upload generator (real percy.upload return shape, no mock)', async () => {
+      // Canary for the structural bug: spy on percy.upload but have it return a real
+      // async generator-shaped object that records whether it gets iterated.
+      // Before the fix, this iteration count would stay at 0 and the test would time out.
+      let iterCount = 0;
+      spyOn(percy.client, 'getComparisonDetails').and.returnValue(getSnapshotDetailsResponse);
+      spyOn(percy, 'upload').and.callFake((options, callback) => {
+        return (async function*() {
+          iterCount++;
+          // Simulate the queue-task path: the syncQueue would invoke callback.resolve.
+          callback.resolve();
+          yield;
+        })();
+      });
+      await percy.start();
+
+      await expectAsync(postMaestro({
+        name: SS_NAME,
+        sessionId: SID,
+        platform: 'android',
+        sync: true
+      })).toBeResolvedTo(jasmine.objectContaining({ data: getSnapshotDetailsResponse }));
+
+      // Iteration count > 0 proves the relay drained the generator (vs the old
+      // bug where the generator was discarded).
+      expect(iterCount).toBeGreaterThan(0);
+    });
+
+    it('returns 404 when the screenshot file is missing', async () => {
+      await percy.start();
+      await expectAsync(postMaestro({ name: 'DoesNotExist', sessionId: SID, platform: 'android' }))
+        .toBeRejectedWithError(/Screenshot not found/);
+    });
+
+    // filePath path — new SDK convention (R2/R3/R4/R6).
+    // The SDK posts an absolute path the relay reads directly, skipping the legacy glob.
+    // Same realpath + per-platform session-root prefix check protects against traversal
+    // and symlink-escape; the cross-sessionId and outside-root tests below exercise it.
+
+    it('accepts filePath pointing to a file under the Android session root', async () => {
+      spyOn(percy, 'upload').and.resolveTo();
+      await percy.start();
+
+      await expectAsync(postMaestro({
+        name: FILEPATH_NAME,
+        sessionId: SID,
+        platform: 'android',
+        filePath: `${ANDROID_FILEPATH_DIR}/${FILEPATH_NAME}.png`
+      })).toBeResolvedTo(jasmine.objectContaining({ success: true }));
+
+      let [payload] = percy.upload.calls.mostRecent().args;
+      expect(payload.tiles[0].content).toBe(Buffer.from('PNGBYTES-FILEPATH-ANDROID').toString('base64'));
+    });
+
+    it('accepts filePath pointing to a file under the iOS session root', async () => {
+      spyOn(percy, 'upload').and.resolveTo();
+      await percy.start();
+
+      await expectAsync(postMaestro({
+        name: FILEPATH_NAME,
+        sessionId: SID,
+        platform: 'ios',
+        filePath: `${IOS_FILEPATH_DIR}/${FILEPATH_NAME}.png`
+      })).toBeResolvedTo(jasmine.objectContaining({ success: true }));
+
+      let [payload] = percy.upload.calls.mostRecent().args;
+      expect(payload.tiles[0].content).toBe(Buffer.from('PNGBYTES-FILEPATH-IOS').toString('base64'));
+    });
+
+    it('rejects filePath that is not a string with 400', async () => {
+      await percy.start();
+      await expectAsync(postMaestro({
+        name: SS_NAME,
+        sessionId: SID,
+        platform: 'android',
+        filePath: 12345
+      })).toBeRejectedWithError(/filePath.*must be a string/i);
+    });
+
+    it('rejects filePath that is not an absolute path with 400', async () => {
+      await percy.start();
+      await expectAsync(postMaestro({
+        name: SS_NAME,
+        sessionId: SID,
+        platform: 'android',
+        filePath: 'relative/path/screenshot.png'
+      })).toBeRejectedWithError(/filePath.*absolute/i);
+    });
+
+    it('rejects filePath exceeding the maximum length with 400', async () => {
+      await percy.start();
+      await expectAsync(postMaestro({
+        name: SS_NAME,
+        sessionId: SID,
+        platform: 'android',
+        filePath: '/' + 'a'.repeat(1100)
+      })).toBeRejectedWithError(/filePath.*maximum length/i);
+    });
+
+    it('returns 404 when filePath points to a missing file', async () => {
+      await percy.start();
+      await expectAsync(postMaestro({
+        name: SS_NAME,
+        sessionId: SID,
+        platform: 'android',
+        filePath: `${ANDROID_FILEPATH_DIR}/DoesNotExist.png`
+      })).toBeRejectedWithError(/Screenshot not found/);
+    });
+
+    it('returns 404 when filePath resolves outside the session root', async () => {
+      // File exists, but lives at /tmp/<other>.png — not under /tmp/<sid>_test_suite/.
+      fs.writeFileSync('/tmp/percy-outside.png', 'OUTSIDE');
+      await percy.start();
+      await expectAsync(postMaestro({
+        name: SS_NAME,
+        sessionId: SID,
+        platform: 'android',
+        filePath: '/tmp/percy-outside.png'
+      })).toBeRejectedWithError(/Screenshot not found/);
+    });
+
+    it('returns 404 when filePath is in a different sessionId\'s subtree', async () => {
+      const otherDir = '/tmp/othersession_test_suite/percy';
+      fs.mkdirSync(otherDir, { recursive: true });
+      fs.writeFileSync(`${otherDir}/Foo.png`, 'OTHER-SID');
+      await percy.start();
+      await expectAsync(postMaestro({
+        name: 'Foo',
+        sessionId: SID,
+        platform: 'android',
+        filePath: `${otherDir}/Foo.png`
+      })).toBeRejectedWithError(/Screenshot not found/);
+    });
+
+    it('treats empty filePath as absent and falls back to the legacy glob', async () => {
+      spyOn(percy, 'upload').and.resolveTo();
+      await percy.start();
+
+      await expectAsync(postMaestro({
+        name: SS_NAME,
+        sessionId: SID,
+        platform: 'android',
+        filePath: ''
+      })).toBeResolvedTo(jasmine.objectContaining({ success: true }));
+
+      let [payload] = percy.upload.calls.mostRecent().args;
+      // Glob found the legacy fixture, not the filePath fixture
+      expect(payload.tiles[0].content).toBe(Buffer.from('PNGBYTES-ANDROID').toString('base64'));
+    });
+
+    // PNG-header fill: relay reads IHDR from the screenshot and populates
+    // payload.tag.width / payload.tag.height when missing. Source of truth
+    // for tag dims is the PNG bytes themselves — what Percy stores and
+    // compares against. See docs/plans/2026-05-23-001-refactor-maestro-screen-dims-via-png-header-plan.md.
+
+    // Helper: build a minimal-but-valid PNG header (signature + IHDR chunk)
+    // with the given pixel dimensions. The relay only inspects the first 24
+    // bytes for IHDR, so we don't need a full PNG — 24 bytes suffice.
+    function makePngHeader(width, height) {
+      const buf = Buffer.alloc(24);
+      Buffer.from([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]).copy(buf, 0);
+      buf.writeUInt32BE(13, 8);
+      Buffer.from('IHDR', 'ascii').copy(buf, 12);
+      buf.writeUInt32BE(width, 16);
+      buf.writeUInt32BE(height, 20);
+      return buf;
+    }
+
+    it('PNG-fill: populates tag.width/height from PNG IHDR when customer did not supply them', async () => {
+      // Replace the Android fixture with a real PNG header at known dims.
+      fs.writeFileSync(path.join(ANDROID_DIR, `${SS_NAME}.png`), makePngHeader(1008, 2244));
+      spyOn(percy, 'upload').and.resolveTo();
+      await percy.start();
+
+      await expectAsync(postMaestro({
+        name: SS_NAME, sessionId: SID, platform: 'android'
+      })).toBeResolvedTo(jasmine.objectContaining({ success: true }));
+
+      let [payload] = percy.upload.calls.mostRecent().args;
+      expect(payload.tag.width).toBe(1008);
+      expect(payload.tag.height).toBe(2244);
+    });
+
+    it('PNG-fill: customer-supplied tag.width/height continue to win (fill, not override)', async () => {
+      fs.writeFileSync(path.join(ANDROID_DIR, `${SS_NAME}.png`), makePngHeader(1008, 2244));
+      spyOn(percy, 'upload').and.resolveTo();
+      await percy.start();
+
+      // Customer pins their own tag dims; relay must NOT override.
+      await expectAsync(postMaestro({
+        name: SS_NAME,
+        sessionId: SID,
+        platform: 'android',
+        tag: { name: 'Pinned', width: 1080, height: 2400 }
+      })).toBeResolvedTo(jasmine.objectContaining({ success: true }));
+
+      let [payload] = percy.upload.calls.mostRecent().args;
+      expect(payload.tag.width).toBe(1080);
+      expect(payload.tag.height).toBe(2400);
+    });
+
+    it('PNG-fill: partial customer tag — fills only the missing field', async () => {
+      fs.writeFileSync(path.join(ANDROID_DIR, `${SS_NAME}.png`), makePngHeader(1008, 2244));
+      spyOn(percy, 'upload').and.resolveTo();
+      await percy.start();
+
+      // Customer pins width only; relay fills height from PNG.
+      await expectAsync(postMaestro({
+        name: SS_NAME,
+        sessionId: SID,
+        platform: 'android',
+        tag: { name: 'Partial', width: 1080 }
+      })).toBeResolvedTo(jasmine.objectContaining({ success: true }));
+
+      let [payload] = percy.upload.calls.mostRecent().args;
+      expect(payload.tag.width).toBe(1080); // customer wins
+      expect(payload.tag.height).toBe(2244); // PNG fills
+    });
+
+    it('PNG-fill: non-PNG signature → skip silently, tag dims unchanged', async () => {
+      // Default Android fixture is the string 'PNGBYTES-ANDROID' which fails
+      // the PNG signature check (first byte is 0x50 'P' not 0x89). Relay
+      // should NOT populate tag.width/height.
+      spyOn(percy, 'upload').and.resolveTo();
+      await percy.start();
+
+      await expectAsync(postMaestro({
+        name: SS_NAME, sessionId: SID, platform: 'android'
+      })).toBeResolvedTo(jasmine.objectContaining({ success: true }));
+
+      let [payload] = percy.upload.calls.mostRecent().args;
+      expect(payload.tag.width).toBeUndefined();
+      expect(payload.tag.height).toBeUndefined();
+    });
+
+    it('PNG-fill: truncated file (<24 bytes) but valid signature start → skip silently', async () => {
+      // 20-byte buffer with the PNG signature but no complete IHDR.
+      const truncated = Buffer.alloc(20);
+      Buffer.from([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]).copy(truncated, 0);
+      fs.writeFileSync(path.join(ANDROID_DIR, `${SS_NAME}.png`), truncated);
+      spyOn(percy, 'upload').and.resolveTo();
+      await percy.start();
+
+      await expectAsync(postMaestro({
+        name: SS_NAME, sessionId: SID, platform: 'android'
+      })).toBeResolvedTo(jasmine.objectContaining({ success: true }));
+
+      let [payload] = percy.upload.calls.mostRecent().args;
+      expect(payload.tag.width).toBeUndefined();
+      expect(payload.tag.height).toBeUndefined();
+    });
+
+    it('PNG-fill: PNG with width=0 → defensive skip (no orphan tag dim)', async () => {
+      fs.writeFileSync(path.join(ANDROID_DIR, `${SS_NAME}.png`), makePngHeader(0, 2244));
+      spyOn(percy, 'upload').and.resolveTo();
+      await percy.start();
+
+      await expectAsync(postMaestro({
+        name: SS_NAME, sessionId: SID, platform: 'android'
+      })).toBeResolvedTo(jasmine.objectContaining({ success: true }));
+
+      let [payload] = percy.upload.calls.mostRecent().args;
+      expect(payload.tag.width).toBeUndefined();
+      expect(payload.tag.height).toBeUndefined();
+    });
+
+    it('PNG-fill: filePath path also gets PNG dims populated', async () => {
+      // Write a valid PNG at the filePath fixture location.
+      fs.writeFileSync(path.join(ANDROID_FILEPATH_DIR, `${FILEPATH_NAME}.png`), makePngHeader(1179, 2556));
+      spyOn(percy, 'upload').and.resolveTo();
+      await percy.start();
+
+      await expectAsync(postMaestro({
+        name: FILEPATH_NAME,
+        sessionId: SID,
+        platform: 'android',
+        filePath: `${ANDROID_FILEPATH_DIR}/${FILEPATH_NAME}.png`
+      })).toBeResolvedTo(jasmine.objectContaining({ success: true }));
+
+      let [payload] = percy.upload.calls.mostRecent().args;
+      expect(payload.tag.width).toBe(1179);
+      expect(payload.tag.height).toBe(2556);
     });
   });
 });

@@ -1,0 +1,6 @@
+<?xml version='1.0' encoding='UTF-8' standalone='yes' ?>
+<hierarchy rotation="1">
+  <node class="android.widget.FrameLayout" bounds="[0,0][2400,1080]" resource-id="" text="" content-desc="">
+    <node class="android.widget.TextView" bounds="[100,50][400,150]" resource-id="com.example:id/landscape_label" text="Landscape" content-desc=""/>
+  </node>
+</hierarchy>

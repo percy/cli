@@ -1,12 +1,20 @@
 import percy from './percy-info.js';
 
 // Returns the readiness config for a snapshot.
-// Priority: per-snapshot options > global percy.config > empty object (triggers balanced default).
+// Shallow-merge of global .percy.yml config with per-snapshot overrides:
+// per-snapshot keys win, unspecified keys are inherited from the global config.
 // SDKs obtain percy.config via the healthcheck endpoint in isPercyEnabled().
+//
+// Why shallow-merge instead of `||`:
+//   - `options.readiness = {}` would otherwise wipe the global config entirely.
+//   - A partial per-snapshot override like `{ stabilityWindowMs: 500 }` would
+//     drop a global `preset: disabled` kill switch — silently re-enabling the
+//     gate for a snapshot the user thought was opted out.
 export function getReadinessConfig(snapshotOptions = {}) {
-  return snapshotOptions?.readiness ||
-    percy.config?.snapshot?.readiness ||
-    {};
+  return {
+    ...(percy.config?.snapshot?.readiness || {}),
+    ...(snapshotOptions?.readiness || {})
+  };
 }
 
 // Returns true if readiness should be skipped for this snapshot.
@@ -64,6 +72,49 @@ export function waitForReadyScript(readinessConfig = {}, { callback = false } = 
       return PercyDOM.waitForReady(${config});
     }
   `;
+}
+
+// Runs the readiness gate end-to-end so every JS SDK collapses to a single
+// call. The SDK's only responsibility is to provide an `evalScript` callback
+// that ships the script string to the browser via its driver's evaluator
+// (page.evaluate, driver.executeAsyncScript, b.executeAsync, etc.).
+//
+// Centralised here:
+//   - isReadinessDisabled kill-switch check
+//   - getReadinessConfig shallow-merge of global + per-snapshot config
+//   - waitForReadyScript script generation (callback or promise mode)
+//   - try/catch with debug logging — serialize is never blocked
+//
+// Returns: the diagnostics object from PercyDOM.waitForReady, or null
+// when readiness is disabled / unavailable / failed. The caller attaches
+// the non-null result to domSnapshot.readiness_diagnostics.
+//
+// Usage:
+//   // Puppeteer/Playwright (promise-mode):
+//   const diag = await utils.runReadinessGate(
+//     (script) => page.evaluate(script),
+//     options,
+//     { log }
+//   );
+//
+//   // Selenium-js / WebdriverIO / Nightwatch (callback-mode):
+//   const diag = await utils.runReadinessGate(
+//     (script) => driver.executeAsyncScript(script),
+//     options,
+//     { callback: true, log }
+//   );
+export async function runReadinessGate(evalScript, snapshotOptions = {}, { callback = false, log } = {}) {
+  if (isReadinessDisabled(snapshotOptions)) return null;
+  const config = getReadinessConfig(snapshotOptions);
+  const script = waitForReadyScript(config, { callback });
+  try {
+    return await evalScript(script);
+  } catch (err) {
+    if (log && typeof log.debug === 'function') {
+      log.debug(`waitForReady failed, proceeding to serialize: ${err?.message || err}`);
+    }
+    return null;
+  }
 }
 
 export default waitForReadyScript;
