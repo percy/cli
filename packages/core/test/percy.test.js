@@ -762,11 +762,11 @@ describe('Percy', () => {
         percy.snapshot({
           url: 'http://localhost:8000/snapshot-1'
         }),
-        // should not upload
+        // should not upload — bumped from 100ms to 1000ms so snapshot-1's
+        // upload reliably fails first even when CI runs the suite slowly
         percy.snapshot({
           url: 'http://localhost:8000/snapshot-2',
-          // delay this snapshot so the first upload can fail
-          waitForTimeout: 100
+          waitForTimeout: 1000
         })
       ]);
 
@@ -2451,6 +2451,19 @@ describe('Percy', () => {
         skipUploads: false
       });
       expect(percy.skipUploads).toBe(false);
+    });
+
+    it('pulls archiveDir from percy config when not passed at the top level', () => {
+      // Mirrors how `percy exec --archive-dir` reaches Percy: the flag has
+      // `percyrc: 'percy.archiveDir'`, so the value arrives nested under
+      // `percy.archiveDir` rather than as a top-level constructor option.
+      percy = new Percy({
+        token: 'PERCY_TOKEN',
+        percy: { archiveDir: './percy-archive' }
+      });
+
+      expect(percy.archiveDir).toMatch(/[\\/]percy-archive$/);
+      expect(percy.skipUploads).toBe(true);
     });
 
     it('logs the archive summary when stopping with snapshots', async () => {

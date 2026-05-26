@@ -11,4 +11,10 @@ packages/logger/test/client.js
 packages/sdk-utils/test/client.js
 packs
 docs/
+
+# bstack-ai-harness:begin (managed — do not edit between markers)
+bstack-ai-harness.yml
+.harness-docs.json
+CLAUDE.md
 .claude/
+# bstack-ai-harness:end

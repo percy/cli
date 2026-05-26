@@ -34,6 +34,7 @@ import {
 } from './discovery.js';
 import Monitoring from '@percy/monitoring';
 import { WaitForJob } from './wait-for-job.js';
+import { closeGrpcClientCache } from './maestro-hierarchy.js';
 
 const MAX_SUGGESTION_CALLS = 10;
 
@@ -99,6 +100,7 @@ export class Percy {
 
     labels ??= config.percy?.labels;
     deferUploads ??= config.percy?.deferUploads;
+    archiveDir ??= config.percy?.archiveDir;
     if (archiveDir) skipUploads = skipUploads != null ? skipUploads : true;
     this.config = config;
     this.cliStartTime = null;
@@ -132,6 +134,16 @@ export class Percy {
     this.resetMonitoringId = null;
     this.monitoringCheckLastExecutedAt = null;
     this.sdkInfoDisplayed = false;
+
+    // Per-Percy gRPC client cache for the Android view-hierarchy resolver
+    // (D9 in 2026-05-07-002 plan). Owns transport state — channels hold open
+    // sockets, must be closed in stop(). Module-scoped state would leak
+    // between concurrent Percy instances and cause cross-instance shutdown
+    // races. The drift envelope (maestroHierarchyDrift in maestro-hierarchy.js)
+    // stays module-scoped because drift is observability state — surfaced
+    // process-wide on /percy/healthcheck. Two scopes, two reasons.
+    this.grpcClientCache = new Map();
+    this.grpcClientCache.shutdownInProgress = false;
 
     // Domain validation state for auto domain allow-listing
     this.domainValidation = {
@@ -431,6 +443,13 @@ export class Percy {
       await this.server?.close();
       await this.#discovery.end();
       await this.#snapshots.end();
+
+      // Close gRPC channels for the Android view-hierarchy resolver. Set the
+      // shutdown flag first so any in-flight runAndroidGrpcDump() that hits
+      // CANCELLED returns {kind:'unavailable', reason:'shutdown'} instead of
+      // triggering the fallback chain on a tearing-down process (R-7).
+      this.grpcClientCache.shutdownInProgress = true;
+      closeGrpcClientCache(this.grpcClientCache);
 
       // mark instance as stopped
       this.readyState = 3;
