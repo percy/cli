@@ -814,17 +814,18 @@ describe('PercyClient', () => {
 
     it('gets smartsnap_graph status (sync response carries graph payload on completion)', async () => {
       const path = '/job_status?sync=true&type=smartsnap_graph&id=build-1';
-      api.reply(path, () => [200, {
+      const body = {
         status: 'done',
-        affected_stories: [{ file_path: 'src/Foo.stories.tsx' }],
-        trace_graph_html: '<html></html>'
-      }]);
+        data: {
+          affected_stories: ['src/Foo.stories.tsx'],
+          vertices: [{ kind: 'story', file_path: 'src/Foo.stories.tsx', changed: true }],
+          edges: [],
+          transitive_closure_matrix_sparse: []
+        }
+      };
+      api.reply(path, () => [200, body]);
 
-      await expectAsync(client.getStatus('smartsnap_graph', ['build-1'])).toBeResolvedTo({
-        status: 'done',
-        affected_stories: [{ file_path: 'src/Foo.stories.tsx' }],
-        trace_graph_html: '<html></html>'
-      });
+      await expectAsync(client.getStatus('smartsnap_graph', ['build-1'])).toBeResolvedTo(body);
       expect(api.requests[path][0].method).toBe('GET');
     });
   });

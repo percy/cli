@@ -5,6 +5,7 @@ import { createRequire } from 'module';
 import globToRegExp from 'glob-to-regexp';
 import logger from '@percy/logger';
 import { diffLockfileDeps } from './lockfileDiff.js';
+import { renderGraphTraceHtml } from './graphTrace.js';
 
 // stream-json is CommonJS — load via createRequire to avoid named-import interop issues.
 const require = createRequire(import.meta.url);
@@ -166,23 +167,22 @@ async function readStats(statsFile, projectRoot) {
   return { files, modules, buildId };
 }
 
-// Polls `job_status?sync=true&type=smartsnap_graph` — the sync response blocks
-// server-side until the job moves off `in_progress`, but the API enforces a
-// shorter timeout than the job can take, so we retry up to POLL_ATTEMPTS
-// times. On `done` the response also carries the graph payload (affected
-// stories, trace HTML); the caller reads it directly, no second fetch needed.
+// Polls `job_status?sync=true&type=smartsnap_graph&id=<buildId>` — the sync
+// response blocks server-side until the job moves off `in_progress`, but the
+// API enforces a shorter timeout than the job can take, so we retry up to
+// POLL_ATTEMPTS times. On `done` the response also carries the graph payload
+// (affected stories + vertices/edges/transitive closure for trace
+// rendering), so the caller reads it directly without a second fetch.
 //
-// Response shape is `{ <buildId>: { status, data? } }` — the job_status
-// endpoint accepts a comma-separated id list and always keys the response
-// by id, even for a single id.
+// Response shape is the unwrapped `{ status, data }` — the smartsnap_graph
+// status response no longer keys the result by buildId.
 async function pollGraphStatus(percy, buildId, log) {
   for (let i = 0; i < POLL_ATTEMPTS; i++) {
     await new Promise(r => setTimeout(r, POLL_INTERVAL_MS));
-    const res = await percy.client.getStatus('smartsnap_graph', [buildId]);
-    const entry = res?.[buildId];
-    const status = entry?.status;
+    const res = await percy.client.getStatus('smartsnap_graph', [buildId]);                                                                                                                   
+    const status = res?.status;
     log.debug(`SmartSnap: graph status (attempt ${i + 1}) = ${status}`);
-    if (status === 'done' || status === 'failure') return { status, data: entry?.data };
+    if (status === 'done' || status === 'failure') return { status, data: res?.data };
   }
   return { status: null };
 }
@@ -401,19 +401,26 @@ export async function applySmartSnap(percy, snapshots, smartSnapConfig, buildDir
 
   log.debug(`SmartSnap: affected stories result ${JSON.stringify(data?.affected_stories)}`);
 
-  // The API always returns trace_graph_html now; only persist it when the
-  // user opted in via the `trace` config flag.
-  if (trace && data?.trace_graph_html) {
+  // Trace rendering moved client-side: the API now returns the raw graph
+  // (vertices, edges, transitive-closure triples) and we populate the
+  // bundled HTML template here. Anything missing means the BE couldn't
+  // produce a graph — skip silently rather than write a broken page.
+  if (trace && data?.vertices && data?.edges && data?.transitive_closure_matrix_sparse) {
     const tracePath = path.resolve(process.cwd(), 'trace.html');
     try {
-      fs.writeFileSync(tracePath, data.trace_graph_html);
+      const html = renderGraphTraceHtml({
+        vertices: data.vertices,
+        edges: data.edges,
+        transitive_closure_matrix_sparse: data.transitive_closure_matrix_sparse
+      });
+      fs.writeFileSync(tracePath, html);
       log.info(`SmartSnap: trace written to ${tracePath}`);
     } catch (e) {
       log.warn(`SmartSnap: failed to write trace.html: ${e.message}`);
     }
   }
 
-  const affected = new Set((data?.affected_stories || []).map(s => s.file_path));
+  const affected = new Set(data?.affected_stories || []);
 
   // Snapshots whose baseline review_state is `failed` or `rejected` have no
   // usable baseline image to diff against, and snapshots that don't appear
@@ -423,6 +430,7 @@ export async function applySmartSnap(percy, snapshots, smartSnapConfig, buildDir
   const baselineSnapshots = baseLookup?.snapshots || {};
   const FORCE_RESNAPSHOT_STATES = new Set(['failed', 'rejected']);
   const needsBaselineRefresh = name => {
+    if(baseline) return false;
     const state = baselineSnapshots[name];
     return state === undefined || FORCE_RESNAPSHOT_STATES.has(state);
   };
