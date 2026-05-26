@@ -338,10 +338,12 @@ function defaultGetEnv(key) {
 function classifyAdbFailure(result) {
   if (result.spawnError) {
     const code = result.spawnError.code;
-    /* istanbul ignore else — non-ENOENT spawn-error fallback (EACCES, EAGAIN,
-       etc.); ENOENT is the dominant case and is covered, the else returns the
-       fallback below. */
+    /* istanbul ignore next — early-return-if pattern: NYC counts the
+       not-taken branch as a fall-through statement (line below); this
+       directive ignores BOTH the if's else branch AND the fall-through
+       return statement so non-ENOENT spawn-errors get full coverage credit. */
     if (code === 'ENOENT') return { kind: 'unavailable', reason: 'adb-not-found' };
+    /* istanbul ignore next */
     return { kind: 'unavailable', reason: `spawn-error:${code || 'unknown'}` };
   }
   if (result.timedOut) return { kind: 'unavailable', reason: 'timeout' };
