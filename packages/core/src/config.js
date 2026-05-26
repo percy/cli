@@ -489,9 +489,12 @@ export const configSchema = {
         type: 'object',
         additionalProperties: false,
         properties: {
-          executable: { type: 'string' },
+          // httpReadOnly: never settable over /percy/config — accepting these would let any
+          // local process execute arbitrary code as the Percy user via flags like
+          // --renderer-cmd-prefix / --gpu-launcher. Must be set via static config or CLI.
+          executable: { type: 'string', httpReadOnly: true },
           timeout: { type: 'integer' },
-          args: { type: 'array', items: { type: 'string' } },
+          args: { type: 'array', items: { type: 'string' }, httpReadOnly: true },
           headless: { type: 'boolean' },
           closeBrowser: { type: 'boolean', default: true }
         }

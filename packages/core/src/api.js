@@ -12,6 +12,7 @@ import { handleSyncJob } from './snapshot.js';
 // This change ensures better compatibility and avoids relying on Node.js-specific APIs that might cause issues in ESM environments.
 import { fileURLToPath } from 'url';
 import { createRequire } from 'module';
+import { configSchema } from './config.js';
 
 export const getPercyDomPath = (url) => {
   try {
@@ -37,29 +38,43 @@ function encodeURLSearchParams(subj, prefix) {
   )).join('&') : `${prefix}=${encodeURIComponent(subj)}`;
 }
 
-// Fields under discovery.launchOptions that can only be set via the static config file or CLI
-// args at startup — never over HTTP. They control the browser binary and flags (e.g.
-// --renderer-cmd-prefix, --gpu-launcher, --utility-cmd-prefix) so accepting them over the
-// local API would let any process on the machine execute arbitrary code as the Percy user.
-const BLOCKED_LAUNCH_OPTION_KEYS = ['executable', 'args'];
+// Walks the config schema and collects dot-paths of any fields marked `httpReadOnly: true`
+// that are present in `body`. Driving this from the schema means new HTTP-blocked fields
+// only need a one-line annotation next to their definition — no list to keep in sync here.
+function findHttpReadOnlyPaths(body, schema, path = '') {
+  if (!body || typeof body !== 'object' || !schema?.properties) return [];
+  let paths = [];
+  for (let [key, propSchema] of Object.entries(schema.properties)) {
+    if (!Object.prototype.hasOwnProperty.call(body, key)) continue;
+    let childPath = path ? `${path}.${key}` : key;
+    if (propSchema?.httpReadOnly) {
+      paths.push(childPath);
+    } else {
+      paths.push(...findHttpReadOnlyPaths(body[key], propSchema, childPath));
+    }
+  }
+  return paths;
+}
 
-// Returns a body with blocked launchOptions keys removed; logs a warning for each stripped
-// field. Returns the original body unchanged when nothing needs stripping so we don't pay
-// for a clone on every config request. Caller guarantees `body` is truthy.
+// Top-level configSchema is a map of subschemas keyed by top-level config namespace
+// (`discovery`, `snapshot`, …). Wrap it as a single object schema so the walker can recurse
+// uniformly from the root.
+const ROOT_CONFIG_SCHEMA = { type: 'object', properties: configSchema };
+
+// Returns a body with `httpReadOnly` fields removed; logs a warning for each stripped field.
+// Returns the original body unchanged when nothing needs stripping so we don't pay for a
+// clone on every config request. Caller guarantees `body` is truthy.
 function stripBlockedConfigFields(body, log) {
-  let launchOptions = body.discovery?.launchOptions;
-  let present = launchOptions && BLOCKED_LAUNCH_OPTION_KEYS.filter(
-    k => Object.prototype.hasOwnProperty.call(launchOptions, k)
-  );
-  if (!present?.length) return body;
+  let paths = findHttpReadOnlyPaths(body, ROOT_CONFIG_SCHEMA);
+  if (!paths.length) return body;
 
-  let stripped = {
-    ...body,
-    discovery: { ...body.discovery, launchOptions: { ...launchOptions } }
-  };
-  for (let k of present) {
-    delete stripped.discovery.launchOptions[k];
-    log.warn(`Ignoring \`discovery.launchOptions.${k}\` from /percy/config request: this field can only be set via the config file or CLI at startup.`);
+  let stripped = JSON.parse(JSON.stringify(body));
+  for (let p of paths) {
+    let parts = p.split('.');
+    let leaf = parts.pop();
+    let parent = parts.reduce((o, k) => o?.[k], stripped);
+    if (parent && typeof parent === 'object') delete parent[leaf];
+    log.warn(`Ignoring \`${p}\` from /percy/config request: this field can only be set via the config file or CLI at startup.`);
   }
   return stripped;
 }
