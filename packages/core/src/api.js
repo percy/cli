@@ -65,11 +65,14 @@ function findHttpReadOnlyPaths(body, schema, path = '') {
 // uniformly from the root.
 const ROOT_CONFIG_SCHEMA = { type: 'object', properties: configSchema };
 
-// Returns a body with `httpReadOnly` fields removed; logs a warning for each stripped field.
-// Returns the original body unchanged when nothing needs stripping so we don't pay for a
-// clone on every config request. Caller guarantees `body` is truthy.
-function stripBlockedConfigFields(body, log) {
-  let paths = findHttpReadOnlyPaths(body, ROOT_CONFIG_SCHEMA);
+// Removes each dot-path's leaf from a deep clone of `body` and logs a warning per path.
+// Returns the original `body` unchanged when `paths` is empty so we don't pay for a clone
+// on every config request. Exported for unit testing: the `?.` chain in the reduce is a
+// defensive guard for paths whose ancestor is absent from `body`. Through the production
+// caller (stripBlockedConfigFields → findHttpReadOnlyPaths) every intermediate is verified
+// present, so the guard is unreachable in normal use — but the explicit paths parameter
+// lets a unit test exercise it without contorting the schema.
+export function _applyHttpReadOnlyStripping(body, paths, log) {
   if (!paths.length) return body;
 
   let stripped = JSON.parse(JSON.stringify(body));
@@ -81,6 +84,11 @@ function stripBlockedConfigFields(body, log) {
     log.warn(`Ignoring \`${p}\` from /percy/config request: this field can only be set via the config file or CLI at startup.`);
   }
   return stripped;
+}
+
+// Returns a body with `httpReadOnly` fields removed. Caller guarantees `body` is truthy.
+function stripBlockedConfigFields(body, log) {
+  return _applyHttpReadOnlyStripping(body, findHttpReadOnlyPaths(body, ROOT_CONFIG_SCHEMA), log);
 }
 
 // Parse PNG IHDR chunk for the screenshot's actual rendered dimensions.
