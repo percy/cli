@@ -23,7 +23,7 @@ export function serializeDialogs(ctx) {
       // :modal pseudo-class matches only dialogs in the top layer (opened via showModal())
       if (!elem.matches(':modal')) continue;
 
-      // Mark for renderer — it will removeAttribute('open') then showModal()
+      // Mark for renderer - it will removeAttribute('open') then showModal()
       cloneEl.setAttribute('data-percy-dialog-modal', 'true');
     } catch (err) {
       handleErrors(err, 'Error serializing dialog element: ', elem);
