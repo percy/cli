@@ -532,7 +532,11 @@ export function createPercyServer(percy, port) {
         let files;
         try {
           let { default: glob } = await import('fast-glob');
-          files = await glob(searchPattern);
+          // Self-hosted needs `dot: true` because Maestro's default output
+          // directory is `.maestro/` — a dot-prefixed entry that fast-glob
+          // hides by default. BS layouts have no dot-prefixed segments, so
+          // omitting the option there keeps the byte-identical behavior.
+          files = await glob(searchPattern, selfHosted ? { dot: true } : undefined);
         } catch {
           // Fast-glob import / glob call failed — fall back to manual walker.
           // See manualScreenshotWalk() at file top for the rationale + the
