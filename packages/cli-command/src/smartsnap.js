@@ -32,7 +32,7 @@ function patternToRegex(pattern) {
   if (typeof pattern !== 'string' || pattern.length > MAX_PATTERN_LENGTH) {
     throw new Error('Invalid pattern: must be a string with max length of 500 characters');
   }
-  return globToRegExp(pattern, { extended: true, globstar: false });
+  return globToRegExp(pattern, { extended: true, globstar: true });
 }
 
 function matchesPattern(str, pattern) {
@@ -64,8 +64,20 @@ function git(args) {
   return res.stdout;
 }
 
+// baseRef flows into `git` argv from either user config (`baseline`) or the
+// API. Reject anything that could be parsed as an option (leading `-`) or
+// contains chars outside the safe ref alphabet — git also accepts `--` as an
+// end-of-options separator in `git diff`, but not before the rev in
+// `git show <rev>:<path>`, so validation is the only universal guard.
+function assertSafeRef(ref) {
+  if (typeof ref !== 'string' || !/^[A-Za-z0-9_./][A-Za-z0-9_./-]*$/.test(ref)) {
+    throw new SmartSnapBailError(`SmartSnap: unsafe baseline ref "${ref}"; running full snapshot set`);
+  }
+}
+
 function gitDiffNames(ref) {
-  return git(['diff', '--name-only', `${ref}`, 'HEAD']).split('\n').filter(Boolean);
+  assertSafeRef(ref);
+  return git(['diff', '--name-only', ref, 'HEAD', '--']).split('\n').filter(Boolean);
 }
 
 function gitProjectRoot() {
@@ -178,11 +190,11 @@ async function readStats(statsFile, projectRoot) {
 // status response no longer keys the result by buildId.
 async function pollGraphStatus(percy, buildId, log) {
   for (let i = 0; i < POLL_ATTEMPTS; i++) {
-    await new Promise(r => setTimeout(r, POLL_INTERVAL_MS));
-    const res = await percy.client.getStatus('smartsnap_graph', [buildId]);                                                                                                                   
+    const res = await percy.client.getStatus('smartsnap_graph', [buildId]);
     const status = res?.status;
     log.debug(`SmartSnap: graph status (attempt ${i + 1}) = ${status}`);
     if (status === 'done' || status === 'failure') return { status, data: res?.data };
+    if (i < POLL_ATTEMPTS - 1) await new Promise(r => setTimeout(r, POLL_INTERVAL_MS));
   }
   return { status: null };
 }
@@ -237,6 +249,7 @@ export async function applySmartSnap(percy, snapshots, smartSnapConfig, buildDir
   } else {
     throw new SmartSnapBailError('SmartSnap: API could not predict a base build commit and no explicit baseline was set; running full snapshot set');
   }
+  assertSafeRef(baseRef);
   affectedNodes = gitDiffNames(baseRef);
 
   // HEAD already matches the base build commit (or the diff is otherwise
@@ -411,7 +424,7 @@ export async function applySmartSnap(percy, snapshots, smartSnapConfig, buildDir
       const html = renderGraphTraceHtml({
         vertices: data.vertices,
         edges: data.edges,
-        transitive_closure_matrix_sparse: data.transitive_closure_matrix_sparse
+        transitiveClosureMatrixSparse: data.transitive_closure_matrix_sparse
       });
       fs.writeFileSync(tracePath, html);
       log.info(`SmartSnap: trace written to ${tracePath}`);
@@ -430,7 +443,7 @@ export async function applySmartSnap(percy, snapshots, smartSnapConfig, buildDir
   const baselineSnapshots = baseLookup?.snapshots || {};
   const FORCE_RESNAPSHOT_STATES = new Set(['failed', 'rejected']);
   const needsBaselineRefresh = name => {
-    if(baseline) return false;
+    if (baseline) return false;
     const state = baselineSnapshots[name];
     return state === undefined || FORCE_RESNAPSHOT_STATES.has(state);
   };

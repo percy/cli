@@ -118,25 +118,35 @@ function computeLayout(rawVertices, edges, transitiveClosure) {
   }));
 }
 
-// Escapes `</` inside the embedded JSON so a string like "</script>" in a
-// vertex name can't terminate the surrounding <script> block early.
+// Escapes characters that have meaning inside a <script> block so user-derived
+// strings (e.g. a vertex file_path) can't break out of the surrounding tag.
+// `</` covers `</script>`; `<!--`/`-->` cover HTML comment confusion; U+2028
+// and U+2029 are valid JSON but illegal in JS string literals pre-ES2019 and
+// have historically been XSS sinks.
+const LS = String.fromCharCode(0x2028);
+const PS = String.fromCharCode(0x2029);
 function safeJson(obj) {
-  return JSON.stringify(obj).replace(/<\//g, '<\\/');
+  return JSON.stringify(obj)
+    .replace(/<\//g, '<\\/')
+    .replace(/<!--/g, '<\\!--')
+    .replace(/-->/g, '--\\>')
+    .split(LS).join('\\u2028')
+    .split(PS).join('\\u2029');
 }
 
 // Populates the trace template with the three JSON payloads the page needs.
 // Input shape matches the API's graph data: `vertices` carries `kind`,
 // `file_path`, `changed`; `edges` and `transitive_closure_matrix_sparse`
 // are arrays of integer tuples.
-export function renderGraphTraceHtml({ vertices, edges, transitive_closure_matrix_sparse }) {
+export function renderGraphTraceHtml({ vertices, edges, transitiveClosureMatrixSparse }) {
   const laidOutVertices = computeLayout(
     vertices || [],
     edges || [],
-    transitive_closure_matrix_sparse || []
+    transitiveClosureMatrixSparse || []
   );
   const template = fs.readFileSync(TEMPLATE_PATH, 'utf8');
   return template
     .replace('__VERTICES_JSON__', safeJson(laidOutVertices))
     .replace('__EDGES_JSON__', safeJson(edges || []))
-    .replace('__TRANSITIVE_CLOSURE_JSON__', safeJson(transitive_closure_matrix_sparse || []));
+    .replace('__TRANSITIVE_CLOSURE_JSON__', safeJson(transitiveClosureMatrixSparse || []));
 }
