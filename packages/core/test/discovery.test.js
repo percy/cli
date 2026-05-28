@@ -990,6 +990,7 @@ describe('Discovery', () => {
 
   it('uses the longer direct-fetch timeout when PERCY_GZIP is set', async () => {
     process.env.PERCY_GZIP = true;
+    percy.loglevel('debug');
     // Drop Network.responseReceived to force the direct-fetch fallback, then make
     // the direct fetch return 400 so the timeout-selection branch executes.
     spyOn(percy.browser, '_handleMessage').and.callFake(function(data) {
