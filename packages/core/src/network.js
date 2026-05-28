@@ -894,20 +894,14 @@ async function saveResponseResource(network, request, session) {
       }
 
       // Bound how long we'll wait for a single body — large bodies over a slow
-      // or dead CDP socket must not stall the discovery queue forever.
+      // or dead CDP socket must not stall the discovery queue forever. Errors
+      // (timeout or underlying CDP failure) propagate to the outer try/catch
+      // which logs the failure via the existing "Encountered an error" path.
       let body = shouldCapture && await raceWithTimeout(
         response.buffer(),
         process.env.PERCY_GZIP ? 60000 : 30000,
         `response.buffer() timed out for ${url}`
-      ).catch(error => {
-        logAssetInstrumentation(log, 'asset_load_missing', 'network_error', {
-          url, snapshot: meta.snapshot, requestType: request.type, error: error.message
-        });
-        log.debug(`- Buffer fetch failed for ${url} - ${error.message}`, meta);
-        return null;
-      });
-
-      if (shouldCapture && body === null) return; // already logged
+      );
 
       // Don't rename the below log line as it is used in getting network logs in api
       /* istanbul ignore if: first check is a sanity check */
@@ -1001,6 +995,12 @@ async function saveResponseResource(network, request, session) {
       // Don't rename the below log line as it is used in getting network logs in api
       log.debug(`Encountered an error processing resource: ${url}`, meta);
       log.debug(error, meta);
+      // Surface to the structured asset instrumentation channel so support
+      // tooling (analyse_build, analyze_cli_logs_tool) sees the failure
+      // instead of just a debug-level line.
+      logAssetInstrumentation(log, 'asset_load_missing', 'network_error', {
+        url, snapshot: meta.snapshot, requestType: request?.type, error: error.message
+      });
     }
   }
 
