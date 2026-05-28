@@ -962,6 +962,65 @@ describe('Discovery', () => {
     );
   });
 
+  it('skips resource and continues when Pako.gzip throws', async () => {
+    process.env.PERCY_GZIP = true;
+    const originalGzip = Pako.gzip;
+    let callCount = 0;
+    spyOn(Pako, 'gzip').and.callFake((data) => {
+      // Throw on the first non-root resource (the style.css) so we exercise
+      // the defensive catch without breaking the rest of the snapshot.
+      callCount += 1;
+      if (callCount === 2) throw new Error('boom');
+      return originalGzip(data);
+    });
+    percy.loglevel('debug');
+
+    await percy.snapshot({
+      name: 'test snapshot',
+      url: 'http://localhost:8000',
+      domSnapshot: testDOM
+    });
+
+    await percy.idle();
+
+    expect(logger.stderr).toContain(
+      jasmine.stringMatching(/Skipping resource: gzip failed for .* - boom/)
+    );
+  });
+
+  it('uses the longer direct-fetch timeout when PERCY_GZIP is set', async () => {
+    process.env.PERCY_GZIP = true;
+    // Drop Network.responseReceived to force the direct-fetch fallback, then make
+    // the direct fetch return 400 so the timeout-selection branch executes.
+    spyOn(percy.browser, '_handleMessage').and.callFake(function(data) {
+      let parsed; try { parsed = JSON.parse(data); } catch { /* binary */ }
+      if (parsed?.method === 'Network.responseReceived' &&
+          parsed?.params?.response?.url?.endsWith('/direct-gzip.css')) {
+        return;
+      }
+      this._handleMessage.and.originalFn.call(this, data);
+    });
+
+    let hits = 0;
+    server.reply('/direct-gzip.css', () => {
+      hits += 1;
+      if (hits === 1) return [200, 'text/css', 'p{}'];
+      return [400, 'text/plain', 'bad'];
+    });
+
+    let dom = '<html><head><link href="direct-gzip.css" rel="stylesheet"/></head><body>x</body></html>';
+    await percy.snapshot({
+      name: 'direct-fetch gzip snapshot',
+      url: 'http://localhost:8000',
+      domSnapshot: dom
+    });
+    await percy.idle();
+
+    expect(logger.stderr).toEqual(jasmine.arrayContaining([
+      jasmine.stringMatching(/Direct fetch failed for http:\/\/localhost:8000\/direct-gzip\.css -/)
+    ]));
+  });
+
   describe('asset instrumentation', () => {
     it('logs instrumentation for 5xx errors', async () => {
       server.reply('/error.css', () => [502, 'text/plain', 'Bad Gateway']);
