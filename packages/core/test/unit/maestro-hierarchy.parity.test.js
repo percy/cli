@@ -89,11 +89,19 @@ describe('Unit / maestro-hierarchy / cross-platform parity', () => {
       expect(res.nodes.length).toBeGreaterThan(0);
     });
 
-    it('iOS env-missing returns { kind: "unavailable", reason: "env-missing" }', async () => {
-      // Same envelope shape as Android-failure paths, just a different reason tag.
-      const res = await dump({ platform: 'ios', getEnv: () => undefined });
+    it('iOS env-missing returns { kind: "unavailable", reason: "self-hosted-no-driver" }', async () => {
+      // Same envelope shape as Android-failure paths, just a different reason
+      // tag. Post-Unit-2: with both PERCY_IOS_* env vars absent, the
+      // dispatch enters the self-hosted IMPLICIT branch and runs the port
+      // cascade (probe 7001 → lsof). With injected fakes that fail at every
+      // tier, the cascade returns null and the dispatch emits the new
+      // `self-hosted-no-driver` warn-skip reason. The envelope shape (kind
+      // = 'unavailable') matches Android-failure paths unchanged.
+      const httpRequest = async () => { throw Object.assign(new Error('econnrefused'), { code: 'ECONNREFUSED' }); };
+      const execLsof = async () => ({ stdout: '', stderr: '', exitCode: 0 });
+      const res = await dump({ platform: 'ios', getEnv: () => undefined, httpRequest, execLsof });
       expect(res.kind).toBe('unavailable');
-      expect(res.reason).toBe('env-missing');
+      expect(res.reason).toBe('self-hosted-no-driver');
     });
 
     it('iOS env-set with no http/maestro reachable returns same envelope kinds as Android failure paths', async () => {
