@@ -476,27 +476,42 @@ describe('Unit / maestro-hierarchy', () => {
   });
 
   describe('iOS dispatch — env handling', () => {
-    it('returns env-missing when PERCY_IOS_DEVICE_UDID is unset', async () => {
+    // Self-hosted-with-explicit-port-but-no-UDID: enters the EXPLICIT branch
+    // (port present), runs the HTTP primary. With UDID absent, the CLI
+    // fallback is unavailable — on HTTP success the dump returns; on HTTP
+    // failure (connection-fail here), warn-skip with the new
+    // `self-hosted-no-udid` reason.
+    it('warn-skips with self-hosted-no-udid when port is set, udid is unset, and HTTP primary fails', async () => {
       const getEnv = key => {
         if (key === 'PERCY_IOS_DRIVER_HOST_PORT') return '11100';
         return undefined;
       };
-      const res = await dump({ platform: 'ios', getEnv });
-      expect(res).toEqual({ kind: 'unavailable', reason: 'env-missing' });
+      const httpRequest = async () => { throw Object.assign(new Error('econnrefused'), { code: 'ECONNREFUSED' }); };
+      const res = await dump({ platform: 'ios', getEnv, httpRequest });
+      expect(res).toEqual({ kind: 'unavailable', reason: 'self-hosted-no-udid' });
     });
 
-    it('returns env-missing when PERCY_IOS_DRIVER_HOST_PORT is unset', async () => {
+    // Self-hosted (UDID-set, PORT-unset): enters the IMPLICIT branch and
+    // runs the discovery cascade (probe 7001 → lsof). With both injected
+    // fakes failing, cascade returns null → warn-skip with the new
+    // `self-hosted-no-driver` reason. UDID being set is irrelevant on the
+    // implicit path — HTTP `/viewHierarchy` doesn't take a udid.
+    it('warn-skips with self-hosted-no-driver when port is unset and the discovery cascade finds nothing', async () => {
       const getEnv = key => {
         if (key === 'PERCY_IOS_DEVICE_UDID') return '00008110-000065081404401E';
         return undefined;
       };
-      const res = await dump({ platform: 'ios', getEnv });
-      expect(res).toEqual({ kind: 'unavailable', reason: 'env-missing' });
+      const httpRequest = async () => { throw Object.assign(new Error('econnrefused'), { code: 'ECONNREFUSED' }); };
+      const execLsof = async () => ({ stdout: '', stderr: '', exitCode: 0 });
+      const res = await dump({ platform: 'ios', getEnv, httpRequest, execLsof });
+      expect(res).toEqual({ kind: 'unavailable', reason: 'self-hosted-no-driver' });
     });
 
-    it('returns env-missing when both env vars are unset', async () => {
-      const res = await dump({ platform: 'ios', getEnv: () => undefined });
-      expect(res).toEqual({ kind: 'unavailable', reason: 'env-missing' });
+    it('warn-skips with self-hosted-no-driver when both env vars are unset and the cascade finds nothing', async () => {
+      const httpRequest = async () => { throw Object.assign(new Error('econnrefused'), { code: 'ECONNREFUSED' }); };
+      const execLsof = async () => ({ stdout: '', stderr: '', exitCode: 0 });
+      const res = await dump({ platform: 'ios', getEnv: () => undefined, httpRequest, execLsof });
+      expect(res).toEqual({ kind: 'unavailable', reason: 'self-hosted-no-driver' });
     });
 
     it('does not invoke adb on iOS dispatch', async () => {
@@ -543,6 +558,191 @@ describe('Unit / maestro-hierarchy', () => {
       const res = await dump({ platform: 'ios', getEnv, httpRequest, execMaestro });
       expect(res.kind).toBe('hierarchy');
       expect(httpRequest).not.toHaveBeenCalled();
+    });
+  });
+
+  // Self-hosted iOS path: triggered when PERCY_IOS_DRIVER_HOST_PORT is
+  // absent. The resolver auto-discovers the running Maestro driver port
+  // via probe 127.0.0.1:7001 → lsof → warn-skip. The BS path (explicit
+  // env vars) does not exercise this code at all.
+  describe('iOS self-hosted port cascade', () => {
+    // Minimal axElement response matching the existing iOS HTTP fixture
+    // shape — single AUT root, one button child with a frame. Enough for
+    // runIosHttpDump to return { kind: 'hierarchy' }.
+    const minimalAxElementJson = JSON.stringify({
+      axElement: {
+        elementType: 1,
+        identifier: 'com.example.app',
+        frame: { X: 0, Y: 0, Width: 100, Height: 100 },
+        children: [
+          { elementType: 9, identifier: 'btn', label: 'OK', frame: { X: 10, Y: 10, Width: 50, Height: 30 } }
+        ]
+      }
+    });
+
+    const successfulHttpResponse = {
+      statusCode: 200,
+      headers: { 'content-type': 'application/json' },
+      body: minimalAxElementJson
+    };
+
+    const connectionRefused = () => Object.assign(new Error('econnrefused'), { code: 'ECONNREFUSED' });
+
+    it('probe-7001 hit: cascade returns hierarchy and caches port 7001', async () => {
+      const httpRequest = jasmine.createSpy('httpRequest').and.resolveTo(successfulHttpResponse);
+      const execLsof = jasmine.createSpy('execLsof');
+      const iosPortCache = { port: null };
+
+      const res = await dump({
+        platform: 'ios',
+        getEnv: () => undefined,
+        httpRequest,
+        execLsof,
+        iosPortCache
+      });
+
+      expect(res.kind).toBe('hierarchy');
+      expect(res.nodes.length).toBeGreaterThan(0);
+      // Probed exactly :7001; never invoked lsof (probe succeeded first).
+      expect(httpRequest.calls.count()).toBe(1);
+      expect(httpRequest.calls.first().args[0].port).toBe(7001);
+      expect(execLsof).not.toHaveBeenCalled();
+      // Cache populated.
+      expect(iosPortCache.port).toBe(7001);
+    });
+
+    it('lsof discovery: 7001 fails, lsof returns exactly one xctrunner listener, cascade probes it', async () => {
+      const ephemeralPort = 51234;
+      const httpRequest = jasmine.createSpy('httpRequest').and.callFake(async ({ port }) => {
+        if (port === 7001) throw connectionRefused();
+        if (port === ephemeralPort) return successfulHttpResponse;
+        throw connectionRefused();
+      });
+      const lsofStdout = `COMMAND  PID USER FD TYPE DEVICE SIZE/OFF NODE NAME\ndev.mobile.maestro-driver-iosUITests.xctrunner 12345 user 8u IPv4 0x1 0t0 TCP *:${ephemeralPort} (LISTEN)\n`;
+      const execLsof = jasmine.createSpy('execLsof').and.resolveTo({ stdout: lsofStdout, stderr: '', exitCode: 0 });
+      const iosPortCache = { port: null };
+
+      const res = await dump({
+        platform: 'ios',
+        getEnv: () => undefined,
+        httpRequest,
+        execLsof,
+        iosPortCache
+      });
+
+      expect(res.kind).toBe('hierarchy');
+      expect(execLsof).toHaveBeenCalled();
+      // Probed 7001 first, then lsof-discovered port.
+      const probedPorts = httpRequest.calls.allArgs().map(args => args[0].port);
+      expect(probedPorts).toEqual([7001, ephemeralPort]);
+      expect(iosPortCache.port).toBe(ephemeralPort);
+    });
+
+    it('lsof zero matches: cascade warn-skips without guessing', async () => {
+      const httpRequest = jasmine.createSpy('httpRequest').and.callFake(async () => { throw connectionRefused(); });
+      // No xctrunner row in lsof output.
+      const lsofStdout = 'COMMAND PID USER FD TYPE DEVICE NAME\nnode 999 user 8u IPv4 0t0 TCP *:3000 (LISTEN)\n';
+      const execLsof = async () => ({ stdout: lsofStdout, stderr: '', exitCode: 0 });
+      const iosPortCache = { port: null };
+
+      const res = await dump({
+        platform: 'ios',
+        getEnv: () => undefined,
+        httpRequest,
+        execLsof,
+        iosPortCache
+      });
+
+      expect(res).toEqual({ kind: 'unavailable', reason: 'self-hosted-no-driver' });
+      expect(iosPortCache.port).toBeNull();
+    });
+
+    it('lsof multi-match (two xctrunner listeners): cascade refuses to guess and warn-skips', async () => {
+      const httpRequest = jasmine.createSpy('httpRequest').and.callFake(async () => { throw connectionRefused(); });
+      const lsofStdout = [
+        'COMMAND PID USER FD TYPE DEVICE NAME',
+        'dev.mobile.maestro-driver-iosUITests.xctrunner 100 user 8u IPv4 0t0 TCP *:51234 (LISTEN)',
+        'dev.mobile.maestro-driver-iosUITests.xctrunner 101 user 8u IPv4 0t0 TCP *:51235 (LISTEN)',
+        ''
+      ].join('\n');
+      const execLsof = async () => ({ stdout: lsofStdout, stderr: '', exitCode: 0 });
+      const iosPortCache = { port: null };
+
+      const res = await dump({
+        platform: 'ios',
+        getEnv: () => undefined,
+        httpRequest,
+        execLsof,
+        iosPortCache
+      });
+
+      expect(res).toEqual({ kind: 'unavailable', reason: 'self-hosted-no-driver' });
+      expect(iosPortCache.port).toBeNull();
+    });
+
+    it('explicit PERCY_IOS_DRIVER_HOST_PORT (out-of-legacy-range) bypasses cascade and runs HTTP primary', async () => {
+      // Customer pinned --driver-host-port 6001 (e.g., real-device-forwarded
+      // port). UDID absent — common single-device self-hosted case. The
+      // EXPLICIT branch runs runIosHttpDump on 6001 (relaxed range admits
+      // it); cascade/lsof are NOT invoked.
+      const httpRequest = jasmine.createSpy('httpRequest').and.resolveTo(successfulHttpResponse);
+      const execLsof = jasmine.createSpy('execLsof');
+      const getEnv = key => (key === 'PERCY_IOS_DRIVER_HOST_PORT' ? '6001' : undefined);
+
+      const res = await dump({ platform: 'ios', getEnv, httpRequest, execLsof });
+
+      expect(res.kind).toBe('hierarchy');
+      expect(httpRequest.calls.count()).toBe(1);
+      expect(httpRequest.calls.first().args[0].port).toBe(6001);
+      expect(execLsof).not.toHaveBeenCalled();
+    });
+
+    it('probe returns dump-error (wrong service): cascade does not cache and falls through', async () => {
+      // The probed port answers 200 but with a body missing axElement —
+      // runIosHttpDump returns { kind: 'dump-error', reason: 'http-missing-root' }.
+      // This is NOT a Maestro driver; cascade must not cache, must move on
+      // to lsof (which here returns no matches), and end in warn-skip with
+      // an empty cache.
+      const wrongServiceResponse = {
+        statusCode: 200,
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ unrelated: 'shape' })
+      };
+      const httpRequest = jasmine.createSpy('httpRequest').and.resolveTo(wrongServiceResponse);
+      const execLsof = async () => ({ stdout: '', stderr: '', exitCode: 0 });
+      const iosPortCache = { port: null };
+
+      const res = await dump({
+        platform: 'ios',
+        getEnv: () => undefined,
+        httpRequest,
+        execLsof,
+        iosPortCache
+      });
+
+      expect(res).toEqual({ kind: 'unavailable', reason: 'self-hosted-no-driver' });
+      expect(iosPortCache.port).toBeNull();
+    });
+
+    it('cache hit: a second invocation with the same iosPortCache reuses the resolved port without re-probing/re-lsof', async () => {
+      const httpRequest = jasmine.createSpy('httpRequest').and.resolveTo(successfulHttpResponse);
+      const execLsof = jasmine.createSpy('execLsof');
+      const iosPortCache = { port: null };
+
+      // First call: cascade resolves to 7001 and caches it.
+      await dump({ platform: 'ios', getEnv: () => undefined, httpRequest, execLsof, iosPortCache });
+      expect(iosPortCache.port).toBe(7001);
+      const firstCallCount = httpRequest.calls.count();
+
+      // Second call: cache hit → single HTTP to the cached port. lsof never
+      // invoked on either call.
+      httpRequest.calls.reset();
+      await dump({ platform: 'ios', getEnv: () => undefined, httpRequest, execLsof, iosPortCache });
+      expect(httpRequest.calls.count()).toBe(1);
+      expect(httpRequest.calls.first().args[0].port).toBe(7001);
+      expect(execLsof).not.toHaveBeenCalled();
+      // Sanity: first call probed exactly once (7001 hit) — no range/lsof.
+      expect(firstCallCount).toBe(1);
     });
   });
 

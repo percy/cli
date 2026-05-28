@@ -145,6 +145,12 @@ export class Percy {
     this.grpcClientCache = new Map();
     this.grpcClientCache.shutdownInProgress = false;
 
+    // Self-hosted iOS port cache — mirrors the per-`Percy`-instance scope of
+    // grpcClientCache (D9 of the maestro 4-PR plan). Set on the first
+    // successful self-hosted iOS port resolution and reused for the rest of
+    // the session so subsequent snapshots skip the probe/lsof cascade.
+    this.iosPortCache = { port: null };
+
     // Domain validation state for auto domain allow-listing
     this.domainValidation = {
       autoConfiguredHosts: new Set(), // Domains from project config
