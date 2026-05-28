@@ -496,6 +496,61 @@ describe('API Server', () => {
     expect(percy.upload).toHaveBeenCalledOnceWith({ sync: true }, jasmine.objectContaining({}), 'automate');
   });
 
+  it('has a /automateScreenshot endpoint that propagates labels through to #upload()', async () => {
+    let resolve, test = new Promise(r => (resolve = r));
+    spyOn(percy, 'upload').and.returnValue(test);
+    // Simulate what the real WebdriverUtils.captureScreenshot does:
+    // it must copy options.labels onto the returned comparisonData.
+    let captureScreenshotSpy = spyOn(WebdriverUtils, 'captureScreenshot').and.callFake(({ options }) => {
+      return Promise.resolve({
+        name: 'Snapshot name',
+        tag: { name: 'tag-1' },
+        tiles: [],
+        metadata: {},
+        sync: options.sync,
+        testCase: options.testCase,
+        labels: options.labels,
+        thTestCaseExecutionId: options.thTestCaseExecutionId
+      });
+    });
+
+    await percy.start();
+
+    await expectAsync(request('/percy/automateScreenshot', {
+      body: {
+        name: 'Snapshot name',
+        client_info: 'client',
+        environment_info: 'environment',
+        options: {
+          labels: 'qa,smoke',
+          testCase: 'tc-1',
+          thTestCaseExecutionId: 'exec-99'
+        }
+      },
+      method: 'post'
+    })).toBeResolvedTo({ success: true });
+
+    expect(captureScreenshotSpy).toHaveBeenCalledOnceWith(jasmine.objectContaining({
+      options: jasmine.objectContaining({
+        labels: 'qa,smoke',
+        testCase: 'tc-1',
+        thTestCaseExecutionId: 'exec-99'
+      })
+    }));
+
+    expect(percy.upload).toHaveBeenCalledOnceWith(
+      jasmine.objectContaining({
+        labels: 'qa,smoke',
+        testCase: 'tc-1',
+        thTestCaseExecutionId: 'exec-99'
+      }),
+      null,
+      'automate'
+    );
+
+    resolve();
+  });
+
   // Cross-consumer drain canary for /percy/automateScreenshot. Mirrors the
   // maestro-screenshot and /comparison canaries elsewhere in this file. See
   // docs/solutions/best-practices/2026-05-20-maestro-sync-promise-bug-investigation.md.

@@ -39,6 +39,7 @@ export default class WebdriverUtils {
       comparisonData.metadata.cliScreenshotEndTime = Date.now();
       comparisonData.sync = options.sync;
       comparisonData.testCase = options.testCase;
+      comparisonData.labels = options.labels;
       comparisonData.thTestCaseExecutionId = options.thTestCaseExecutionId;
       log.debug(`[${snapshotName}] : Comparison Data: ${JSON.stringify(comparisonData)}`);
       return comparisonData;
