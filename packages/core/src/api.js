@@ -770,10 +770,14 @@ export function createPercyServer(percy, port) {
             // Thread the per-Percy gRPC client cache so the Android gRPC
             // primary path can reuse channels across snapshots in the same
             // session (D9 of 2026-05-07-002 plan). iOS path ignores it.
+            // Also thread iosPortCache so the self-hosted iOS port cascade
+            // (probe 7001 + lsof) resolves once per session and reuses the
+            // port for subsequent snapshots — same per-Percy scope.
             cachedDump = await maestroDump({
               platform,
               sessionId,
-              grpcClientCache: percy.grpcClientCache
+              grpcClientCache: percy.grpcClientCache,
+              iosPortCache: percy.iosPortCache
             });
           }
           /* istanbul ignore else — branch where dump resolves to hierarchy is
