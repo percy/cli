@@ -222,6 +222,9 @@ function processSnapshotResources({ domSnapshot, resources, ...snapshot }) {
   logger.evictSnapshot(snapshot.meta.snapshot);
 
   if (process.env.PERCY_GZIP) {
+    // 25 MB, 0.63 factor for base64 inflation — matches MAX_RESOURCE_SIZE in network.js.
+    const MAX_GZIPPED_RESOURCE_SIZE = 25 * (1024 ** 2) * 0.63;
+    const kept = [];
     for (let index = 0; index < resources.length; index++) {
       const alreadyZipped = isGzipped(resources[index].content);
       /* istanbul ignore next: very hard to mock true */
@@ -229,7 +232,16 @@ function processSnapshotResources({ domSnapshot, resources, ...snapshot }) {
         resources[index].content = Pako.gzip(resources[index].content);
         resources[index].sha = sha256hash(resources[index].content);
       }
+      if (resources[index].content?.length > MAX_GZIPPED_RESOURCE_SIZE) {
+        log.debug(
+          `- Skipping resource: gzipped size ${resources[index].content.length} exceeds cap`,
+          { url: resources[index].url }
+        );
+        continue;
+      }
+      kept.push(resources[index]);
     }
+    resources = kept;
   }
 
   return { ...snapshot, resources };

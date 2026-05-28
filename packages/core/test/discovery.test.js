@@ -837,6 +837,87 @@ describe('Discovery', () => {
     );
   });
 
+  it('captures resource larger than 25MB raw when PERCY_GZIP is enabled', async () => {
+    process.env.PERCY_GZIP = true;
+    const largeCSS = 'A'.repeat(30_000_000);
+    server.reply('/large.css', () => [200, 'text/css', largeCSS]);
+    percy.loglevel('debug');
+
+    await percy.snapshot({
+      name: 'test snapshot',
+      url: 'http://localhost:8000',
+      domSnapshot: testDOM.replace('style.css', 'large.css')
+    });
+
+    await percy.idle();
+
+    expect(captured[0]).toEqual([
+      jasmine.objectContaining({
+        attributes: jasmine.objectContaining({
+          'resource-url': jasmine.stringMatching(/^\/percy\.\d+\.log$/)
+        })
+      }),
+      jasmine.objectContaining({
+        id: sha256hash(Pako.gzip(testDOM.replace('style.css', 'large.css'))),
+        attributes: jasmine.objectContaining({
+          'resource-url': 'http://localhost:8000/'
+        })
+      }),
+      jasmine.objectContaining({
+        id: sha256hash(Pako.gzip(pixel)),
+        attributes: jasmine.objectContaining({
+          'resource-url': 'http://localhost:8000/img.gif'
+        })
+      }),
+      jasmine.objectContaining({
+        id: sha256hash(Pako.gzip(largeCSS)),
+        attributes: jasmine.objectContaining({
+          'resource-url': 'http://localhost:8000/large.css'
+        })
+      })
+    ]);
+
+    expect(logger.stderr).not.toContain(
+      '[percy:core:discovery] - Skipping resource larger than 25MB'
+    );
+  });
+
+  it('still skips resource above PERCY_GZIP raw-size ceiling', async () => {
+    process.env.PERCY_GZIP = true;
+    server.reply('/huge.css', () => [200, 'text/css', 'A'.repeat(90_000_000)]);
+    percy.loglevel('debug');
+
+    await percy.snapshot({
+      name: 'test snapshot',
+      url: 'http://localhost:8000',
+      domSnapshot: testDOM.replace('style.css', 'huge.css')
+    });
+
+    await percy.idle();
+
+    expect(captured[0]).toEqual([
+      jasmine.objectContaining({
+        attributes: jasmine.objectContaining({
+          'resource-url': jasmine.stringMatching(/^\/percy\.\d+\.log$/)
+        })
+      }),
+      jasmine.objectContaining({
+        attributes: jasmine.objectContaining({
+          'resource-url': 'http://localhost:8000/'
+        })
+      }),
+      jasmine.objectContaining({
+        attributes: jasmine.objectContaining({
+          'resource-url': 'http://localhost:8000/img.gif'
+        })
+      })
+    ]);
+
+    expect(logger.stderr).toContain(
+      '[percy:core:discovery] - Skipping resource larger than 25MB'
+    );
+  });
+
   describe('asset instrumentation', () => {
     it('logs instrumentation for 5xx errors', async () => {
       server.reply('/error.css', () => [502, 'text/plain', 'Bad Gateway']);

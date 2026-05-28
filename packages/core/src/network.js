@@ -4,6 +4,17 @@ import mime from 'mime-types';
 import { AbortError, DefaultMap, createResource, hostnameMatches, normalizeURL, waitFor, decodeAndEncodeURLWithLogging, handleIncorrectFontMimeType, executeDomainValidation } from './utils.js';
 
 const MAX_RESOURCE_SIZE = 25 * (1024 ** 2) * 0.63; // 25MB, 0.63 factor for accounting for base64 encoding
+// When PERCY_GZIP is enabled the raw-size check is relaxed up to this ceiling; the cap is
+// re-applied to the gzipped bytes in discovery.js so the upload payload still respects
+// MAX_RESOURCE_SIZE. The ceiling exists to keep CDP responses well under the 100 MB
+// WebSocket payload limit and bound CLI memory.
+const MAX_RESOURCE_SIZE_GZIP_CEILING = 80 * (1024 ** 2); // 80 MB raw
+
+function shouldSkipForSize(size) {
+  if (!Number.isFinite(size)) return false;
+  if (process.env.PERCY_GZIP) return size > MAX_RESOURCE_SIZE_GZIP_CEILING;
+  return size > MAX_RESOURCE_SIZE;
+}
 const ALLOWED_STATUSES = [200, 201, 301, 302, 304, 307, 308];
 const ALLOWED_RESOURCES = ['Document', 'Stylesheet', 'Image', 'Media', 'Font', 'Other'];
 const ABORTED_MESSAGE = 'Request was aborted by browser';
@@ -596,7 +607,7 @@ function inspectContentLength(headers) {
   let key = headers && Object.keys(headers).find(k => k.toLowerCase() === 'content-length');
   let rawValue = key ? headers[key] : undefined;
   let parsed = parseInt(rawValue, 10);
-  let tooLarge = Number.isFinite(parsed) && parsed > MAX_RESOURCE_SIZE;
+  let tooLarge = shouldSkipForSize(parsed);
   let malformed = rawValue !== undefined && rawValue !== null && String(rawValue).length > 0 && !Number.isFinite(parsed);
   return { tooLarge, malformed, rawValue };
 }
@@ -812,7 +823,7 @@ async function captureResourceDirectly(network, request, session) {
       `Direct fetch timed out after ${DIRECT_FETCH_TIMEOUT}ms`
     );
 
-    if (body.length > MAX_RESOURCE_SIZE) {
+    if (shouldSkipForSize(body.length)) {
       logAssetInstrumentation(log, 'asset_not_uploaded', 'resource_too_large', {
         url, size: body.length, snapshot: meta.snapshot
       });
@@ -895,7 +906,7 @@ async function saveResponseResource(network, request, session) {
           snapshot: meta.snapshot
         });
         return log.debug('- Skipping empty response', meta);
-      } else if (body.length > MAX_RESOURCE_SIZE) {
+      } else if (shouldSkipForSize(body.length)) {
         logAssetInstrumentation(log, 'asset_not_uploaded', 'resource_too_large', {
           url,
           size: body.length,
