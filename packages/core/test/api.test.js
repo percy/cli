@@ -3,7 +3,7 @@ import PercyConfig from '@percy/config';
 import { logger, setupTest, fs } from './helpers/index.js';
 import Percy from '@percy/core';
 import WebdriverUtils from '@percy/webdriver-utils';
-import { getPercyDomPath } from '../src/api.js';
+import { getPercyDomPath, _applyHttpReadOnlyStripping } from '../src/api.js';
 
 describe('API Server', () => {
   let percy;
@@ -111,6 +111,55 @@ describe('API Server', () => {
     });
 
     expect(percy.config).toEqual(expected);
+  });
+
+  it('does not warn when /config POST contains launchOptions without blocked keys', async () => {
+    await percy.start();
+
+    await request('/percy/config', {
+      method: 'POST',
+      body: { discovery: { launchOptions: { headless: false, closeBrowser: false } } }
+    });
+
+    expect(percy.config.discovery.launchOptions.headless).toBe(false);
+    expect(percy.config.discovery.launchOptions.closeBrowser).toBe(false);
+    expect(logger.stderr).not.toEqual(jasmine.arrayContaining([
+      jasmine.stringMatching(/Ignoring `discovery\.launchOptions/)
+    ]));
+  });
+
+  it('strips security-sensitive launchOptions fields from /config POST', async () => {
+    await percy.start();
+
+    let before = percy.config.discovery.launchOptions;
+    expect(before.executable).toBeUndefined();
+    expect(before.args).toBeUndefined();
+
+    await request('/percy/config', {
+      method: 'POST',
+      body: {
+        discovery: {
+          launchOptions: {
+            executable: '/tmp/evil-binary',
+            args: ['--renderer-cmd-prefix=/tmp/payload'],
+            headless: false,
+            closeBrowser: false
+          }
+        }
+      }
+    });
+
+    // dangerous fields ignored
+    expect(percy.config.discovery.launchOptions.executable).toBeUndefined();
+    expect(percy.config.discovery.launchOptions.args).toBeUndefined();
+    // benign fields still settable
+    expect(percy.config.discovery.launchOptions.headless).toBe(false);
+    expect(percy.config.discovery.launchOptions.closeBrowser).toBe(false);
+
+    expect(logger.stderr).toEqual(jasmine.arrayContaining([
+      jasmine.stringMatching(/Ignoring `discovery\.launchOptions\.executable`/),
+      jasmine.stringMatching(/Ignoring `discovery\.launchOptions\.args`/)
+    ]));
   });
 
   it('has an /idle endpoint that calls #idle()', async () => {
@@ -1802,5 +1851,39 @@ describe('API Server', () => {
       expect(payload.tag.width).toBe(1179);
       expect(payload.tag.height).toBe(2556);
     });
+  });
+});
+
+// Pure unit tests for the stripping helper — kept in their own describe so they don't
+// drag the API Server's beforeEach (Percy instance + Chromium setup). Through the
+// production caller every intermediate of a returned path is verified present, so the
+// `o?.[k]` defensive guard inside _applyHttpReadOnlyStripping is unreachable in normal
+// use. These tests pin that guard directly so a refactor can't silently lose it.
+describe('_applyHttpReadOnlyStripping', () => {
+  it('tolerates paths whose ancestor is absent from body', () => {
+    let log = { warn: jasmine.createSpy('warn') };
+    let body = { unrelated: { keep: true } };
+    let result = _applyHttpReadOnlyStripping(
+      body,
+      ['discovery.launchOptions.executable'],
+      log
+    );
+
+    // Body is deep-cloned (not mutated); the missing path is a no-op delete.
+    expect(result).toEqual({ unrelated: { keep: true } });
+    expect(result).not.toBe(body);
+    // The warning still fires — caller is told the field was rejected.
+    expect(log.warn).toHaveBeenCalledWith(
+      jasmine.stringMatching(/Ignoring `discovery\.launchOptions\.executable`/)
+    );
+  });
+
+  it('returns body unchanged (no clone) when paths is empty', () => {
+    let log = { warn: jasmine.createSpy('warn') };
+    let body = { discovery: { launchOptions: { headless: true } } };
+    let result = _applyHttpReadOnlyStripping(body, [], log);
+
+    expect(result).toBe(body);
+    expect(log.warn).not.toHaveBeenCalled();
   });
 });

@@ -16,6 +16,7 @@ import { Readable } from 'stream';
 // This change ensures better compatibility and avoids relying on Node.js-specific APIs that might cause issues in ESM environments.
 import { fileURLToPath } from 'url';
 import { createRequire } from 'module';
+import { configSchema } from './config.js';
 
 export const getPercyDomPath = (url) => {
   try {
@@ -39,6 +40,55 @@ function encodeURLSearchParams(subj, prefix) {
   return typeof subj === 'object' ? Object.entries(subj).map(([key, value]) => (
     encodeURLSearchParams(value, prefix ? `${prefix}[${key}]` : key)
   )).join('&') : `${prefix}=${encodeURIComponent(subj)}`;
+}
+
+// Walks the config schema and collects dot-paths of any fields marked `httpReadOnly: true`
+// that are present in `body`. Driving this from the schema means new HTTP-blocked fields
+// only need a one-line annotation next to their definition — no list to keep in sync here.
+function findHttpReadOnlyPaths(body, schema, path = '') {
+  if (!body || typeof body !== 'object' || !schema?.properties) return [];
+  let paths = [];
+  for (let [key, propSchema] of Object.entries(schema.properties)) {
+    if (!Object.prototype.hasOwnProperty.call(body, key)) continue;
+    let childPath = path ? `${path}.${key}` : key;
+    if (propSchema?.httpReadOnly) {
+      paths.push(childPath);
+    } else {
+      paths.push(...findHttpReadOnlyPaths(body[key], propSchema, childPath));
+    }
+  }
+  return paths;
+}
+
+// Top-level configSchema is a map of subschemas keyed by top-level config namespace
+// (`discovery`, `snapshot`, …). Wrap it as a single object schema so the walker can recurse
+// uniformly from the root.
+const ROOT_CONFIG_SCHEMA = { type: 'object', properties: configSchema };
+
+// Removes each dot-path's leaf from a deep clone of `body` and logs a warning per path.
+// Returns the original `body` unchanged when `paths` is empty so we don't pay for a clone
+// on every config request. Exported for unit testing: the `?.` chain in the reduce is a
+// defensive guard for paths whose ancestor is absent from `body`. Through the production
+// caller (stripBlockedConfigFields → findHttpReadOnlyPaths) every intermediate is verified
+// present, so the guard is unreachable in normal use — but the explicit paths parameter
+// lets a unit test exercise it without contorting the schema.
+export function _applyHttpReadOnlyStripping(body, paths, log) {
+  if (!paths.length) return body;
+
+  let stripped = JSON.parse(JSON.stringify(body));
+  for (let p of paths) {
+    let parts = p.split('.');
+    let leaf = parts.pop();
+    let parent = parts.reduce((o, k) => o?.[k], stripped);
+    if (parent && typeof parent === 'object') delete parent[leaf];
+    log.warn(`Ignoring \`${p}\` from /percy/config request: this field can only be set via the config file or CLI at startup.`);
+  }
+  return stripped;
+}
+
+// Returns a body with `httpReadOnly` fields removed. Caller guarantees `body` is truthy.
+function stripBlockedConfigFields(body, log) {
+  return _applyHttpReadOnlyStripping(body, findHttpReadOnlyPaths(body, ROOT_CONFIG_SCHEMA), log);
 }
 
 // Parse PNG IHDR chunk for the screenshot's actual rendered dimensions.
@@ -293,10 +343,13 @@ export function createPercyServer(percy, port) {
       });
     })
   // get or set config options
-    .route(['get', 'post'], '/percy/config', async (req, res) => res.json(200, {
-      config: req.body ? percy.set(req.body) : percy.config,
-      success: true
-    }))
+    .route(['get', 'post'], '/percy/config', async (req, res) => {
+      let body = req.body && stripBlockedConfigFields(req.body, logger('core:server'));
+      return res.json(200, {
+        config: body ? percy.set(body) : percy.config,
+        success: true
+      });
+    })
   // responds once idle (may take a long time)
     .route('get', '/percy/idle', async (req, res) => res.json(200, {
       success: await percy.idle().then(() => true)
