@@ -87,6 +87,7 @@ describe('Discovery', () => {
     await percy?.stop(true);
     await server.close();
     delete process.env.PERCY_FORCE_PKG_VALUE;
+    delete process.env.PERCY_GZIP;
     jasmine.DEFAULT_TIMEOUT_INTERVAL = originalTimeout;
   });
 
@@ -687,7 +688,7 @@ describe('Discovery', () => {
     ]);
 
     expect(logger.stderr).toContain(
-      '[percy:core:discovery] - Skipping resource larger than 25MB'
+      '[percy:core:discovery] - Skipping resource larger than allowed size'
     );
   });
 
@@ -755,7 +756,7 @@ describe('Discovery', () => {
       })
     ]);
     expect(logger.stderr).toContain(
-      '[percy:core:discovery] - Skipping resource larger than 25MB'
+      '[percy:core:discovery] - Skipping resource larger than allowed size'
     );
   });
 
@@ -791,7 +792,7 @@ describe('Discovery', () => {
       ]);
 
       expect(logger.stderr).toContain(
-        '[percy:core:discovery] - Skipping resource larger than 25MB'
+        '[percy:core:discovery] - Skipping resource larger than allowed size'
       );
     });
   }
@@ -833,7 +834,7 @@ describe('Discovery', () => {
     ]);
 
     expect(logger.stderr).toContain(
-      '[percy:core:discovery] - Skipping resource larger than 25MB'
+      '[percy:core:discovery] - Skipping resource larger than allowed size'
     );
   });
 
@@ -878,13 +879,14 @@ describe('Discovery', () => {
     ]);
 
     expect(logger.stderr).not.toContain(
-      '[percy:core:discovery] - Skipping resource larger than 25MB'
+      '[percy:core:discovery] - Skipping resource larger than allowed size'
     );
   });
 
   it('still skips resource above PERCY_GZIP raw-size ceiling', async () => {
     process.env.PERCY_GZIP = true;
-    server.reply('/huge.css', () => [200, 'text/css', 'A'.repeat(90_000_000)]);
+    // 60MB > MAX_RAW_RESOURCE_SIZE_WITH_GZIP (50MB) → still rejected at capture
+    server.reply('/huge.css', () => [200, 'text/css', 'A'.repeat(60 * 1024 * 1024)]);
     percy.loglevel('debug');
 
     await percy.snapshot({
@@ -914,7 +916,49 @@ describe('Discovery', () => {
     ]);
 
     expect(logger.stderr).toContain(
-      '[percy:core:discovery] - Skipping resource larger than 25MB'
+      '[percy:core:discovery] - Skipping resource larger than allowed size'
+    );
+  });
+
+  it('drops resource post-gzip when gzipped size still exceeds the cap', async () => {
+    // Random bytes do not compress under gzip; raw size ~20MB lets the resource
+    // pass shouldSkipForSize (under the PERCY_GZIP 50MB raw ceiling) but its
+    // gzipped size still exceeds MAX_RESOURCE_SIZE (~15.75MB) so the post-gzip
+    // check in discovery.js drops it. This exercises the new branch directly.
+    const crypto = await import('crypto');
+    const incompressible = crypto.randomBytes(20 * 1024 * 1024);
+    process.env.PERCY_GZIP = true;
+    server.reply('/incompressible.css', () => [200, 'text/css', incompressible]);
+    percy.loglevel('debug');
+
+    await percy.snapshot({
+      name: 'test snapshot',
+      url: 'http://localhost:8000',
+      domSnapshot: testDOM.replace('style.css', 'incompressible.css')
+    });
+
+    await percy.idle();
+
+    expect(captured[0]).toEqual([
+      jasmine.objectContaining({
+        attributes: jasmine.objectContaining({
+          'resource-url': jasmine.stringMatching(/^\/percy\.\d+\.log$/)
+        })
+      }),
+      jasmine.objectContaining({
+        attributes: jasmine.objectContaining({
+          'resource-url': 'http://localhost:8000/'
+        })
+      }),
+      jasmine.objectContaining({
+        attributes: jasmine.objectContaining({
+          'resource-url': 'http://localhost:8000/img.gif'
+        })
+      })
+    ]);
+
+    expect(logger.stderr).toContain(
+      jasmine.stringMatching(/Skipping resource larger than allowed size after gzip/)
     );
   });
 
@@ -3410,7 +3454,7 @@ describe('Discovery', () => {
       await percy.idle();
 
       expect(logger.stderr).toEqual(jasmine.arrayContaining([
-        jasmine.stringMatching(/Skipping resource larger than 25MB/)
+        jasmine.stringMatching(/Skipping resource larger than allowed size/)
       ]));
     });
 

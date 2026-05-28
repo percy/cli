@@ -112,8 +112,15 @@ export class Browser extends EventEmitter {
     for (let a of args) if (!this.args.includes(a)) this.args.push(a);
     this.args.push(`--user-data-dir=${this.profile}`);
 
-    // spawn the browser process and connect a websocket to the devtools address
-    this.ws = new WebSocket(await this.spawn(timeout), { perMessageDeflate: false });
+    // spawn the browser process and connect a websocket to the devtools address.
+    // Bump maxPayload above the ws default (100 MB) — Network.getResponseBody
+    // returns binary bodies as base64 (+33%), so a 50 MB raw body becomes ~67 MB
+    // on the wire; framing pushes it close to the default. 150 MB leaves headroom
+    // for the PERCY_GZIP raw ceiling (see MAX_RAW_RESOURCE_SIZE_WITH_GZIP in network.js).
+    this.ws = new WebSocket(await this.spawn(timeout), {
+      perMessageDeflate: false,
+      maxPayload: 150 * (1024 ** 2)
+    });
 
     // wait until the websocket has connected
     await new Promise(resolve => this.ws.once('open', resolve));
