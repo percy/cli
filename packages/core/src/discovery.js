@@ -242,7 +242,9 @@ function processSnapshotResources({ domSnapshot, resources, ...snapshot }) {
         continue;
       }
 
-      const size = resource.content?.length ?? 0;
+      // resource.content is guaranteed by the try block above (either just
+      // assigned from Pako.gzip, or alreadyZipped was true).
+      const size = resource.content.length;
       // Root (DOM HTML) and log resources are required for a valid snapshot;
       // shipping an oversized one and letting the API surface a clear error
       // is better than silently dropping it here.

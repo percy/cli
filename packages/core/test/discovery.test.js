@@ -2602,6 +2602,17 @@ describe('Discovery', () => {
       ]));
     });
 
+    it('clamps to the 50MB floor when PERCY_GZIP is set', async () => {
+      // Under PERCY_GZIP individual resources can be up to ~50MB raw, so the
+      // cache floor must track that — clamping up to 50, not 25.
+      process.env.PERCY_GZIP = true;
+      await startPercyWith({ maxCacheRam: 30 });
+      expect(percy[CACHE_STATS_KEY].effectiveMaxCacheRamMB).toEqual(50);
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
+        jasmine.stringContaining('--max-cache-ram=30MB is below the 50MB minimum')
+      ]));
+    });
+
     it('emits an info log when cap and --disable-cache are both set', async () => {
       await startPercyWith({ maxCacheRam: 50, disableCache: true });
       expect(logger.stdout).toEqual(jasmine.arrayContaining([
