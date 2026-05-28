@@ -129,7 +129,7 @@ function safeJson(obj) {
   return JSON.stringify(obj)
     .replace(/<\//g, '<\\/')
     .replace(/<!--/g, '<\\!--')
-    .replace(/-->/g, '--\\>')
+    .replace(/--(!?)>/g, '--$1\\>')
     .split(LS).join('\\u2028')
     .split(PS).join('\\u2029');
 }
