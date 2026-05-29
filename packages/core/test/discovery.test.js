@@ -3084,6 +3084,14 @@ describe('Discovery', () => {
         request: { url: 'http://example.com/orphan' }
       });
 
+      // The event emitter fires `_handleResponsePaused` without awaiting it,
+      // so `await snap` can resolve before the handler reaches
+      // Fetch.continueResponse. Poll the spy directly for the assertion.
+      await waitFor(() => sentMethods.some(c =>
+        c.method === 'Fetch.continueResponse' &&
+        c.params?.requestId === 'untracked-intercept-id'
+      ), 2000);
+
       await snap;
 
       expect(sentMethods.some(c =>

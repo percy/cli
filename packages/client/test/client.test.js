@@ -2412,6 +2412,25 @@ describe('PercyClient', () => {
         })).toBeRejectedWithError('sha, filepath or content should be present in tiles object');
       });
     });
+
+    describe('when labels are provided on a POA comparison', () => {
+      beforeEach(async () => {
+        await client.sendComparison(123, {
+          name: 'test snapshot name',
+          tag: { name: 'test tag' },
+          tiles: [{ content: base64encode('tile') }],
+          labels: 'qa, smoke,release'
+        });
+      });
+
+      it('forwards labels as tags onto the snapshot', () => {
+        expect(api.requests['/builds/123/snapshots'][0].body.data.attributes.tags).toEqual([
+          { id: null, name: 'qa' },
+          { id: null, name: 'smoke' },
+          { id: null, name: 'release' }
+        ]);
+      });
+    });
   });
 
   describe('#tokenType', () => {
