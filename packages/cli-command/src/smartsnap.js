@@ -19,7 +19,9 @@ const { streamValues } = require('stream-json/streamers/StreamValues');
 // up with the absolute paths in our file index. Built via String.fromCharCode
 // to avoid embedding a control char in source / tripping no-control-regex.
 const NULL_CHAR = String.fromCharCode(0);
-const stripNull = s => (typeof s === 'string' ? s.replaceAll(NULL_CHAR, '') : s);
+// split/join instead of String.prototype.replaceAll: replaceAll is Node 15+
+// and cli-command supports Node >=14.
+const stripNull = s => (typeof s === 'string' ? s.split(NULL_CHAR).join('') : s);
 
 // Status poll cadence: 12 attempts × 5s = 1 minute total.
 const POLL_INTERVAL_MS = 5000;
@@ -56,10 +58,20 @@ export class SmartSnapBailError extends Error {
   }
 }
 
+// Any git failure is treated as a recoverable bail (full snapshot fallback),
+// per this module's contract. A common trigger is CI shallow clones where the
+// predicted base commit isn't fetched locally, so `git diff <sha> HEAD` fails —
+// we must downgrade that to a full snapshot, not crash the build. Callers that
+// want a more specific bail message (e.g. lockfile lookup) catch and re-throw.
 function git(args) {
-  const res = spawnSync('git', args, { encoding: 'utf8' });
+  let res;
+  try {
+    res = spawnSync('git', args, { encoding: 'utf8' });
+  } catch (e) {
+    throw new SmartSnapBailError(`SmartSnap: git ${args.join(' ')} failed to spawn: ${e.message}; running full snapshot set`);
+  }
   if (res.status !== 0) {
-    throw new Error(`git ${args.join(' ')} failed: ${res.stderr || res.stdout || `exit ${res.status}`}`);
+    throw new SmartSnapBailError(`SmartSnap: git ${args.join(' ')} failed: ${res.stderr || res.stdout || `exit ${res.status}`}; running full snapshot set`);
   }
   return res.stdout;
 }
