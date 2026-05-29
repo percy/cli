@@ -8,6 +8,7 @@ import WebSocket from 'ws';
 import rimraf from 'rimraf';
 import logger from '@percy/logger';
 import install from './install.js';
+import { MAX_CDP_PAYLOAD } from './network.js';
 import Session from './session.js';
 import Page from './page.js';
 
@@ -115,11 +116,11 @@ export class Browser extends EventEmitter {
     // spawn the browser process and connect a websocket to the devtools address.
     // Bump maxPayload above the ws default (100 MB) — Network.getResponseBody
     // returns binary bodies as base64 (+33%), so a 50 MB raw body becomes ~67 MB
-    // on the wire; framing pushes it close to the default. 150 MB leaves headroom
-    // for the PERCY_GZIP raw ceiling (see MAX_RAW_RESOURCE_SIZE_WITH_GZIP in network.js).
+    // on the wire; framing pushes it close to the default. MAX_CDP_PAYLOAD leaves
+    // headroom for the PERCY_GZIP raw ceiling (see MAX_RAW_RESOURCE_SIZE_WITH_GZIP).
     this.ws = new WebSocket(await this.spawn(timeout), {
       perMessageDeflate: false,
-      maxPayload: 150 * (1024 ** 2)
+      maxPayload: MAX_CDP_PAYLOAD
     });
 
     // wait until the websocket has connected

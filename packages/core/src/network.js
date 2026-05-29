@@ -6,11 +6,12 @@ import { AbortError, DefaultMap, createResource, hostnameMatches, normalizeURL, 
 export const MAX_RESOURCE_SIZE = 25 * (1024 ** 2) * 0.63; // 25MB, 0.63 factor for accounting for base64 encoding
 // CDP returns binary bodies via Network.getResponseBody as base64 in the JSON-RPC
 // response. Base64 inflates by 4/3, so an N-byte body becomes ~1.33×N on the wire.
-// The ws library used in browser.js has a 100 MB maxPayload default — keep the raw
-// ceiling small enough that base64(N) + framing stays well under that limit.
-// 50 MB is a conservative starting point (50 × 4/3 ≈ 67 MB on the wire); the
-// final value is pending a storage-cost review (PER-8648).
-export const MAX_CDP_PAYLOAD = 100 * (1024 ** 2);
+// The ws library defaults maxPayload to 100 MB; browser.js raises it to this value
+// so base64(body) + framing stays well under the limit (see browser.js connect()).
+export const MAX_CDP_PAYLOAD = 150 * (1024 ** 2);
+// 50 MB is a conservative starting point for the PERCY_GZIP raw ceiling
+// (50 × 4/3 ≈ 67 MB on the wire); the final value is pending a storage-cost
+// review (PER-8648).
 export const MAX_RAW_RESOURCE_SIZE_WITH_GZIP = 50 * (1024 ** 2);
 // Direct-fetch fallback needs more time when bodies can be tens of MB.
 const DIRECT_FETCH_TIMEOUT_WITH_GZIP = 30000;
