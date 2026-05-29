@@ -377,4 +377,21 @@ describe('percy exec', () => {
       '[percy] Finalized build #1: https://percy.io/test/test/123'
     ]));
   });
+
+  it('provides the child process with a PERCY_CLI_API env var matching the server address', async () => {
+    await exec(['--port=4567', '--', 'node', '--eval', (
+      'process.env.PERCY_CLI_API === process.env.PERCY_SERVER_ADDRESS ' +
+      '&& process.env.PERCY_CLI_API === "http://localhost:4567" || process.exit(2)'
+    )]);
+
+    expect(logger.stderr).toEqual(jasmine.arrayContaining([
+      '[percy] Detected error for percy build',
+      '[percy] Failure: Snapshot command was not called'
+    ]));
+    expect(logger.stdout).toEqual(jasmine.arrayContaining([
+      '[percy] Percy has started!',
+      jasmine.stringMatching('\\[percy] Running "node '),
+      '[percy] Finalized build #1: https://percy.io/test/test/123'
+    ]));
+  });
 });
