@@ -211,17 +211,10 @@ async function pollGraphStatus(percy, buildId, log) {
   return { status: null };
 }
 
-// Given the mapped snapshots and storybook.smartSnap config, returns the subset of snapshots
-// that the SmartSnap graph reports as affected. On any recoverable failure, returns the input
-// list unchanged so the build runs as a full snapshot pass.
-export async function applySmartSnap(percy, snapshots, smartSnapConfig, buildDir) {
-  const log = logger('storybook:smartsnap');
-  const { baseline, untraced, trace, bailOnChanges, statsFile } = smartSnapConfig || {};
-
-  if (!buildDir) {
-    throw new SmartSnapBailError('SmartSnap requires the Storybook build directory (e.g. `percy storybook ./storybook-static`); URL and `start` modes are not supported. Running full snapshot set');
-  }
-
+// First component: resolve + validate the statsFile path, stream-read it, and
+// assert it carries a usable buildId. Returns { files, modules, buildId }; any
+// problem throws a SmartSnapBailError so the caller falls back to a full set.
+export async function validateAndReadStats(buildDir, statsFile, projectRoot, log) {
   // Treat statsFile as a flat filename anchored inside the build directory.
   // path.basename() strips any traversal segments so the resolved path can't
   // escape buildDir even if the config is hostile.
@@ -240,138 +233,285 @@ export async function applySmartSnap(percy, snapshots, smartSnapConfig, buildDir
     throw new SmartSnapBailError(`SmartSnap: stats file "${statsName}" in ${buildDir} is not a regular file; running full snapshot set`);
   }
 
-  // New API shape: `{ base_build_commit_sha, snapshots: { <name>: <review_state> } }`.
-  // The single base-build commit replaces the previous per-snapshot commit map —
-  // baseline prediction now happens server-side via `Percy::BaseBuildService`,
-  // so we just diff against whatever commit it picked. The set of snapshot
-  // names is no longer sent; the API resolves baselines from the project +
-  // git/PR context alone.
-  const baseLookup = await percy.client.getSmartsnapSnapshotNameToCommit();
-  log.debug(`SmartSnap: base lookup ${JSON.stringify(baseLookup)}`);
+  log.debug(`SmartSnap: parsing stats file ${resolvedStatsPath}`);
+  const { files, modules, buildId } = await readStats(resolvedStatsPath, projectRoot);
 
-  let affectedNodes;
-  let packageAffectedNodes = [];
+  if (typeof buildId !== 'string' || !buildId) {
+    throw new SmartSnapBailError(`SmartSnap: stats file at ${resolvedStatsPath} is missing a top-level "buildId" — running full snapshot set`);
+  }
+
+  return { files, modules, buildId };
+}
+
+// Resolve the diff base ref + the list of changed files. With an explicit
+// `baseline` we diff against it directly and skip the API base-build lookup
+// entirely (its snapshot map is only consulted on the no-baseline path), so
+// `baselineSnapshots` comes back null in that case.
+export async function getBaselineAndAffectedNodes(percy, baseline, log) {
   let baseRef;
+  let baselineSnapshots;
 
   if (baseline) {
     log.debug(`SmartSnap: diffing against explicit baseline "${baseline}"`);
     baseRef = baseline;
-  } else if (baseLookup?.base_build_commit_sha) {
+    baselineSnapshots = null;
+  } else {
+    // New API shape: `{ base_build_commit_sha, snapshots: { <name>: <review_state> } }`.
+    // The single base-build commit replaces the previous per-snapshot commit map —
+    // baseline prediction now happens server-side via `Percy::BaseBuildService`,
+    // so we just diff against whatever commit it picked. The set of snapshot
+    // names is no longer sent; the API resolves baselines from the project +
+    // git/PR context alone.
+    const baseLookup = await percy.client.getSmartsnapSnapshotNameToCommit();
+    log.debug(`SmartSnap: base lookup ${JSON.stringify(baseLookup)}`);
+    if (!baseLookup?.base_build_commit_sha) {
+      throw new SmartSnapBailError('SmartSnap: API could not predict a base build commit and no explicit baseline was set; running full snapshot set');
+    }
     log.debug(`SmartSnap: diffing against predicted base build commit "${baseLookup.base_build_commit_sha}"`);
     baseRef = baseLookup.base_build_commit_sha;
-  } else {
-    throw new SmartSnapBailError('SmartSnap: API could not predict a base build commit and no explicit baseline was set; running full snapshot set');
+    baselineSnapshots = baseLookup.snapshots || {};
   }
+
   assertSafeRef(baseRef);
-  affectedNodes = gitDiffNames(baseRef);
+  const affectedNodes = gitDiffNames(baseRef);
+  return { baseRef, affectedNodes, baselineSnapshots };
+}
 
-  // HEAD already matches the base build commit (or the diff is otherwise
-  // empty) — there's nothing for the dep graph to map. Bail to a full set.
-  if (affectedNodes.length === 0) {
-    throw new SmartSnapBailError('SmartSnap: no files changed between HEAD and base build commit; running full snapshot set');
-  }
-
-  // A change to anything under `.storybook/` (preview config, addons, manager
-  // wiring) can affect every story's render, so the dep graph isn't enough.
+// A change to anything under `.storybook/` (preview config, addons, manager
+// wiring) can affect every story's render, so the dep graph isn't enough.
+export function assertNoDotStorybookChange(affectedNodes) {
   const dotStorybookHit = affectedNodes.find(p => p.split(/[/\\]/).includes('.storybook'));
   if (dotStorybookHit) {
     throw new SmartSnapBailError(`SmartSnap: change to "${dotStorybookHit}" inside .storybook affects all stories; running full snapshot set`);
   }
+}
 
-  // Manifest/lockfile changes can shift the dependency tree, so resolve the
-  // diff at the package level via snyk-nodejs-lockfile-parser and feed the
-  // changed package names back into the graph. Short-circuits below fall
-  // back to a full snapshot whenever we can't reason about the change.
-  const MANIFEST_PATHS = new Set(['package.json', 'package-lock.json', 'yarn.lock', 'pnpm-lock.yaml']);
-  const manifestHits = affectedNodes.filter(p => MANIFEST_PATHS.has(path.basename(p)));
-  const projectRoot = gitProjectRoot();
-
-  if (manifestHits.length > 0) {
-    // Locate the changed manifest's directory from affectedNodes (NOT the git
-    // root) — monorepos keep package.json + lockfile inside a workspace dir.
-    // If two changes land in different dirs, we'd need per-workspace resolution
-    // we don't try to do yet, so bail.
-    const uniqueDirs = [...new Set(manifestHits.map(p => path.dirname(p)))];
-    if (uniqueDirs.length > 1) {
-      throw new SmartSnapBailError(`SmartSnap: manifest changes span multiple directories (${uniqueDirs.join(', ')}); running full snapshot set`);
-    }
-    const manifestDir = uniqueDirs[0]; // repo-relative; '.' for root
-    const absManifestDir = path.resolve(projectRoot, manifestDir);
-
-    // Pick the lockfile that lives next to the changed manifest. If two
-    // coexist (e.g. a stray package-lock.json next to yarn.lock) we can't
-    // pick a canonical source, so bail.
-    const LOCKFILE_NAMES = ['package-lock.json', 'yarn.lock', 'pnpm-lock.yaml'];
-    const presentLockfiles = LOCKFILE_NAMES.filter(n => fs.existsSync(path.join(absManifestDir, n)));
-    if (presentLockfiles.length === 0) {
-      throw new SmartSnapBailError(`SmartSnap: manifest changed in "${manifestDir}" but no lockfile present there; running full snapshot set`);
-    }
-    if (presentLockfiles.length > 1) {
-      throw new SmartSnapBailError(`SmartSnap: multiple lockfiles in "${manifestDir}" (${presentLockfiles.join(', ')}); cannot pick canonical; running full snapshot set`);
-    }
-    const lockfileName = presentLockfiles[0];
-    // git always uses forward slashes for its <rev>:<path> spec; build it by
-    // hand instead of path.join (which would use backslashes on Windows).
-    const lockfileRepoPath = manifestDir === '.' ? lockfileName : `${manifestDir}/${lockfileName}`;
-
-    // Resolve the lockfile at the base commit. If it wasn't tracked there
-    // (first SmartSnap run, lockfile renamed, etc.) we can't diff, so bail.
-    let oldLockfile;
-    try {
-      oldLockfile = git(['show', `${baseRef}:${lockfileRepoPath}`]);
-    } catch {
-      throw new SmartSnapBailError(`SmartSnap: lockfile "${lockfileRepoPath}" not present at base ref ${baseRef}; running full snapshot set`);
-    }
-
-    const newLockfile = fs.readFileSync(path.join(absManifestDir, lockfileName), 'utf8');
-
-    if (oldLockfile !== newLockfile) {
-      // Lockfile actually shifted — invoke the diff. If byte-identical, only
-      // package.json's non-dep fields changed and we fall through unchanged.
-      const packageJson = fs.readFileSync(path.join(absManifestDir, 'package.json'), 'utf8');
-      const packageJsonRepoPath = manifestDir === '.' ? 'package.json' : `${manifestDir}/package.json`;
-      const oldPackageJson = git(['show', `${baseRef}:${packageJsonRepoPath}`]);
-      try {
-        const packageAffected = await diffLockfileDeps({
-          packageJson,
-          oldLockfile,
-          newLockfile,
-          lockfileType: lockfileName,
-          oldPackageJson
-        });
-        packageAffectedNodes = packageAffected;
-        log.debug(`SmartSnap: lockfile diff produced ${packageAffected.length} affected packages: ${packageAffected.join(', ')}`);
-      } catch (e) {
-        // snyk-nodejs-lockfile-parser is an optionalDependency (requires Node >=18).
-        // When it's missing we can't reason about the manifest change, so we
-        // conservatively bail to a full snapshot rather than under-snapshotting.
-        if (e.code === 'SNYK_LOCKFILE_PARSER_UNAVAILABLE') {
-          throw new SmartSnapBailError(`SmartSnap: ${e.message}; running full snapshot set`);
-        }
-        throw e;
-      }
-    }
-  }
-
-  if (untraced?.length) {
-    affectedNodes = affectedNodes.filter(p => !untraced.some(g => matchesPattern(p, g)));
-    if (affectedNodes.length === 0 && packageAffectedNodes.length === 0) {
-      throw new SmartSnapBailError('SmartSnap: all changed files matched untraced globs; running full snapshot set');
-    }
-  }
-
+// Bail to a full snapshot set if any changed file matches a user-supplied
+// bailOnChanges glob.
+export function assertNoBailOnChanges(affectedNodes, bailOnChanges) {
   if (bailOnChanges?.length) {
     const bailed = affectedNodes.find(p => bailOnChanges.some(g => matchesPattern(p, g)));
     if (bailed) {
       throw new SmartSnapBailError(`SmartSnap: change to "${bailed}" matched bailOnChanges; running full snapshot set`);
     }
   }
+}
 
-  log.debug(`SmartSnap: parsing stats file ${resolvedStatsPath}`);
-  const { files, modules, buildId } = await readStats(resolvedStatsPath, projectRoot);
+// Drop changed files that match a user-supplied `untraced` glob so they don't
+// drive snapshot selection. Returns the filtered list (unchanged when no
+// untraced patterns are configured).
+export function enforceUntraced(affectedNodes, untraced) {
+  if (untraced?.length) {
+    return affectedNodes.filter(p => !untraced.some(g => matchesPattern(p, g)));
+  }
+  return affectedNodes;
+}
 
-  if (typeof buildId !== 'string' || !buildId) {
-    throw new SmartSnapBailError(`SmartSnap: stats file at ${resolvedStatsPath} is missing a top-level "buildId" — running full snapshot set`);
+// Manifest/lockfile changes can shift the dependency tree, so resolve the
+// diff at the package level via snyk-nodejs-lockfile-parser and return the
+// changed package names to feed back into the graph. Returns [] when there's
+// nothing to resolve; short-circuits below fall back to a full snapshot
+// (via SmartSnapBailError) whenever we can't reason about the change.
+export async function getAffectedPackages(affectedNodes, baseRef, projectRoot, log) {
+  const MANIFEST_PATHS = new Set(['package.json', 'package-lock.json', 'yarn.lock', 'pnpm-lock.yaml']);
+  const manifestHits = affectedNodes.filter(p => MANIFEST_PATHS.has(path.basename(p)));
+
+  if (manifestHits.length === 0) return [];
+
+  // Locate the changed manifest's directory from affectedNodes (NOT the git
+  // root) — monorepos keep package.json + lockfile inside a workspace dir.
+  // If two changes land in different dirs, we'd need per-workspace resolution
+  // we don't try to do yet, so bail.
+  const uniqueDirs = [...new Set(manifestHits.map(p => path.dirname(p)))];
+  if (uniqueDirs.length > 1) {
+    throw new SmartSnapBailError(`SmartSnap: manifest changes span multiple directories (${uniqueDirs.join(', ')}); running full snapshot set`);
+  }
+  const manifestDir = uniqueDirs[0]; // repo-relative; '.' for root
+  const absManifestDir = path.resolve(projectRoot, manifestDir);
+
+  // Pick the lockfile that lives next to the changed manifest. If two
+  // coexist (e.g. a stray package-lock.json next to yarn.lock) we can't
+  // pick a canonical source, so bail.
+  const LOCKFILE_NAMES = ['package-lock.json', 'yarn.lock', 'pnpm-lock.yaml'];
+  const presentLockfiles = LOCKFILE_NAMES.filter(n => fs.existsSync(path.join(absManifestDir, n)));
+  if (presentLockfiles.length === 0) {
+    throw new SmartSnapBailError(`SmartSnap: manifest changed in "${manifestDir}" but no lockfile present there; running full snapshot set`);
+  }
+  if (presentLockfiles.length > 1) {
+    throw new SmartSnapBailError(`SmartSnap: multiple lockfiles in "${manifestDir}" (${presentLockfiles.join(', ')}); cannot pick canonical; running full snapshot set`);
+  }
+  const lockfileName = presentLockfiles[0];
+  // git always uses forward slashes for its <rev>:<path> spec; build it by
+  // hand instead of path.join (which would use backslashes on Windows).
+  const lockfileRepoPath = manifestDir === '.' ? lockfileName : `${manifestDir}/${lockfileName}`;
+
+  // Resolve the lockfile at the base commit. If it wasn't tracked there
+  // (first SmartSnap run, lockfile renamed, etc.) we can't diff, so bail.
+  let oldLockfile;
+  try {
+    oldLockfile = git(['show', `${baseRef}:${lockfileRepoPath}`]);
+  } catch {
+    throw new SmartSnapBailError(`SmartSnap: lockfile "${lockfileRepoPath}" not present at base ref ${baseRef}; running full snapshot set`);
+  }
+
+  const newLockfile = fs.readFileSync(path.join(absManifestDir, lockfileName), 'utf8');
+
+  // Byte-identical lockfile means only package.json's non-dep fields changed —
+  // nothing shifted in the dependency tree, so there are no affected packages.
+  if (oldLockfile === newLockfile) return [];
+
+  const packageJson = fs.readFileSync(path.join(absManifestDir, 'package.json'), 'utf8');
+  const packageJsonRepoPath = manifestDir === '.' ? 'package.json' : `${manifestDir}/package.json`;
+  const oldPackageJson = git(['show', `${baseRef}:${packageJsonRepoPath}`]);
+  try {
+    const packageAffected = await diffLockfileDeps({
+      packageJson,
+      oldLockfile,
+      newLockfile,
+      lockfileType: lockfileName,
+      oldPackageJson
+    });
+    log.debug(`SmartSnap: lockfile diff produced ${packageAffected.length} affected packages: ${packageAffected.join(', ')}`);
+    return packageAffected;
+  } catch (e) {
+    // snyk-nodejs-lockfile-parser is an optionalDependency (requires Node >=18).
+    // When it's missing we can't reason about the manifest change, so we
+    // conservatively bail to a full snapshot rather than under-snapshotting.
+    if (e.code === 'SNYK_LOCKFILE_PARSER_UNAVAILABLE') {
+      throw new SmartSnapBailError(`SmartSnap: ${e.message}; running full snapshot set`);
+    }
+    throw e;
+  }
+}
+
+// Project each snapshot's importPath into the project-root frame and return
+// the unique set. Logs how many snapshots carried an importPath and warns
+// (with a sample) when none do, which usually means broken story extraction.
+export function extractStorybookPaths(snapshots, normalizeImportPath, log) {
+  const storybookPaths = [...new Set(snapshots.map(s => normalizeImportPath(s.importPath)).filter(Boolean))];
+  const snapshotsWithImportPath = snapshots.filter(s => s.importPath).length;
+  log.debug(`SmartSnap: ${snapshotsWithImportPath}/${snapshots.length} snapshots have importPath; ${storybookPaths.length} unique storybookPaths`);
+  if (storybookPaths.length === 0) {
+    log.warn(`SmartSnap: no snapshots have importPath set — check Storybook story extraction. Sample snapshot: ${JSON.stringify({
+      id: snapshots[0]?.id, name: snapshots[0]?.name, importPath: snapshots[0]?.importPath, keys: snapshots[0] ? Object.keys(snapshots[0]) : []
+    })}`);
+  } else {
+    log.debug(`SmartSnap: storybookPaths sample: ${storybookPaths.slice(0, 3).join(', ')}`);
+  }
+  return storybookPaths;
+}
+
+// Kick off the graph generation job and poll it to completion, returning the
+// graph payload. The sync status response carries the graph payload directly
+// on completion, so there's no second fetch — the returned `data` is the same
+// response body that used to come from `getSmartsnapGraphData`. Bails to a
+// full snapshot set if the job doesn't reach `done`.
+export async function runGraphGeneration(percy, buildId, payload, log) {
+  const { files, modules, storybookPaths, affectedNodes } = payload;
+  log.debug(`SmartSnap: starting graph generation job ${JSON.stringify({ buildId, files, modules, storybookPaths, affectedNodes })}`);
+  await percy.client.generateSmartsnapGraph(buildId, {
+    files, modules, storybookPaths, affectedNodes
+  });
+
+  const { status, data } = await pollGraphStatus(percy, buildId, log);
+  if (status !== 'done') {
+    throw new SmartSnapBailError(`SmartSnap: graph generation did not complete (status: ${status ?? 'timed out'}); running full snapshot set`);
+  }
+
+  log.debug(`SmartSnap: affected stories result ${JSON.stringify(data?.affected_stories)}`);
+  return data;
+}
+
+// Trace rendering moved client-side: the API now returns the raw graph
+// (vertices, edges, transitive-closure triples) and we populate the bundled
+// HTML template here. Only runs when `trace` is enabled and the payload is
+// complete — anything missing means the BE couldn't produce a graph, so we
+// skip silently rather than write a broken page.
+export function maybeWriteTrace(trace, data, log) {
+  if (trace && data?.vertices && data?.edges && data?.transitive_closure_matrix_sparse) {
+    const tracePath = path.resolve(process.cwd(), 'trace.html');
+    try {
+      const html = renderGraphTraceHtml({
+        vertices: data.vertices,
+        edges: data.edges,
+        transitiveClosureMatrixSparse: data.transitive_closure_matrix_sparse
+      });
+      fs.writeFileSync(tracePath, html);
+      log.info(`SmartSnap: trace written to ${tracePath}`);
+    } catch (e) {
+      log.warn(`SmartSnap: failed to write trace.html: ${e.message}`);
+    }
+  }
+}
+
+// Filter the snapshots down to those the affected-graph reports plus any that
+// need a forced re-snapshot, log the summary, and return the kept list.
+//
+// Snapshots whose baseline review_state is `failed` or `rejected` have no
+// usable baseline image to diff against, and snapshots that don't appear in
+// the base build at all are brand-new (no baseline exists yet). In both cases
+// SmartSnap can't legitimately skip them — re-snapshot unconditionally
+// regardless of what the affected-graph reports. `baselineSnapshots` is null
+// when an explicit baseline is set, but `needsBaselineRefresh` short-circuits
+// on `baseline` before reading it.
+export function selectAffectedSnapshots(snapshots, data, baseline, baselineSnapshots, normalizeImportPath, log) {
+  const affected = new Set(data?.affected_stories || []);
+
+  const FORCE_RESNAPSHOT_STATES = new Set(['failed', 'rejected']);
+  const needsBaselineRefresh = name => {
+    if (baseline) return false;
+    const state = baselineSnapshots[name];
+    return state === undefined || FORCE_RESNAPSHOT_STATES.has(state);
+  };
+
+  // Use the same normalization on lookup so a snapshot's `./src/...` matches
+  // an affected-stories `src/...` from the API.
+  let forced = 0;
+  let affectedKept = 0;
+  const filtered = snapshots.filter(s => {
+    if (needsBaselineRefresh(s.name)) {
+      forced += 1;
+      return true;
+    }
+    const p = normalizeImportPath(s.importPath);
+    if (p && affected.has(p)) {
+      affectedKept += 1;
+      return true;
+    }
+    return false;
+  });
+  log.info(`SmartSnap: ${filtered.length} of ${snapshots.length} snapshots kept (${affectedKept} via affected-graph, ${forced} via missing/failed/rejected baseline)`);
+  return filtered;
+}
+
+// Given the mapped snapshots and storybook.smartSnap config, returns the subset of snapshots
+// that the SmartSnap graph reports as affected. On any recoverable failure, returns the input
+// list unchanged so the build runs as a full snapshot pass.
+export async function applySmartSnap(percy, snapshots, smartSnapConfig, buildDir) {
+  const log = logger('storybook:smartsnap');
+  const { baseline, untraced, trace, bailOnChanges, statsFile } = smartSnapConfig || {};
+
+  if (!buildDir) {
+    throw new SmartSnapBailError('SmartSnap requires the Storybook build directory (e.g. `percy storybook ./storybook-static`); URL and `start` modes are not supported. Running full snapshot set');
+  }
+
+  const projectRoot = gitProjectRoot();
+
+  const { files, modules, buildId } = await validateAndReadStats(buildDir, statsFile, projectRoot, log);
+
+  let { baseRef, affectedNodes, baselineSnapshots } = await getBaselineAndAffectedNodes(percy, baseline, log);
+
+  assertNoDotStorybookChange(affectedNodes);
+  assertNoBailOnChanges(affectedNodes, bailOnChanges);
+  affectedNodes = enforceUntraced(affectedNodes, untraced);
+
+  const packageAffectedNodes = await getAffectedPackages(affectedNodes, baseRef, projectRoot, log);
+
+  // With no traced files and no package-level changes there's nothing for the
+  // graph to reason about — bail to a full snapshot set rather than send an
+  // empty diff.
+  if (!affectedNodes.length && !packageAffectedNodes.length) {
+    throw new SmartSnapBailError('SmartSnap: no affected files or packages detected after filtering; running full snapshot set');
   }
 
   // Storybook's `entries[id].importPath` (and v6 `parameters.fileName`)
@@ -404,87 +544,15 @@ export async function applySmartSnap(percy, snapshots, smartSnapConfig, buildDir
     return projRel || rel;
   };
 
-  const storybookPaths = [...new Set(snapshots.map(s => normalizeImportPath(s.importPath)).filter(Boolean))];
-  const snapshotsWithImportPath = snapshots.filter(s => s.importPath).length;
-  log.debug(`SmartSnap: ${snapshotsWithImportPath}/${snapshots.length} snapshots have importPath; ${storybookPaths.length} unique storybookPaths`);
-  if (storybookPaths.length === 0) {
-    log.warn(`SmartSnap: no snapshots have importPath set — check Storybook story extraction. Sample snapshot: ${JSON.stringify({
-      id: snapshots[0]?.id, name: snapshots[0]?.name, importPath: snapshots[0]?.importPath, keys: snapshots[0] ? Object.keys(snapshots[0]) : []
-    })}`);
-  } else {
-    log.debug(`SmartSnap: storybookPaths sample: ${storybookPaths.slice(0, 3).join(', ')}`);
-  }
+  const storybookPaths = extractStorybookPaths(snapshots, normalizeImportPath, log);
 
   if (packageAffectedNodes.length) {
     affectedNodes = [...affectedNodes, ...packageAffectedNodes];
   }
 
-  log.debug(`SmartSnap: starting graph generation job ${JSON.stringify({ buildId, files, modules, storybookPaths, affectedNodes })}`);
-  await percy.client.generateSmartsnapGraph(buildId, {
-    files, modules, storybookPaths, affectedNodes
-  });
+  const data = await runGraphGeneration(percy, buildId, { files, modules, storybookPaths, affectedNodes }, log);
 
-  const { status, data } = await pollGraphStatus(percy, buildId, log);
-  if (status !== 'done') {
-    throw new SmartSnapBailError(`SmartSnap: graph generation did not complete (status: ${status ?? 'timed out'}); running full snapshot set`);
-  }
+  maybeWriteTrace(trace, data, log);
 
-  // The sync status response carries the graph payload directly on completion,
-  // so there's no second fetch — `data` here is the same response body that
-  // used to come from `getSmartsnapGraphData`.
-
-  log.debug(`SmartSnap: affected stories result ${JSON.stringify(data?.affected_stories)}`);
-
-  // Trace rendering moved client-side: the API now returns the raw graph
-  // (vertices, edges, transitive-closure triples) and we populate the
-  // bundled HTML template here. Anything missing means the BE couldn't
-  // produce a graph — skip silently rather than write a broken page.
-  if (trace && data?.vertices && data?.edges && data?.transitive_closure_matrix_sparse) {
-    const tracePath = path.resolve(process.cwd(), 'trace.html');
-    try {
-      const html = renderGraphTraceHtml({
-        vertices: data.vertices,
-        edges: data.edges,
-        transitiveClosureMatrixSparse: data.transitive_closure_matrix_sparse
-      });
-      fs.writeFileSync(tracePath, html);
-      log.info(`SmartSnap: trace written to ${tracePath}`);
-    } catch (e) {
-      log.warn(`SmartSnap: failed to write trace.html: ${e.message}`);
-    }
-  }
-
-  const affected = new Set(data?.affected_stories || []);
-
-  // Snapshots whose baseline review_state is `failed` or `rejected` have no
-  // usable baseline image to diff against, and snapshots that don't appear
-  // in the base build at all are brand-new (no baseline exists yet). In
-  // both cases SmartSnap can't legitimately skip them — re-snapshot
-  // unconditionally regardless of what the affected-graph reports.
-  const baselineSnapshots = baseLookup?.snapshots || {};
-  const FORCE_RESNAPSHOT_STATES = new Set(['failed', 'rejected']);
-  const needsBaselineRefresh = name => {
-    if (baseline) return false;
-    const state = baselineSnapshots[name];
-    return state === undefined || FORCE_RESNAPSHOT_STATES.has(state);
-  };
-
-  // Use the same normalization on lookup so a snapshot's `./src/...` matches
-  // an affected-stories `src/...` from the API.
-  let forced = 0;
-  let affectedKept = 0;
-  const filtered = snapshots.filter(s => {
-    if (needsBaselineRefresh(s.name)) {
-      forced += 1;
-      return true;
-    }
-    const p = normalizeImportPath(s.importPath);
-    if (p && affected.has(p)) {
-      affectedKept += 1;
-      return true;
-    }
-    return false;
-  });
-  log.info(`SmartSnap: ${filtered.length} of ${snapshots.length} snapshots kept (${affectedKept} via affected-graph, ${forced} via missing/failed/rejected baseline)`);
-  return filtered;
+  return selectAffectedSnapshots(snapshots, data, baseline, baselineSnapshots, normalizeImportPath, log);
 }
