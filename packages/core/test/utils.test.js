@@ -1,4 +1,5 @@
-import { decodeAndEncodeURLWithLogging, waitForSelectorInsideBrowser, compareObjectTypes, isGzipped, checkSDKVersion, percyAutomateRequestHandler, detectFontMimeType, handleIncorrectFontMimeType, computeResponsiveWidths, appendUrlSearchParam, processCorsIframesInDomSnapshot, processCorsIframes } from '../src/utils.js';
+import { createLogResource, createPercyCSSResource, createResource, createRootResource, decodeAndEncodeURLWithLogging, waitForSelectorInsideBrowser, compareObjectTypes, isGzipped, checkSDKVersion, percyAutomateRequestHandler, detectFontMimeType, handleIncorrectFontMimeType, computeResponsiveWidths, appendUrlSearchParam, processCorsIframesInDomSnapshot, processCorsIframes } from '../src/utils.js';
+import { md5base64, sha256hash } from '@percy/client/utils';
 import { logger, setupTest, mockRequests } from './helpers/index.js';
 import percyLogger from '@percy/logger';
 import Percy from '@percy/core';
@@ -12,6 +13,59 @@ describe('utils', () => {
     process.env.PERCY_FORCE_PKG_VALUE = JSON.stringify({ name: '@percy/client', version: '1.0.0' });
     jasmine.DEFAULT_TIMEOUT_INTERVAL = 150000;
     await logger.mock({ level: 'debug' });
+  });
+
+  describe('createResource', () => {
+    it('returns sha, md5, contentLength, mimetype, content, and url', () => {
+      const content = 'p { color: purple; }';
+      const r = createResource('https://example.com/a.css', content, 'text/css');
+      expect(r).toEqual({
+        url: 'https://example.com/a.css',
+        mimetype: 'text/css',
+        content,
+        sha: sha256hash(content),
+        md5: md5base64(content),
+        contentLength: Buffer.byteLength(content, 'utf-8')
+      });
+    });
+
+    it('preserves extra attrs and computes byte length over UTF-8', () => {
+      const content = 'café — résumé';
+      const r = createResource('https://example.com/x', content, 'text/plain', { root: true });
+      expect(r.root).toBeTrue();
+      expect(r.contentLength).toEqual(Buffer.byteLength(content, 'utf-8'));
+      expect(r.contentLength).not.toEqual(content.length); // sanity: multi-byte chars
+    });
+
+    it('handles Buffer content', () => {
+      const buf = Buffer.from([0x00, 0x01, 0x02, 0xff]);
+      const r = createResource('https://example.com/blob', buf, 'application/octet-stream');
+      expect(r.contentLength).toEqual(buf.length);
+      expect(r.md5).toEqual(md5base64(buf));
+      expect(r.sha).toEqual(sha256hash(buf));
+    });
+
+    it('propagates new fields through createRootResource', () => {
+      const html = '<html><body>hi</body></html>';
+      const r = createRootResource('https://example.com/', html);
+      expect(r.root).toBeTrue();
+      expect(r.md5).toEqual(md5base64(html));
+      expect(r.contentLength).toEqual(Buffer.byteLength(html, 'utf-8'));
+    });
+
+    it('propagates new fields through createPercyCSSResource', () => {
+      const css = 'body { color: red; }';
+      const r = createPercyCSSResource('https://example.com/page', css);
+      expect(r.md5).toEqual(md5base64(css));
+      expect(r.contentLength).toEqual(Buffer.byteLength(css, 'utf-8'));
+    });
+
+    it('propagates new fields through createLogResource', () => {
+      const r = createLogResource([{ level: 'info', message: 'hi' }]);
+      expect(r.log).toBeTrue();
+      expect(r.md5).toEqual(md5base64(r.content));
+      expect(r.contentLength).toEqual(Buffer.byteLength(r.content, 'utf-8'));
+    });
   });
 
   describe('percyAutomateRequestHandler', () => {
