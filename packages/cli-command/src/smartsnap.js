@@ -238,6 +238,7 @@ export async function applySmartSnap(percy, snapshots, smartSnapConfig, buildDir
   log.debug(`SmartSnap: base lookup ${JSON.stringify(baseLookup)}`);
 
   let affectedNodes;
+  let packageAffectedNodes = [];
   let baseRef;
 
   if (baseline) {
@@ -326,6 +327,7 @@ export async function applySmartSnap(percy, snapshots, smartSnapConfig, buildDir
           lockfileType: lockfileName,
           oldPackageJson
         });
+        packageAffectedNodes = packageAffected;
         log.debug(`SmartSnap: lockfile diff produced ${packageAffected.length} affected packages: ${packageAffected.join(', ')}`);
       } catch (e) {
         // snyk-nodejs-lockfile-parser is an optionalDependency (requires Node >=18).
@@ -341,6 +343,9 @@ export async function applySmartSnap(percy, snapshots, smartSnapConfig, buildDir
 
   if (untraced?.length) {
     affectedNodes = affectedNodes.filter(p => !untraced.some(g => matchesPattern(p, g)));
+    if (affectedNodes.length === 0 && packageAffectedNodes.length === 0) {
+      throw new SmartSnapBailError('SmartSnap: all changed files matched untraced globs; running full snapshot set');
+    }
   }
 
   if (bailOnChanges?.length) {
@@ -396,6 +401,10 @@ export async function applySmartSnap(percy, snapshots, smartSnapConfig, buildDir
     })}`);
   } else {
     log.debug(`SmartSnap: storybookPaths sample: ${storybookPaths.slice(0, 3).join(', ')}`);
+  }
+
+  if (packageAffectedNodes.length) {
+    affectedNodes = [...affectedNodes, ...packageAffectedNodes];
   }
 
   log.debug(`SmartSnap: starting graph generation job ${JSON.stringify({ buildId, files, modules, storybookPaths, affectedNodes })}`);
