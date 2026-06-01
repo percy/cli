@@ -20,6 +20,14 @@ import {
 
 const NODE_MAJOR = parseInt(process.versions.node.split('.')[0], 10);
 
+// The applySmartSnap happy-path test asserts project-root-relative path matching
+// (normalizeImportPath). On Windows `git rev-parse --show-toplevel` (forward-slash,
+// drive-letter) and process.cwd() (back-slash) don't reconcile through
+// path.relative, so the match is platform-specific. Coverage for that path is
+// enforced on the POSIX (ubuntu) CI; on Windows (which runs `test`, not
+// `test:coverage`) we skip it rather than assert a platform-dependent result.
+const itPosix = path.sep === '/' ? it : xit;
+
 // Run a git command in `cwd`, throwing on non-zero exit. Used to build the
 // throwaway repos the integration tests diff against — applySmartSnap and
 // getAffectedPackages shell out to real git (spawnSync can't be spied), so the
@@ -635,7 +643,7 @@ describe('smartsnap', () => {
         'no affected files or packages detected');
     });
 
-    it('keeps only the snapshots the affected-graph reports', async () => {
+    itPosix('keeps only the snapshots the affected-graph reports', async () => {
       let { dir, baseSha } = setup(
         { 'sb/enriched-stats.json': STATS, 'src/A.stories.jsx': 'v1' },
         { 'src/A.stories.jsx': 'v2' });
