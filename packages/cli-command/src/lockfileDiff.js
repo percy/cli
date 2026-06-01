@@ -8,6 +8,9 @@ import logger from '@percy/logger';
 // first successful load so the require only resolves once per process.
 const require = createRequire(import.meta.url);
 let _snykModule;
+/* istanbul ignore next: snyk-backed path — the parser requires Node >=18 while
+   CI runs the suite on Node 14, so these lines can't execute there; they're
+   exercised by the describeSnyk tests on Node >=18 */
 function loadSnyk() {
   if (_snykModule) return _snykModule;
   try {
@@ -38,6 +41,7 @@ const TYPE_KEY_BY_FILENAME = {
 // in the tree get collapsed to the first one encountered, which is fine for
 // the diff because we only care about whether *something* about the package
 // changed between old and new.
+/* istanbul ignore next: snyk-backed path — only reachable on Node >=18 (see loadSnyk) */
 function flattenPkgTree(tree) {
   const out = new Map();
   const walk = node => {
@@ -55,6 +59,7 @@ function flattenPkgTree(tree) {
 // and `peerDependencies` blocks. devDeps and optionalDeps are intentionally
 // excluded — only runtime-relevant top-level packages count. Returns {} on
 // parse failure so the diff falls through to lockfile-only signal.
+/* istanbul ignore next: snyk-backed path — only reachable on Node >=18 (see loadSnyk) */
 function topLevelDeps(packageJsonContents) {
   try {
     const pkg = JSON.parse(packageJsonContents);
@@ -89,15 +94,25 @@ export async function diffLockfileDeps({ packageJson, oldPackageJson, oldLockfil
   // fail with this clear error rather than the parser-unavailable error from
   // loadSnyk(). This filename check needs no parser to run.
   const typeKey = TYPE_KEY_BY_FILENAME[lockfileType];
+  /* istanbul ignore else: on the Node-14 CI only the unsupported-type path is
+     exercised; the supported-type branch runs in describeSnyk on Node >=18 */
   if (!typeKey) {
     throw new Error(`Unsupported lockfile type: ${lockfileType}`);
   }
 
+  /* istanbul ignore next: supported-type path — only reachable on Node >=18 (see loadSnyk) */
+  return resolveAffectedDeps({ packageJson, oldPackageJson, oldLockfile, newLockfile, typeKey, log });
+}
+
+// The snyk-backed resolution, split into its own function so a single
+// coverage-ignore covers the whole path: the parser requires Node >=18 while CI
+// runs the suite on Node 14, so none of this executes there. The describeSnyk
+// tests exercise it on Node >=18. `typeKey` is already validated against
+// TYPE_KEY_BY_FILENAME by the caller, so it always resolves to a LockfileType.
+/* istanbul ignore next: snyk-backed path — only reachable on Node >=18 (see loadSnyk) */
+async function resolveAffectedDeps({ packageJson, oldPackageJson, oldLockfile, newLockfile, typeKey, log }) {
   const { buildDepTree, LockfileType } = loadSnyk();
   const type = LockfileType[typeKey];
-  if (!type) {
-    throw new Error(`Unsupported lockfile type: ${lockfileType}`);
-  }
 
   // The two buildDepTree calls are kept sequential (not Promise.all'd) so that
   // when one of them throws the log message identifies *which* side failed —
