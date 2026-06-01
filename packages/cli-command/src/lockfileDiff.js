@@ -82,9 +82,19 @@ function topLevelDeps(packageJsonContents) {
 //      5.18.0 under the old range, so the resolved tree looks identical.
 export async function diffLockfileDeps({ packageJson, oldPackageJson, oldLockfile, newLockfile, lockfileType }) {
   const log = logger('storybook:smartsnap:lockfile');
-  const { buildDepTree, LockfileType } = loadSnyk();
+
+  // Validate the filename maps to a supported lockfile type BEFORE loading the
+  // optional snyk parser. The parser requires Node >=18, so on older runtimes
+  // (or when the optional install was skipped) an unsupported type must still
+  // fail with this clear error rather than the parser-unavailable error from
+  // loadSnyk(). This filename check needs no parser to run.
   const typeKey = TYPE_KEY_BY_FILENAME[lockfileType];
-  const type = typeKey && LockfileType[typeKey];
+  if (!typeKey) {
+    throw new Error(`Unsupported lockfile type: ${lockfileType}`);
+  }
+
+  const { buildDepTree, LockfileType } = loadSnyk();
+  const type = LockfileType[typeKey];
   if (!type) {
     throw new Error(`Unsupported lockfile type: ${lockfileType}`);
   }
