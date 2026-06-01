@@ -158,7 +158,8 @@ describe('smartsnap', () => {
 
       expect(res.buildId).toEqual('b');
       // Indexed in encounter order; node_modules paths are excluded (not indexed).
-      expect(res.files).toEqual(['src/A.js', 'src/B.js', 'src/C.js']);
+      // `path.relative` uses the platform separator (back-slash on Windows).
+      expect(res.files).toEqual([path.join('src', 'A.js'), path.join('src', 'B.js'), path.join('src', 'C.js')]);
       expect(res.modules.length).toEqual(2); // the string-id module is dropped
       expect(res.modules[0].id).toEqual(0);
       expect(res.modules[0].imports[0].source).toEqual(1); // src ref → index
@@ -639,7 +640,9 @@ describe('smartsnap', () => {
         { 'sb/enriched-stats.json': STATS, 'src/A.stories.jsx': 'v1' },
         { 'src/A.stories.jsx': 'v2' });
 
-      let data = { affected_stories: ['src/A.stories.jsx', 'src/Dot.stories.jsx'] };
+      // affected_stories arrive already in the project-root frame; normalizeImportPath
+      // produces the platform separator, so match it with path.join (back-slash on Windows).
+      let data = { affected_stories: [path.join('src', 'A.stories.jsx'), path.join('src', 'Dot.stories.jsx')] };
       let generate = jasmine.createSpy('generateSmartsnapGraph');
       let percy = {
         client: {
