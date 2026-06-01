@@ -6,7 +6,7 @@ import { renderGraphTraceHtml } from '../src/graphTrace.js';
 // applies, without exporting the module-private helpers it delegates to.
 function embeddedJson(html, name) {
   // test-only helper; name is a hardcoded literal ('vertices'/'edges') from the test, not external input (reviewed, approved by security)
-  let match = html.match(new RegExp(`const ${name} = (.*);`)); // nosemgrep: javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp
+  let match = html.match(new RegExp(`const ${name} = (.*);`)); // nosemgrep
   if (!match) throw new Error(`could not find embedded "${name}" payload`);
   return match[1];
 }
