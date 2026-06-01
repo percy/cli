@@ -1,29 +1,16 @@
 name: Create Release PR
 
-# Manually triggered from the Actions tab. Bumps every package version in
-# lockstep (lerna fixed mode) and opens a "Release X.Y.Z" PR. Merging that PR
-# and publishing a GitHub Release is what actually ships to npm (see release.yml).
+# Manually triggered from the Actions tab. You type the exact target version;
+# this sets every package to it in lockstep (lerna fixed mode) and opens a
+# "Release X.Y.Z" PR. Merging that PR + publishing a GitHub Release is what
+# actually ships to npm.
 on:
   workflow_dispatch:
     inputs:
-      bump:
-        description: 'Version bump (pre* = beta channel, plain = latest channel)'
+      version:
+        description: 'Target version, e.g. 1.32.0-beta.5 (beta) or 1.32.0 (stable). Check the current version in lerna.json / on npm and type the next one.'
         required: true
-        type: choice
-        default: prerelease
-        options:
-          - prerelease   # 1.32.0-beta.2 -> 1.32.0-beta.3
-          - prepatch     # 1.32.0        -> 1.32.1-beta.0
-          - preminor     # 1.32.0        -> 1.33.0-beta.0
-          - premajor     # 1.32.0        -> 2.0.0-beta.0
-          - patch        # 1.32.0-beta.x -> 1.32.0   (graduate / stable)
-          - minor        # 1.32.0        -> 1.33.0
-          - major        # 1.32.0        -> 2.0.0
-      preid:
-        description: 'Prerelease identifier (only used for pre* bumps)'
-        required: false
         type: string
-        default: beta
 
 permissions:
   contents: write
@@ -51,17 +38,22 @@ jobs:
       - name: Bump version
         id: bump
         env:
-          BUMP: ${{ inputs.bump }}
-          PREID: ${{ inputs.preid }}
+          TARGET: ${{ inputs.version }}
         run: |
           set -euo pipefail
-          if [[ "$BUMP" == pre* ]]; then
-            yarn lerna version "$BUMP" --preid "$PREID" \
-              --exact --no-git-tag-version --no-push --force-publish --yes
-          else
-            yarn lerna version "$BUMP" \
-              --exact --no-git-tag-version --no-push --force-publish --yes
+
+          # Validate the input is a plain semver (optionally with a -prerelease
+          # suffix). Rejects typos before we touch any files.
+          if ! [[ "$TARGET" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::'$TARGET' is not a valid version (expected e.g. 1.32.0 or 1.32.0-beta.5)."
+            exit 1
           fi
+
+          CURRENT=$(node -p "require('./lerna.json').version")
+
+          # lerna accepts an explicit version as the positional bump argument.
+          yarn lerna version "$TARGET" \
+            --exact --no-git-tag-version --no-push --force-publish --yes
 
           VERSION=$(node -p "require('./lerna.json').version")
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
@@ -69,10 +61,18 @@ jobs:
           # A prerelease version (contains a hyphen) ships under the `beta`
           # npm dist-tag; a clean semver ships under `latest`.
           if [[ "$VERSION" == *-* ]]; then
-            echo "dist_tag=beta" >> "$GITHUB_OUTPUT"
+            DIST_TAG=beta
           else
-            echo "dist_tag=latest" >> "$GITHUB_OUTPUT"
+            DIST_TAG=latest
           fi
+          echo "dist_tag=$DIST_TAG" >> "$GITHUB_OUTPUT"
+
+          # Show current -> new in the run summary (visible after triggering).
+          {
+            echo "### Version bump"
+            echo ""
+            echo "\`$CURRENT\` → **\`$VERSION\`**  (npm dist-tag: \`$DIST_TAG\`)"
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Create Pull Request
         uses: peter-evans/create-pull-request@v7
@@ -86,7 +86,7 @@ jobs:
           body: |
             Automated version bump to **`${{ steps.bump.outputs.version }}`**.
 
-            - Triggered by @${{ github.actor }} via `workflow_dispatch` (bump: `${{ inputs.bump }}`)
+            - Triggered by @${{ github.actor }} via `workflow_dispatch`.
             - On publishing a GitHub Release, this will go to npm under dist-tag **`${{ steps.bump.outputs.dist_tag }}`**.
 
             **Next steps:** review & merge, then cut the GitHub Release.
