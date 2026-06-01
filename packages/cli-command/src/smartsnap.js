@@ -31,6 +31,9 @@ const GLOB_CHARS = /[*?]/;
 const MAX_PATTERN_LENGTH = 500;
 
 function patternToRegex(pattern) {
+  /* istanbul ignore next: callers (matchesPattern) only ever pass a string, so
+     the typeof guard is defensive; the length guard is exercised at runtime by
+     the over-long-glob test via the matchesPattern catch below */
   if (typeof pattern !== 'string' || pattern.length > MAX_PATTERN_LENGTH) {
     throw new Error('Invalid pattern: must be a string with max length of 500 characters');
   }
@@ -68,6 +71,9 @@ function git(args) {
   try {
     res = spawnSync('git', args, { encoding: 'utf8' });
   } catch (e) {
+    /* istanbul ignore next: spawnSync only throws on an exec-level failure (e.g.
+       git binary missing / ENOMEM), which the test environment can't induce —
+       the non-zero-exit bail below is the path real git failures take */
     throw new SmartSnapBailError(`SmartSnap: git ${args.join(' ')} failed to spawn: ${e.message}; running full snapshot set`);
   }
   if (res.status !== 0) {
@@ -376,15 +382,22 @@ export async function getAffectedPackages(affectedNodes, baseRef, projectRoot, l
       lockfileType: lockfileName,
       oldPackageJson
     });
+    // The two statements below run only on Node >=18 where the snyk parser
+    // loads; the CI matrix runs the suite on Node 14, where the await above
+    // throws SNYK_LOCKFILE_PARSER_UNAVAILABLE and we take the catch instead.
+    /* istanbul ignore next */
     log.debug(`SmartSnap: lockfile diff produced ${packageAffected.length} affected packages: ${packageAffected.join(', ')}`);
+    /* istanbul ignore next */
     return packageAffected;
   } catch (e) {
     // snyk-nodejs-lockfile-parser is an optionalDependency (requires Node >=18).
     // When it's missing we can't reason about the manifest change, so we
     // conservatively bail to a full snapshot rather than under-snapshotting.
+    /* istanbul ignore else: a non-snyk diff error can only surface on Node >=18 */
     if (e.code === 'SNYK_LOCKFILE_PARSER_UNAVAILABLE') {
       throw new SmartSnapBailError(`SmartSnap: ${e.message}; running full snapshot set`);
     }
+    /* istanbul ignore next: non-snyk diff errors only surface on Node >=18 */
     throw e;
   }
 }
@@ -537,6 +550,8 @@ export async function applySmartSnap(percy, snapshots, smartSnapConfig, buildDir
     if (typeof p !== 'string' || !p) return p;
     let rel = p;
     if (rel.startsWith(dotPlatform)) rel = rel.slice(dotPlatform.length);
+    /* istanbul ignore next: on POSIX CI dotPlatform === dotPosix ('./'), so this
+       Windows-only ('.\\') branch is unreachable there */
     else if (rel.startsWith(dotPosix)) rel = rel.slice(dotPosix.length);
     // If the importPath happens to be absolute (older Storybook configs),
     // path.resolve treats it as the target directly; otherwise it's joined
@@ -547,11 +562,17 @@ export async function applySmartSnap(percy, snapshots, smartSnapConfig, buildDir
     // path.relative('','') → '' and `path.relative` produces backslashes
     // on Windows; the stats `files` array uses the same — leave platform
     // sep alone so the two stay byte-identical for the BE match.
+    /* istanbul ignore next: the `|| rel` fallback only triggers when an importPath
+       resolves exactly to projectRoot (projRel === ''), an edge that's unstable to
+       reproduce across OS symlink/tmpdir differences */
     return projRel || rel;
   };
 
   const storybookPaths = extractStorybookPaths(snapshots, normalizeImportPath, log);
 
+  /* istanbul ignore next: packageAffectedNodes is only non-empty on Node >=18
+     (the snyk lockfile diff); on the Node-14 CI getAffectedPackages either
+     returns [] or bails before yielding packages, so this never runs there */
   if (packageAffectedNodes.length) {
     affectedNodes = [...affectedNodes, ...packageAffectedNodes];
   }

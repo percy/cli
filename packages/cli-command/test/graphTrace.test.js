@@ -118,6 +118,22 @@ describe('graphTrace', () => {
       expect(col0.map(v => v.row).sort()).toEqual([0, 1]);
     });
 
+    it('keeps a stable order for vertices that tie on rank and name', () => {
+      // Two same-kind vertices with identical names land in the same column
+      // group and hit the comparator's final equal-name branch (returns 0).
+      let laidOut = vertices(renderGraphTraceHtml({
+        vertices: [
+          { kind: 'component', file_path: 'Dup.jsx' },
+          { kind: 'component', file_path: 'Dup.jsx' }
+        ],
+        edges: [],
+        transitiveClosureMatrixSparse: []
+      }));
+
+      expect(laidOut.map(v => v.name)).toEqual(['Dup.jsx', 'Dup.jsx']);
+      expect(laidOut.map(v => v.row).sort()).toEqual([0, 1]);
+    });
+
     it('renders empty payloads without throwing', () => {
       let html = renderGraphTraceHtml({});
       expect(embeddedJson(html, 'vertices')).toEqual('[]');

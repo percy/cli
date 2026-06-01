@@ -1,5 +1,7 @@
 import fs from 'fs';
+import os from 'os';
 import path from 'path';
+import cp from 'child_process';
 import { mockfs } from './helpers.js';
 import {
   SmartSnapBailError,
@@ -12,8 +14,49 @@ import {
   extractStorybookPaths,
   runGraphGeneration,
   maybeWriteTrace,
-  selectAffectedSnapshots
+  selectAffectedSnapshots,
+  applySmartSnap
 } from '../src/smartsnap.js';
+
+const NODE_MAJOR = parseInt(process.versions.node.split('.')[0], 10);
+
+// Run a git command in `cwd`, throwing on non-zero exit. Used to build the
+// throwaway repos the integration tests diff against — applySmartSnap and
+// getAffectedPackages shell out to real git (spawnSync can't be spied), so the
+// only faithful way to exercise their git-driven paths is a real repo.
+function git(args, cwd) {
+  let r = cp.spawnSync('git', args, { cwd, encoding: 'utf8' });
+  if (r.status !== 0) throw new Error(`git ${args.join(' ')} failed: ${r.stderr || r.stdout}`);
+  return r.stdout;
+}
+
+// Build a throwaway git repo: write+commit `seed` ({ relpath: contents }), then
+// (optionally) write+commit `changed`. Returns { dir, baseSha }. realpathSync so
+// process.cwd() and `git rev-parse --show-toplevel` agree on macOS (/var vs
+// /private/var), keeping path.relative-based normalization byte-stable.
+function makeRepo(seed, changed) {
+  let dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'smartsnap-')));
+  git(['init', '-q'], dir);
+  git(['config', 'user.email', 'test@example.com'], dir);
+  git(['config', 'user.name', 'Test'], dir);
+  let writeAll = files => {
+    for (let [rel, content] of Object.entries(files)) {
+      let abs = path.join(dir, rel);
+      fs.mkdirSync(path.dirname(abs), { recursive: true });
+      fs.writeFileSync(abs, content);
+    }
+  };
+  writeAll(seed);
+  git(['add', '-A'], dir);
+  git(['commit', '-qm', 'base'], dir);
+  let baseSha = git(['rev-parse', 'HEAD'], dir).trim();
+  if (changed) {
+    writeAll(changed);
+    git(['add', '-A'], dir);
+    git(['commit', '-qm', 'change'], dir);
+  }
+  return { dir, baseSha };
+}
 
 // Injected logger stub — every extracted function takes its `log` as an
 // argument, so we hand it spies rather than reaching for the global logger.
@@ -87,6 +130,40 @@ describe('smartsnap', () => {
       await mockfs({ '/build/foo.json': JSON.stringify({ buildId: 'b', modules: [] }) });
       let res = await validateAndReadStats('/build', '../../etc/foo.json', '/root', log);
       expect(res.buildId).toEqual('b');
+    });
+
+    it('streams modules: indexes src refs, leaves module refs, drops node_modules/string-id and id-less entries', async () => {
+      await mockfs({
+        '/build/enriched-stats.json': JSON.stringify({
+          buildId: 'b',
+          modules: [
+            {
+              id: '/root/src/A.js',
+              imports: [
+                { type: 'src', source: '/root/src/B.js' },
+                { type: 'module', source: 'react' }
+              ],
+              passThroughExports: [{ type: 'src', source: '/root/src/C.js' }],
+              nonPassThroughExports: [{ type: 'module', source: 'lodash' }]
+            },
+            { id: '/root/node_modules/dep/index.js' }, // excluded → string id → dropped
+            {} // no id, no import/export arrays → kept as {}
+          ]
+        })
+      });
+
+      let res = await validateAndReadStats('/build', undefined, '/root', log);
+
+      expect(res.buildId).toEqual('b');
+      // Indexed in encounter order; node_modules paths are excluded (not indexed).
+      expect(res.files).toEqual(['src/A.js', 'src/B.js', 'src/C.js']);
+      expect(res.modules.length).toEqual(2); // the string-id module is dropped
+      expect(res.modules[0].id).toEqual(0);
+      expect(res.modules[0].imports[0].source).toEqual(1); // src ref → index
+      expect(res.modules[0].imports[1].source).toEqual('react'); // module ref → untouched
+      expect(res.modules[0].passThroughExports[0].source).toEqual(2);
+      expect(res.modules[0].nonPassThroughExports).toEqual([{ type: 'module', source: 'lodash' }]);
+      expect(res.modules[1]).toEqual({});
     });
   });
 
@@ -171,6 +248,12 @@ describe('smartsnap', () => {
 
     it('does not bail when nothing matches', () => {
       expect(() => assertNoBailOnChanges(['src/index.js'], ['*.css'])).not.toThrow();
+    });
+
+    it('treats an over-long glob as non-matching instead of throwing', () => {
+      // A >500-char glob makes patternToRegex throw; matchesPattern swallows it
+      // and reports no match rather than crashing on a bad config value.
+      expect(() => assertNoBailOnChanges(['yarn.lock'], ['*'.repeat(600)])).not.toThrow();
     });
   });
 
@@ -354,6 +437,183 @@ describe('smartsnap', () => {
       let snapshots = [{ name: 'A', importPath: 'src/A.stories.js' }];
       let filtered = selectAffectedSnapshots(snapshots, { affected_stories: [] }, 'main', null, identity, log);
       expect(filtered).toEqual([]);
+    });
+  });
+
+  describe('runGraphGeneration() polling', () => {
+    beforeEach(() => jasmine.clock().install());
+    afterEach(() => jasmine.clock().uninstall());
+
+    // Drive the async poll loop under fake timers: flush microtasks, then
+    // advance one 5s interval, repeat. Extra rounds after the promise settles
+    // are harmless, so we over-provision past POLL_ATTEMPTS (12).
+    async function drainPolls(promise, rounds = 20) {
+      for (let i = 0; i < rounds; i++) {
+        await Promise.resolve();
+        await Promise.resolve();
+        jasmine.clock().tick(5000);
+      }
+      return promise;
+    }
+
+    it('retries while in_progress and resolves once the job is done', async () => {
+      let log = mockLog();
+      let data = { affected_stories: [] };
+      let seq = ['in_progress', 'in_progress', 'done'];
+      let i = 0;
+      let percy = {
+        client: {
+          generateSmartsnapGraph: async () => {},
+          getStatus: async () => {
+            let s = seq[Math.min(i++, seq.length - 1)];
+            return s === 'done' ? { status: 'done', data } : { status: s };
+          }
+        }
+      };
+
+      let p = runGraphGeneration(percy, 'bld-1', { files: [], modules: [], storybookPaths: [], affectedNodes: [] }, log);
+      await expectAsync(drainPolls(p)).toBeResolvedTo(data);
+    });
+
+    it('bails after the poll loop times out without reaching done', async () => {
+      let log = mockLog();
+      let percy = {
+        client: {
+          generateSmartsnapGraph: async () => {},
+          getStatus: async () => ({ status: 'in_progress' })
+        }
+      };
+
+      let p = runGraphGeneration(percy, 'bld-1', { files: [], modules: [], storybookPaths: [], affectedNodes: [] }, log);
+      let err;
+      await drainPolls(p).catch(e => { err = e; });
+      expect(err).toBeInstanceOf(SmartSnapBailError);
+      expect(err.message).toContain('did not complete');
+    });
+  });
+
+  describe('getAffectedPackages() lockfile diff', () => {
+    let origCwd = process.cwd();
+    let repos = [];
+    afterEach(() => {
+      process.chdir(origCwd);
+      for (let d of repos.splice(0)) fs.rmSync(d, { recursive: true, force: true });
+    });
+
+    it('reads both lockfile sides and runs the diff (bails on Node <18 where snyk is unavailable)', async () => {
+      let log = mockLog();
+      let { dir, baseSha } = makeRepo(
+        {
+          'pkg/package.json': JSON.stringify({ name: 'x', dependencies: { 'left-pad': '^1.0.0' } }),
+          'pkg/yarn.lock': 'left-pad@^1.0.0:\n  version "1.1.0"\n'
+        },
+        { 'pkg/yarn.lock': 'left-pad@^1.0.0:\n  version "1.2.0"\n' });
+      repos.push(dir);
+      process.chdir(dir);
+
+      let res;
+      try {
+        res = await getAffectedPackages(['pkg/yarn.lock'], baseSha, dir, log);
+      } catch (e) {
+        res = e;
+      }
+
+      if (NODE_MAJOR >= 18) {
+        // On Node >=18 snyk loads; whether the diff resolves or surfaces a parse
+        // error is incidental — this branch isn't what the Node-14 CI measures.
+        expect(res).toBeDefined();
+      } else {
+        // On Node 14 diffLockfileDeps throws SNYK_LOCKFILE_PARSER_UNAVAILABLE,
+        // which getAffectedPackages downgrades to a full-set bail.
+        expect(res).toBeInstanceOf(SmartSnapBailError);
+        expect(res.message).toContain('snyk-nodejs-lockfile-parser is not available');
+      }
+    });
+
+    it('returns [] when only package.json (no lockfile content) changed', async () => {
+      let log = mockLog();
+      let { dir, baseSha } = makeRepo(
+        { 'pkg/package.json': '{"name":"x"}', 'pkg/yarn.lock': 'left-pad@^1.0.0:\n  version "1.1.0"\n' },
+        { 'pkg/package.json': '{"name":"x","version":"2.0.0"}' });
+      repos.push(dir);
+      process.chdir(dir);
+
+      // yarn.lock is byte-identical at base and HEAD → short-circuits to [].
+      expect(await getAffectedPackages(['pkg/package.json'], baseSha, dir, log)).toEqual([]);
+    });
+
+    it('bails when the lockfile was not tracked at the base ref', async () => {
+      let log = mockLog();
+      let { dir, baseSha } = makeRepo(
+        { 'pkg/package.json': '{"name":"x"}' }, // base: no lockfile
+        { 'pkg/yarn.lock': 'left-pad@^1.0.0:\n  version "1.2.0"\n' }); // HEAD: lockfile added
+      repos.push(dir);
+      process.chdir(dir);
+
+      // lockfile exists on disk (HEAD) but `git show <base>:pkg/yarn.lock` fails.
+      await expectBail(
+        () => getAffectedPackages(['pkg/yarn.lock'], baseSha, dir, log),
+        'not present at base ref');
+    });
+  });
+
+  describe('applySmartSnap() [integration]', () => {
+    let origCwd = process.cwd();
+    let repos = [];
+    afterEach(() => {
+      process.chdir(origCwd);
+      for (let d of repos.splice(0)) fs.rmSync(d, { recursive: true, force: true });
+    });
+
+    function setup(seed, changed) {
+      let info = makeRepo(seed, changed);
+      repos.push(info.dir);
+      process.chdir(info.dir);
+      return info;
+    }
+
+    const STATS = JSON.stringify({ buildId: 'bld-1', modules: [] });
+
+    it('bails when no build directory is provided', async () => {
+      await expectBail(
+        () => applySmartSnap({ client: {} }, [], {}, undefined),
+        'requires the Storybook build directory');
+    });
+
+    it('bails when nothing is affected after filtering', async () => {
+      // baseline=HEAD → `git diff HEAD HEAD` is empty, no manifest changes, so
+      // both affectedNodes and packageAffectedNodes are empty.
+      let { dir } = setup({ 'sb/enriched-stats.json': STATS, 'src/A.stories.jsx': 'v1' });
+      await expectBail(
+        () => applySmartSnap({ client: {} }, [{ name: 'A', importPath: 'src/A.stories.jsx' }],
+          { baseline: 'HEAD' }, path.join(dir, 'sb')),
+        'no affected files or packages detected');
+    });
+
+    it('keeps only the snapshots the affected-graph reports', async () => {
+      let { dir, baseSha } = setup(
+        { 'sb/enriched-stats.json': STATS, 'src/A.stories.jsx': 'v1' },
+        { 'src/A.stories.jsx': 'v2' });
+
+      let data = { affected_stories: ['src/A.stories.jsx', 'src/Dot.stories.jsx'] };
+      let generate = jasmine.createSpy('generateSmartsnapGraph');
+      let percy = {
+        client: {
+          generateSmartsnapGraph: generate,
+          getStatus: async () => ({ status: 'done', data })
+        }
+      };
+      let snapshots = [
+        { name: 'A', importPath: 'src/A.stories.jsx' }, // plain → kept
+        { name: 'Dot', importPath: './src/Dot.stories.jsx' }, // ./ prefix stripped → kept
+        { name: 'NoPath' }, // undefined importPath → dropped
+        { name: 'Empty', importPath: '' } // empty importPath → dropped
+      ];
+
+      let result = await applySmartSnap(percy, snapshots, { baseline: baseSha, trace: false }, path.join(dir, 'sb'));
+
+      expect(result.map(s => s.name).sort()).toEqual(['A', 'Dot']);
+      expect(generate).toHaveBeenCalled();
     });
   });
 });
