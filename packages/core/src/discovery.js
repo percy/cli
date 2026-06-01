@@ -232,6 +232,7 @@ function processSnapshotResources({ domSnapshot, resources, ...snapshot }) {
         if (!alreadyZipped) {
           resource.content = Pako.gzip(resource.content);
           resource.sha = sha256hash(resource.content);
+          log.debug(`- Gzipped resource: ${resource.url}`);
         }
       } catch (error) {
         // One bad resource must not fail the whole snapshot.
