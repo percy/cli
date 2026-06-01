@@ -87,6 +87,7 @@ describe('Discovery', () => {
     await percy?.stop(true);
     await server.close();
     delete process.env.PERCY_FORCE_PKG_VALUE;
+    delete process.env.PERCY_GZIP;
     jasmine.DEFAULT_TIMEOUT_INTERVAL = originalTimeout;
   });
 
@@ -687,7 +688,7 @@ describe('Discovery', () => {
     ]);
 
     expect(logger.stderr).toContain(
-      '[percy:core:discovery] - Skipping resource larger than 25MB'
+      '[percy:core:discovery] - Skipping resource larger than allowed size'
     );
   });
 
@@ -755,7 +756,7 @@ describe('Discovery', () => {
       })
     ]);
     expect(logger.stderr).toContain(
-      '[percy:core:discovery] - Skipping resource larger than 25MB'
+      '[percy:core:discovery] - Skipping resource larger than allowed size'
     );
   });
 
@@ -791,7 +792,7 @@ describe('Discovery', () => {
       ]);
 
       expect(logger.stderr).toContain(
-        '[percy:core:discovery] - Skipping resource larger than 25MB'
+        '[percy:core:discovery] - Skipping resource larger than allowed size'
       );
     });
   }
@@ -833,8 +834,192 @@ describe('Discovery', () => {
     ]);
 
     expect(logger.stderr).toContain(
-      '[percy:core:discovery] - Skipping resource larger than 25MB'
+      '[percy:core:discovery] - Skipping resource larger than allowed size'
     );
+  });
+
+  it('captures resource larger than 25MB raw when PERCY_GZIP is enabled', async () => {
+    process.env.PERCY_GZIP = true;
+    const largeCSS = 'A'.repeat(30_000_000);
+    server.reply('/large.css', () => [200, 'text/css', largeCSS]);
+    percy.loglevel('debug');
+
+    await percy.snapshot({
+      name: 'test snapshot',
+      url: 'http://localhost:8000',
+      domSnapshot: testDOM.replace('style.css', 'large.css')
+    });
+
+    await percy.idle();
+
+    expect(captured[0]).toEqual([
+      jasmine.objectContaining({
+        attributes: jasmine.objectContaining({
+          'resource-url': jasmine.stringMatching(/^\/percy\.\d+\.log$/)
+        })
+      }),
+      jasmine.objectContaining({
+        id: sha256hash(Pako.gzip(testDOM.replace('style.css', 'large.css'))),
+        attributes: jasmine.objectContaining({
+          'resource-url': 'http://localhost:8000/'
+        })
+      }),
+      jasmine.objectContaining({
+        id: sha256hash(Pako.gzip(pixel)),
+        attributes: jasmine.objectContaining({
+          'resource-url': 'http://localhost:8000/img.gif'
+        })
+      }),
+      jasmine.objectContaining({
+        id: sha256hash(Pako.gzip(largeCSS)),
+        attributes: jasmine.objectContaining({
+          'resource-url': 'http://localhost:8000/large.css'
+        })
+      })
+    ]);
+
+    expect(logger.stderr).not.toContain(
+      '[percy:core:discovery] - Skipping resource larger than allowed size'
+    );
+  });
+
+  it('still skips resource above PERCY_GZIP raw-size ceiling', async () => {
+    process.env.PERCY_GZIP = true;
+    // 60MB > MAX_RAW_RESOURCE_SIZE_WITH_GZIP (50MB) → still rejected at capture
+    server.reply('/huge.css', () => [200, 'text/css', 'A'.repeat(60 * 1024 * 1024)]);
+    percy.loglevel('debug');
+
+    await percy.snapshot({
+      name: 'test snapshot',
+      url: 'http://localhost:8000',
+      domSnapshot: testDOM.replace('style.css', 'huge.css')
+    });
+
+    await percy.idle();
+
+    expect(captured[0]).toEqual([
+      jasmine.objectContaining({
+        attributes: jasmine.objectContaining({
+          'resource-url': jasmine.stringMatching(/^\/percy\.\d+\.log$/)
+        })
+      }),
+      jasmine.objectContaining({
+        attributes: jasmine.objectContaining({
+          'resource-url': 'http://localhost:8000/'
+        })
+      }),
+      jasmine.objectContaining({
+        attributes: jasmine.objectContaining({
+          'resource-url': 'http://localhost:8000/img.gif'
+        })
+      })
+    ]);
+
+    expect(logger.stderr).toContain(
+      '[percy:core:discovery] - Skipping resource larger than allowed size'
+    );
+  });
+
+  it('drops resource post-gzip when gzipped size still exceeds the cap', async () => {
+    // Random bytes do not compress under gzip; raw size ~20MB lets the resource
+    // pass shouldSkipForSize (under the PERCY_GZIP 50MB raw ceiling) but its
+    // gzipped size still exceeds MAX_RESOURCE_SIZE (~15.75MB) so the post-gzip
+    // check in discovery.js drops it. This exercises the new branch directly.
+    const crypto = await import('crypto');
+    const incompressible = crypto.randomBytes(20 * 1024 * 1024);
+    process.env.PERCY_GZIP = true;
+    server.reply('/incompressible.css', () => [200, 'text/css', incompressible]);
+    percy.loglevel('debug');
+
+    await percy.snapshot({
+      name: 'test snapshot',
+      url: 'http://localhost:8000',
+      domSnapshot: testDOM.replace('style.css', 'incompressible.css')
+    });
+
+    await percy.idle();
+
+    expect(captured[0]).toEqual([
+      jasmine.objectContaining({
+        attributes: jasmine.objectContaining({
+          'resource-url': jasmine.stringMatching(/^\/percy\.\d+\.log$/)
+        })
+      }),
+      jasmine.objectContaining({
+        attributes: jasmine.objectContaining({
+          'resource-url': 'http://localhost:8000/'
+        })
+      }),
+      jasmine.objectContaining({
+        attributes: jasmine.objectContaining({
+          'resource-url': 'http://localhost:8000/img.gif'
+        })
+      })
+    ]);
+
+    expect(logger.stderr).toContain(
+      jasmine.stringMatching(/Skipping resource larger than allowed size after gzip/)
+    );
+  });
+
+  it('skips resource and continues when Pako.gzip throws', async () => {
+    process.env.PERCY_GZIP = true;
+    const originalGzip = Pako.gzip;
+    let callCount = 0;
+    spyOn(Pako, 'gzip').and.callFake((data) => {
+      // Throw on the first non-root resource (the style.css) so we exercise
+      // the defensive catch without breaking the rest of the snapshot.
+      callCount += 1;
+      if (callCount === 2) throw new Error('boom');
+      return originalGzip(data);
+    });
+    percy.loglevel('debug');
+
+    await percy.snapshot({
+      name: 'test snapshot',
+      url: 'http://localhost:8000',
+      domSnapshot: testDOM
+    });
+
+    await percy.idle();
+
+    expect(logger.stderr).toContain(
+      jasmine.stringMatching(/Skipping resource: gzip failed for .* - boom/)
+    );
+  });
+
+  it('uses the longer direct-fetch timeout when PERCY_GZIP is set', async () => {
+    process.env.PERCY_GZIP = true;
+    percy.loglevel('debug');
+    // Drop Network.responseReceived to force the direct-fetch fallback, then make
+    // the direct fetch return 400 so the timeout-selection branch executes.
+    spyOn(percy.browser, '_handleMessage').and.callFake(function(data) {
+      let parsed; try { parsed = JSON.parse(data); } catch { /* binary */ }
+      if (parsed?.method === 'Network.responseReceived' &&
+          parsed?.params?.response?.url?.endsWith('/direct-gzip.css')) {
+        return;
+      }
+      this._handleMessage.and.originalFn.call(this, data);
+    });
+
+    let hits = 0;
+    server.reply('/direct-gzip.css', () => {
+      hits += 1;
+      if (hits === 1) return [200, 'text/css', 'p{}'];
+      return [400, 'text/plain', 'bad'];
+    });
+
+    let dom = '<html><head><link href="direct-gzip.css" rel="stylesheet"/></head><body>x</body></html>';
+    await percy.snapshot({
+      name: 'direct-fetch gzip snapshot',
+      url: 'http://localhost:8000',
+      domSnapshot: dom
+    });
+    await percy.idle();
+
+    expect(logger.stderr).toEqual(jasmine.arrayContaining([
+      jasmine.stringMatching(/Direct fetch failed for http:\/\/localhost:8000\/direct-gzip\.css -/)
+    ]));
   });
 
   describe('asset instrumentation', () => {
@@ -2417,6 +2602,17 @@ describe('Discovery', () => {
       ]));
     });
 
+    it('clamps to the 50MB floor when PERCY_GZIP is set', async () => {
+      // Under PERCY_GZIP individual resources can be up to ~50MB raw, so the
+      // cache floor must track that — clamping up to 50, not 25.
+      process.env.PERCY_GZIP = true;
+      await startPercyWith({ maxCacheRam: 30 });
+      expect(percy[CACHE_STATS_KEY].effectiveMaxCacheRamMB).toEqual(50);
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
+        jasmine.stringContaining('--max-cache-ram=30MB is below the 50MB minimum')
+      ]));
+    });
+
     it('emits an info log when cap and --disable-cache are both set', async () => {
       await startPercyWith({ maxCacheRam: 50, disableCache: true });
       expect(logger.stdout).toEqual(jasmine.arrayContaining([
@@ -3329,7 +3525,7 @@ describe('Discovery', () => {
       await percy.idle();
 
       expect(logger.stderr).toEqual(jasmine.arrayContaining([
-        jasmine.stringMatching(/Skipping resource larger than 25MB/)
+        jasmine.stringMatching(/Skipping resource larger than allowed size/)
       ]));
     });
 

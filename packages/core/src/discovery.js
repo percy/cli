@@ -21,6 +21,7 @@ import {
   sha256hash
 } from '@percy/client/utils';
 import Pako from 'pako';
+import { MAX_RESOURCE_SIZE, logAssetInstrumentation } from './network.js';
 
 // Logs verbose debug logs detailing various snapshot options.
 function debugSnapshotOptions(snapshot) {
@@ -222,14 +223,45 @@ function processSnapshotResources({ domSnapshot, resources, ...snapshot }) {
   logger.evictSnapshot(snapshot.meta.snapshot);
 
   if (process.env.PERCY_GZIP) {
+    const kept = [];
     for (let index = 0; index < resources.length; index++) {
-      const alreadyZipped = isGzipped(resources[index].content);
-      /* istanbul ignore next: very hard to mock true */
-      if (!alreadyZipped) {
-        resources[index].content = Pako.gzip(resources[index].content);
-        resources[index].sha = sha256hash(resources[index].content);
+      const resource = resources[index];
+      try {
+        const alreadyZipped = isGzipped(resource.content);
+        /* istanbul ignore next: very hard to mock true */
+        if (!alreadyZipped) {
+          resource.content = Pako.gzip(resource.content);
+          resource.sha = sha256hash(resource.content);
+          log.debug(`- Gzipped resource: ${resource.url}`);
+        }
+      } catch (error) {
+        // One bad resource must not fail the whole snapshot.
+        logAssetInstrumentation(log, 'asset_load_missing', 'network_error', {
+          url: resource.url, snapshot: snapshot.meta?.snapshot, error: error.message
+        });
+        log.warn(`- Skipping resource: gzip failed for ${resource.url} - ${error.message}`);
+        continue;
       }
+
+      // resource.content is guaranteed by the try block above (either just
+      // assigned from Pako.gzip, or alreadyZipped was true).
+      const size = resource.content.length;
+      // Root (DOM HTML) and log resources are required for a valid snapshot;
+      // shipping an oversized one and letting the API surface a clear error
+      // is better than silently dropping it here.
+      if (size > MAX_RESOURCE_SIZE && !resource.root && !resource.log) {
+        logAssetInstrumentation(log, 'asset_not_uploaded', 'resource_too_large', {
+          url: resource.url, size, snapshot: snapshot.meta?.snapshot
+        });
+        log.debug(
+          `- Skipping resource larger than allowed size after gzip (${size} bytes)`,
+          { url: resource.url }
+        );
+        continue;
+      }
+      kept.push(resource);
     }
+    resources = kept;
   }
 
   return { ...snapshot, resources };
@@ -480,16 +512,19 @@ export function createDiscoveryQueue(percy) {
     .handle('start', async () => {
       const configuredMaxCacheRamMB = percy.config.discovery.maxCacheRam;
       let effectiveMaxCacheRamMB = configuredMaxCacheRamMB;
+      // Cache stores raw bodies; under PERCY_GZIP individual resources can
+      // exceed the default 25MB floor, so the floor must track the active cap.
+      const minCacheRamMB = process.env.PERCY_GZIP ? 50 : MAX_RESOURCE_SIZE_MB;
 
       // User's config is not mutated; the post-clamp value lives on stats.
       if (configuredMaxCacheRamMB != null) {
-        if (configuredMaxCacheRamMB < MAX_RESOURCE_SIZE_MB) {
+        if (configuredMaxCacheRamMB < minCacheRamMB) {
           percy.log.warn(
-            `--max-cache-ram=${configuredMaxCacheRamMB}MB is below the ${MAX_RESOURCE_SIZE_MB}MB minimum ` +
-            '(individual resources up to 25MB would otherwise be dropped). ' +
-            `Continuing with the minimum: ${MAX_RESOURCE_SIZE_MB}MB.`
+            `--max-cache-ram=${configuredMaxCacheRamMB}MB is below the ${minCacheRamMB}MB minimum ` +
+            `(individual resources up to ${minCacheRamMB}MB would otherwise be dropped). ` +
+            `Continuing with the minimum: ${minCacheRamMB}MB.`
           );
-          effectiveMaxCacheRamMB = MAX_RESOURCE_SIZE_MB;
+          effectiveMaxCacheRamMB = minCacheRamMB;
         } else if (configuredMaxCacheRamMB < MIN_REASONABLE_CAP_MB) {
           percy.log.warn(
             `--max-cache-ram=${configuredMaxCacheRamMB}MB is very small; ` +
