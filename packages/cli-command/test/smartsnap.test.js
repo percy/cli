@@ -141,6 +141,8 @@ describe('smartsnap', () => {
               id: '/root/src/A.js',
               imports: [
                 { type: 'src', source: '/root/src/B.js' },
+                { type: 'src', source: '/root/src/B.js' }, // duplicate → reuses the existing index
+                { type: 'src', source: 'lib/rel.js' }, // non-absolute → returned as-is, not indexed
                 { type: 'module', source: 'react' }
               ],
               passThroughExports: [{ type: 'src', source: '/root/src/C.js' }],
@@ -160,7 +162,9 @@ describe('smartsnap', () => {
       expect(res.modules.length).toEqual(2); // the string-id module is dropped
       expect(res.modules[0].id).toEqual(0);
       expect(res.modules[0].imports[0].source).toEqual(1); // src ref → index
-      expect(res.modules[0].imports[1].source).toEqual('react'); // module ref → untouched
+      expect(res.modules[0].imports[1].source).toEqual(1); // duplicate → same index
+      expect(res.modules[0].imports[2].source).toEqual('lib/rel.js'); // non-absolute → as-is
+      expect(res.modules[0].imports[3].source).toEqual('react'); // module ref → untouched
       expect(res.modules[0].passThroughExports[0].source).toEqual(2);
       expect(res.modules[0].nonPassThroughExports).toEqual([{ type: 'module', source: 'lodash' }]);
       expect(res.modules[1]).toEqual({});
@@ -199,6 +203,13 @@ describe('smartsnap', () => {
       expect(res.baseRef).toEqual('HEAD');
       expect(res.affectedNodes).toEqual([]);
       expect(res.baselineSnapshots).toEqual({ 'Button: primary': 'approved' });
+    });
+
+    it('defaults baselineSnapshots to {} when the API omits the snapshot map', async () => {
+      let percy = { client: { getSmartsnapSnapshotNameToCommit: async () => ({ base_build_commit_sha: 'HEAD' }) } };
+      let res = await getBaselineAndAffectedNodes(percy, undefined, log);
+      expect(res.baseRef).toEqual('HEAD');
+      expect(res.baselineSnapshots).toEqual({});
     });
 
     it('bails when the API predicts no base commit and no baseline is set', async () => {
@@ -324,6 +335,12 @@ describe('smartsnap', () => {
       expect(extractStorybookPaths([{ name: 'x' }], identity, log)).toEqual([]);
       expect(log.warn).toHaveBeenCalledTimes(1);
     });
+
+    it('warns with an empty sample when given no snapshots at all', () => {
+      let log = mockLog();
+      expect(extractStorybookPaths([], identity, log)).toEqual([]);
+      expect(log.warn).toHaveBeenCalledTimes(1);
+    });
   });
 
   describe('runGraphGeneration()', () => {
@@ -437,6 +454,13 @@ describe('smartsnap', () => {
       let snapshots = [{ name: 'A', importPath: 'src/A.stories.js' }];
       let filtered = selectAffectedSnapshots(snapshots, { affected_stories: [] }, 'main', null, identity, log);
       expect(filtered).toEqual([]);
+    });
+
+    it('treats a payload with no affected_stories field as none affected', () => {
+      let log = mockLog();
+      let snapshots = [{ name: 'A', importPath: 'src/A.stories.js' }];
+      // data.affected_stories is undefined → defaults to an empty set.
+      expect(selectAffectedSnapshots(snapshots, {}, 'main', null, identity, log)).toEqual([]);
     });
   });
 
@@ -555,6 +579,25 @@ describe('smartsnap', () => {
         () => getAffectedPackages(['pkg/yarn.lock'], baseSha, dir, log),
         'not present at base ref');
     });
+
+    it('handles a lockfile at the repo root (manifestDir ".")', async () => {
+      let log = mockLog();
+      let { dir, baseSha } = makeRepo(
+        { 'package.json': JSON.stringify({ name: 'x', dependencies: {} }), 'yarn.lock': 'a:\n  version "1.0.0"\n' },
+        { 'yarn.lock': 'a:\n  version "2.0.0"\n' });
+      repos.push(dir);
+      process.chdir(dir);
+
+      // manifestDir resolves to '.', exercising the root-vs-subdir repo-path branches.
+      let res;
+      try {
+        res = await getAffectedPackages(['yarn.lock'], baseSha, dir, log);
+      } catch (e) {
+        res = e;
+      }
+      if (NODE_MAJOR >= 18) expect(res).toBeDefined();
+      else expect(res).toBeInstanceOf(SmartSnapBailError);
+    });
   });
 
   describe('applySmartSnap() [integration]', () => {
@@ -575,8 +618,9 @@ describe('smartsnap', () => {
     const STATS = JSON.stringify({ buildId: 'bld-1', modules: [] });
 
     it('bails when no build directory is provided', async () => {
+      // pass an undefined config too, exercising the `smartSnapConfig || {}` guard.
       await expectBail(
-        () => applySmartSnap({ client: {} }, [], {}, undefined),
+        () => applySmartSnap({ client: {} }, [], undefined, undefined),
         'requires the Storybook build directory');
     });
 

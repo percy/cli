@@ -93,6 +93,8 @@ function computeLayout(rawVertices, edges, transitiveClosure) {
   }
   const rankOf = v => {
     const r = KIND_RANK[templateKindOf(v)];
+    /* istanbul ignore next: templateKindOf always returns a kind present in
+       KIND_RANK, so the `=== undefined` fallback is defensive */
     return r === undefined ? 99 : r;
   };
   for (const list of groups.values()) {

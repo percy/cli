@@ -134,6 +134,46 @@ describe('graphTrace', () => {
       expect(laidOut.map(v => v.row).sort()).toEqual([0, 1]);
     });
 
+    it('orders a shared column by kind-rank then name', () => {
+      // All three dependencies are pinned to column 0, but the changed one ranks
+      // as is_relevant (1) vs package (0) for the others — mixed ranks in one
+      // column exercise the rank-differs branch, and the two packages exercise
+      // the name tie-break.
+      let laidOut = vertices(renderGraphTraceHtml({
+        vertices: [
+          { kind: 'dependency', file_path: 'z-pkg' },
+          { kind: 'dependency', file_path: 'a-pkg', changed: true },
+          { kind: 'dependency', file_path: 'm-pkg' }
+        ],
+        edges: [],
+        transitiveClosureMatrixSparse: []
+      }));
+
+      let col0 = laidOut.filter(v => v.col === 0).sort((a, b) => a.row - b.row);
+      // packages (rank 0) sort by name first, then the changed/is_relevant one.
+      expect(col0.map(v => v.name)).toEqual(['m-pkg', 'z-pkg', 'a-pkg']);
+    });
+
+    it('skips self-loop, non-positive and lower-value closure triples', () => {
+      let render = () => renderGraphTraceHtml({
+        vertices: [
+          { kind: 'component', file_path: 'A.jsx' },
+          { kind: 'component', file_path: 'B.jsx' },
+          { kind: 'component', file_path: 'C.jsx' }
+        ],
+        edges: [],
+        transitiveClosureMatrixSparse: [
+          [0, 0, 5], // u === v → skipped
+          [0, 1, 0], // val <= 0 → skipped
+          [0, 2, 3], // sets incomingMax[2] = 3
+          [1, 2, 2] // 2 is not > 3 → incomingMax[2] left unchanged
+        ]
+      });
+
+      expect(render).not.toThrow();
+      expect(vertices(render()).length).toEqual(3);
+    });
+
     it('renders empty payloads without throwing', () => {
       let html = renderGraphTraceHtml({});
       expect(embeddedJson(html, 'vertices')).toEqual('[]');

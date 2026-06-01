@@ -21,6 +21,9 @@ const { streamValues } = require('stream-json/streamers/StreamValues');
 const NULL_CHAR = String.fromCharCode(0);
 // split/join instead of String.prototype.replaceAll: replaceAll is Node 15+
 // and cli-command supports Node >=14.
+/* istanbul ignore next: the non-string branch is defensive — resolveAndIndex
+   only ever passes stats string values, and a non-string would throw at the
+   path.isAbsolute call below anyway */
 const stripNull = s => (typeof s === 'string' ? s.split(NULL_CHAR).join('') : s);
 
 // Status poll cadence: 12 attempts × 5s = 1 minute total.
@@ -77,6 +80,8 @@ function git(args) {
     throw new SmartSnapBailError(`SmartSnap: git ${args.join(' ')} failed to spawn: ${e.message}; running full snapshot set`);
   }
   if (res.status !== 0) {
+    /* istanbul ignore next: the stderr||stdout||exit-code fallbacks in the
+       message are defensive — git failures in tests always carry stderr */
     throw new SmartSnapBailError(`SmartSnap: git ${args.join(' ')} failed: ${res.stderr || res.stdout || `exit ${res.status}`}; running full snapshot set`);
   }
   return res.stdout;
@@ -549,9 +554,10 @@ export async function applySmartSnap(percy, snapshots, smartSnapConfig, buildDir
   const normalizeImportPath = p => {
     if (typeof p !== 'string' || !p) return p;
     let rel = p;
+    /* istanbul ignore next: on POSIX CI dotPlatform === dotPosix ('./'), so the
+       dotPosix else-if (a Windows-only '.\\' case) is unreachable there; ignore
+       the whole prefix-strip chain rather than a single dead else-if branch */
     if (rel.startsWith(dotPlatform)) rel = rel.slice(dotPlatform.length);
-    /* istanbul ignore next: on POSIX CI dotPlatform === dotPosix ('./'), so this
-       Windows-only ('.\\') branch is unreachable there */
     else if (rel.startsWith(dotPosix)) rel = rel.slice(dotPosix.length);
     // If the importPath happens to be absolute (older Storybook configs),
     // path.resolve treats it as the target directly; otherwise it's joined
