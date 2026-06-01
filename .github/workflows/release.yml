@@ -13,8 +13,23 @@ jobs:
         registry-url: 'https://registry.npmjs.org'
     - run: yarn
     - run: yarn build
+    - name: Resolve npm dist-tag
+      id: tag
+      run: |
+        set -euo pipefail
+        VERSION=$(node -p "require('./lerna.json').version")
+        # Prerelease versions (e.g. 1.32.0-beta.2) publish under `beta`;
+        # clean semver publishes under `latest`.
+        if [[ "$VERSION" == *-* ]]; then
+          DIST_TAG=beta
+        else
+          DIST_TAG=latest
+        fi
+        echo "dist_tag=$DIST_TAG" >> "$GITHUB_OUTPUT"
+        echo "Publishing $VERSION under dist-tag: $DIST_TAG"
     - name: lerna publish
-      run: yarn lerna publish from-package --yes
+      run: yarn lerna publish from-package --dist-tag "$DIST_TAG" --yes
       env:
+        DIST_TAG: ${{ steps.tag.outputs.dist_tag }}
         NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 

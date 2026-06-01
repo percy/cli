@@ -1,0 +1,92 @@
+name: Create Release PR
+
+# Manually triggered from the Actions tab. Bumps every package version in
+# lockstep (lerna fixed mode) and opens a "Release X.Y.Z" PR. Merging that PR
+# and publishing a GitHub Release is what actually ships to npm (see release.yml).
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: 'Version bump (pre* = beta channel, plain = latest channel)'
+        required: true
+        type: choice
+        default: prerelease
+        options:
+          - prerelease   # 1.32.0-beta.2 -> 1.32.0-beta.3
+          - prepatch     # 1.32.0        -> 1.32.1-beta.0
+          - preminor     # 1.32.0        -> 1.33.0-beta.0
+          - premajor     # 1.32.0        -> 2.0.0-beta.0
+          - patch        # 1.32.0-beta.x -> 1.32.0   (graduate / stable)
+          - minor        # 1.32.0        -> 1.33.0
+          - major        # 1.32.0        -> 2.0.0
+      preid:
+        description: 'Prerelease identifier (only used for pre* bumps)'
+        required: false
+        type: string
+        default: beta
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release-pr:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+
+      - run: yarn install --frozen-lockfile
+
+      - name: Configure git
+        run: |
+          git config user.name "percy-release-bot"
+          git config user.email "percy-release-bot@users.noreply.github.com"
+
+      - name: Bump version
+        id: bump
+        env:
+          BUMP: ${{ inputs.bump }}
+          PREID: ${{ inputs.preid }}
+        run: |
+          set -euo pipefail
+          if [[ "$BUMP" == pre* ]]; then
+            yarn lerna version "$BUMP" --preid "$PREID" \
+              --exact --no-git-tag-version --no-push --force-publish --yes
+          else
+            yarn lerna version "$BUMP" \
+              --exact --no-git-tag-version --no-push --force-publish --yes
+          fi
+
+          VERSION=$(node -p "require('./lerna.json').version")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+          # A prerelease version (contains a hyphen) ships under the `beta`
+          # npm dist-tag; a clean semver ships under `latest`.
+          if [[ "$VERSION" == *-* ]]; then
+            echo "dist_tag=beta" >> "$GITHUB_OUTPUT"
+          else
+            echo "dist_tag=latest" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          base: master
+          branch: release/${{ steps.bump.outputs.version }}
+          commit-message: "Release ${{ steps.bump.outputs.version }}"
+          title: "Release ${{ steps.bump.outputs.version }}"
+          labels: "🧹 maintenance"
+          body: |
+            Automated version bump to **`${{ steps.bump.outputs.version }}`**.
+
+            - Triggered by @${{ github.actor }} via `workflow_dispatch` (bump: `${{ inputs.bump }}`)
+            - On publishing a GitHub Release, this will go to npm under dist-tag **`${{ steps.bump.outputs.dist_tag }}`**.
+
+            **Next steps:** review & merge, then cut the GitHub Release.
