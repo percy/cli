@@ -37,10 +37,6 @@ jobs:
     name: Test ${{ matrix.package }}
     needs: [build]
     strategy:
-      # Don't cancel the other package jobs when one fails — a single failing
-      # (or flaky, e.g. transient apt/browser-dep install) package shouldn't
-      # take down the whole matrix.
-      fail-fast: false
       matrix:
         os: [ubuntu-latest]
         node: [14]
