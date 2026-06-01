@@ -22,18 +22,18 @@ const PREID = 'beta';
 // collapse them into a single "graduate" entry.
 const specs = semver.prerelease(current)
   ? [
-      ['prerelease (next beta)', semver.inc(current, 'prerelease', PREID)],
-      ['graduate to stable', semver.inc(current, 'patch')],
-      ['preminor (next beta line)', semver.inc(current, 'preminor', PREID)],
-      ['premajor (next beta line)', semver.inc(current, 'premajor', PREID)]
+      ['Prerelease next beta', semver.inc(current, 'prerelease', PREID)],
+      ['Release stable', semver.inc(current, 'patch')],
+      ['Preminor next beta line', semver.inc(current, 'preminor', PREID)],
+      ['Premajor next beta line', semver.inc(current, 'premajor', PREID)]
     ]
   : [
-      ['patch', semver.inc(current, 'patch')],
-      ['minor', semver.inc(current, 'minor')],
-      ['major', semver.inc(current, 'major')],
-      ['prepatch (beta)', semver.inc(current, 'prepatch', PREID)],
-      ['preminor (beta)', semver.inc(current, 'preminor', PREID)],
-      ['premajor (beta)', semver.inc(current, 'premajor', PREID)]
+      ['Patch release', semver.inc(current, 'patch')],
+      ['Minor release', semver.inc(current, 'minor')],
+      ['Major release', semver.inc(current, 'major')],
+      ['Prepatch beta', semver.inc(current, 'prepatch', PREID)],
+      ['Preminor beta', semver.inc(current, 'preminor', PREID)],
+      ['Premajor beta', semver.inc(current, 'premajor', PREID)]
     ];
 
 const seen = new Set();

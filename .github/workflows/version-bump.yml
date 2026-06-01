@@ -17,10 +17,10 @@ on:
         type: choice
         options:
           # AUTOGEN:options-start
-          - "prerelease (next beta): 1.32.0-beta.5 -> 1.32.0-beta.6"
-          - "graduate to stable: 1.32.0-beta.5 -> 1.32.0"
-          - "preminor (next beta line): 1.32.0-beta.5 -> 1.33.0-beta.0"
-          - "premajor (next beta line): 1.32.0-beta.5 -> 2.0.0-beta.0"
+          - "Prerelease next beta: 1.32.0-beta.5 -> 1.32.0-beta.6"
+          - "Release stable: 1.32.0-beta.5 -> 1.32.0"
+          - "Preminor next beta line: 1.32.0-beta.5 -> 1.33.0-beta.0"
+          - "Premajor next beta line: 1.32.0-beta.5 -> 2.0.0-beta.0"
           # AUTOGEN:options-end
 
 permissions:
