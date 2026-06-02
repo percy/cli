@@ -3,7 +3,24 @@ import logger from '@percy/logger';
 import mime from 'mime-types';
 import { AbortError, DefaultMap, createResource, hostnameMatches, normalizeURL, waitFor, decodeAndEncodeURLWithLogging, handleIncorrectFontMimeType, executeDomainValidation } from './utils.js';
 
-const MAX_RESOURCE_SIZE = 25 * (1024 ** 2) * 0.63; // 25MB, 0.63 factor for accounting for base64 encoding
+export const MAX_RESOURCE_SIZE = 25 * (1024 ** 2) * 0.63; // 25MB, 0.63 factor for accounting for base64 encoding
+// CDP returns binary bodies via Network.getResponseBody as base64 in the JSON-RPC
+// response. Base64 inflates by 4/3, so an N-byte body becomes ~1.33×N on the wire.
+// The ws library defaults maxPayload to 100 MB; browser.js raises it to this value
+// so base64(body) + framing stays well under the limit (see browser.js connect()).
+export const MAX_CDP_PAYLOAD = 150 * (1024 ** 2);
+// 50 MB is a conservative starting point for the PERCY_GZIP raw ceiling
+// (50 × 4/3 ≈ 67 MB on the wire); the final value is pending a storage-cost
+// review (PER-8648).
+export const MAX_RAW_RESOURCE_SIZE_WITH_GZIP = 50 * (1024 ** 2);
+// Direct-fetch fallback needs more time when bodies can be tens of MB.
+const DIRECT_FETCH_TIMEOUT_WITH_GZIP = 30000;
+
+export function shouldSkipForSize(size) {
+  if (!Number.isFinite(size)) return false;
+  if (process.env.PERCY_GZIP) return size > MAX_RAW_RESOURCE_SIZE_WITH_GZIP;
+  return size > MAX_RESOURCE_SIZE;
+}
 const ALLOWED_STATUSES = [200, 201, 301, 302, 304, 307, 308];
 const ALLOWED_RESOURCES = ['Document', 'Stylesheet', 'Image', 'Media', 'Font', 'Other'];
 const ABORTED_MESSAGE = 'Request was aborted by browser';
@@ -296,7 +313,7 @@ export class Network {
       logAssetInstrumentation(this.log, 'asset_not_uploaded', 'resource_too_large', {
         url, size: rawValue, snapshot: meta.snapshot
       });
-      this.log.debug('- Skipping resource larger than 25MB', meta);
+      this.log.debug('- Skipping resource larger than allowed size', meta);
 
       // Disposition first, then forget the request — so we never leave Chrome's
       // Fetch state paused while Percy thinks the request is already done.
@@ -546,7 +563,7 @@ export class Network {
 }
 
 // Logs asset instrumentation for failed/skipped asset loading
-function logAssetInstrumentation(log, category, reason, details) {
+export function logAssetInstrumentation(log, category, reason, details) {
   const categoryMap = {
     asset_load_5xx: '[ASSET_LOAD_5XX]',
     asset_not_uploaded: '[ASSET_NOT_UPLOADED]',
@@ -596,7 +613,7 @@ function inspectContentLength(headers) {
   let key = headers && Object.keys(headers).find(k => k.toLowerCase() === 'content-length');
   let rawValue = key ? headers[key] : undefined;
   let parsed = parseInt(rawValue, 10);
-  let tooLarge = Number.isFinite(parsed) && parsed > MAX_RESOURCE_SIZE;
+  let tooLarge = shouldSkipForSize(parsed);
   let malformed = rawValue !== undefined && rawValue !== null && String(rawValue).length > 0 && !Number.isFinite(parsed);
   return { tooLarge, malformed, rawValue };
 }
@@ -804,19 +821,22 @@ async function captureResourceDirectly(network, request, session) {
   let url = originURL(request);
   let meta = { ...network.meta, url };
 
+  // Under PERCY_GZIP the size ceiling can reach tens of MB; 5s is too short.
+  let timeoutMs = process.env.PERCY_GZIP ? DIRECT_FETCH_TIMEOUT_WITH_GZIP : DIRECT_FETCH_TIMEOUT;
+
   try {
     log.debug('- Requesting resource directly (responseReceived timeout fallback)', meta);
     let { body, status, headers: responseHeaders } = await raceWithTimeout(
       makeDirectRequest(network, request, session),
-      DIRECT_FETCH_TIMEOUT,
-      `Direct fetch timed out after ${DIRECT_FETCH_TIMEOUT}ms`
+      timeoutMs,
+      `Direct fetch timed out after ${timeoutMs}ms`
     );
 
-    if (body.length > MAX_RESOURCE_SIZE) {
+    if (shouldSkipForSize(body.length)) {
       logAssetInstrumentation(log, 'asset_not_uploaded', 'resource_too_large', {
         url, size: body.length, snapshot: meta.snapshot
       });
-      log.debug('- Skipping resource larger than 25MB', meta);
+      log.debug('- Skipping resource larger than allowed size', meta);
       return;
     }
 
@@ -831,6 +851,9 @@ async function captureResourceDirectly(network, request, session) {
     log.debug(`- Saving direct-fetched resource sha=${resource.sha} mimetype=${mimeType}`, meta);
     network.intercept.saveResource(resource);
   } catch (error) {
+    logAssetInstrumentation(log, 'asset_load_missing', 'network_error', {
+      url, snapshot: meta.snapshot, requestType: request.type, error: error.message
+    });
     log.debug(`Direct fetch failed for ${url} - ${error.message}`, meta);
   }
 }
@@ -871,7 +894,15 @@ async function saveResponseResource(network, request, session) {
         }
       }
 
-      let body = shouldCapture && await response.buffer();
+      // Bound how long we'll wait for a single body — large bodies over a slow
+      // or dead CDP socket must not stall the discovery queue forever. Errors
+      // (timeout or underlying CDP failure) propagate to the outer try/catch
+      // which logs the failure via the existing "Encountered an error" path.
+      let body = shouldCapture && await raceWithTimeout(
+        response.buffer(),
+        process.env.PERCY_GZIP ? 60000 : 30000,
+        `response.buffer() timed out for ${url}`
+      );
 
       // Don't rename the below log line as it is used in getting network logs in api
       /* istanbul ignore if: first check is a sanity check */
@@ -895,14 +926,14 @@ async function saveResponseResource(network, request, session) {
           snapshot: meta.snapshot
         });
         return log.debug('- Skipping empty response', meta);
-      } else if (body.length > MAX_RESOURCE_SIZE) {
+      } else if (shouldSkipForSize(body.length)) {
         logAssetInstrumentation(log, 'asset_not_uploaded', 'resource_too_large', {
           url,
           size: body.length,
           snapshot: meta.snapshot
         });
         log.debug('- Missing headers for the requested resource.', meta);
-        return log.debug('- Skipping resource larger than 25MB', meta);
+        return log.debug('- Skipping resource larger than allowed size', meta);
       } else if (!ALLOWED_STATUSES.includes(response.status)) {
         /* istanbul ignore next: ternary branches tested separately */
         const category = (response.status >= 500 && response.status < 600)
@@ -965,6 +996,12 @@ async function saveResponseResource(network, request, session) {
       // Don't rename the below log line as it is used in getting network logs in api
       log.debug(`Encountered an error processing resource: ${url}`, meta);
       log.debug(error, meta);
+      // Surface to the structured asset instrumentation channel so support
+      // tooling (analyse_build, analyze_cli_logs_tool) sees the failure
+      // instead of just a debug-level line.
+      logAssetInstrumentation(log, 'asset_load_missing', 'network_error', {
+        url, snapshot: meta.snapshot, requestType: request?.type, error: error.message
+      });
     }
   }
 
