@@ -66,11 +66,14 @@ export function waitForReadyScript(readinessConfig = {}, { callback = false } = 
     `;
   }
 
-  // For page.evaluate (auto-await Promises)
+  // For page.evaluate (auto-awaits the returned Promise). This MUST be a single
+  // expression: page.evaluate(string) evaluates the string as a script, where a
+  // top-level `return` is a SyntaxError ("Illegal return statement"). A ternary
+  // expression yields the waitForReady Promise (auto-awaited) or undefined.
   return `
-    if (typeof PercyDOM !== 'undefined' && typeof PercyDOM.waitForReady === 'function') {
-      return PercyDOM.waitForReady(${config});
-    }
+    (typeof PercyDOM !== 'undefined' && typeof PercyDOM.waitForReady === 'function')
+      ? PercyDOM.waitForReady(${config})
+      : undefined
   `;
 }
 
