@@ -9,17 +9,17 @@ on:
   workflow_dispatch:
     inputs:
       bump:
-        description: 'How to bump (the resulting version is shown in the run summary):'
+        description: 'How to bump (examples are illustrative; the actual resulting version is shown in the run summary):'
         required: true
-        default: prerelease
+        default: "prerelease  (e.g. 1.2.3-beta.4 -> 1.2.3-beta.5)"
         type: choice
         options:
-          - prerelease   # next beta:  1.32.0-beta.5 -> 1.32.0-beta.6
-          - patch        # graduate / stable patch: 1.32.0-beta.5 -> 1.32.0, or 1.32.0 -> 1.32.1
-          - minor        # 1.32.0 -> 1.33.0
-          - major        # 1.32.0 -> 2.0.0
-          - preminor     # new beta line: 1.32.0 -> 1.33.0-beta.0
-          - premajor     # new beta line: 1.32.0 -> 2.0.0-beta.0
+          - "prerelease  (e.g. 1.2.3-beta.4 -> 1.2.3-beta.5)"
+          - "patch  (e.g. 1.2.3-beta.4 -> 1.2.3, or 1.2.3 -> 1.2.4)"
+          - "minor  (e.g. 1.2.3 -> 1.3.0)"
+          - "major  (e.g. 1.2.3 -> 2.0.0)"
+          - "preminor  (e.g. 1.2.3 -> 1.3.0-beta.0)"
+          - "premajor  (e.g. 1.2.3 -> 2.0.0-beta.0)"
 
 permissions:
   contents: write
@@ -51,13 +51,16 @@ jobs:
         run: |
           set -euo pipefail
 
+          # The dropdown value is "<keyword>  (e.g. ...)"; take the first word.
+          KEYWORD="${BUMP%% *}"
+
           CURRENT=$(node -p "require('./lerna.json').version")
 
           # Compute the target version dynamically from the current version.
           # 'beta' is the prerelease identifier for any pre* bump.
-          TARGET=$(node -e "const s=require('semver'); const t=s.inc('$CURRENT', process.env.BUMP, 'beta'); if(!t){process.exit(1)} process.stdout.write(t)")
+          TARGET=$(KEYWORD="$KEYWORD" node -e "const s=require('semver'); const t=s.inc('$CURRENT', process.env.KEYWORD, 'beta'); if(!t){process.exit(1)} process.stdout.write(t)")
           if [[ -z "$TARGET" ]]; then
-            echo "::error::Could not compute a target version for bump '$BUMP' from '$CURRENT'."
+            echo "::error::Could not compute a target version for bump '$KEYWORD' from '$CURRENT'."
             exit 1
           fi
 
