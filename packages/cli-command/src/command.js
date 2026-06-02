@@ -354,6 +354,12 @@ export function command(name, definition, callback) {
       // preserve the legacy clean-resolution behavior because
       // AbortError carries exitCode:0 and this gate is skipped.
       if (err.signal && definition.exitOnError) {
+        // Defensive non-zero fallback: every signal in the registered
+        // handler set above is mapped in SIGNAL_EXIT_CODES, so the `?? 1`
+        // branch only fires if a future signal is added to the handler
+        // list without a code — kept non-zero so the false-positive
+        // success can't reappear (PER-8678).
+        /* istanbul ignore next */
         let signalCode = SIGNAL_EXIT_CODES[err.signal] ?? 1;
         let percyExitWithZeroOnError = process.env.PERCY_EXIT_WITH_ZERO_ON_ERROR === 'true';
         process.exitCode = percyExitWithZeroOnError ? 0 : signalCode;
