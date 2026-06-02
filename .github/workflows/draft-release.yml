@@ -1,0 +1,54 @@
+name: Draft Release
+
+# When a "Release X.Y.Z" PR (opened by the Create Release PR workflow) is
+# merged into master, this prepares a DRAFT GitHub Release with the right tag
+# and auto-generated notes. It is intentionally left as a draft — a human
+# clicks "Publish" to actually ship, which triggers release.yml + executable.yml.
+on:
+  pull_request:
+    types: [closed]
+
+permissions:
+  contents: write
+
+jobs:
+  draft:
+    # Only for merged PRs whose title starts with "Release " (our bump PRs).
+    if: >-
+      github.event.pull_request.merged == true &&
+      startsWith(github.event.pull_request.title, 'Release ')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
+
+      - name: Create draft release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TARGET_SHA: ${{ github.event.pull_request.merge_commit_sha }}
+        run: |
+          set -euo pipefail
+          VERSION=$(node -p "require('./lerna.json').version")
+          TAG="v$VERSION"
+
+          # Mark betas (versions containing a hyphen) as pre-releases.
+          PRERELEASE_FLAG=""
+          if [[ "$VERSION" == *-* ]]; then
+            PRERELEASE_FLAG="--prerelease"
+          fi
+
+          # Don't recreate if a draft/release for this tag already exists.
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG already exists — skipping."
+            exit 0
+          fi
+
+          gh release create "$TAG" \
+            --draft \
+            --generate-notes \
+            --title "$TAG" \
+            --target "$TARGET_SHA" \
+            $PRERELEASE_FLAG
+
+          echo "Created draft release $TAG. Review it and click Publish to ship."
