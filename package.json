@@ -13,7 +13,7 @@
     "build": "lerna run build --stream",
     "build:watch": "lerna run build --parallel -- --watch",
     "build:pack": "mkdir -p ./packs && lerna exec npm pack && mv ./packages/*/*.tgz ./packs",
-    "bump-version": "lerna version --exact --no-git-tag-version --no-push",
+    "bump-version": "lerna version --exact --no-git-tag-version --no-push && node -e \"const fs=require('fs');const v=require('./lerna.json').version;const t=v.includes('-')?'beta':'latest';for(const d of fs.readdirSync('packages')){const f='packages/'+d+'/package.json';if(!fs.existsSync(f))continue;const p=JSON.parse(fs.readFileSync(f));if(p.publishConfig&&p.publishConfig.tag!==t){p.publishConfig.tag=t;fs.writeFileSync(f,JSON.stringify(p,null,2)+String.fromCharCode(10))}}\"",
     "chromium-revision": "./scripts/chromium-revision.js",
     "clean": "git clean -Xdf -e !node_modules -e !**/node_modules/**",
     "lint": "eslint --ignore-path .gitignore .",

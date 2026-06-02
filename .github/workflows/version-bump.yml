@@ -76,6 +76,10 @@ jobs:
           fi
           echo "dist_tag=$DIST_TAG" >> "$GITHUB_OUTPUT"
 
+          # Keep each package's publishConfig.tag (the npm dist-tag used by
+          # `lerna publish from-package`) in step with the version.
+          DIST_TAG="$DIST_TAG" node -e 'const fs=require("fs");const t=process.env.DIST_TAG;for(const d of fs.readdirSync("packages")){const f="packages/"+d+"/package.json";if(!fs.existsSync(f))continue;const p=JSON.parse(fs.readFileSync(f));if(p.publishConfig&&p.publishConfig.tag!==t){p.publishConfig.tag=t;fs.writeFileSync(f,JSON.stringify(p,null,2)+"\n")}}'
+
           {
             echo "### Version bump"
             echo ""
