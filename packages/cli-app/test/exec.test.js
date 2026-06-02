@@ -1,6 +1,12 @@
+import fs from 'fs';
+import os from 'os';
+import path from 'path';
 import { setupTest } from '@percy/cli-command/test/helpers';
 import * as ExecPlugin from '@percy/cli-exec';
-import { exec, start, stop, ping, maybeInjectMaestroServer } from '@percy/cli-app';
+import {
+  exec, start, stop, ping,
+  maybeInjectMaestroServer, maybeInjectScreenshotDir
+} from '@percy/cli-app';
 
 describe('percy app:exec', () => {
   beforeEach(async () => {
@@ -9,8 +15,8 @@ describe('percy app:exec', () => {
 
   it('wraps cli-exec callbacks while preserving differing definitions', async () => {
     // exec.callback wraps cli-exec's callback (auto-injects -e PERCY_SERVER
-    // for `maestro test`), so it is no longer reference-equal — but start,
-    // stop, and ping remain straight delegations.
+    // and --test-output-dir for `maestro test`), so it is no longer reference-
+    // equal — but start, stop, and ping remain straight delegations.
     expect(typeof exec.callback).toBe('function');
     expect(exec.callback).not.toEqual(ExecPlugin.default.callback);
     expect(exec.definition).not.toEqual(ExecPlugin.default.definition);
@@ -157,6 +163,191 @@ describe('percy app:exec', () => {
       expect(b.argv).toContain('PERCY_SERVER=http://localhost:5339');
       expect(a.argv).not.toContain('PERCY_SERVER=http://localhost:5339');
       expect(b.argv).not.toContain('PERCY_SERVER=http://localhost:5338');
+    });
+
+    it('emits WARN log when percy address is falsy and there is no customer override', () => {
+      const log = { warn: jasmine.createSpy('warn') };
+      const ctx = { argv: ['maestro', 'test', 'flow.yaml'], percy: { address: () => undefined } };
+      maybeInjectMaestroServer(ctx, log);
+      expect(log.warn).toHaveBeenCalledTimes(1);
+      expect(log.warn.calls.argsFor(0)[0]).toContain('-e PERCY_SERVER not injected');
+    });
+
+    it('does NOT emit WARN when customer-supplied -e PERCY_SERVER override is present', () => {
+      const log = { warn: jasmine.createSpy('warn') };
+      const ctx = {
+        argv: ['maestro', 'test', '-e', 'PERCY_SERVER=http://custom:9999', 'flow.yaml'],
+        percy: { address: () => undefined }
+      };
+      maybeInjectMaestroServer(ctx, log);
+      expect(log.warn).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('maybeInjectScreenshotDir', () => {
+    let originalEnvValue;
+
+    beforeEach(() => {
+      originalEnvValue = process.env.PERCY_MAESTRO_SCREENSHOT_DIR;
+      delete process.env.PERCY_MAESTRO_SCREENSHOT_DIR;
+    });
+
+    afterEach(() => {
+      if (originalEnvValue === undefined) {
+        delete process.env.PERCY_MAESTRO_SCREENSHOT_DIR;
+      } else {
+        process.env.PERCY_MAESTRO_SCREENSHOT_DIR = originalEnvValue;
+      }
+    });
+
+    function ctxFor(argv) {
+      return { argv: [...argv] };
+    }
+
+    it('injects --test-output-dir and sets env var to <CWD>/.percy-out on happy path', () => {
+      const mkdir = spyOn(fs, 'mkdirSync').and.callFake(() => {});
+      const expectedDir = path.join(process.cwd(), '.percy-out');
+      const ctx = ctxFor(['maestro', 'test', 'flow.yaml']);
+      maybeInjectScreenshotDir(ctx);
+      expect(mkdir).toHaveBeenCalledWith(expectedDir, { recursive: true });
+      expect(process.env.PERCY_MAESTRO_SCREENSHOT_DIR).toBe(expectedDir);
+      expect(ctx.argv).toEqual([
+        'maestro', 'test', '--test-output-dir', expectedDir, 'flow.yaml'
+      ]);
+    });
+
+    it('honors customer-set PERCY_MAESTRO_SCREENSHOT_DIR and injects flag aligned to it', () => {
+      process.env.PERCY_MAESTRO_SCREENSHOT_DIR = '/custom/screenshot/dir';
+      const mkdir = spyOn(fs, 'mkdirSync').and.callFake(() => {});
+      const ctx = ctxFor(['maestro', 'test', 'flow.yaml']);
+      maybeInjectScreenshotDir(ctx);
+      expect(mkdir).not.toHaveBeenCalled();
+      expect(process.env.PERCY_MAESTRO_SCREENSHOT_DIR).toBe('/custom/screenshot/dir');
+      expect(ctx.argv).toEqual([
+        'maestro', 'test', '--test-output-dir', '/custom/screenshot/dir', 'flow.yaml'
+      ]);
+    });
+
+    it('honors customer-supplied --test-output-dir and mirrors value into env var', () => {
+      const mkdir = spyOn(fs, 'mkdirSync').and.callFake(() => {});
+      const ctx = ctxFor(['maestro', 'test', '--test-output-dir', '/custom/path', 'flow.yaml']);
+      maybeInjectScreenshotDir(ctx);
+      expect(mkdir).not.toHaveBeenCalled();
+      expect(process.env.PERCY_MAESTRO_SCREENSHOT_DIR).toBe('/custom/path');
+      // argv unchanged — customer's flag stays where they put it
+      expect(ctx.argv).toEqual(['maestro', 'test', '--test-output-dir', '/custom/path', 'flow.yaml']);
+    });
+
+    it('skips entirely when both env var and --test-output-dir are customer-set', () => {
+      process.env.PERCY_MAESTRO_SCREENSHOT_DIR = '/from/env';
+      const mkdir = spyOn(fs, 'mkdirSync').and.callFake(() => {});
+      const argv = ['maestro', 'test', '--test-output-dir', '/from/flag', 'flow.yaml'];
+      const ctx = ctxFor(argv);
+      maybeInjectScreenshotDir(ctx);
+      expect(mkdir).not.toHaveBeenCalled();
+      expect(process.env.PERCY_MAESTRO_SCREENSHOT_DIR).toBe('/from/env');
+      expect(ctx.argv).toEqual(argv);
+    });
+
+    it('falls back to <TMPDIR>/percy-maestro-<pid> on EACCES and emits WARN', () => {
+      const mkdir = spyOn(fs, 'mkdirSync').and.callFake((dirPath) => {
+        if (dirPath === path.join(process.cwd(), '.percy-out')) {
+          const err = new Error('EACCES'); err.code = 'EACCES';
+          throw err;
+        }
+      });
+      const log = { warn: jasmine.createSpy('warn') };
+      const ctx = ctxFor(['maestro', 'test', 'flow.yaml']);
+      maybeInjectScreenshotDir(ctx, log);
+      const fallback = path.join(os.tmpdir(), `percy-maestro-${process.pid}`);
+      expect(mkdir).toHaveBeenCalledWith(fallback, { recursive: true });
+      expect(process.env.PERCY_MAESTRO_SCREENSHOT_DIR).toBe(fallback);
+      expect(ctx.argv).toEqual([
+        'maestro', 'test', '--test-output-dir', fallback, 'flow.yaml'
+      ]);
+      expect(log.warn).toHaveBeenCalledTimes(1);
+      expect(log.warn.calls.argsFor(0)[0]).toContain('EACCES');
+      expect(log.warn.calls.argsFor(0)[0]).toContain(fallback);
+    });
+
+    it('falls back on EROFS (read-only filesystem)', () => {
+      spyOn(fs, 'mkdirSync').and.callFake((dirPath) => {
+        if (dirPath === path.join(process.cwd(), '.percy-out')) {
+          const err = new Error('EROFS'); err.code = 'EROFS';
+          throw err;
+        }
+      });
+      const log = { warn: jasmine.createSpy('warn') };
+      const ctx = ctxFor(['maestro', 'test', 'flow.yaml']);
+      maybeInjectScreenshotDir(ctx, log);
+      const fallback = path.join(os.tmpdir(), `percy-maestro-${process.pid}`);
+      expect(process.env.PERCY_MAESTRO_SCREENSHOT_DIR).toBe(fallback);
+      expect(log.warn).toHaveBeenCalled();
+    });
+
+    it('falls back on EEXIST (.percy-out collides with a non-directory)', () => {
+      spyOn(fs, 'mkdirSync').and.callFake((dirPath) => {
+        if (dirPath === path.join(process.cwd(), '.percy-out')) {
+          const err = new Error('EEXIST'); err.code = 'EEXIST';
+          throw err;
+        }
+      });
+      const log = { warn: jasmine.createSpy('warn') };
+      const ctx = ctxFor(['maestro', 'test', 'flow.yaml']);
+      maybeInjectScreenshotDir(ctx, log);
+      const fallback = path.join(os.tmpdir(), `percy-maestro-${process.pid}`);
+      expect(process.env.PERCY_MAESTRO_SCREENSHOT_DIR).toBe(fallback);
+      expect(log.warn).toHaveBeenCalled();
+    });
+
+    it('skips for `maestro hierarchy` (not a test command)', () => {
+      const mkdir = spyOn(fs, 'mkdirSync').and.callFake(() => {});
+      const argv = ['maestro', 'hierarchy', '--udid', 'X'];
+      const ctx = ctxFor(argv);
+      maybeInjectScreenshotDir(ctx);
+      expect(mkdir).not.toHaveBeenCalled();
+      expect(process.env.PERCY_MAESTRO_SCREENSHOT_DIR).toBeUndefined();
+      expect(ctx.argv).toEqual(argv);
+    });
+
+    it('skips for `npx maestro test` (argv[0] is npx, not maestro)', () => {
+      const mkdir = spyOn(fs, 'mkdirSync').and.callFake(() => {});
+      const argv = ['npx', 'maestro', 'test', 'flow.yaml'];
+      const ctx = ctxFor(argv);
+      maybeInjectScreenshotDir(ctx);
+      expect(mkdir).not.toHaveBeenCalled();
+      expect(ctx.argv).toEqual(argv);
+    });
+
+    it('skips for non-maestro commands', () => {
+      const mkdir = spyOn(fs, 'mkdirSync').and.callFake(() => {});
+      const argv = ['python', 'test.py'];
+      const ctx = ctxFor(argv);
+      maybeInjectScreenshotDir(ctx);
+      expect(mkdir).not.toHaveBeenCalled();
+      expect(ctx.argv).toEqual(argv);
+    });
+
+    it('skips when args has fewer than two elements', () => {
+      const mkdir = spyOn(fs, 'mkdirSync').and.callFake(() => {});
+      const argv = ['maestro'];
+      const ctx = ctxFor(argv);
+      maybeInjectScreenshotDir(ctx);
+      expect(mkdir).not.toHaveBeenCalled();
+      expect(ctx.argv).toEqual(argv);
+    });
+
+    it('matches by basename when the command is an absolute path', () => {
+      const mkdir = spyOn(fs, 'mkdirSync').and.callFake(() => {});
+      const expectedDir = path.join(process.cwd(), '.percy-out');
+      const ctx = ctxFor(['/Users/foo/.maestro/bin/maestro', 'test', 'flow.yaml']);
+      maybeInjectScreenshotDir(ctx);
+      expect(mkdir).toHaveBeenCalledWith(expectedDir, { recursive: true });
+      expect(ctx.argv).toEqual([
+        '/Users/foo/.maestro/bin/maestro', 'test',
+        '--test-output-dir', expectedDir,
+        'flow.yaml'
+      ]);
     });
   });
 });
