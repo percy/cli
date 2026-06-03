@@ -440,7 +440,13 @@ export function createPercyServer(percy, port) {
       // by SDKs that predate the runtime field). The fallback is what
       // ships in cli#2261 today; the explicit runtime field arrives with
       // @percy/maestro-app >= v1.0.0-Beta.1 (cf. percy-maestro-app#7+R2).
-      let selfHosted = (runtime === 'selfhosted') || (!runtime && !sessionId);
+      //
+      // `runtime === 'browserstack'` always means BS. Anything else that is
+      // NOT 'selfhosted' (absent OR an unknown future value like
+      // 'maestro-cloud') falls back to sessionId-absence detection — hence
+      // `runtime !== 'browserstack' && !sessionId`, not `!runtime && !sessionId`
+      // (the latter wrongly routed unknown non-empty runtimes to the BS branch).
+      let selfHosted = (runtime === 'selfhosted') || (runtime !== 'browserstack' && !sessionId);
 
       // Diagnostic surface for any inconsistency between the two signals
       // (debug-only — never breaks the request).

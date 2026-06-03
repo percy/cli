@@ -17,7 +17,13 @@ describe('API Server', () => {
   beforeEach(async () => {
     process.env.PERCY_FORCE_PKG_VALUE = JSON.stringify({ name: '@percy/client', version: '1.0.0' });
     jasmine.DEFAULT_TIMEOUT_INTERVAL = 150000;
-    await setupTest();
+    // The self-hosted maestro tests exercise a recursive `**` + `dot:true`
+    // fast-glob against a `.maestro/` directory. fast-glob's recursive-dot
+    // traversal is unreliable against memfs across volume resets in the full
+    // suite (works in isolation; returns [] mid-suite), so route the
+    // self-hosted root to the REAL filesystem — this also tests the true
+    // production glob path. Only paths under this unique root are affected.
+    await setupTest({ filesystem: { $bypass: [p => typeof p === 'string' && p.includes('percy-self-hosted-real')] } });
 
     percy = new Percy({
       token: 'PERCY_TOKEN',
@@ -1299,7 +1305,7 @@ describe('API Server', () => {
       it('runtime=browserstack + sessionId present → BS branch finds file under /tmp/<sid>/...', async () => {
         await percy.start();
         const res = await postMaestro({ name: SS_NAME, sessionId: SID, runtime: 'browserstack' });
-        expect(res.status).toBe(200);
+        expect(res.success).toBe(true);
       });
 
       it('runtime=browserstack + sessionId ABSENT → BS branch (trust runtime), but file-find fails → 404', async () => {
@@ -1329,13 +1335,13 @@ describe('API Server', () => {
       it('runtime=unknown-value + sessionId present → falls back to sessionId-present → BS branch', async () => {
         await percy.start();
         const res = await postMaestro({ name: SS_NAME, sessionId: SID, runtime: 'maestro-cloud' });
-        expect(res.status).toBe(200);
+        expect(res.success).toBe(true);
       });
 
       it('no runtime + sessionId present → BS branch (backward-compat with pre-runtime SDKs)', async () => {
         await percy.start();
         const res = await postMaestro({ name: SS_NAME, sessionId: SID });
-        expect(res.status).toBe(200);
+        expect(res.success).toBe(true);
       });
 
       it('no runtime + no sessionId → self-hosted branch (backward-compat with pre-runtime SDKs)', async () => {
@@ -1967,7 +1973,10 @@ describe('API Server', () => {
     // covered above; these tests lock the new branches.
     // ─────────────────────────────────────────────────────────────────────
     describe('self-hosted (sessionId absent)', () => {
-      const SELF_HOSTED_ROOT = '/tmp/percy-self-hosted-root';
+      // Real-fs root (matched by the $bypass registered in the top-level
+      // beforeEach) so the recursive `**` + `dot:true` glob runs against the
+      // real filesystem — the production path — rather than memfs.
+      const SELF_HOSTED_ROOT = '/tmp/percy-self-hosted-real-root';
       const NESTED_SUBDIR = `${SELF_HOSTED_ROOT}/.maestro/run-x/screenshots`;
       const SELF_HOSTED_NAME = 'SelfHostedScreen';
       let priorEnv;
@@ -1975,6 +1984,7 @@ describe('API Server', () => {
       beforeEach(() => {
         priorEnv = process.env.PERCY_MAESTRO_SCREENSHOT_DIR;
         process.env.PERCY_MAESTRO_SCREENSHOT_DIR = SELF_HOSTED_ROOT;
+        fs.rmSync(SELF_HOSTED_ROOT, { recursive: true, force: true });
         fs.mkdirSync(NESTED_SUBDIR, { recursive: true });
         // Valid 24-byte PNG header (1080 x 2400) exercises PNG-fill on the
         // self-hosted path too.
@@ -1990,6 +2000,8 @@ describe('API Server', () => {
       afterEach(() => {
         if (priorEnv === undefined) delete process.env.PERCY_MAESTRO_SCREENSHOT_DIR;
         else process.env.PERCY_MAESTRO_SCREENSHOT_DIR = priorEnv;
+        // Clean up the real-fs fixture root (see beforeEach / top-level $bypass).
+        fs.rmSync(SELF_HOSTED_ROOT, { recursive: true, force: true });
       });
 
       it('finds screenshot via recursive glob under PERCY_MAESTRO_SCREENSHOT_DIR and uploads without sessionId', async () => {
