@@ -693,8 +693,8 @@ describe('Unit / maestro-hierarchy', () => {
       const httpRequest = jasmine.createSpy('httpRequest').and.callFake(async () => { throw connectionRefused(); });
       const lsofStdout = [
         'COMMAND PID USER FD TYPE DEVICE NAME',
-        'dev.mobile.maestro-driver-iosUITests.xctrunner 100 user 8u IPv4 0t0 TCP *:51234 (LISTEN)',
-        'dev.mobile.maestro-driver-iosUITests.xctrunner 101 user 8u IPv4 0t0 TCP *:51235 (LISTEN)',
+        'dev.mobile.maestro-driver-iosUITests.xctrunner 100 user 8u IPv4 0x1 0t0 TCP *:51234 (LISTEN)',
+        'dev.mobile.maestro-driver-iosUITests.xctrunner 101 user 8u IPv4 0x1 0t0 TCP *:51235 (LISTEN)',
         ''
       ].join('\n');
       const execLsof = async () => ({ stdout: lsofStdout, stderr: '', exitCode: 0 });
