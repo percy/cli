@@ -2057,6 +2057,19 @@ describe('API Server', () => {
           .toBeRejectedWithError(/Screenshot not found/);
       });
 
+      it('404s when a globbed file resolves outside the root (symlink escape)', async () => {
+        // A symlink inside the root that points outside it must not exfiltrate
+        // the target — the realpath + prefix check rejects it (self-hosted arm
+        // of the "resolved outside" guard). Uses real fs via the $bypass.
+        const outside = '/tmp/percy-self-hosted-real-OUTSIDE.png';
+        fs.writeFileSync(outside, 'OUTSIDE');
+        fs.symlinkSync(outside, `${NESTED_SUBDIR}/EscapeScreen.png`);
+        await percy.start();
+        await expectAsync(postMaestro({ name: 'EscapeScreen', platform: 'android' }))
+          .toBeRejectedWithError(/resolved outside PERCY_MAESTRO_SCREENSHOT_DIR/);
+        fs.rmSync(outside, { force: true });
+      });
+
       it('rejects name with traversal characters (SAFE_ID is load-bearing for the recursive glob)', async () => {
         await percy.start();
         await expectAsync(postMaestro({ name: '../etc/passwd' }))

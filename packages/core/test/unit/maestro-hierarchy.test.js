@@ -611,6 +611,38 @@ describe('Unit / maestro-hierarchy', () => {
       expect(iosPortCache.port).toBe(7001);
     });
 
+    it('probe-7001 no-aut-tree: driver alive but AUT not foregrounded — caches port, returns no-aut-tree', async () => {
+      // The resolver caches the port for hierarchy OR no-aut-tree (the driver
+      // is alive either way). dump()'s self-hosted branch then surfaces the
+      // non-hierarchy result instead of treating it as "no driver found".
+      const springboardResponse = {
+        statusCode: 200,
+        headers: { 'content-type': 'application/json' },
+        body: fs.readFileSync(path.resolve(
+          url.fileURLToPath(import.meta.url),
+          '../../fixtures/maestro-ios-hierarchy/viewHierarchy-response-springboard-only.json'
+        ), 'utf8')
+      };
+      const httpRequest = jasmine.createSpy('httpRequest').and.resolveTo(springboardResponse);
+      const execLsof = jasmine.createSpy('execLsof');
+      const iosPortCache = { port: null };
+
+      const res = await dump({
+        platform: 'ios',
+        getEnv: () => undefined,
+        httpRequest,
+        execLsof,
+        iosPortCache
+      });
+
+      expect(res.kind).toBe('no-aut-tree');
+      expect(httpRequest.calls.first().args[0].port).toBe(7001);
+      // Port cached even on no-aut-tree (the driver is alive).
+      expect(iosPortCache.port).toBe(7001);
+      // Probe succeeded on :7001 → lsof never consulted.
+      expect(execLsof).not.toHaveBeenCalled();
+    });
+
     it('lsof discovery: 7001 fails, lsof returns exactly one xctrunner listener, cascade probes it', async () => {
       const ephemeralPort = 51234;
       const httpRequest = jasmine.createSpy('httpRequest').and.callFake(async ({ port }) => {
