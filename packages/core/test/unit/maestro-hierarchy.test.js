@@ -842,6 +842,23 @@ describe('Unit / maestro-hierarchy', () => {
       expect(httpRequest.calls.allArgs().map(a => a[0].port)).toEqual([7001, lsofPort]);
       expect(iosPortCache.port).toBeNull();
     });
+
+    it('lsof xctrunner row whose NAME has no port (non-socket FD) is skipped', async () => {
+      // The maestro-driver process also holds non-socket FDs (cwd/DIR, files);
+      // those NAME columns have no `:port`, so the row is skipped (the `!m`
+      // arm of the name-match guard).
+      const httpRequest = jasmine.createSpy('httpRequest').and.callFake(async () => { throw connectionRefused(); });
+      const lsofStdout = [
+        'COMMAND PID USER FD TYPE DEVICE NAME',
+        'dev.mobile.maestro-driver-iosUITests.xctrunner 1 user cwd DIR 1,2 0 12 /private/var/containers',
+        ''
+      ].join('\n');
+      const execLsof = async () => ({ stdout: lsofStdout, stderr: '', exitCode: 0 });
+
+      const res = await dump({ platform: 'ios', getEnv: () => undefined, httpRequest, execLsof, iosPortCache: { port: null } });
+
+      expect(res).toEqual({ kind: 'unavailable', reason: 'self-hosted-no-driver' });
+    });
   });
 
   describe('iOS HTTP dump (runIosHttpDump primary path)', () => {
