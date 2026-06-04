@@ -776,6 +776,72 @@ describe('Unit / maestro-hierarchy', () => {
       // Sanity: first call probed exactly once (7001 hit) — no range/lsof.
       expect(firstCallCount).toBe(1);
     });
+
+    it('probe-7001 hit without an iosPortCache: resolves hierarchy, nothing to cache', async () => {
+      // Covers the `if (iosPortCache)` false arm in the probe helper — a
+      // caller that doesn't thread a cache still resolves normally.
+      const httpRequest = jasmine.createSpy('httpRequest').and.resolveTo(successfulHttpResponse);
+      const execLsof = jasmine.createSpy('execLsof');
+
+      const res = await dump({ platform: 'ios', getEnv: () => undefined, httpRequest, execLsof });
+
+      expect(res.kind).toBe('hierarchy');
+      expect(httpRequest.calls.first().args[0].port).toBe(7001);
+      expect(execLsof).not.toHaveBeenCalled();
+    });
+
+    it('lsof failure modes (throw / null / spawnError / timedOut / non-zero & missing exit) all warn-skip', async () => {
+      // Covers every arm of lsofXctrunnerPort's result guard (and the catch).
+      const httpRequest = jasmine.createSpy('httpRequest').and.callFake(async () => { throw connectionRefused(); });
+      const failureModes = [
+        () => { throw new Error('lsof spawn failed'); }, // catch
+        async () => null, // !result
+        async () => ({ spawnError: true }), // spawnError
+        async () => ({ timedOut: true }), // timedOut
+        async () => ({ stdout: '', exitCode: 1 }), // exitCode !== 0
+        async () => ({ stdout: '' }) // exitCode undefined → (?? 1) !== 0
+      ];
+      for (const execLsof of failureModes) {
+        const res = await dump({ platform: 'ios', getEnv: () => undefined, httpRequest, execLsof, iosPortCache: { port: null } });
+        expect(res).toEqual({ kind: 'unavailable', reason: 'self-hosted-no-driver' });
+      }
+    });
+
+    it('lsof rows with invalid ports (0, out-of-range, overflow→Infinity) are all skipped', async () => {
+      // Covers each arm of the port-validation guard: port < 1, port > 65535,
+      // and !Number.isInteger (a 400-digit port overflows to Infinity).
+      const httpRequest = jasmine.createSpy('httpRequest').and.callFake(async () => { throw connectionRefused(); });
+      const bigPort = '9'.repeat(400);
+      const lsofStdout = [
+        'COMMAND PID USER FD TYPE DEVICE NAME',
+        'dev.mobile.maestro-driver-iosUITests.xctrunner 1 user 8u IPv4 0x1 0t0 TCP *:0 (LISTEN)',
+        'dev.mobile.maestro-driver-iosUITests.xctrunner 2 user 8u IPv4 0x1 0t0 TCP *:99999 (LISTEN)',
+        `dev.mobile.maestro-driver-iosUITests.xctrunner 3 user 8u IPv4 0x1 0t0 TCP *:${bigPort} (LISTEN)`,
+        ''
+      ].join('\n');
+      const execLsof = async () => ({ stdout: lsofStdout, stderr: '', exitCode: 0 });
+
+      const res = await dump({ platform: 'ios', getEnv: () => undefined, httpRequest, execLsof, iosPortCache: { port: null } });
+
+      expect(res).toEqual({ kind: 'unavailable', reason: 'self-hosted-no-driver' });
+    });
+
+    it('lsof finds a port but probing it also fails → warn-skip (hit falsy)', async () => {
+      // Covers the `if (hit) return hit` false arm: lsof yields a candidate,
+      // but the probe of that port fails too, so the cascade ends unresolved.
+      const lsofPort = 51234;
+      const httpRequest = jasmine.createSpy('httpRequest').and.callFake(async () => { throw connectionRefused(); });
+      const lsofStdout = `COMMAND PID USER FD TYPE DEVICE NAME\ndev.mobile.maestro-driver-iosUITests.xctrunner 1 user 8u IPv4 0x1 0t0 TCP *:${lsofPort} (LISTEN)\n`;
+      const execLsof = jasmine.createSpy('execLsof').and.resolveTo({ stdout: lsofStdout, stderr: '', exitCode: 0 });
+      const iosPortCache = { port: null };
+
+      const res = await dump({ platform: 'ios', getEnv: () => undefined, httpRequest, execLsof, iosPortCache });
+
+      expect(res).toEqual({ kind: 'unavailable', reason: 'self-hosted-no-driver' });
+      // Probed 7001 then the lsof candidate; both failed.
+      expect(httpRequest.calls.allArgs().map(a => a[0].port)).toEqual([7001, lsofPort]);
+      expect(iosPortCache.port).toBeNull();
+    });
   });
 
   describe('iOS HTTP dump (runIosHttpDump primary path)', () => {
