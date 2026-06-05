@@ -125,8 +125,53 @@ async function main({
       }
     }));
 
+    // Spec-level retry support for flaky environments (notably Windows CI,
+    // where ~1 spec out of 1000+ flakes per run on browser/server timing).
+    // When PERCY_NODE_FAILURES_FILE is set we record every failed spec name;
+    // a follow-up run with PERCY_ONLY_FAILED_SPECS=1 re-runs only those specs,
+    // turning a ~60-min full-suite retry into a few seconds. See PER-9011.
+    let failuresFile = process.env.PERCY_NODE_FAILURES_FILE;
+    let onlyFailed = process.env.PERCY_ONLY_FAILED_SPECS === '1';
+    let priorFailures = [];
+
+    if (onlyFailed && failuresFile && fs.existsSync(failuresFile)) {
+      try { priorFailures = JSON.parse(fs.readFileSync(failuresFile, 'utf8')); } catch { /* run all on unreadable file */ }
+    }
+
+    if (onlyFailed && priorFailures.length) {
+      let retrySet = new Set(priorFailures);
+      jasmine.env.configure({ specFilter: spec => retrySet.has(spec.getFullName()) });
+      console.log(colors.yellow(`Re-running ${priorFailures.length} previously-failed spec(s)...\n`));
+    }
+
+    let failures = [];
+    jasmine.addReporter({
+      specDone: result => result.status === 'failed' && failures.push(result.fullName)
+    });
+
     console.log(colors.magenta('Running node tests...\n'));
-    await jasmine.execute();
+
+    // manage the exit code ourselves so failures can be persisted first
+    jasmine.exitOnCompletion = false;
+    let result;
+
+    try {
+      result = await jasmine.execute();
+    } finally {
+      if (failuresFile) {
+        try { fs.writeFileSync(failuresFile, JSON.stringify(failures)); } catch { /* best-effort */ }
+      }
+    }
+
+    // When re-running only previously-failed specs, jasmine reports the run as
+    // "incomplete" (the rest are intentionally skipped) — so success here means
+    // the targeted specs passed, i.e. no new failures. A normal full run keeps
+    // jasmine's strict status (incomplete/failed both count as failure).
+    let passed = onlyFailed && priorFailures.length
+      ? failures.length === 0
+      : (result ? result.overallStatus === 'passed' : failures.length === 0);
+
+    process.exit(passed ? 0 : 1);
   } else if (testBrowsers) {
     // $ karma start --config <root>/karma.config.js
     let { default: Karma } = await import('karma');
