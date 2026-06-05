@@ -20,4 +20,4 @@ CLAUDE.md
 # bstack-ai-harness:end
 
 # spec-level retry bookkeeping (CI only, see PER-9011)
-.percy-node-failures.json
+.cli-test-failures.json

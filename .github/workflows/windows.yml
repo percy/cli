@@ -60,8 +60,9 @@ jobs:
     runs-on: windows-latest
     # Collect failed node-test spec names here so retries can re-run only the
     # specs that flaked instead of the whole ~60-min suite. See PER-9011.
+    # Name is deliberately non-PERCY_ so it doesn't trip env-audit tests.
     env:
-      PERCY_NODE_FAILURES_FILE: ${{ github.workspace }}/.percy-node-failures.json
+      CLI_TEST_FAILURES_FILE: ${{ github.workspace }}/.cli-test-failures.json
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v3
@@ -91,33 +92,33 @@ jobs:
         id: retry0
         run: yarn workspace ${{ matrix.package }} test --colors
       # Retries re-run ONLY the specs that failed in the previous attempt
-      # (PERCY_ONLY_FAILED_SPECS), so a flaky spec costs seconds, not ~60 min.
+      # (CLI_TEST_ONLY_FAILED), so a flaky spec costs seconds, not ~60 min.
       - name: Run tests Retry (1/4)
         continue-on-error: true
         id: retry1
         if: steps.retry0.outcome=='failure'
         env:
-          PERCY_ONLY_FAILED_SPECS: '1'
+          CLI_TEST_ONLY_FAILED: '1'
         run: yarn workspace ${{ matrix.package }} test --colors
       - name: Run tests Retry (2/4)
         continue-on-error: true
         id: retry2
         if: steps.retry1.outcome=='failure'
         env:
-          PERCY_ONLY_FAILED_SPECS: '1'
+          CLI_TEST_ONLY_FAILED: '1'
         run: yarn workspace ${{ matrix.package }} test --colors
       - name: Run tests Retry (3/4)
         continue-on-error: true
         id: retry3
         if: steps.retry2.outcome=='failure'
         env:
-          PERCY_ONLY_FAILED_SPECS: '1'
+          CLI_TEST_ONLY_FAILED: '1'
         run: yarn workspace ${{ matrix.package }} test --colors
       - name: Run tests Retry (4/4)
         id: retry4
         if: steps.retry3.outcome=='failure'
         env:
-          PERCY_ONLY_FAILED_SPECS: '1'
+          CLI_TEST_ONLY_FAILED: '1'
         run: yarn workspace ${{ matrix.package }} test --colors
       # Keep "green via retry" honest: surface a warning whenever the first
       # attempt failed and a retry recovered it, so flakiness stays visible.

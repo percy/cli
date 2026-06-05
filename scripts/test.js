@@ -127,11 +127,13 @@ async function main({
 
     // Spec-level retry support for flaky environments (notably Windows CI,
     // where ~1 spec out of 1000+ flakes per run on browser/server timing).
-    // When PERCY_NODE_FAILURES_FILE is set we record every failed spec name;
-    // a follow-up run with PERCY_ONLY_FAILED_SPECS=1 re-runs only those specs,
+    // When CLI_TEST_FAILURES_FILE is set we record every failed spec name;
+    // a follow-up run with CLI_TEST_ONLY_FAILED=1 re-runs only those specs,
     // turning a ~60-min full-suite retry into a few seconds. See PER-9011.
-    let failuresFile = process.env.PERCY_NODE_FAILURES_FILE;
-    let onlyFailed = process.env.PERCY_ONLY_FAILED_SPECS === '1';
+    // NB: these env vars are intentionally NOT prefixed with PERCY_ so they do
+    // not leak into env-audit / Percy-env detection tests (cli-doctor).
+    let failuresFile = process.env.CLI_TEST_FAILURES_FILE;
+    let onlyFailed = process.env.CLI_TEST_ONLY_FAILED === '1';
     let priorFailures = [];
 
     if (onlyFailed && failuresFile && fs.existsSync(failuresFile)) {
