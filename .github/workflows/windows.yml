@@ -40,23 +40,8 @@ jobs:
       fail-fast: false
       matrix:
         package:
-          - '@percy/env'
-          - '@percy/client'
-          - '@percy/dom'
-          - '@percy/logger'
-          - '@percy/config'
+          # PERF EXPERIMENT (PER-9011): core only, to measure the Defender effect cheaply.
           - '@percy/core'
-          - '@percy/cli'
-          - '@percy/cli-command'
-          - '@percy/cli-exec'
-          - '@percy/cli-snapshot'
-          - '@percy/cli-upload'
-          - '@percy/cli-build'
-          - '@percy/cli-config'
-          - '@percy/sdk-utils'
-          - '@percy/webdriver-utils'
-          - '@percy/monitoring'
-          - '@percy/cli-doctor'
     runs-on: windows-latest
     # Collect failed node-test spec names here so retries can re-run only the
     # specs that flaked instead of the whole ~60-min suite. See PER-9011.
@@ -86,6 +71,22 @@ jobs:
           name: dist
           path: packages
       - run: yarn
+      # PERF EXPERIMENT (PER-9011): reduce Windows Defender real-time scanning
+      # to test whether it explains the ~4x Win/Linux gap. Best-effort; the job
+      # still runs if these cmdlets are blocked by tamper protection.
+      - name: Reduce Defender overhead (experiment)
+        shell: pwsh
+        continue-on-error: true
+        run: |
+          $ErrorActionPreference = 'SilentlyContinue'
+          foreach ($p in @("${{ github.workspace }}", $env:RUNNER_TEMP, $env:TEMP, "$env:LOCALAPPDATA\Temp")) {
+            if ($p) { Add-MpPreference -ExclusionPath $p }
+          }
+          foreach ($proc in @("node.exe","yarn.exe","chrome.exe","headless_shell.exe","chrome_crashpad_handler.exe")) {
+            Add-MpPreference -ExclusionProcess $proc
+          }
+          Write-Host ("ExclusionPaths = " + (((Get-MpPreference).ExclusionPath) -join '; '))
+          Write-Host ("ExclusionProcesses = " + (((Get-MpPreference).ExclusionProcess) -join '; '))
       # First attempt runs the full suite and records any failed specs.
       - name: Run tests
         continue-on-error: true
