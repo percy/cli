@@ -137,10 +137,18 @@ async function main({
     let priorFailures = [];
 
     if (onlyFailed && failuresFile && fs.existsSync(failuresFile)) {
-      try { priorFailures = JSON.parse(fs.readFileSync(failuresFile, 'utf8')); } catch { /* run all on unreadable file */ }
+      try { priorFailures = JSON.parse(fs.readFileSync(failuresFile, 'utf8')); } catch { /* treated as no recorded failures below */ }
     }
 
-    if (onlyFailed && priorFailures.length) {
+    // A retry was requested but the previous run recorded no failed specs. That
+    // means the failure was not a flaky spec (e.g. a coverage-threshold failure
+    // or a crash) -- re-running a subset would mask it, so preserve the failure.
+    if (onlyFailed && !priorFailures.length) {
+      console.log(colors.yellow('No recorded spec failures to retry — preserving the previous failure.'));
+      process.exit(1);
+    }
+
+    if (onlyFailed) {
       let retrySet = new Set(priorFailures);
       jasmine.env.configure({ specFilter: spec => retrySet.has(spec.getFullName()) });
       console.log(colors.yellow(`Re-running ${priorFailures.length} previously-failed spec(s)...\n`));
@@ -169,7 +177,7 @@ async function main({
     // "incomplete" (the rest are intentionally skipped) — so success here means
     // the targeted specs passed, i.e. no new failures. A normal full run keeps
     // jasmine's strict status (incomplete/failed both count as failure).
-    let passed = onlyFailed && priorFailures.length
+    let passed = onlyFailed
       ? failures.length === 0
       : (result ? result.overallStatus === 'passed' : failures.length === 0);
 
