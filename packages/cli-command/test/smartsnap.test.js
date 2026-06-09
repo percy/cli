@@ -672,6 +672,14 @@ describe('smartsnap', () => {
       expect(res).toEqual({ 0: [[3, 3], [6, 7]] });
     });
 
+    it('ignores pure-deletion hunks that add no new lines', () => {
+      let { baseSha } = setup(
+        { 'src/A.js': '1\n2\n3\n' }, // line 2 removed, file kept
+        { 'src/A.js': '1\n3\n' });
+      // `@@ -2 +1,0 @@` → new-side count 0 → no range contributed.
+      expect(getAffectedFileLocations(baseSha, ['src/A.js'])).toEqual({});
+    });
+
     it('returns an empty map when there is no diff', () => {
       let { baseSha } = setup({ 'src/A.js': 'a\n' });
       // baseSha === HEAD (no second commit) → `git diff <sha> HEAD` is empty.

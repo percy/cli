@@ -140,6 +140,9 @@ export function getAffectedFileLocations(baseRef, files) {
     if (line.startsWith('+++ ')) {
       const p = line.slice(4);
       if (p === '/dev/null') { currentIdx = undefined; continue; }
+      /* istanbul ignore next: git always prefixes the new-side path with `b/`
+         (anything else is `/dev/null`, handled above), so the bare `: p`
+         fallback is defensive and unreachable in real diff output */
       const rel = p.startsWith('b/') ? p.slice(2) : p;
       currentIdx = indexByPath.get(rel);
       continue;
