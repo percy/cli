@@ -49,6 +49,23 @@ describe('shutdown + unhandled-rejection + exit codes', () => {
       expect(process.exitCode).toBe(143);
     });
 
+    // Regression for PER-8678: SIGHUP (and other non-SIGINT/SIGTERM
+    // signals) abort the run during startup before the wrapped command
+    // launches. beginShutdown only records SIGINT/SIGTERM into
+    // shutdownState, so the old gate keyed on shutdownState.signal let
+    // these signals fall through to the exitCode-0 AbortError path and
+    // exit 0 — a false-positive CI success. The exit code must be the
+    // signal-derived non-zero code (129 for SIGHUP).
+    it('sets exitCode 129 on SIGHUP', async () => {
+      let runner = makeRunner();
+      let promise = runner();
+      await new Promise(r => setImmediate(r));
+      process.emit('SIGHUP');
+      await promise.catch(() => {});
+
+      expect(process.exitCode).toBe(129);
+    });
+
     // Coverage for the PERCY_EXIT_WITH_ZERO_ON_ERROR override in the
     // signal-driven exit branch. CI pipelines that want a green run
     // even on Ctrl-C set this env var; ensure refactors don't silently
