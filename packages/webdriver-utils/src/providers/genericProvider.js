@@ -96,6 +96,13 @@ export default class GenericProvider {
 
   async browserstackExecutor(action, args) {
     if (!this.driver) throw new Error('Driver is null, please initialize driver with createDriver().');
+    // Staging/local override: when PERCY_ENABLE_DEV=true, route percyScreenshot
+    // payloads to the percy-dev project. Defaults to no projectId field (prod) so
+    // customer payloads are byte-identical to today. Mirrors the Python SDK's
+    // PERCY_ENABLE_DEV convention (percy-appium-app app_automate.py).
+    if (action === 'percyScreenshot' && process.env.PERCY_ENABLE_DEV === 'true') {
+      args = { ...args, projectId: 'percy-dev' };
+    }
     let options = args ? { action, arguments: args } : { action };
     let res = await this.driver.executeScript({ script: `browserstack_executor: ${JSON.stringify(options)}`, args: [] });
     return res;

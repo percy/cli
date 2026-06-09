@@ -1262,6 +1262,38 @@ describe('GenericProvider', () => {
       expect(executeScriptSpy)
         .toHaveBeenCalledWith({ script: 'browserstack_executor: {"action":"getSessionDetails","arguments":"new"}', args: [] });
     });
+
+    describe('with PERCY_ENABLE_DEV', () => {
+      afterEach(() => {
+        delete process.env.PERCY_ENABLE_DEV;
+      });
+
+      it('injects projectId: percy-dev into percyScreenshot payloads when enabled', async () => {
+        process.env.PERCY_ENABLE_DEV = 'true';
+        let provider = new GenericProvider(args);
+        await provider.createDriver();
+        await provider.browserstackExecutor('percyScreenshot', { state: 'begin' });
+        expect(executeScriptSpy)
+          .toHaveBeenCalledWith({ script: 'browserstack_executor: {"action":"percyScreenshot","arguments":{"state":"begin","projectId":"percy-dev"}}', args: [] });
+      });
+
+      it('does not inject projectId for non-percyScreenshot actions when enabled', async () => {
+        process.env.PERCY_ENABLE_DEV = 'true';
+        let provider = new GenericProvider(args);
+        await provider.createDriver();
+        await provider.browserstackExecutor('getSessionDetails', { foo: 'bar' });
+        expect(executeScriptSpy)
+          .toHaveBeenCalledWith({ script: 'browserstack_executor: {"action":"getSessionDetails","arguments":{"foo":"bar"}}', args: [] });
+      });
+
+      it('does not inject projectId when disabled (byte-identical to prod)', async () => {
+        let provider = new GenericProvider(args);
+        await provider.createDriver();
+        await provider.browserstackExecutor('percyScreenshot', { state: 'begin' });
+        expect(executeScriptSpy)
+          .toHaveBeenCalledWith({ script: 'browserstack_executor: {"action":"percyScreenshot","arguments":{"state":"begin"}}', args: [] });
+      });
+    });
   });
 
   describe('getTag', () => {
