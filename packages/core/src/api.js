@@ -422,40 +422,13 @@ export function createPercyServer(percy, port) {
   // post a comparison by reading a Maestro screenshot from disk
     .route('post', '/percy/maestro-screenshot', async (req, res) => {
       /* istanbul ignore next — req.body falsy guard; tests always pass a body. */
-      let { name, sessionId, runtime } = req.body || {};
+      let { name, sessionId } = req.body || {};
 
       if (!name) throw new ServerError(400, 'Missing required field: name');
 
-      // Validate `runtime` if present: must be a string, but unknown values
-      // are NOT rejected — we treat anything other than "selfhosted" /
-      // "browserstack" as "fall back to sessionId-absent detection". This
-      // is defensive against future runtime values (maestro-cloud,
-      // saucelabs, etc.) the SDK might introduce ahead of relay support.
-      if (runtime !== undefined && typeof runtime !== 'string') {
-        throw new ServerError(400, 'Invalid runtime: must be a string');
-      }
-
-      // Self-hosted detection — prefer the SDK's explicit declaration when
-      // present, fall back to sessionId absence (the implicit signal used
-      // by SDKs that predate the runtime field). The fallback is what
-      // ships in cli#2261 today; the explicit runtime field arrives with
-      // @percy/maestro-app >= v1.0.0-Beta.1 (cf. percy-maestro-app#7+R2).
-      //
-      // `runtime === 'browserstack'` always means BS. Anything else that is
-      // NOT 'selfhosted' (absent OR an unknown future value like
-      // 'maestro-cloud') falls back to sessionId-absence detection — hence
-      // `runtime !== 'browserstack' && !sessionId`, not `!runtime && !sessionId`
-      // (the latter wrongly routed unknown non-empty runtimes to the BS branch).
-      let selfHosted = (runtime === 'selfhosted') || (runtime !== 'browserstack' && !sessionId);
-
-      // Diagnostic surface for any inconsistency between the two signals
-      // (debug-only — never breaks the request).
-      if (runtime === 'browserstack' && !sessionId) {
-        percy.log.debug('maestro-screenshot: runtime=browserstack but sessionId missing — trusting runtime field');
-      }
-      if (runtime === 'selfhosted' && sessionId) {
-        percy.log.debug('maestro-screenshot: runtime=selfhosted but sessionId present — trusting runtime field');
-      }
+      // Self-hosted vs BrowserStack is signaled by sessionId presence: BS
+      // host-injection always supplies it; self-hosted runs never do.
+      let selfHosted = !sessionId;
 
       // Strict character-class validation — rejects path separators, shell metacharacters,
       // NUL, newlines, and anything else that could confuse the glob or the filesystem.

@@ -62,7 +62,6 @@ const CLEAN_PERCY_ENV = {
   PERCY_CHROMIUM_BASE_URL: undefined,
   PERCY_PAC_FILE_URL: undefined,
   PERCY_CLIENT_API_URL: undefined,
-  PERCY_CLI_API: undefined,
   PERCY_SERVER_ADDRESS: undefined,
   PERCY_SERVER_HOST: undefined,
   PERCY_COMMIT: undefined,
