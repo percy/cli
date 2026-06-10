@@ -386,7 +386,7 @@ describe('smartsnap', () => {
       let percy = {
         client: {
           generateSmartsnapGraph: async () => {},
-          getStatus: async () => ({ status: 'failure' })
+          getStatus: async () => ({ status: 'failed' })
         }
       };
       await expectBail(

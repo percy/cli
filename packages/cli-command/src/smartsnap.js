@@ -273,7 +273,7 @@ async function pollGraphStatus(percy, buildId, log) {
     const res = await percy.client.getStatus('smartsnap_graph', [buildId]);
     const status = res?.status;
     log.debug(`SmartSnap: graph status (attempt ${i + 1}) = ${status}`);
-    if (status === 'done' || status === 'failure') return { status, data: res?.data };
+    if (status === 'done' || status === 'failed') return { status, data: res?.data };
     if (i < POLL_ATTEMPTS - 1) await new Promise(r => setTimeout(r, POLL_INTERVAL_MS));
   }
   return { status: null };
