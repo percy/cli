@@ -368,7 +368,10 @@ describe('smartsnap', () => {
       };
       // affectedFileLocations is forwarded verbatim; the client snake_cases it.
       let payload = {
-        files: ['f'], modules: [{ id: 0 }], storybookPaths: ['p'], affectedNodes: ['a'],
+        files: ['f'],
+        modules: [{ id: 0 }],
+        storybookPaths: ['p'],
+        affectedNodes: ['a'],
         affectedFileLocations: { 0: [[3, 3], [6, 7]] }
       };
 
