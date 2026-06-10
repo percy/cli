@@ -42,6 +42,50 @@ export function selectByPlatform(map) {
   return map[platform];
 }
 
+// Downloads a url to the archive path. Adds an idle timeout so a stalled connection
+// (data stops arriving but the socket is never reset — the classic "frozen at 93%"
+// symptom) fails fast and can be retried, instead of hanging until the CI job times
+// out. Resolves when the file is fully written; rejects on any failure.
+function fetchToFile({ url, archive, premsg, log, timeout }) {
+  return new Promise((resolve, reject) => {
+    let request = https.get(url, {
+      agent: new ProxyHttpsAgent() // allow proxied requests
+    }, response => {
+      // on failure, resume the response before rejecting
+      if (response.statusCode !== 200) {
+        response.resume();
+        reject(new Error(`Download failed: ${response.statusCode} - ${url}`));
+        return;
+      }
+
+      // log progress
+      if (log.shouldLog('info') && logger.stdout.isTTY) {
+        let total = parseInt(response.headers['content-length'], 10);
+        let start, progress;
+
+        response.on('data', chunk => {
+          start ??= Date.now();
+          progress = (progress ?? 0) + chunk.length;
+          log.progress(formatProgress(premsg, total, start, progress));
+        });
+      }
+
+      // pipe the response directly to a file
+      response.pipe(
+        fs.createWriteStream(archive)
+          .on('finish', resolve)
+          .on('error', reject)
+      );
+    }).on('error', reject);
+
+    // abort the request if the connection stalls (no socket activity for `timeout`
+    // ms) so the download fails and can be retried rather than hanging indefinitely
+    request.setTimeout(timeout, () => {
+      request.destroy(new Error(`Download timed out after ${timeout}ms - ${url}`));
+    });
+  });
+}
+
 // Downloads and extracts an executable from a url into a local directory, returning the full path
 // to the extracted binary. Skips installation if the executable already exists at the binary path.
 export async function download({
@@ -76,40 +120,30 @@ export async function download({
     let premsg = `Downloading ${name} ${revision}`;
     log.progress(`${premsg}...`);
 
+    // idle timeout and retry count are tunable for slow or flaky networks
+    let timeout = parseInt(process.env.PERCY_CHROMIUM_DOWNLOAD_TIMEOUT, 10) || 30000;
+    let retries = parseInt(process.env.PERCY_CHROMIUM_DOWNLOAD_RETRIES, 10);
+    if (isNaN(retries)) retries = 3;
+
     try {
       // ensure the out directory exists
       await fs.promises.mkdir(outdir, { recursive: true });
 
-      // download the file at the given URL
-      await new Promise((resolve, reject) => https.get(url, {
-        agent: new ProxyHttpsAgent() // allow proxied requests
-      }, response => {
-        // on failure, resume the response before rejecting
-        if (response.statusCode !== 200) {
-          response.resume();
-          reject(new Error(`Download failed: ${response.statusCode} - ${url}`));
-          return;
+      // download the file at the given URL, retrying on transient network failures
+      // (stalled or dropped connections). The partial archive is removed between
+      // attempts so each retry starts from a clean file.
+      for (let attempt = 0; ; attempt++) {
+        try {
+          await fetchToFile({ url, archive, premsg, log, timeout });
+          break;
+        } catch (error) {
+          // clean up any partial download before retrying
+          if (fs.existsSync(archive)) await fs.promises.unlink(archive);
+          if (attempt >= retries) throw error;
+          log.warn(`Failed to download ${name} ${revision}: ${error.message}. ` +
+            `Retrying (${attempt + 1}/${retries})...`);
         }
-
-        // log progress
-        if (log.shouldLog('info') && logger.stdout.isTTY) {
-          let total = parseInt(response.headers['content-length'], 10);
-          let start, progress;
-
-          response.on('data', chunk => {
-            start ??= Date.now();
-            progress = (progress ?? 0) + chunk.length;
-            log.progress(formatProgress(premsg, total, start, progress));
-          });
-        }
-
-        // pipe the response directly to a file
-        response.pipe(
-          fs.createWriteStream(archive)
-            .on('finish', resolve)
-            .on('error', reject)
-        );
-      }).on('error', reject));
+      }
 
       if (process.env.NODE_ENV === 'executable') {
         let output = cp.execSync(command, { encoding: 'utf-8' }).trim();

@@ -34,6 +34,19 @@ export class MockRequest extends EventEmitter {
     return new URL(this.path, url.format(this)).href;
   }
 
+  // mirror http.ClientRequest's socket idle-timeout api (no-op timer in tests)
+  setTimeout(timeout, callback) {
+    this.timeout = timeout;
+    this.timeoutCallback = callback;
+    return this;
+  }
+
+  // mirror http.ClientRequest#destroy — surfaces the error to listeners
+  destroy(error) {
+    if (error) this.emit('error', error);
+    return this;
+  }
+
   // kick off a reply response on request end
   end(body) {
     // process async but return sync
