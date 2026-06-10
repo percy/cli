@@ -489,12 +489,11 @@ export function extractStorybookPaths(snapshots, normalizeImportPath, log) {
 export async function runGraphGeneration(percy, buildId, payload, log) {
   const { files, modules, storybookPaths, affectedNodes, affectedFileLocations } = payload;
   log.debug(`SmartSnap: starting graph generation job ${JSON.stringify({ buildId, files, modules, storybookPaths, affectedNodes, affectedFileLocations })}`);
-  const graphPayload = { files, modules, storybookPaths, affectedNodes };
-  // Attach only when the caller supplied it (an empty `{}` from the no-diff path
-  // is still a value and is sent); callers that omit it entirely don't send the
-  // key. The API maps file index → changed [start, end] line ranges.
-  if (affectedFileLocations) graphPayload.affected_file_locations = affectedFileLocations;
-  await percy.client.generateSmartsnapGraph(buildId, graphPayload);
+  // Pass camelCase to the client, which snake_cases it to `affected_file_locations`
+  // for the API (same convention as storybookPaths → storybook_paths).
+  await percy.client.generateSmartsnapGraph(buildId, {
+    files, modules, storybookPaths, affectedNodes, affectedFileLocations
+  });
 
   const { status, data } = await pollGraphStatus(percy, buildId, log);
   if (status !== 'done') {

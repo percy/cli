@@ -366,33 +366,16 @@ describe('smartsnap', () => {
           getStatus: async () => ({ status: 'done', data })
         }
       };
-      let payload = { files: ['f'], modules: [{ id: 0 }], storybookPaths: ['p'], affectedNodes: ['a'] };
+      // affectedFileLocations is forwarded verbatim; the client snake_cases it.
+      let payload = {
+        files: ['f'], modules: [{ id: 0 }], storybookPaths: ['p'], affectedNodes: ['a'],
+        affectedFileLocations: { 0: [[3, 3], [6, 7]] }
+      };
 
       let res = await runGraphGeneration(percy, 'bld-1', payload, log);
 
       expect(res).toBe(data);
       expect(generate).toHaveBeenCalledWith('bld-1', payload);
-    });
-
-    it('forwards affectedFileLocations to the API as affected_file_locations', async () => {
-      let log = mockLog();
-      let generate = jasmine.createSpy('generateSmartsnapGraph');
-      let percy = {
-        client: {
-          generateSmartsnapGraph: generate,
-          getStatus: async () => ({ status: 'done', data: { affected_stories: [] } })
-        }
-      };
-      let affectedFileLocations = { 0: [[3, 3], [6, 7]], 2: [[1, 1]] };
-      let payload = { files: ['f'], modules: [], storybookPaths: [], affectedNodes: ['a'], affectedFileLocations };
-
-      await runGraphGeneration(percy, 'bld-1', payload, log);
-
-      // affectedFileLocations is renamed to the snake_case key the API expects;
-      // the camelCase key is not forwarded.
-      expect(generate).toHaveBeenCalledWith('bld-1', {
-        files: ['f'], modules: [], storybookPaths: [], affectedNodes: ['a'], affected_file_locations: affectedFileLocations
-      });
     });
 
     it('bails when the job does not reach done', async () => {

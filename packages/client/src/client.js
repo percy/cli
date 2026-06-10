@@ -457,7 +457,8 @@ export class PercyClient {
     files,
     modules,
     storybookPaths,
-    affectedNodes
+    affectedNodes,
+    affectedFileLocations
   } = {}) {
     this.log.debug(`Smartsnap: enqueueing graph build for build ${buildId}...`);
     return this.post('smartsnap/generate-graph', {
@@ -465,7 +466,8 @@ export class PercyClient {
       files,
       modules,
       storybook_paths: storybookPaths,
-      affected_nodes: affectedNodes
+      affected_nodes: affectedNodes,
+      affected_file_locations: affectedFileLocations
     }, { identifier: 'smartsnap.generate_graph' });
   }
 
