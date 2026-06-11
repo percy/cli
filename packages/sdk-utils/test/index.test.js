@@ -331,6 +331,20 @@ describe('SDK Utils', () => {
         body: options
       }]);
     });
+
+    it('returns the per-comparison verdict (response.body.data) in sync mode', async () => {
+      // In sync mode the CLI returns the comparison detail under `data`; postComparison surfaces it
+      // directly so the SDK can classify pass/fail (Playwright drop-in Unit 5b).
+      let detail = { 'snapshot-name': 'home', status: 'success' };
+      spyOn(utils.request, 'post').and.callFake(() => Promise.resolve({ body: { success: true, data: detail } }));
+      await expectAsync(postComparison({ ...options, sync: true })).toBeResolvedTo(detail);
+    });
+
+    it('returns the raw response (no body.data) in fire-and-forget mode', async () => {
+      let response = { body: { success: true } };
+      spyOn(utils.request, 'post').and.callFake(() => Promise.resolve(response));
+      await expectAsync(postComparison(options)).toBeResolvedTo(response);
+    });
   });
 
   describe('postBuildEvents(options)', () => {

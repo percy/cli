@@ -198,7 +198,12 @@ describe('PercyClient', () => {
     beforeEach(() => {
       delete process.env.PERCY_AUTO_ENABLED_GROUP_BUILD;
       delete process.env.PERCY_ORIGINATED_SOURCE;
+      delete process.env.PERCY_BUILD_SOURCE;
       delete process.env.PERCY_VISUAL_CONFIG;
+    });
+
+    afterEach(() => {
+      delete process.env.PERCY_BUILD_SOURCE;
     });
 
     it('creates a new build', async () => {
@@ -236,6 +241,67 @@ describe('PercyClient', () => {
             tags: []
           }
         }));
+    });
+
+    it('creates a build with an explicit parallel nonce/total and source override', async () => {
+      await expectAsync(client.createBuild({
+        projectType: 'generic',
+        parallelNonce: 'baseline-nonce',
+        parallelTotal: -1,
+        source: 'playwright-dropin-baseline'
+      })).toBeResolvedTo({
+        data: {
+          id: '123',
+          attributes: {
+            'build-number': 1,
+            'web-url': 'https://percy.io/test/test/123'
+          }
+        }
+      });
+
+      expect(api.requests['/builds'][0].body.data.attributes)
+        .toEqual(jasmine.objectContaining({
+          'parallel-nonce': 'baseline-nonce',
+          'parallel-total-shards': -1,
+          source: 'playwright-dropin-baseline'
+        }));
+    });
+
+    it('ignores env-derived source overrides when an explicit source is given', async () => {
+      process.env.PERCY_ORIGINATED_SOURCE = 'true';
+      await expectAsync(client.createBuild({
+        source: 'playwright-dropin-baseline'
+      })).toBeResolved();
+
+      expect(api.requests['/builds'][0].body.data.attributes.source)
+        .toEqual('playwright-dropin-baseline');
+    });
+
+    it('uses PERCY_BUILD_SOURCE as the source when no explicit source is given', async () => {
+      process.env.PERCY_BUILD_SOURCE = 'playwright-dropin';
+      await expectAsync(client.createBuild()).toBeResolved();
+
+      expect(api.requests['/builds'][0].body.data.attributes.source)
+        .toEqual('playwright-dropin');
+    });
+
+    it('prefers PERCY_BUILD_SOURCE over the legacy env-derived sources', async () => {
+      process.env.PERCY_BUILD_SOURCE = 'playwright-dropin';
+      process.env.PERCY_ORIGINATED_SOURCE = 'true';
+      await expectAsync(client.createBuild()).toBeResolved();
+
+      expect(api.requests['/builds'][0].body.data.attributes.source)
+        .toEqual('playwright-dropin');
+    });
+
+    it('prefers an explicit source param over PERCY_BUILD_SOURCE', async () => {
+      process.env.PERCY_BUILD_SOURCE = 'playwright-dropin';
+      await expectAsync(client.createBuild({
+        source: 'playwright-dropin-baseline'
+      })).toBeResolved();
+
+      expect(api.requests['/builds'][0].body.data.attributes.source)
+        .toEqual('playwright-dropin-baseline');
     });
 
     it('creates a new build with projectType passed as null', async () => {
