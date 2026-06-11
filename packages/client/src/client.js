@@ -321,9 +321,12 @@ export class PercyClient {
   async createBuild({ resources = [], projectType, cliStartTime = null, parallelNonce = null, parallelTotal = null, source = null } = {}) {
     this.log.debug('Creating a new build...');
     let visualConfig = parseVisualConfigFromEnv(this.log);
-    let buildSource = source || 'user_created';
+    // Source precedence: explicit param (baseline-seed path) > PERCY_BUILD_SOURCE env > legacy
+    // env-derived sources > default. PERCY_BUILD_SOURCE lets an SDK tag the head build it doesn't
+    // create directly (e.g. @percy/playwright-dropin sets it to 'playwright-dropin').
+    let buildSource = source || process.env.PERCY_BUILD_SOURCE || 'user_created';
 
-    if (!source) {
+    if (!source && !process.env.PERCY_BUILD_SOURCE) {
       if (process.env.PERCY_ORIGINATED_SOURCE) {
         buildSource = 'bstack_sdk_created';
       } else if (process.env.PERCY_AUTO_ENABLED_GROUP_BUILD === 'true') {
