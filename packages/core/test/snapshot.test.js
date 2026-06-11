@@ -2194,6 +2194,74 @@ describe('Snapshot', () => {
       });
     });
   });
+
+  describe('VRA layout tip', () => {
+    let tip = '[percy] Tip: VRA is Percy\'s recommended visual review mode — more accurate and adaptable than Layout. Learn more: https://www.browserstack.com/docs/percy/ai-agents/visual-review-agent/overview.';
+
+    it('logs a VRA tip before finalizing when a snapshot has layout enabled', async () => {
+      await percy.snapshot({
+        name: 'test snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot: '<html></html>',
+        enableLayout: true
+      });
+
+      await percy.stop();
+
+      expect(logger.stderr).toContain(tip);
+      expect(logger.stdout).toContain(
+        '[percy] Finalized build #1: https://percy.io/test/test/123'
+      );
+    });
+
+    it('logs the VRA tip when enableLayout is set globally in config', async () => {
+      percy.config.snapshot.enableLayout = true;
+
+      await percy.snapshot({
+        name: 'test snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot: '<html></html>'
+      });
+
+      await percy.stop();
+
+      expect(logger.stderr).toContain(tip);
+    });
+
+    it('logs the VRA tip only once when multiple snapshots have layout enabled', async () => {
+      await percy.snapshot({
+        name: 'snapshot one',
+        url: 'http://localhost:8000',
+        domSnapshot: '<html></html>',
+        enableLayout: true
+      });
+      await percy.snapshot({
+        name: 'snapshot two',
+        url: 'http://localhost:8000',
+        domSnapshot: '<html></html>',
+        enableLayout: true
+      });
+
+      await percy.stop();
+
+      expect(logger.stderr.filter(l => l === tip).length).toEqual(1);
+    });
+
+    it('does not log the VRA tip when no snapshot has layout enabled', async () => {
+      await percy.snapshot({
+        name: 'test snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot: '<html></html>'
+      });
+
+      await percy.stop();
+
+      expect(logger.stderr).not.toContain(tip);
+      expect(logger.stdout).toContain(
+        '[percy] Finalized build #1: https://percy.io/test/test/123'
+      );
+    });
+  });
 });
 
 // ── runDoctorOnFailure ────────────────────────────────────────────────────────

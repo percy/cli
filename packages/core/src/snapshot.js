@@ -428,6 +428,9 @@ export function createSnapshotsQueue(percy) {
         await runDoctorOnFailure(percy);
       } else if (build?.id) {
         await percy.client.finalizeBuild(build.id);
+        if (build.layoutUsed) {
+          percy.log.warn('Tip: VRA is Percy\'s recommended visual review mode — more accurate and adaptable than Layout. Learn more: https://www.browserstack.com/docs/percy/ai-agents/visual-review-agent/overview.');
+        }
         percy.log.info(`Finalized build #${build.number}: ${build.url}`, { build });
       } else {
         percy.log.warn('Build not created', { build });
@@ -443,6 +446,9 @@ export function createSnapshotsQueue(percy) {
     // when pushed, maybe flush old snapshots or possibly merge with existing snapshots
     .handle('push', (snapshot, existing) => {
       let { name, meta } = snapshot;
+
+      // track layout usage to tip about VRA when the build is finalized
+      if (snapshot.enableLayout) build.layoutUsed = true;
 
       // log immediately when not deferred or dry-running
       if (!percy.deferUploads) percy.log.info(`Snapshot taken: ${snapshotLogName(name, meta)}`, meta);
