@@ -101,16 +101,16 @@ const SELECTOR_KEYS_UNION = ['resource-id', 'text', 'content-desc', 'class', 'id
 // past the socket timeout.
 const IOS_HTTP_HEALTHY_DEADLINE_MS = 1500;
 const IOS_HTTP_CIRCUIT_BREAKER_MS = 5000;
-// BS realmobile derives the iOS driver-host-port as wda_port + 2700 (WDA
-// ports 8400-8410 → driver host ports 11100-11110). The validator
-// `parseIosDriverHostPort` accepts any valid TCP port (1-65535); the BS
-// range is a strict subset. Self-hosted iOS port resolution probes
-// `127.0.0.1:7001` first — source-verified on Maestro 1.40-2.4.0 (cli-2.4.0
-// `TestCommand.kt#selectPort`) as the deterministic single-simulator port;
-// sharded runs use the fixed range 7001-7128. Ephemeral-port Maestro
-// (`main`/2.6.0+ uses `ServerSocket(0)`) is handled by `lsof`
-// self-discovery rather than range-probing.
-const IOS_SELF_HOSTED_PROBE_PORT = 7001;
+// `parseIosDriverHostPort` accepts any valid TCP port (1-65535). The
+// BrowserStack-realmobile canonical range (11100-11110, derived as
+// wda_port + 2700 from WDA ports 8400-8410) is a strict subset. Self-hosted
+// callers prescribe the port via `@percy/cli-app`'s `maybeInjectDriverHostPort`
+// helper, which auto-injects `--driver-host-port <PORT>` into the
+// `maestro test` argv and mirrors the chosen value to
+// `PERCY_IOS_DRIVER_HOST_PORT`. This relay reads the env var unconditionally
+// and no longer auto-discovers the port via probe / lsof — see Phase 3 of
+// the self-hosted Maestro architecture doc and brainstorm
+// `2026-06-11-ios-port-discovery-simplification-requirements.md`.
 // HTTP response cap before parse — sized for WebView-heavy iOS apps.
 const IOS_HTTP_RESPONSE_MAX_BYTES = 20 * 1024 * 1024;
 
@@ -1251,110 +1251,11 @@ async function runAdbFallback(serial, execAdb) {
 }
 
 // ===== Self-hosted iOS port resolution helpers =====
-// Used only on the implicit branch of the iOS dispatch — when
-// PERCY_IOS_DRIVER_HOST_PORT is absent, the resolver auto-discovers the
-// running Maestro iOS driver's host port via deterministic probe + lsof.
-// The BS path (explicit env vars present) does not invoke these.
-
-// Production default for `execLsof`. Tests inject a fake. The 5s timeout
-// is generous — lsof is local and listing TCP LISTEN sockets is fast; the
-// budget is mostly defense against a hung lsof. Returns the spawn result
-// in the shape spawnWithTimeout produces.
-/* istanbul ignore next — child-process spawn wrapper; tests inject a fake. */
-async function execLsofDefault({ timeoutMs } = {}) {
-  return spawnWithTimeout('lsof', ['-nP', '-iTCP', '-sTCP:LISTEN'], { timeoutMs: timeoutMs ?? 5000 });
-}
-
-// Parse `lsof -nP -iTCP -sTCP:LISTEN` output and return the LISTEN port of
-// the Maestro iOS XCTest runner — ONLY when exactly one matching listener
-// is found. Zero matches, multiple matches, or any spawn/parse failure
-// returns null so the caller falls through to warn-skip rather than
-// guessing. Match criterion: process name (column 1, case-insensitive
-// substring) contains `maestro-driver-ios` (covers names like
-// `dev.mobile.maestro-driver-iosUITests.xctrunner` plus future variants).
-async function lsofXctrunnerPort(execLsof) {
-  let result;
-  try { result = await execLsof({ timeoutMs: 5000 }); } catch { return null; }
-  if (!result || result.spawnError || result.timedOut || (result.exitCode ?? 1) !== 0) return null;
-  const lines = (result.stdout || '').split('\n');
-  const matches = new Set();
-  for (const line of lines) {
-    if (!line) continue;
-    const cols = line.split(/\s+/);
-    // lsof default columns: COMMAND PID USER FD TYPE DEVICE SIZE/OFF NODE NAME...
-    if (cols.length < 9) continue;
-    if (!/maestro-driver-ios/i.test(cols[0])) continue;
-    // NAME column for LISTEN sockets looks like `*:7001` or `127.0.0.1:7001`,
-    // sometimes suffixed with `(LISTEN)`. Pull the last `:<digits>` group.
-    const name = cols.slice(8).join(' ');
-    const m = name.match(/:(\d+)(?=\D|$)/g);
-    if (!m || m.length === 0) continue;
-    const last = m[m.length - 1];
-    const port = Number(last.slice(1));
-    if (!Number.isInteger(port) || port < 1 || port > 65535) continue;
-    matches.add(port);
-    if (matches.size > 1) return null; // multi-match → don't guess
-  }
-  return matches.size === 1 ? [...matches][0] : null;
-}
-
-// Self-hosted iOS port resolution cascade. Returns either
-// `{ port, result }` where `result` is a `runIosHttpDump` outcome
-// (caller decides what to do with it), or `null` (caller emits
-// warn-skip). Order:
-//   1. Cache hit → re-probe the cached port (subsequent snapshots).
-//   2. Probe `127.0.0.1:7001` (deterministic single-simulator port on
-//      Maestro ≤2.4.0 per the source-verified spike).
-//   3. `lsof` self-discovery for ephemeral-port Maestro (2.6+ uses
-//      `ServerSocket(0)`); exactly-one-match guard.
-//   4. null → warn-skip.
-//
-// "Probe" reuses runIosHttpDump as both the liveness check AND the dump.
-// A `hierarchy` or `no-aut-tree` result confirms the port is a valid
-// Maestro driver (`no-aut-tree` means the driver is alive but the AUT
-// isn't foregrounded — still a Maestro listener worth caching).
-// `dump-error` and `connection-fail` are NOT cached and move to the
-// next candidate; in the cascade we don't propagate schema-drift since
-// the wrong service answering on `7001` would also produce `dump-error`.
-async function resolveSelfHostedIosPort({ httpRequest, execLsof, sessionId, iosPortCache }) {
-  const probe = async port => {
-    const result = await runIosHttpDump({ port, sessionId, httpRequest });
-    if (result.kind === 'hierarchy' || result.kind === 'no-aut-tree') {
-      if (iosPortCache) iosPortCache.port = port;
-      return { port, result };
-    }
-    return null;
-  };
-
-  // 1. Cache hit.
-  if (iosPortCache && Number.isInteger(iosPortCache.port)) {
-    const cached = iosPortCache.port;
-    const result = await runIosHttpDump({ port: cached, sessionId, httpRequest });
-    return { port: cached, result };
-  }
-
-  // 2. Deterministic primary.
-  const primary = await probe(IOS_SELF_HOSTED_PROBE_PORT);
-  if (primary) return primary;
-
-  // 3. lsof self-discovery — only try its port if it's distinct from the
-  // primary we already probed (otherwise the earlier probe failure
-  // already settled it).
-  const lsofPort = await lsofXctrunnerPort(execLsof);
-  if (lsofPort !== null && lsofPort !== IOS_SELF_HOSTED_PROBE_PORT) {
-    const hit = await probe(lsofPort);
-    if (hit) return hit;
-  }
-
-  // 4. Nothing resolved.
-  return null;
-}
-
 export async function dump(options) {
   /* istanbul ignore next — options-omitted default; callers always pass an
      object (tests inject every dependency; production code binds them). */
   options = options || {};
-  let { platform, sessionId, execAdb, execMaestro, httpRequest, grpcClient, grpcClientCache, getEnv, execLsof, iosPortCache } = options;
+  let { platform, sessionId, execAdb, execMaestro, httpRequest, grpcClient, grpcClientCache, getEnv } = options;
   /* istanbul ignore next — defaults applied only when caller omits the
      corresponding key; tests inject every dependency, production callers
      bind these from defaults at runtime. */
@@ -1369,44 +1270,29 @@ export async function dump(options) {
   grpcClient = grpcClient || defaultGrpcClientFactory;
   /* istanbul ignore next */
   getEnv = getEnv || defaultGetEnv;
-  /* istanbul ignore next — execLsof default for the self-hosted iOS
-     cascade; tests inject a fake. iosPortCache has no default — undefined
-     is the "no cache" sentinel and the cascade handles it. */
-  execLsof = execLsof || execLsofDefault;
   const started = Date.now();
 
   if (platform === 'ios') {
     const udid = getEnv('PERCY_IOS_DEVICE_UDID');
     const driverHostPortRaw = getEnv('PERCY_IOS_DRIVER_HOST_PORT');
 
-    // ─── Self-hosted (implicit) — PERCY_IOS_DRIVER_HOST_PORT absent ────────
-    // Cascade-discover the running Maestro iOS driver's host port: cache →
-    // probe 127.0.0.1:7001 → lsof self-discovery → warn-skip. No CLI cold-
-    // start tier (that was Tier B from the original plan, cut after the
-    // spike confirmed `7001` is deterministic on Maestro ≤2.4.0 + lsof
-    // covers the ephemeral-port case). UDID is not required here — the
-    // HTTP `/viewHierarchy` POST doesn't take a udid; the driver host is
-    // already bound to one device.
+    // `PERCY_IOS_DRIVER_HOST_PORT` is the single source of truth for the
+    // iOS Maestro driver port. It is set by:
+    //   * BrowserStack hosts (canonical 11100-11110 range, via
+    //     `cli_manager.rb#start_percy_cli` env injection)
+    //   * `@percy/cli-app`'s `maybeInjectDriverHostPort` helper for
+    //     self-hosted customers running `percy app:exec` (any port,
+    //     either customer-supplied or picked by the OS at startup)
+    //   * Manually by power users who pin the driver port themselves
+    //
+    // When the env var is absent, the customer skipped `percy app:exec`
+    // (or BS host injection failed). Element regions degrade gracefully
+    // with `env-missing` — coordinate regions and the snapshot itself
+    // continue to upload via the relay's other paths.
     if (!driverHostPortRaw) {
-      const cascade = await resolveSelfHostedIosPort({ httpRequest, execLsof, sessionId, iosPortCache });
-      if (cascade) {
-        const { port, result } = cascade;
-        if (result.kind === 'hierarchy') {
-          log.debug(`dump took ${Date.now() - started}ms via maestro-http (self-hosted, port=${port}, ${result.nodes.length} nodes)`);
-          recordResolverSuccess({ platform: 'ios', via: 'maestro-http' });
-        } else {
-          // `no-aut-tree` from a resolved port — Maestro driver alive (port
-          // cached) but the AUT isn't foregrounded for THIS snapshot.
-          // Subsequent snapshots in the session re-probe the cached port
-          // and may succeed.
-          log.debug(`dump took ${Date.now() - started}ms via maestro-http (self-hosted, port=${port}, ${result.kind}/${result.reason})`);
-          recordResolverFinalFailure({ platform: 'ios', failureClass: failureClassFromReason(result.reason) });
-        }
-        return result;
-      }
-      log.warn('[percy] iOS element regions: no Maestro driver found on :7001 or via lsof. Set PERCY_IOS_DRIVER_HOST_PORT (real devices use a forwarded port; sharded/newer Maestro may use a different port).');
+      log.warn('[percy] iOS element regions unavailable — PERCY_IOS_DRIVER_HOST_PORT is not set. Run `percy app:exec -- maestro test ...` so it is injected automatically, or set it manually to your Maestro driver-host-port.');
       recordResolverFinalFailure({ platform: 'ios', failureClass: 'other' });
-      return { kind: 'unavailable', reason: 'self-hosted-no-driver' };
+      return { kind: 'unavailable', reason: 'env-missing' };
     }
 
     // ─── Explicit — PERCY_IOS_DRIVER_HOST_PORT present ─────────────────────

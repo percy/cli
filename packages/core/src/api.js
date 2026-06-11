@@ -769,15 +769,14 @@ export function createPercyServer(percy, port) {
           if (cachedDump === null) {
             // Thread the per-Percy gRPC client cache so the Android gRPC
             // primary path can reuse channels across snapshots in the same
-            // session (D9 of 2026-05-07-002 plan). iOS path ignores it.
-            // Also thread iosPortCache so the self-hosted iOS port cascade
-            // (probe 7001 + lsof) resolves once per session and reuses the
-            // port for subsequent snapshots — same per-Percy scope.
+            // session (D9 of 2026-05-07-002 plan). iOS path ignores it
+            // (the iOS resolver reads PERCY_IOS_DRIVER_HOST_PORT directly;
+            // no per-session port cache needed since the port is prescribed
+            // upstream by `@percy/cli-app`'s `maybeInjectDriverHostPort`).
             cachedDump = await maestroDump({
               platform,
               sessionId,
-              grpcClientCache: percy.grpcClientCache,
-              iosPortCache: percy.iosPortCache
+              grpcClientCache: percy.grpcClientCache
             });
           }
           /* istanbul ignore else — branch where dump resolves to hierarchy is
