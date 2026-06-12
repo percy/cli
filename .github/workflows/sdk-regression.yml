@@ -2,10 +2,19 @@ name: SDK Regression
 on:
   issue_comment:
     types: [created, edited] 
+permissions:
+  contents: read
 jobs:
   regression:
     name: regression
     runs-on: ubuntu-latest
+    # Least-privilege: read code/PR data and write commit statuses only. Note an
+    # author-permission guard below (check-access) already restricts triggering
+    # to write/admin collaborators (CWE-284 / PER-8610).
+    permissions:
+      contents: read
+      pull-requests: read
+      statuses: write
     if: ${{ github.event.issue.pull_request && github.event.comment.body == 'RUN_REGRESSION' }}
     strategy:
       matrix:
@@ -32,7 +41,7 @@ jobs:
           - gatsby-plugin-percy
     steps:
       - name: Get user permissions
-        uses: actions/github-script@v4
+        uses: actions/github-script@f891eff65186019cbb3f7190c4590bc0a1b76fbc # v4.1.0
         id: check-access
         with:
           script: |
@@ -44,10 +53,10 @@ jobs:
       - name: Check Access Level
         if: steps.check-access.outputs.result != 'write' && steps.check-access.outputs.result != 'admin'
         run: exit 1
-      - uses: xt0rted/pull-request-comment-branch@v3
+      - uses: xt0rted/pull-request-comment-branch@e8b8daa837e8ea7331c0003c9c316a64c6d8b0b1 # v3.0.0
         if: ${{ github.event.issue.pull_request }}
         id: comment-branch
-      - uses: actions-ecosystem/action-regex-match@v2
+      - uses: actions-ecosystem/action-regex-match@9e6c4fb3d5e898f505be7a1fb6e7b0a278f6665b # v2.0.2
         id: regex-match
         with:
           text: ${{ steps.comment-branch.outputs.head_ref }}
@@ -57,14 +66,14 @@ jobs:
         if: ${{ steps.regex-match.outputs.match == '' }}
 
       - name: Get Current Job Log URL
-        uses: Tiryoh/gha-jobid-action@v0
+        uses: Tiryoh/gha-jobid-action@be260d8673c9211a84cdcf37794ebd654ba81eef # v1.4.0
         id: job-url
         with:
           github_token: ${{ secrets.WORKFLOW_DISPATCH_ACTIONS_TOKEN }}
           job_name: "regression (${{ matrix.repo }})" 
       - name: Output Current Job Log URL
         run: echo ${{ steps.jobs.outputs.html_url }}
-      - uses: actions/github-script@v4
+      - uses: actions/github-script@f891eff65186019cbb3f7190c4590bc0a1b76fbc # v4.1.0
         with:
           github-token: ${{ secrets.WORKFLOW_DISPATCH_ACTIONS_TOKEN }}
           script: |
@@ -82,13 +91,13 @@ jobs:
               state,
               target_url
             });
-      - uses: winterjung/split@v2
+      - uses: winterjung/split@7f51d99e7cc1f147f6f99be75acf5e641930af88 # v2.1.0
         id: split
         with:
           msg: ${{ matrix.repo }}
           separator: '@'
       - name: Trigger Workflow & Wait
-        uses: convictional/trigger-workflow-and-wait@v1.6.5
+        uses: convictional/trigger-workflow-and-wait@f69fa9eedd3c62a599220f4d5745230e237904be # v1.6.5
         id: reg-test
         with:
           owner: percy
@@ -99,7 +108,7 @@ jobs:
           client_payload: '{ "branch": "${{ steps.comment-branch.outputs.head_ref }}"}'
           wait_interval: 15
       - name: Update Status
-        uses: actions/github-script@v4
+        uses: actions/github-script@f891eff65186019cbb3f7190c4590bc0a1b76fbc # v4.1.0
         with:
           github-token: ${{ secrets.WORKFLOW_DISPATCH_ACTIONS_TOKEN }}
           script: |
