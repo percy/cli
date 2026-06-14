@@ -476,27 +476,43 @@ describe('Unit / maestro-hierarchy', () => {
   });
 
   describe('iOS dispatch — env handling', () => {
-    it('returns env-missing when PERCY_IOS_DEVICE_UDID is unset', async () => {
+    // Self-hosted-with-explicit-port-but-no-UDID: enters the EXPLICIT branch
+    // (port present), runs the HTTP primary. With UDID absent, the CLI
+    // fallback is unavailable — on HTTP success the dump returns; on HTTP
+    // failure (connection-fail here), warn-skip with the new
+    // `self-hosted-no-udid` reason.
+    it('warn-skips with self-hosted-no-udid when port is set, udid is unset, and HTTP primary fails', async () => {
       const getEnv = key => {
         if (key === 'PERCY_IOS_DRIVER_HOST_PORT') return '11100';
         return undefined;
       };
-      const res = await dump({ platform: 'ios', getEnv });
-      expect(res).toEqual({ kind: 'unavailable', reason: 'env-missing' });
+      const httpRequest = async () => { throw Object.assign(new Error('econnrefused'), { code: 'ECONNREFUSED' }); };
+      const res = await dump({ platform: 'ios', getEnv, httpRequest });
+      expect(res).toEqual({ kind: 'unavailable', reason: 'self-hosted-no-udid' });
     });
 
-    it('returns env-missing when PERCY_IOS_DRIVER_HOST_PORT is unset', async () => {
+    // Self-hosted (UDID-set, PORT-unset): the prescribe-don't-discover refactor
+    // (Phase 3) removed the port-discovery cascade. PERCY_IOS_DRIVER_HOST_PORT
+    // is now the single source of truth. When it is absent the relay returns
+    // env-missing and the snapshot continues to upload via other paths;
+    // element regions degrade gracefully. UDID presence/absence is irrelevant
+    // when the port env is unset — without a port there is nothing to call.
+    it('warn-skips with env-missing when port is unset (udid set)', async () => {
       const getEnv = key => {
         if (key === 'PERCY_IOS_DEVICE_UDID') return '00008110-000065081404401E';
         return undefined;
       };
-      const res = await dump({ platform: 'ios', getEnv });
+      const httpRequest = jasmine.createSpy('httpRequest');
+      const res = await dump({ platform: 'ios', getEnv, httpRequest });
       expect(res).toEqual({ kind: 'unavailable', reason: 'env-missing' });
+      expect(httpRequest).not.toHaveBeenCalled();
     });
 
-    it('returns env-missing when both env vars are unset', async () => {
-      const res = await dump({ platform: 'ios', getEnv: () => undefined });
+    it('warn-skips with env-missing when both env vars are unset', async () => {
+      const httpRequest = jasmine.createSpy('httpRequest');
+      const res = await dump({ platform: 'ios', getEnv: () => undefined, httpRequest });
       expect(res).toEqual({ kind: 'unavailable', reason: 'env-missing' });
+      expect(httpRequest).not.toHaveBeenCalled();
     });
 
     it('does not invoke adb on iOS dispatch', async () => {

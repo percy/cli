@@ -90,10 +90,18 @@ describe('Unit / maestro-hierarchy / cross-platform parity', () => {
     });
 
     it('iOS env-missing returns { kind: "unavailable", reason: "env-missing" }', async () => {
-      // Same envelope shape as Android-failure paths, just a different reason tag.
-      const res = await dump({ platform: 'ios', getEnv: () => undefined });
+      // Same envelope shape as Android-failure paths, just a different reason
+      // tag. Post-Phase-3 (prescribe-don't-discover): the port-discovery
+      // cascade was removed. PERCY_IOS_DRIVER_HOST_PORT is now the single
+      // source of truth — set by BS hosts, by @percy/cli-app's
+      // `maybeInjectDriverHostPort`, or manually by power users. When
+      // absent the dispatch returns env-missing and the snapshot continues
+      // to upload via other paths; element regions degrade gracefully.
+      const httpRequest = jasmine.createSpy('httpRequest');
+      const res = await dump({ platform: 'ios', getEnv: () => undefined, httpRequest });
       expect(res.kind).toBe('unavailable');
       expect(res.reason).toBe('env-missing');
+      expect(httpRequest).not.toHaveBeenCalled();
     });
 
     it('iOS env-set with no http/maestro reachable returns same envelope kinds as Android failure paths', async () => {

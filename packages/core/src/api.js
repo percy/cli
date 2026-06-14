@@ -425,15 +425,19 @@ export function createPercyServer(percy, port) {
       let { name, sessionId } = req.body || {};
 
       if (!name) throw new ServerError(400, 'Missing required field: name');
-      if (!sessionId) throw new ServerError(400, 'Missing required field: sessionId');
+
+      // Self-hosted vs BrowserStack is signaled by sessionId presence: BS
+      // host-injection always supplies it; self-hosted runs never do.
+      let selfHosted = !sessionId;
 
       // Strict character-class validation — rejects path separators, shell metacharacters,
       // NUL, newlines, and anything else that could confuse the glob or the filesystem.
+      // `name` is load-bearing for the recursive glob — must not be loosened.
       const SAFE_ID = /^[a-zA-Z0-9_-]+$/;
       if (!SAFE_ID.test(name)) {
         throw new ServerError(400, 'Invalid screenshot name');
       }
-      if (!SAFE_ID.test(sessionId)) {
+      if (sessionId && !SAFE_ID.test(sessionId)) {
         throw new ServerError(400, 'Invalid sessionId');
       }
 
@@ -471,6 +475,42 @@ export function createPercyServer(percy, port) {
           throw new ServerError(400, 'Invalid filePath: must be an absolute path');
         }
         suppliedFilePath = req.body.filePath;
+      }
+
+      // Resolve the file-find scope root. On BrowserStack (sessionId present),
+      // the root is the BS host's /tmp/{sessionId}{_test_suite} convention.
+      // Self-hosted (sessionId absent) requires PERCY_MAESTRO_SCREENSHOT_DIR
+      // (read from process.env, never the request body) to be an absolute,
+      // existing directory — typically the customer's
+      // `maestro test --test-output-dir <DIR>` path. The realpath + prefix
+      // check below enforces the security invariant at whichever root applies;
+      // the boundary is relocated, not removed.
+      let scopeRoot;
+      if (selfHosted) {
+        // Reject filePath outright in self-hosted mode. The SDK never emits
+        // it (it sends a relative SCREENSHOT_NAME); honoring an absolute
+        // filePath against a caller-influenceable root would re-open
+        // arbitrary in-root reads.
+        if (suppliedFilePath) {
+          throw new ServerError(400, 'filePath is not accepted in self-hosted mode (omit it; PERCY_MAESTRO_SCREENSHOT_DIR + relative SCREENSHOT_NAME is the supported path)');
+        }
+        let dir = process.env.PERCY_MAESTRO_SCREENSHOT_DIR;
+        if (!dir) {
+          throw new ServerError(400, 'Missing required env: PERCY_MAESTRO_SCREENSHOT_DIR (set it to your `maestro test --test-output-dir` path)');
+        }
+        if (!path.isAbsolute(dir)) {
+          throw new ServerError(400, 'PERCY_MAESTRO_SCREENSHOT_DIR must be an absolute path');
+        }
+        let stat;
+        try { stat = await fs.promises.stat(dir); } catch { stat = null; }
+        if (!stat || !stat.isDirectory()) {
+          throw new ServerError(400, `PERCY_MAESTRO_SCREENSHOT_DIR is not an existing directory: ${dir}`);
+        }
+        scopeRoot = dir;
+      } else {
+        scopeRoot = platform === 'ios'
+          ? `/tmp/${sessionId}`
+          : `/tmp/${sessionId}_test_suite`;
       }
 
       // Validate regions input shape early (before file I/O and ADB work) so
@@ -529,21 +569,37 @@ export function createPercyServer(percy, port) {
         //     {device}_maestro_debug_ root. The `**` recursive match handles any depth.
         //     Exact {name}.png match at the leaf filters out Maestro's emoji-prefixed
         //     debug frames (e.g., `screenshot-❌-<timestamp>-(flow).png`).
-        let searchPattern = platform === 'ios'
-          ? `/tmp/${sessionId}/*_maestro_debug_*/**/${name}.png`
-          : `/tmp/${sessionId}_test_suite/logs/*/screenshots/${name}.png`;
+        let searchPattern;
+        if (selfHosted) {
+          // Self-hosted: recursive glob under the customer's --test-output-dir
+          // (PERCY_MAESTRO_SCREENSHOT_DIR). Recursive depth handles arbitrary
+          // Maestro layouts; `name` is SAFE_ID-validated above so it cannot
+          // contain separators or traversal characters.
+          searchPattern = `${scopeRoot}/**/${name}.png`;
+        } else {
+          searchPattern = platform === 'ios'
+            ? `/tmp/${sessionId}/*_maestro_debug_*/**/${name}.png`
+            : `/tmp/${sessionId}_test_suite/logs/*/screenshots/${name}.png`;
+        }
 
         let files;
         try {
           let { default: glob } = await import('fast-glob');
-          files = await glob(searchPattern);
+          // Self-hosted needs `dot: true` because Maestro's default output
+          // directory is `.maestro/` — a dot-prefixed entry that fast-glob
+          // hides by default. BS layouts have no dot-prefixed segments, so
+          // omitting the option there keeps the byte-identical behavior.
+          files = await glob(searchPattern, selfHosted ? { dot: true } : undefined);
         } catch {
           // Fast-glob import / glob call failed — fall back to manual walker.
           // See manualScreenshotWalk() at file top for the rationale + the
           // file-level .semgrepignore covering path-traversal sinks inside.
+          // Self-hosted has no walker fallback (no fixed-layout convention) —
+          // empty files → 404 with the actionable PERCY_MAESTRO_SCREENSHOT_DIR
+          // guidance above.
           /* istanbul ignore next — only fires when fast-glob import throws
              (broken install / FS corruption); integration-test territory. */
-          files = await manualScreenshotWalk(platform, sessionId, name);
+          files = selfHosted ? [] : await manualScreenshotWalk(platform, sessionId, name);
         }
 
         if (!files || files.length === 0) {
@@ -568,22 +624,20 @@ export function createPercyServer(percy, port) {
         }
       }
 
-      // Canonicalize and confirm the resolved path still lives under the sessionId-owned dir.
-      // Defeats symlink swaps where a sessionId-named dir points elsewhere.
-      // We resolve both the file and the expected prefix because /tmp is a symlink on macOS
-      // (iOS hosts run macOS, where /tmp → /private/tmp).
-      let expectedSessionRoot = platform === 'ios'
-        ? `/tmp/${sessionId}`
-        : `/tmp/${sessionId}_test_suite`;
+      // Canonicalize and confirm the resolved path still lives under scopeRoot.
+      // Defeats symlink swaps where the root points elsewhere. Both ends are
+      // realpath'd because /tmp is a symlink on macOS (where iOS hosts run).
+      // The trailing `/` on the prefix is load-bearing — it prevents
+      // sibling-prefix bypass (e.g. /x/.maestro vs /x/.maestro-secrets).
       let realPath, realPrefix;
       try {
         realPath = await fs.promises.realpath(chosenFile);
-        realPrefix = await fs.promises.realpath(expectedSessionRoot);
+        realPrefix = await fs.promises.realpath(scopeRoot);
       } catch {
         throw new ServerError(404, `Screenshot not found: ${name}.png (path resolution failed)`);
       }
       if (!realPath.startsWith(`${realPrefix}/`)) {
-        throw new ServerError(404, `Screenshot not found: ${name}.png (resolved outside session dir)`);
+        throw new ServerError(404, `Screenshot not found: ${name}.png (resolved outside ${selfHosted ? 'PERCY_MAESTRO_SCREENSHOT_DIR' : 'session dir'})`);
       }
 
       // Read and base64-encode the screenshot
@@ -715,7 +769,10 @@ export function createPercyServer(percy, port) {
           if (cachedDump === null) {
             // Thread the per-Percy gRPC client cache so the Android gRPC
             // primary path can reuse channels across snapshots in the same
-            // session (D9 of 2026-05-07-002 plan). iOS path ignores it.
+            // session (D9 of 2026-05-07-002 plan). iOS path ignores it
+            // (the iOS resolver reads PERCY_IOS_DRIVER_HOST_PORT directly;
+            // no per-session port cache needed since the port is prescribed
+            // upstream by `@percy/cli-app`'s `maybeInjectDriverHostPort`).
             cachedDump = await maestroDump({
               platform,
               sessionId,

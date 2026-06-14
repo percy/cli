@@ -101,10 +101,16 @@ const SELECTOR_KEYS_UNION = ['resource-id', 'text', 'content-desc', 'class', 'id
 // past the socket timeout.
 const IOS_HTTP_HEALTHY_DEADLINE_MS = 1500;
 const IOS_HTTP_CIRCUIT_BREAKER_MS = 5000;
-// Maestro iOS driver-host-port is realmobile-derived as wda_port + 2700.
-// WDA ports are 8400-8410 → driver host ports are 11100-11110.
-const IOS_DRIVER_HOST_PORT_MIN = 11100;
-const IOS_DRIVER_HOST_PORT_MAX = 11110;
+// `parseIosDriverHostPort` accepts any valid TCP port (1-65535). The
+// BrowserStack-realmobile canonical range (11100-11110, derived as
+// wda_port + 2700 from WDA ports 8400-8410) is a strict subset. Self-hosted
+// callers prescribe the port via `@percy/cli-app`'s `maybeInjectDriverHostPort`
+// helper, which auto-injects `--driver-host-port <PORT>` into the
+// `maestro test` argv and mirrors the chosen value to
+// `PERCY_IOS_DRIVER_HOST_PORT`. This relay reads the env var unconditionally
+// and no longer auto-discovers the port via probe / lsof — see Phase 3 of
+// the self-hosted Maestro architecture doc and brainstorm
+// `2026-06-11-ios-port-discovery-simplification-requirements.md`.
 // HTTP response cap before parse — sized for WebView-heavy iOS apps.
 const IOS_HTTP_RESPONSE_MAX_BYTES = 20 * 1024 * 1024;
 
@@ -902,17 +908,23 @@ function defaultHttpRequest({ host, port, method, path: requestPath, headers, bo
   });
 }
 
-// Validate PERCY_IOS_DRIVER_HOST_PORT env value as integer in the realmobile
-// range (wda_port + 2700 = 11100-11110). Out-of-range values return null.
+// Validate PERCY_IOS_DRIVER_HOST_PORT env value as an integer in the valid
+// TCP range (1-65535). Was previously clamped to the BS-specific realmobile
+// range (wda_port+2700 = 11100-11110); the relaxed range is a superset so BS
+// continues to accept its canonical port unchanged. Self-hosted callers can
+// pass any port they pinned via `maestro test --driver-host-port <P>` (e.g.
+// the deterministic `7001` on a simulator, or a forwarded port like ~6001 on
+// a real device).
 function parseIosDriverHostPort(raw) {
   /* istanbul ignore if — undefined/null/empty raw value branch; iOS dispatch
      pre-checks PERCY_IOS_DRIVER_HOST_PORT before calling, so these never fire. */
   if (raw === undefined || raw === null || raw === '') return null;
   const n = Number(raw);
   /* istanbul ignore if — non-integer port (e.g. NaN from non-numeric env);
-     env var is set by realmobile as the canonical wda_port+2700 integer. */
+     env var is set by realmobile as the canonical wda_port+2700 integer or by
+     a self-hosted customer as their explicit `--driver-host-port` value. */
   if (!Number.isInteger(n)) return null;
-  if (n < IOS_DRIVER_HOST_PORT_MIN || n > IOS_DRIVER_HOST_PORT_MAX) return null;
+  if (n < 1 || n > 65535) return null;
   return n;
 }
 
@@ -1260,14 +1272,33 @@ export async function dump(options) {
   const started = Date.now();
 
   if (platform === 'ios') {
-    // iOS dispatch: read realmobile-injected env vars; warn-skip if absent.
     const udid = getEnv('PERCY_IOS_DEVICE_UDID');
     const driverHostPortRaw = getEnv('PERCY_IOS_DRIVER_HOST_PORT');
-    if (!udid || !driverHostPortRaw) {
-      log.warn(`iOS resolver env-missing: udid=${udid ? 'set' : 'unset'} driver_port=${driverHostPortRaw ? 'set' : 'unset'}`);
+
+    // `PERCY_IOS_DRIVER_HOST_PORT` is the single source of truth for the
+    // iOS Maestro driver port. It is set by:
+    //   * BrowserStack hosts (canonical 11100-11110 range, via
+    //     `cli_manager.rb#start_percy_cli` env injection)
+    //   * `@percy/cli-app`'s `maybeInjectDriverHostPort` helper for
+    //     self-hosted customers running `percy app:exec` (any port,
+    //     either customer-supplied or picked by the OS at startup)
+    //   * Manually by power users who pin the driver port themselves
+    //
+    // When the env var is absent, the customer skipped `percy app:exec`
+    // (or BS host injection failed). Element regions degrade gracefully
+    // with `env-missing` — coordinate regions and the snapshot itself
+    // continue to upload via the relay's other paths.
+    if (!driverHostPortRaw) {
+      log.warn('[percy] iOS element regions unavailable — PERCY_IOS_DRIVER_HOST_PORT is not set. Run `percy app:exec -- maestro test ...` so it is injected automatically, or set it manually to your Maestro driver-host-port.');
       recordResolverFinalFailure({ platform: 'ios', failureClass: 'other' });
       return { kind: 'unavailable', reason: 'env-missing' };
     }
+
+    // ─── Explicit — PERCY_IOS_DRIVER_HOST_PORT present ─────────────────────
+    // BrowserStack (host-injected) and self-hosted-with-explicit-port both
+    // take this path. The HTTP primary runs against the supplied port; the
+    // CLI fallback runs only when UDID is also present (without UDID
+    // there's no way to target a specific device via `maestro --udid`).
 
     // D3 kill switch (PERCY_MAESTRO_GRPC=0): same env name gates BOTH Maestro
     // primaries. On iOS this skips runIosHttpDump and routes straight to the
@@ -1278,8 +1309,10 @@ export async function dump(options) {
       log.warn('PERCY_MAESTRO_GRPC=0 kill switch active; skipping iOS HTTP primary');
     }
 
-    // Validate driver-host-port range before attempting HTTP. Out-of-range
-    // values skip the HTTP path entirely and fall through to maestro-CLI.
+    // Validate driver-host-port — integer 1-65535 (relaxed from the BS
+    // 11100-11110 range; BS values stay valid as a subset). Out-of-range
+    // values skip the HTTP path entirely and fall through to maestro-CLI
+    // (when UDID is present) or warn-skip (when not).
     const driverHostPort = parseIosDriverHostPort(driverHostPortRaw);
     let httpResult = null;
     if (!iosKillSwitch && driverHostPort !== null) {
@@ -1306,6 +1339,15 @@ export async function dump(options) {
       const oorReason = `out-of-range-port-${driverHostPortRaw}`;
       recordResolverFallback({ platform: 'ios', failureClass: 'other' });
       log.info(`[percy] hierarchy: maestro-http failed (other: ${oorReason}) → falling back to maestro-cli-fallback`);
+    }
+
+    // CLI fallback requires UDID. Without it (port-only self-hosted), the
+    // HTTP attempt above was the only available path — emit warn-skip with
+    // an actionable message rather than running maestro without a target.
+    if (!udid) {
+      log.warn('[percy] iOS resolver: PERCY_IOS_DEVICE_UDID absent — no CLI fallback. HTTP primary either succeeded above and returned, or failed and there is no further path. Set UDID to enable the CLI fallback.');
+      recordResolverFinalFailure({ platform: 'ios', failureClass: 'other' });
+      return { kind: 'unavailable', reason: 'self-hosted-no-udid' };
     }
 
     const cliResult = await runMaestroIosDump(udid, driverHostPort ?? driverHostPortRaw, execMaestro, getEnv);
