@@ -429,6 +429,19 @@ describe('percy app:exec', () => {
       expect(ctx.argv).toEqual(argv);
     });
 
+    it('skips when customer passed equals-form --driver-host-port=8000 in argv', async () => {
+      // picocli accepts `--driver-host-port=N` and `--driver-host-port N`
+      // identically. The detection helper must catch BOTH or Maestro errors
+      // on duplicate `--driver-host-port` when we inject our own.
+      const created = spyOn(net, 'createServer').and.callThrough();
+      const argv = ['maestro', 'test', '--driver-host-port=8000', 'flow.yaml'];
+      const ctx = ctxFor(argv);
+      await maybeInjectDriverHostPort(ctx);
+      expect(created).not.toHaveBeenCalled();
+      expect(process.env.PERCY_IOS_DRIVER_HOST_PORT).toBeUndefined();
+      expect(ctx.argv).toEqual(argv);
+    });
+
     it('treats invalid env values as absent and falls through to pickFreePort', async () => {
       process.env.PERCY_IOS_DRIVER_HOST_PORT = 'not-a-port';
       stubNetWithPort(40000);
@@ -486,6 +499,21 @@ describe('percy app:exec', () => {
       await maybeInjectDriverHostPort(ctx);
       expect(created).not.toHaveBeenCalled();
       expect(ctx.argv).toEqual(argv);
+    });
+
+    it('skips when argv has equals-form sharding flags (--shards=3, --shard-split=3, --shard-all=2, -s=3)', async () => {
+      // picocli accepts `--shards=N` and `--shards N` identically. Without
+      // detecting the equals-form, we would inject `--driver-host-port` and
+      // Maestro would error on shard 2+ when it tries to bind the same port.
+      for (const shardingForm of ['--shards=3', '--shard-split=3', '--shard-all=2', '-s=3']) {
+        const created = spyOn(net, 'createServer').and.callThrough();
+        const argv = ['maestro', 'test', shardingForm, 'flow.yaml'];
+        const ctx = ctxFor(argv);
+        await maybeInjectDriverHostPort(ctx);
+        expect(created).not.toHaveBeenCalled();
+        expect(ctx.argv).toEqual(argv);
+        created.calls.reset();
+      }
     });
 
     it('preserves customer env value when sharded — gates on sharding, does not touch env', async () => {

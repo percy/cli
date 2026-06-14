@@ -130,10 +130,14 @@ export function maybeInjectScreenshotDir(ctx, log) {
 
 // True when argv contains a `--driver-host-port` flag the customer already
 // supplied. Scans the full argv slice past argv[2] (where flow files live)
-// because customers can pass the flag at any position.
+// because customers can pass the flag at any position. Detects BOTH
+// space-separated (`--driver-host-port 8000`) and equals (`--driver-host-port=8000`)
+// forms — picocli accepts both identically, so we must too or we'll
+// double-inject and error out on Maestro startup.
 function hasExistingDriverHostPortFlag(args) {
   for (let i = 2; i < args.length; i++) {
     if (args[i] === '--driver-host-port') return true;
+    if (typeof args[i] === 'string' && args[i].startsWith('--driver-host-port=')) return true;
   }
   return false;
 }
@@ -147,11 +151,18 @@ function hasExistingDriverHostPortFlag(args) {
 // shard port assignment, which works fine (status quo).
 //
 // Matches `--shards N`, `-s N` (deprecated short form), `--shard-split N`,
-// `--shard-all N`. Conservative: any flag form gates us out.
+// `--shard-all N`, and the equals-forms (`--shards=N`, `-s=N`, etc.). picocli
+// accepts both; conservative — any flag form gates us out.
 function hasShardingFlag(args) {
   for (let i = 2; i < args.length; i++) {
-    if (args[i] === '--shards' || args[i] === '-s' ||
-        args[i] === '--shard-split' || args[i] === '--shard-all') {
+    const a = args[i];
+    if (typeof a !== 'string') continue;
+    if (a === '--shards' || a === '-s' ||
+        a === '--shard-split' || a === '--shard-all') {
+      return true;
+    }
+    if (a.startsWith('--shards=') || a.startsWith('-s=') ||
+        a.startsWith('--shard-split=') || a.startsWith('--shard-all=')) {
       return true;
     }
   }

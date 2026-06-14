@@ -1250,7 +1250,6 @@ async function runAdbFallback(serial, execAdb) {
   return result;
 }
 
-// ===== Self-hosted iOS port resolution helpers =====
 export async function dump(options) {
   /* istanbul ignore next — options-omitted default; callers always pass an
      object (tests inject every dependency; production code binds them). */
