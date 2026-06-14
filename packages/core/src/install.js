@@ -139,6 +139,29 @@ export async function download({
   return exec;
 }
 
+const DEFAULT_CHROMIUM_BASE_URL = 'https://storage.googleapis.com/chromium-browser-snapshots/';
+
+// Resolve the Chromium download base URL. PERCY_CHROMIUM_BASE_URL may point at a
+// private mirror, but an unvalidated value enables SSRF / an integrity downgrade
+// (CWE-918): require a well-formed HTTPS URL, otherwise warn and fall back to the
+// trusted default host.
+export function resolveChromiumBaseUrl(value = process.env.PERCY_CHROMIUM_BASE_URL) {
+  if (!value) return DEFAULT_CHROMIUM_BASE_URL;
+  let log = logger('core:install');
+  let parsed;
+  try {
+    parsed = new URL(value);
+  } catch {
+    log.warn(`Invalid PERCY_CHROMIUM_BASE_URL "${value}"; using the default Chromium download host.`);
+    return DEFAULT_CHROMIUM_BASE_URL;
+  }
+  if (parsed.protocol !== 'https:') {
+    log.warn(`Ignoring non-HTTPS PERCY_CHROMIUM_BASE_URL "${value}"; Chromium must be downloaded over HTTPS.`);
+    return DEFAULT_CHROMIUM_BASE_URL;
+  }
+  return value.endsWith('/') ? value : `${value}/`;
+}
+
 // Installs a revision of Chromium to a local directory
 export function chromium({
   // default directory is within @percy/core package root
@@ -148,7 +171,7 @@ export function chromium({
 } = {}) {
   let extract = (i, o) => import('extract-zip').then(ex => ex.default(i, { dir: o }));
 
-  let url = (process.env.PERCY_CHROMIUM_BASE_URL || 'https://storage.googleapis.com/chromium-browser-snapshots/') +
+  let url = resolveChromiumBaseUrl() +
     selectByPlatform({
       linux: `Linux_x64/${revision}/chrome-linux.zip`,
       darwin: `Mac/${revision}/chrome-mac.zip`,
