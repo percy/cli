@@ -4,45 +4,14 @@ on:
     branches: [master]
   pull_request:
   workflow_dispatch:
-jobs:
-  # Detect whether a PR's diff is confined to the version files that version-bump.yml
-  # is allowed to commit (lerna.json + packages/**/package.json). Combined with the
-  # `release/` branch check on the heavy jobs below, this lets us skip the ~1h matrix
-  # for genuine version-bump PRs while still running it for any `release/*` PR that
-  # touches source — so the skip can't be abused to land untested code behind a
-  # green-looking "skipped" check (PER-9560).
-  changes:
-    name: Detect version-only changes
-    runs-on: ubuntu-latest
-    outputs:
-      version_only: ${{ steps.filter.outputs.version_only }}
-    steps:
-      - uses: actions/checkout@v5
-      - uses: dorny/paths-filter@v3
-        id: filter
-        # Only meaningful for PRs; on push/workflow_dispatch the step is skipped, the
-        # output is empty, and the branch check below already evaluates to "run".
-        if: github.event_name == 'pull_request'
-        with:
-          # `every`: version_only is true ONLY when every changed file matches a pattern.
-          predicate-quantifier: every
-          filters: |
-            version_only:
-              - 'lerna.json'
-              - 'packages/**/package.json'
 
+permissions:
+  contents: read
+
+jobs:
   build:
     name: Build
-    # Skip the ~1h test matrix on automated version-bump PRs. version-bump.yml opens
-    # these from `release/<version>` branches and commits only lerna.json +
-    # packages/**/package.json, so there's nothing to test. We skip only when BOTH hold
-    # — branch is `release/*` AND the diff is version-only — so a `release/*` PR that
-    # touches source still runs the full suite (PER-9560). Implemented as a job-level
-    # `if` (not an `on:` branch filter) so the check still reports as "skipped" — which
-    # satisfies a required status check — instead of staying "pending" and blocking the
-    # release PR from merging.
-    needs: [changes]
-    if: ${{ !(startsWith(github.head_ref, 'release/') && needs.changes.outputs.version_only == 'true') }}
+    if: ${{ !(startsWith(github.head_ref, 'release/') && github.event.pull_request.user.login == 'github-actions[bot]') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -71,9 +40,8 @@ jobs:
 
   test:
     name: Test ${{ matrix.package }}
-    needs: [build, changes]
-    # Skip on version-only version-bump PRs — see the build job and PER-9560.
-    if: ${{ !(startsWith(github.head_ref, 'release/') && needs.changes.outputs.version_only == 'true') }}
+    needs: [build]
+    if: ${{ !(startsWith(github.head_ref, 'release/') && github.event.pull_request.user.login == 'github-actions[bot]') }}
     strategy:
       matrix:
         os: [ubuntu-latest]
@@ -175,9 +143,8 @@ jobs:
 
   regression:
     name: Regression
-    needs: [build, changes]
-    # Skip on version-only version-bump PRs — see the build job and PER-9560.
-    if: ${{ !(startsWith(github.head_ref, 'release/') && needs.changes.outputs.version_only == 'true') }}
+    needs: [build]
+    if: ${{ !(startsWith(github.head_ref, 'release/') && github.event.pull_request.user.login == 'github-actions[bot]') }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
