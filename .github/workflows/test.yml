@@ -16,16 +16,28 @@ jobs:
     outputs:
       version_only: ${{ steps.filter.outputs.version_only }}
     steps:
-      - uses: actions/checkout@v5
-      - uses: dorny/paths-filter@d1c1ffe0248fe513906c8e24db8ea791d46f8590 # v3.0.3
+      - name: Check the PR changes only version files
         id: filter
         if: github.event_name == 'pull_request'
-        with:
-          predicate-quantifier: every
-          filters: |
-            version_only:
-              - 'lerna.json'
-              - 'packages/**/package.json'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          if ! files=$(gh api "repos/$REPO/pulls/$PR/files" --paginate --jq '.[].filename'); then
+            echo "Could not list PR files — running full CI to be safe."
+            echo "version_only=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          printf 'Changed files:\n%s\n' "$files"
+          # version_only=true only if EVERY changed file is lerna.json or a top-level
+          # packages/<pkg>/package.json (exactly what version-bump.yml commits).
+          others=$(printf '%s\n' "$files" | grep -vE '^(lerna\.json|packages/[^/]+/package\.json)$' || true)
+          if [ -n "$files" ] && [ -z "$others" ]; then
+            echo "version_only=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "version_only=false" >> "$GITHUB_OUTPUT"
+          fi
 
   build:
     name: Build
