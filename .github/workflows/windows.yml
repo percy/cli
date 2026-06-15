@@ -5,8 +5,36 @@ on:
   pull_request:
   workflow_dispatch:
 jobs:
+  # See test.yml for the rationale. Detects whether a PR's diff is confined to the
+  # version files version-bump.yml is allowed to commit, so the skip below can't be
+  # abused to land untested source behind a green-looking "skipped" check (PER-9560).
+  changes:
+    name: Detect version-only changes
+    runs-on: ubuntu-latest
+    outputs:
+      version_only: ${{ steps.filter.outputs.version_only }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dorny/paths-filter@v3
+        id: filter
+        if: github.event_name == 'pull_request'
+        with:
+          # `every`: version_only is true ONLY when every changed file matches a pattern.
+          predicate-quantifier: every
+          filters: |
+            version_only:
+              - 'lerna.json'
+              - 'packages/**/package.json'
+
   build:
     name: Build
+    # Skip the ~60m Windows matrix on version-only version-bump PRs (branch `release/*`
+    # AND a diff confined to lerna.json + packages/**/package.json). A `release/*` PR that
+    # touches source still runs the full suite (PER-9560). Job-level `if` (not an `on:`
+    # branch filter) so the check posts a "skipped" result that satisfies required status
+    # checks, instead of staying "pending" and blocking the release PR.
+    needs: [changes]
+    if: ${{ !(startsWith(github.head_ref, 'release/') && needs.changes.outputs.version_only == 'true') }}
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v5
@@ -35,7 +63,9 @@ jobs:
 
   test:
     name: Test ${{ matrix.package }}
-    needs: [build]
+    needs: [build, changes]
+    # Skip on version-only version-bump PRs — see the build job and PER-9560.
+    if: ${{ !(startsWith(github.head_ref, 'release/') && needs.changes.outputs.version_only == 'true') }}
     strategy:
       fail-fast: false
       matrix:
