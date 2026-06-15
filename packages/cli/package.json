@@ -1,6 +1,6 @@
 {
   "name": "@percy/cli",
-  "version": "1.32.0-beta.8",
+  "version": "1.32.0-beta.9",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -31,15 +31,15 @@
     "test:coverage": "yarn test --coverage"
   },
   "dependencies": {
-    "@percy/cli-app": "1.32.0-beta.8",
-    "@percy/cli-build": "1.32.0-beta.8",
-    "@percy/cli-command": "1.32.0-beta.8",
-    "@percy/cli-config": "1.32.0-beta.8",
-    "@percy/cli-doctor": "1.32.0-beta.8",
-    "@percy/cli-exec": "1.32.0-beta.8",
-    "@percy/cli-snapshot": "1.32.0-beta.8",
-    "@percy/cli-upload": "1.32.0-beta.8",
-    "@percy/client": "1.32.0-beta.8",
-    "@percy/logger": "1.32.0-beta.8"
+    "@percy/cli-app": "1.32.0-beta.9",
+    "@percy/cli-build": "1.32.0-beta.9",
+    "@percy/cli-command": "1.32.0-beta.9",
+    "@percy/cli-config": "1.32.0-beta.9",
+    "@percy/cli-doctor": "1.32.0-beta.9",
+    "@percy/cli-exec": "1.32.0-beta.9",
+    "@percy/cli-snapshot": "1.32.0-beta.9",
+    "@percy/cli-upload": "1.32.0-beta.9",
+    "@percy/client": "1.32.0-beta.9",
+    "@percy/logger": "1.32.0-beta.9"
   }
 }
