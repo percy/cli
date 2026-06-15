@@ -7,11 +7,30 @@ on:
 
 permissions:
   contents: read
+  pull-requests: read
 
 jobs:
+  changes:
+    name: Detect version-only changes
+    runs-on: ubuntu-latest
+    outputs:
+      version_only: ${{ steps.filter.outputs.version_only }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dorny/paths-filter@d1c1ffe0248fe513906c8e24db8ea791d46f8590 # v3.0.3
+        id: filter
+        if: github.event_name == 'pull_request'
+        with:
+          predicate-quantifier: every
+          filters: |
+            version_only:
+              - 'lerna.json'
+              - 'packages/**/package.json'
+
   build:
     name: Build
-    if: ${{ !(startsWith(github.head_ref, 'release/') && github.event.pull_request.user.login == 'github-actions[bot]') }}
+    needs: [changes]
+    if: ${{ !(startsWith(github.head_ref, 'release/') && github.event.pull_request.user.login == 'github-actions[bot]' && needs.changes.outputs.version_only == 'true') }}
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v5
@@ -40,8 +59,8 @@ jobs:
 
   test:
     name: Test ${{ matrix.package }}
-    needs: [build]
-    if: ${{ !(startsWith(github.head_ref, 'release/') && github.event.pull_request.user.login == 'github-actions[bot]') }}
+    needs: [build, changes]
+    if: ${{ !(startsWith(github.head_ref, 'release/') && github.event.pull_request.user.login == 'github-actions[bot]' && needs.changes.outputs.version_only == 'true') }}
     strategy:
       fail-fast: false
       matrix:
