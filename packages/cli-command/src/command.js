@@ -29,10 +29,19 @@ let activeContext = null;
 
 const DEFAULT_DRAIN_MS = 30_000;
 const HARD_EXIT_AFTER_FORCE_MS = 5_000;
-// POSIX-conventional signal exit codes: 128 + signal number.
-const EXIT_CODE_SIGINT = 130;
-const EXIT_CODE_SIGTERM = 143;
-const SIGNAL_EXIT_CODES = { SIGINT: EXIT_CODE_SIGINT, SIGTERM: EXIT_CODE_SIGTERM };
+// POSIX-conventional signal exit codes: 128 + signal number. SIGINT and
+// SIGTERM additionally engage drain semantics in beginShutdown; the
+// remaining signals only need an exit-code mapping so a signal-aborted
+// run never resolves as a false-positive success (PER-8678).
+const EXIT_CODE_SIGINT = 130; // 128 + 2
+const EXIT_CODE_SIGTERM = 143; // 128 + 15
+const SIGNAL_EXIT_CODES = {
+  SIGINT: EXIT_CODE_SIGINT,
+  SIGTERM: EXIT_CODE_SIGTERM,
+  SIGHUP: 129, // 128 + 1
+  SIGUSR1: 138, // 128 + 10
+  SIGUSR2: 140 // 128 + 12
+};
 
 // Begin or escalate drain. Idempotent on the same signal.
 function beginShutdown(signal) {
@@ -326,18 +335,32 @@ export function command(name, definition, callback) {
         else log.error(err);
       }
 
-      // Signal-driven shutdown — when SIGINT/SIGTERM was received
-      // during this run, set the signal-derived exit code
-      // (130 SIGINT / 143 SIGTERM) and return. We deliberately set
-      // `process.exitCode` and unwind cleanly rather than calling
+      // Signal-driven shutdown — when ANY process signal aborted this
+      // run, set the signal-derived exit code (130 SIGINT / 143 SIGTERM
+      // / 129 SIGHUP / 138 SIGUSR1 / 140 SIGUSR2, defaulting to 1 for
+      // any other signal) and return. Keying off `err.signal` (set on
+      // the AbortError by the per-signal handler) rather than
+      // `shutdownState.signal` is deliberate: beginShutdown only records
+      // SIGINT/SIGTERM into shutdownState for drain semantics, so the
+      // old `shutdownState.signal` gate let SIGHUP/SIGUSR1/SIGUSR2 fall
+      // through to the exitCode-0 AbortError path and exit 0 — a
+      // false-positive CI success when a run was aborted during startup
+      // before the wrapped command launched (PER-8678). We deliberately
+      // set `process.exitCode` and unwind cleanly rather than calling
       // `process.exit()`, so the surrounding catch's finally block (and
       // the lockfile's `process.on('exit')` handler) still run. The
       // event loop drains naturally because the unref'd drain/hard-exit
       // timers don't keep it alive. Tests with `exitOnError: false`
       // preserve the legacy clean-resolution behavior because
-      // AbortError carries exitCode:0 and the gate below is skipped.
-      if (shutdownState.signal && err.signal && definition.exitOnError) {
-        let signalCode = SIGNAL_EXIT_CODES[shutdownState.signal];
+      // AbortError carries exitCode:0 and this gate is skipped.
+      if (err.signal && definition.exitOnError) {
+        // Defensive non-zero fallback: every signal in the registered
+        // handler set above is mapped in SIGNAL_EXIT_CODES, so the `?? 1`
+        // branch only fires if a future signal is added to the handler
+        // list without a code — kept non-zero so the false-positive
+        // success can't reappear (PER-8678).
+        /* istanbul ignore next */
+        let signalCode = SIGNAL_EXIT_CODES[err.signal] ?? 1;
         let percyExitWithZeroOnError = process.env.PERCY_EXIT_WITH_ZERO_ON_ERROR === 'true';
         process.exitCode = percyExitWithZeroOnError ? 0 : signalCode;
         return;
