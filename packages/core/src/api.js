@@ -575,7 +575,14 @@ export function createPercyServer(percy, port) {
           // (PERCY_MAESTRO_SCREENSHOT_DIR). Recursive depth handles arbitrary
           // Maestro layouts; `name` is SAFE_ID-validated above so it cannot
           // contain separators or traversal characters.
-          searchPattern = `${scopeRoot}/**/${name}.png`;
+          //
+          // fast-glob requires forward-slashes in patterns on every platform
+          // (per its docs: "Always use forward-slashes in glob expressions").
+          // On Windows the scopeRoot from path.resolve contains backslashes,
+          // so we normalize before embedding into the pattern. Production-
+          // code Windows portability — verified by the CI Windows runner.
+          const globRoot = scopeRoot.replace(/\\/g, '/');
+          searchPattern = `${globRoot}/**/${name}.png`;
         } else {
           searchPattern = platform === 'ios'
             ? `/tmp/${sessionId}/*_maestro_debug_*/**/${name}.png`
@@ -627,8 +634,10 @@ export function createPercyServer(percy, port) {
       // Canonicalize and confirm the resolved path still lives under scopeRoot.
       // Defeats symlink swaps where the root points elsewhere. Both ends are
       // realpath'd because /tmp is a symlink on macOS (where iOS hosts run).
-      // The trailing `/` on the prefix is load-bearing — it prevents
+      // The trailing separator on the prefix is load-bearing — it prevents
       // sibling-prefix bypass (e.g. /x/.maestro vs /x/.maestro-secrets).
+      // Use `path.sep` (not hardcoded `/`) so the prefix check is correct on
+      // Windows, where realpath returns backslash-separated paths.
       let realPath, realPrefix;
       try {
         realPath = await fs.promises.realpath(chosenFile);
@@ -636,7 +645,7 @@ export function createPercyServer(percy, port) {
       } catch {
         throw new ServerError(404, `Screenshot not found: ${name}.png (path resolution failed)`);
       }
-      if (!realPath.startsWith(`${realPrefix}/`)) {
+      if (!realPath.startsWith(`${realPrefix}${path.sep}`)) {
         throw new ServerError(404, `Screenshot not found: ${name}.png (resolved outside ${selfHosted ? 'PERCY_MAESTRO_SCREENSHOT_DIR' : 'session dir'})`);
       }
 
