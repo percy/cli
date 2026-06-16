@@ -1,18 +1,34 @@
 import percy from './percy-info.js';
 
+function isPlainObject(value) {
+  return !!value && typeof value === 'object' && !Array.isArray(value);
+}
+
+// Recursively merge `override` onto `base`. Plain (non-array) objects are merged
+// key-by-key so overriding one nested key keeps the base's sibling keys; arrays,
+// scalars, null and functions from `override` replace the base value wholesale.
+function deepMerge(base, override) {
+  const result = { ...base };
+  for (const key of Object.keys(override)) {
+    const baseVal = base[key];
+    const overrideVal = override[key];
+    result[key] = isPlainObject(baseVal) && isPlainObject(overrideVal)
+      ? deepMerge(baseVal, overrideVal)
+      : overrideVal;
+  }
+  return result;
+}
+
 // Merges .percy.yml config snapshot options with per-snapshot options.
 // Per-snapshot options take priority over config options.
 //
-// This is a deliberate shallow merge, for two reasons:
-//   1. Parity — the non-JS SDKs (python/ruby/java/.net) all shallow-merge
-//      config with per-call options, and this package's own getReadinessConfig
-//      (serialize-dom.js) does the same. JS must behave identically.
-//   2. The CLI performs the authoritative deep config merge server-side, so the
-//      SDK only needs top-level precedence: a per-snapshot key fully overrides
-//      its config counterpart before the DOM is serialized.
+// The merge is deep: nested objects (e.g. `discovery`) are merged recursively so
+// a per-snapshot override of one nested key does not drop the config's sibling
+// nested keys. At the leaves, per-snapshot values win; arrays are replaced, not
+// concatenated.
 export function mergeSnapshotOptions(options = {}) {
   const configOptions = percy?.config?.snapshot || {};
-  return { ...configOptions, ...options };
+  return deepMerge(configOptions, options);
 }
 
 export default mergeSnapshotOptions;

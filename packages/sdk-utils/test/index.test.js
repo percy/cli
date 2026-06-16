@@ -980,5 +980,29 @@ describe('SDK Utils', () => {
 
       utils.percy.config = savedConfig;
     });
+
+    it('deep-merges nested objects, keeping config sibling keys not overridden', () => {
+      const savedConfig = utils.percy.config;
+      utils.percy.config = {
+        ...savedConfig,
+        snapshot: { discovery: { networkIdleTimeout: 50, disableCache: false } }
+      };
+
+      const result = mergeSnapshotOptions({ discovery: { disableCache: true } });
+      // per-snapshot wins on the overridden nested key, config sibling key survives
+      expect(result.discovery).toEqual({ networkIdleTimeout: 50, disableCache: true });
+
+      utils.percy.config = savedConfig;
+    });
+
+    it('replaces (does not concatenate) arrays from per-snapshot options', () => {
+      const savedConfig = utils.percy.config;
+      utils.percy.config = { ...savedConfig, snapshot: { widths: [375, 1280] } };
+
+      const result = mergeSnapshotOptions({ widths: [768] });
+      expect(result.widths).toEqual([768]);
+
+      utils.percy.config = savedConfig;
+    });
   });
 });
