@@ -2,11 +2,6 @@ name: Test
 on:
   push:
     branches: [master]
-  # Version-bump PRs change only lerna.json + packages/*/package.json and have no
-  # code to test, so the heavy suite is skipped entirely — the workflow doesn't run,
-  # so no Build/Test/Regression checks appear. Any PR touching source (or yarn.lock)
-  # still runs the full suite. These checks aren't required, so skipped PRs aren't
-  # left pending. (PER-9560)
   pull_request:
     paths-ignore:
       - 'lerna.json'

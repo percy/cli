@@ -2,9 +2,6 @@ name: Windows
 on:
   push:
     branches: [master]
-  # See test.yml — skip the heavy Windows suite on version-only PRs (lerna.json +
-  # packages/*/package.json). The workflow doesn't run, so no checks appear; any PR
-  # touching source (or yarn.lock) still runs the full suite. (PER-9560)
   pull_request:
     paths-ignore:
       - 'lerna.json'
