@@ -138,11 +138,16 @@ export async function handleMaestroScreenshot(req, res, percy) {
   if (req.body.labels) payload.labels = req.body.labels;
   if (req.body.thTestCaseExecutionId) payload.thTestCaseExecutionId = req.body.thTestCaseExecutionId;
 
-  // Resolve element/coordinate regions to comparison-payload fragments and
-  // merge them into the payload. Element regions degrade gracefully — a
-  // resolver failure warn-skips those regions only; the snapshot still
-  // uploads. The hierarchy dump is memoized per request inside resolveRegions.
-  Object.assign(payload, await resolveRegions({ body: req.body, platform, sessionId, percy }));
+  // Resolve element/coordinate regions to comparison-payload fragments.
+  // Element regions degrade gracefully — a resolver failure warn-skips those
+  // regions only; the snapshot still uploads. The hierarchy dump is memoized
+  // per request inside resolveRegions. Assign the three known comparison keys
+  // explicitly (never Object.assign of request-derived data) so only these
+  // fields can ever be set here.
+  let regionData = await resolveRegions({ body: req.body, platform, sessionId, percy });
+  if (regionData.regions) payload.regions = regionData.regions;
+  if (regionData.ignoredElementsData) payload.ignoredElementsData = regionData.ignoredElementsData;
+  if (regionData.consideredElementsData) payload.consideredElementsData = regionData.consideredElementsData;
 
   // Upload via percy — sync or fire-and-forget
   if (req.body.sync === true) payload.sync = true;
