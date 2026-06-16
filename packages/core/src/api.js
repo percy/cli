@@ -2,13 +2,12 @@ import fs from 'fs';
 import path, { dirname, resolve } from 'path';
 import logger from '@percy/logger';
 import { normalize } from '@percy/config/utils';
-import { getPackageJSON, Server, percyAutomateRequestHandler, percyBuildEventHandler, computeResponsiveWidths } from './utils.js';
+import { getPackageJSON, Server, percyAutomateRequestHandler, percyBuildEventHandler, computeResponsiveWidths, encodeURLSearchParams } from './utils.js';
 import { ServerError } from './server.js';
 import WebdriverUtils from '@percy/webdriver-utils';
 import { handleSyncJob } from './snapshot.js';
 import { dump as maestroDump, firstMatch as maestroFirstMatch, SELECTOR_KEYS_WHITELIST, getMaestroHierarchyDrift } from './maestro-hierarchy.js';
-import Busboy from 'busboy';
-import { Readable } from 'stream';
+import { handleComparisonUpload } from './comparison-upload.js';
 // Previously, we used `createRequire(import.meta.url).resolve` to resolve the path to the module.
 // This approach relied on `createRequire`, which is Node.js-specific and less compatible with modern ESM (ECMAScript Module) standards.
 // This was leading to hard coded paths when CLI is used as a dependency in another project.
@@ -34,13 +33,6 @@ export const getPercyDomPath = (url) => {
 
 // Resolved path for PERCY_DOM
 export const PERCY_DOM = getPercyDomPath(import.meta.url);
-
-// Returns a URL encoded string of nested query params
-function encodeURLSearchParams(subj, prefix) {
-  return typeof subj === 'object' ? Object.entries(subj).map(([key, value]) => (
-    encodeURLSearchParams(value, prefix ? `${prefix}[${key}]` : key)
-  )).join('&') : `${prefix}=${encodeURIComponent(subj)}`;
-}
 
 // Walks the config schema and collects dot-paths of any fields marked `httpReadOnly: true`
 // that are present in `body`. Driving this from the schema means new HTTP-blocked fields
@@ -152,111 +144,6 @@ async function manualScreenshotWalk(platform, sessionId, name) {
     }
   } catch { /* base dir not found */ }
   return files;
-}
-
-/* istanbul ignore next — multipart /percy/comparison/upload handler;
-   exercises Busboy stream parsing + PNG magic-byte validation + base64
-   encoding + percy.upload. Integration-tested via the regression suite
-   (real multipart POST) rather than the unit suite, which would require
-   constructing valid multipart bodies. */
-async function handleComparisonUpload(req, res, percy) {
-  const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
-  const PNG_MAGIC_BYTES = Buffer.from([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]);
-
-  let contentType = req.headers['content-type'] || '';
-  if (!contentType.startsWith('multipart/form-data')) {
-    throw new ServerError(400, 'Content-Type must be multipart/form-data');
-  }
-
-  if (!req.body) {
-    throw new ServerError(400, 'Empty request body');
-  }
-
-  let fields = Object.create(null);
-  let fileBuffer = null;
-
-  await new Promise((resolve, reject) => {
-    let bb = Busboy({
-      headers: req.headers,
-      limits: { fileSize: MAX_FILE_SIZE }
-    });
-
-    bb.on('file', (fieldname, stream, info) => {
-      let chunks = [];
-      stream.on('data', (chunk) => chunks.push(chunk));
-      stream.on('limit', () => {
-        reject(new ServerError(413, 'File size exceeds maximum of 50MB'));
-      });
-      stream.on('end', () => {
-        if (fieldname === 'screenshot') {
-          fileBuffer = Buffer.concat(chunks);
-        }
-      });
-    });
-
-    bb.on('field', (fieldname, value) => {
-      if (['name', 'tag', 'clientInfo', 'environmentInfo', 'testCase', 'labels'].includes(fieldname)) {
-        fields[fieldname] = value;
-      }
-    });
-
-    bb.on('close', resolve);
-    bb.on('error', reject);
-
-    let stream = Readable.from(req.body);
-    stream.on('error', reject);
-    stream.pipe(bb);
-  });
-
-  if (!fileBuffer) {
-    throw new ServerError(400, 'Missing required file part: screenshot');
-  }
-
-  if (fileBuffer.length < 8 || !fileBuffer.subarray(0, 8).equals(PNG_MAGIC_BYTES)) {
-    throw new ServerError(400, 'File is not a valid PNG image');
-  }
-
-  if (!fields.name) throw new ServerError(400, 'Missing required field: name');
-  if (!fields.tag) throw new ServerError(400, 'Missing required field: tag');
-
-  let tag;
-  try {
-    tag = JSON.parse(fields.tag);
-  } catch {
-    throw new ServerError(400, 'Invalid JSON in tag field');
-  }
-
-  let base64Content = fileBuffer.toString('base64');
-
-  let payload = {
-    name: fields.name,
-    tag,
-    tiles: [{
-      content: base64Content,
-      statusBarHeight: 0,
-      navBarHeight: 0,
-      headerHeight: 0,
-      footerHeight: 0,
-      fullscreen: false
-    }],
-    clientInfo: fields.clientInfo || '',
-    environmentInfo: fields.environmentInfo || ''
-  };
-
-  if (fields.testCase) payload.testCase = fields.testCase;
-  if (fields.labels) payload.labels = fields.labels;
-
-  let upload = percy.upload(payload, null, 'app');
-  if (req.url.searchParams.has('await')) await upload;
-
-  let link = [
-    percy.client.apiUrl, '/comparisons/redirect?',
-    encodeURLSearchParams(normalize({
-      buildId: percy.build?.id, snapshot: { name: payload.name }, tag
-    }, { snake: true }))
-  ].join('');
-
-  return res.json(200, { success: true, link });
 }
 
 export function createPercyServer(percy, port) {
