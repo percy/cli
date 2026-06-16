@@ -2259,6 +2259,26 @@ describe('Snapshot', () => {
       expect(logger.stderr.filter(l => l === tip).length).toEqual(1);
     });
 
+    it('still finalizes the build when recommendation telemetry fails', async () => {
+      percy.loglevel('debug');
+      spyOn(percy.client, 'sendBuildEvents').and.rejectWith(new Error('network down'));
+
+      await percy.snapshot({
+        name: 'test snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot: '<html></html>',
+        enableLayout: true
+      });
+
+      await percy.stop();
+
+      // telemetry failure is swallowed and logged at debug; build still finalizes
+      expect(logger.stderr).toContain('[percy:core] VRA recommendation telemetry failed');
+      expect(logger.stdout).toContain(
+        '[percy:core] Finalized build #1: https://percy.io/test/test/123'
+      );
+    });
+
     it('does not log the VRA tip when no snapshot has layout enabled', async () => {
       await percy.snapshot({
         name: 'test snapshot',
