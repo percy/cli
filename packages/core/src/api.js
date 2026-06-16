@@ -3,7 +3,6 @@ import path, { dirname, resolve } from 'path';
 import logger from '@percy/logger';
 import { normalize } from '@percy/config/utils';
 import { getPackageJSON, Server, percyAutomateRequestHandler, percyBuildEventHandler, computeResponsiveWidths, encodeURLSearchParams } from './utils.js';
-import { ServerError } from './server.js';
 import WebdriverUtils from '@percy/webdriver-utils';
 import { handleSyncJob } from './snapshot.js';
 import { getMaestroHierarchyDrift } from './maestro-hierarchy.js';
