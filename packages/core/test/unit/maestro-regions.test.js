@@ -49,7 +49,9 @@ describe('Unit / maestro-regions', () => {
     it('transforms a coordinate region into an elementSelector boundingBox with the default algorithm', async () => {
       let out = await resolveRegions({
         body: { regions: [{ top: 10, left: 20, right: 120, bottom: 60 }] },
-        platform: 'android', sessionId: 's', percy
+        platform: 'android',
+        sessionId: 's',
+        percy
       });
       expect(out.regions).toEqual([{
         elementSelector: { boundingBox: { x: 20, y: 10, width: 100, height: 50 } },
@@ -60,7 +62,9 @@ describe('Unit / maestro-regions', () => {
     it('forwards an explicit algorithm verbatim (no relay-side validation)', async () => {
       let out = await resolveRegions({
         body: { regions: [{ top: 0, left: 0, right: 10, bottom: 10, algorithm: 'bogus' }] },
-        platform: 'android', sessionId: 's', percy
+        platform: 'android',
+        sessionId: 's',
+        percy
       });
       expect(out.regions[0].algorithm).toBe('bogus');
     });
@@ -71,7 +75,9 @@ describe('Unit / maestro-regions', () => {
           ignoreRegions: [{ top: 1, left: 2, right: 12, bottom: 11 }],
           considerRegions: [{ top: 3, left: 4, right: 14, bottom: 13 }]
         },
-        platform: 'android', sessionId: 's', percy
+        platform: 'android',
+        sessionId: 's',
+        percy
       });
       expect(out.ignoredElementsData).toEqual({ ignoreElementsData: [{ coOrdinates: { top: 1, left: 2, bottom: 11, right: 12 } }] });
       expect(out.consideredElementsData).toEqual({ considerElementsData: [{ coOrdinates: { top: 3, left: 4, bottom: 13, right: 14 } }] });
