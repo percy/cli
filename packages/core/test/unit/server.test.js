@@ -241,26 +241,52 @@ describe('Unit / Server', () => {
       });
     });
 
-    it('handles CORS preflight requests', async () => {
+    it('handles CORS preflight requests for loopback origins', async () => {
       server.route(['get', 'post'], '/1', (req, res) => res.send(200));
       server.route(['put', 'delete'], '/2', (req, res) => res.text(200));
 
-      let res1 = await request('/1', 'OPTIONS', false);
+      // CORS is scoped to loopback origins (CWE-942): Access-Control-Allow-Origin
+      // is the echoed loopback origin, not a wildcard `*`.
+      let origin = server.address(); // http://localhost:8000
+
+      let res1 = await request('/1', {
+        method: 'OPTIONS',
+        headers: { Origin: origin }
+      }, false);
 
       expect(res1.statusCode).toBe(204);
-      expect(res1.headers).toHaveProperty('access-control-allow-origin', '*');
+      expect(res1.headers).toHaveProperty('access-control-allow-origin', origin);
       expect(res1.headers).toHaveProperty('access-control-allow-headers', '*');
       expect(res1.headers).toHaveProperty('access-control-allow-methods', 'GET, POST');
 
       let res2 = await request('/2', {
         method: 'OPTIONS',
-        headers: { 'Access-Control-Request-Headers': 'Content-Type' }
+        headers: { Origin: origin, 'Access-Control-Request-Headers': 'Content-Type' }
       }, false);
 
       expect(res2.statusCode).toBe(204);
-      expect(res2.headers).toHaveProperty('access-control-allow-origin', '*');
+      expect(res2.headers).toHaveProperty('access-control-allow-origin', origin);
       expect(res2.headers).toHaveProperty('access-control-allow-headers', 'Content-Type');
       expect(res2.headers).toHaveProperty('access-control-allow-methods', 'PUT, DELETE');
+    });
+
+    it('omits CORS headers for missing or non-loopback origins', async () => {
+      server.route(['get', 'post'], '/1', (req, res) => res.send(200));
+
+      // No Origin header (e.g. a Node SDK client) — still a valid 204 preflight,
+      // but no CORS headers are emitted.
+      let res1 = await request('/1', 'OPTIONS', false);
+      expect(res1.statusCode).toBe(204);
+      expect(res1.headers).not.toHaveProperty('access-control-allow-origin');
+      expect(res1.headers).not.toHaveProperty('access-control-allow-methods');
+
+      // Cross-origin website must not receive permissive CORS headers.
+      let res2 = await request('/1', {
+        method: 'OPTIONS',
+        headers: { Origin: 'https://evil.example.com' }
+      }, false);
+      expect(res2.statusCode).toBe(204);
+      expect(res2.headers).not.toHaveProperty('access-control-allow-origin');
     });
 
     it('handles server errors', async () => {
