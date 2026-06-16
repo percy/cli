@@ -17,9 +17,11 @@ import {
 export function isLoopbackOrigin(origin) {
   if (!origin || typeof origin !== 'string') return false;
   try {
+    // URL.hostname strips the brackets from an IPv6 literal, so `[::1]`
+    // normalises to `::1` here — no need to match the bracketed form.
     let host = new URL(origin).hostname.toLowerCase();
     return host === 'localhost' || host === '127.0.0.1' ||
-      host === '::1' || host === '[::1]' || host.endsWith('.localhost');
+      host === '::1' || host.endsWith('.localhost');
   } catch {
     return false;
   }
