@@ -427,10 +427,22 @@ export function createSnapshotsQueue(percy) {
         percy.log.warn(`Build #${build.number} failed: ${build.url}`, { build });
         await runDoctorOnFailure(percy);
       } else if (build?.id) {
-        await percy.client.finalizeBuild(build.id);
         if (build.layoutUsed) {
           percy.log.warn('Tip: VRA is Percy\'s recommended visual review mode — more accurate and adaptable than Layout. Learn more: https://www.browserstack.com/docs/percy/ai-agents/visual-review-agent/overview.');
+
+          // instrument the recommendation; telemetry must never fail a build
+          try {
+            await percy.client.sendBuildEvents(build.id, {
+              message: 'VRA recommendation shown for a build using Layout review mode'
+            }, {}, {
+              eventName: 'percy_cli_vra_recommendation_emitted',
+              category: 'percy:cli'
+            });
+          } catch (err) {
+            percy.log.debug('VRA recommendation telemetry failed', err);
+          }
         }
+        await percy.client.finalizeBuild(build.id);
         percy.log.info(`Finalized build #${build.number}: ${build.url}`, { build });
       } else {
         percy.log.warn('Build not created', { build });

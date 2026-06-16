@@ -2510,6 +2510,21 @@ describe('PercyClient', () => {
         }
       });
     });
+
+    it('includes event_name and category when provided', async () => {
+      await expectAsync(client.sendBuildEvents(123, [
+        { message: 'some event' }
+      ], {}, {
+        eventName: 'percy_cli_vra_recommendation_emitted',
+        category: 'percy:cli'
+      })).toBeResolved();
+
+      expect(api.requests['/builds/123/send-events'][0].body).toEqual({
+        event_name: 'percy_cli_vra_recommendation_emitted',
+        category: 'percy:cli',
+        data: [{ message: 'some event' }]
+      });
+    });
   });
 
   describe('#sendBuildLogs', () => {

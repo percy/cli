@@ -2212,6 +2212,18 @@ describe('Snapshot', () => {
       expect(logger.stdout).toContain(
         '[percy] Finalized build #1: https://percy.io/test/test/123'
       );
+
+      // the recommendation is instrumented with the newer send-events params
+      let vraEvents = (api.requests['/builds/123/send-events'] || [])
+        .filter(r => r.body.event_name === 'percy_cli_vra_recommendation_emitted');
+      expect(vraEvents.length).toEqual(1);
+      expect(vraEvents[0].body).toEqual({
+        event_name: 'percy_cli_vra_recommendation_emitted',
+        category: 'percy:cli',
+        data: {
+          message: 'VRA recommendation shown for a build using Layout review mode'
+        }
+      });
     });
 
     it('logs the VRA tip when enableLayout is set globally in config', async () => {
@@ -2260,6 +2272,10 @@ describe('Snapshot', () => {
       expect(logger.stdout).toContain(
         '[percy] Finalized build #1: https://percy.io/test/test/123'
       );
+      // no recommendation event is sent when Layout is not used
+      let vraEvents = (api.requests['/builds/123/send-events'] || [])
+        .filter(r => r.body.event_name === 'percy_cli_vra_recommendation_emitted');
+      expect(vraEvents.length).toEqual(0);
     });
   });
 });
