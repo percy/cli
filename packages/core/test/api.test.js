@@ -1,3 +1,4 @@
+import os from 'os';
 import path from 'path';
 import PercyConfig from '@percy/config';
 import { logger, setupTest, fs } from './helpers/index.js';
@@ -1879,8 +1880,11 @@ describe('API Server', () => {
       // Real-fs root (matched by the $bypass registered in the top-level
       // beforeEach) so the recursive `**` + `dot:true` glob runs against the
       // real filesystem — the production path — rather than memfs.
-      const SELF_HOSTED_ROOT = '/tmp/percy-self-hosted-real-root';
-      const NESTED_SUBDIR = `${SELF_HOSTED_ROOT}/.maestro/run-x/screenshots`;
+      // Use os.tmpdir() (not hardcoded `/tmp/`) so the fixtures work on
+      // Windows runners too — Windows has no `/tmp/`; the CI fails 404 on
+      // every glob when the root never gets created.
+      const SELF_HOSTED_ROOT = path.join(os.tmpdir(), 'percy-self-hosted-real-root');
+      const NESTED_SUBDIR = path.join(SELF_HOSTED_ROOT, '.maestro', 'run-x', 'screenshots');
       const SELF_HOSTED_NAME = 'SelfHostedScreen';
       let priorEnv;
 
@@ -1897,7 +1901,7 @@ describe('API Server', () => {
         Buffer.from('IHDR', 'ascii').copy(pngHeader, 12);
         pngHeader.writeUInt32BE(1080, 16);
         pngHeader.writeUInt32BE(2400, 20);
-        fs.writeFileSync(`${NESTED_SUBDIR}/${SELF_HOSTED_NAME}.png`, pngHeader);
+        fs.writeFileSync(path.join(NESTED_SUBDIR, `${SELF_HOSTED_NAME}.png`), pngHeader);
       });
 
       afterEach(() => {
@@ -1930,15 +1934,16 @@ describe('API Server', () => {
       });
 
       it('400s when PERCY_MAESTRO_SCREENSHOT_DIR does not exist', async () => {
-        process.env.PERCY_MAESTRO_SCREENSHOT_DIR = '/tmp/this-path-does-not-exist-percy-self-hosted';
+        process.env.PERCY_MAESTRO_SCREENSHOT_DIR = path.join(os.tmpdir(), 'this-path-does-not-exist-percy-self-hosted');
         await percy.start();
         await expectAsync(postMaestro({ name: SELF_HOSTED_NAME }))
           .toBeRejectedWithError(/PERCY_MAESTRO_SCREENSHOT_DIR is not an existing directory/);
       });
 
       it('400s when PERCY_MAESTRO_SCREENSHOT_DIR points to a file, not a directory', async () => {
-        fs.writeFileSync('/tmp/percy-self-hosted-not-a-dir', 'plain-file');
-        process.env.PERCY_MAESTRO_SCREENSHOT_DIR = '/tmp/percy-self-hosted-not-a-dir';
+        const notADir = path.join(os.tmpdir(), 'percy-self-hosted-not-a-dir');
+        fs.writeFileSync(notADir, 'plain-file');
+        process.env.PERCY_MAESTRO_SCREENSHOT_DIR = notADir;
         await percy.start();
         await expectAsync(postMaestro({ name: SELF_HOSTED_NAME }))
           .toBeRejectedWithError(/PERCY_MAESTRO_SCREENSHOT_DIR is not an existing directory/);
@@ -1964,9 +1969,9 @@ describe('API Server', () => {
         // A symlink inside the root that points outside it must not exfiltrate
         // the target — the realpath + prefix check rejects it (self-hosted arm
         // of the "resolved outside" guard). Uses real fs via the $bypass.
-        const outside = '/tmp/percy-self-hosted-real-OUTSIDE.png';
+        const outside = path.join(os.tmpdir(), 'percy-self-hosted-real-OUTSIDE.png');
         fs.writeFileSync(outside, 'OUTSIDE');
-        fs.symlinkSync(outside, `${NESTED_SUBDIR}/EscapeScreen.png`);
+        fs.symlinkSync(outside, path.join(NESTED_SUBDIR, 'EscapeScreen.png'));
         await percy.start();
         await expectAsync(postMaestro({ name: 'EscapeScreen', platform: 'android' }))
           .toBeRejectedWithError(/resolved outside PERCY_MAESTRO_SCREENSHOT_DIR/);
