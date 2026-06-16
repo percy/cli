@@ -182,6 +182,64 @@ describe('percy app:exec', () => {
       maybeInjectMaestroServer(ctx, log);
       expect(log.warn).not.toHaveBeenCalled();
     });
+
+    // Maestro accepts global flags BEFORE the `test` subcommand
+    // (picocli convention): `maestro --udid X test flow.yaml`,
+    // `maestro --platform=android test flow.yaml`, etc. The injection
+    // must locate `test` and splice the -e pair right after it, not
+    // assume args[1] === 'test'.
+    it('injects after `test` when --udid <value> precedes the subcommand', () => {
+      const ctx = ctxFor(['maestro', '--udid', '61031VDCR0004B', 'test', 'flow.yaml']);
+      maybeInjectMaestroServer(ctx);
+      expect(ctx.argv).toEqual([
+        'maestro', '--udid', '61031VDCR0004B', 'test',
+        '-e', 'PERCY_SERVER=http://localhost:5338',
+        'flow.yaml'
+      ]);
+    });
+
+    it('injects after `test` when --device <value> precedes the subcommand', () => {
+      const ctx = ctxFor(['maestro', '--device', 'Pixel-10', 'test', 'flow.yaml']);
+      maybeInjectMaestroServer(ctx);
+      expect(ctx.argv).toEqual([
+        'maestro', '--device', 'Pixel-10', 'test',
+        '-e', 'PERCY_SERVER=http://localhost:5338',
+        'flow.yaml'
+      ]);
+    });
+
+    it('injects after `test` when --platform=android (= form) precedes the subcommand', () => {
+      const ctx = ctxFor(['maestro', '--platform=android', 'test', 'flow.yaml']);
+      maybeInjectMaestroServer(ctx);
+      expect(ctx.argv).toEqual([
+        'maestro', '--platform=android', 'test',
+        '-e', 'PERCY_SERVER=http://localhost:5338',
+        'flow.yaml'
+      ]);
+    });
+
+    it('injects after `test` when multiple parent flags precede the subcommand', () => {
+      const ctx = ctxFor([
+        'maestro', '--udid', '61031VDCR0004B', '--platform', 'android',
+        'test', 'flow.yaml'
+      ]);
+      maybeInjectMaestroServer(ctx);
+      expect(ctx.argv).toEqual([
+        'maestro', '--udid', '61031VDCR0004B', '--platform', 'android', 'test',
+        '-e', 'PERCY_SERVER=http://localhost:5338',
+        'flow.yaml'
+      ]);
+    });
+
+    it('detects deeper -e PERCY_SERVER override when global flags precede `test`', () => {
+      const argv = [
+        'maestro', '--udid', '61031VDCR0004B', 'test',
+        '-e', 'PERCY_SERVER=http://custom:9999', 'flow.yaml'
+      ];
+      const ctx = ctxFor(argv);
+      maybeInjectMaestroServer(ctx);
+      expect(ctx.argv).toEqual(argv);
+    });
   });
 
   describe('maybeInjectScreenshotDir', () => {
@@ -347,6 +405,50 @@ describe('percy app:exec', () => {
         '/Users/foo/.maestro/bin/maestro', 'test',
         '--test-output-dir', expectedDir,
         'flow.yaml'
+      ]);
+    });
+
+    // Mirror the maestro-server tests: `test` may follow global parent
+    // flags (--udid, --device, --platform, ...), so the helper must
+    // locate `test` and splice --test-output-dir right after it.
+    it('injects --test-output-dir after `test` when --udid <value> precedes the subcommand', () => {
+      const mkdir = spyOn(fs, 'mkdirSync').and.callFake(() => {});
+      const expectedDir = path.join(process.cwd(), '.percy-out');
+      const ctx = ctxFor(['maestro', '--udid', '61031VDCR0004B', 'test', 'flow.yaml']);
+      maybeInjectScreenshotDir(ctx);
+      expect(mkdir).toHaveBeenCalledWith(expectedDir, { recursive: true });
+      expect(ctx.argv).toEqual([
+        'maestro', '--udid', '61031VDCR0004B', 'test',
+        '--test-output-dir', expectedDir,
+        'flow.yaml'
+      ]);
+    });
+
+    it('injects --test-output-dir after `test` when --platform=android precedes the subcommand', () => {
+      const mkdir = spyOn(fs, 'mkdirSync').and.callFake(() => {});
+      const expectedDir = path.join(process.cwd(), '.percy-out');
+      const ctx = ctxFor(['maestro', '--platform=android', 'test', 'flow.yaml']);
+      maybeInjectScreenshotDir(ctx);
+      expect(mkdir).toHaveBeenCalledWith(expectedDir, { recursive: true });
+      expect(ctx.argv).toEqual([
+        'maestro', '--platform=android', 'test',
+        '--test-output-dir', expectedDir,
+        'flow.yaml'
+      ]);
+    });
+
+    it('detects deeper customer --test-output-dir when global flags precede `test`', () => {
+      const mkdir = spyOn(fs, 'mkdirSync').and.callFake(() => {});
+      const ctx = ctxFor([
+        'maestro', '--udid', '61031VDCR0004B', 'test',
+        '--test-output-dir', '/custom/path', 'flow.yaml'
+      ]);
+      maybeInjectScreenshotDir(ctx);
+      expect(mkdir).not.toHaveBeenCalled();
+      expect(process.env.PERCY_MAESTRO_SCREENSHOT_DIR).toBe('/custom/path');
+      expect(ctx.argv).toEqual([
+        'maestro', '--udid', '61031VDCR0004B', 'test',
+        '--test-output-dir', '/custom/path', 'flow.yaml'
       ]);
     });
   });

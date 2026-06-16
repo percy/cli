@@ -18,8 +18,37 @@ export const start = command('start', {
   }
 }, ExecPlugin.start.callback);
 
-function hasExistingPercyServerFlag(args) {
-  for (let i = 2; i < args.length - 1; i++) {
+// Locate the `test` subcommand in argv. Maestro accepts global parent
+// flags before the subcommand, e.g.:
+//   maestro test flow.yaml
+//   maestro --udid <serial> test flow.yaml
+//   maestro --platform=android test flow.yaml
+//   maestro --verbose --no-ansi test flow.yaml
+// We must find `test` by scanning rather than checking args[1] === 'test',
+// or our injects silently no-op when the customer pins a device.
+//
+// Returns the index of the `test` literal, or -1 if not present. Skips
+// over the value of known value-taking parent flags so a literal `test`
+// supplied as a flag value (e.g. `--udid test`) isn't mistaken for the
+// subcommand. Equals-form (`--flag=value`) doesn't need a skip — the
+// value is part of the same argv token.
+const MAESTRO_PARENT_VALUE_FLAGS = new Set([
+  '--udid', '--device', '-p', '--platform',
+  '--host', '--port', '--driver-host-port'
+]);
+function findTestSubcommandIdx(args) {
+  for (let i = 1; i < args.length; i++) {
+    const tok = args[i];
+    if (tok === 'test') return i;
+    if (typeof tok === 'string' && MAESTRO_PARENT_VALUE_FLAGS.has(tok)) {
+      i++; // skip the value of this flag
+    }
+  }
+  return -1;
+}
+
+function hasExistingPercyServerFlag(args, testIdx) {
+  for (let i = testIdx + 1; i < args.length - 1; i++) {
     if (args[i] === '-e' && /^PERCY_SERVER=/.test(args[i + 1])) return true;
   }
   return false;
@@ -28,8 +57,8 @@ function hasExistingPercyServerFlag(args) {
 // Returns the index of the value following `--test-output-dir`, or -1 if absent.
 // We return the value-index (not just a boolean) so the screenshot-dir helper
 // can align PERCY_MAESTRO_SCREENSHOT_DIR with a customer-supplied flag value.
-function findTestOutputDirValueIdx(args) {
-  for (let i = 2; i < args.length - 1; i++) {
+function findTestOutputDirValueIdx(args, testIdx) {
+  for (let i = testIdx + 1; i < args.length - 1; i++) {
     if (args[i] === '--test-output-dir') return i + 1;
   }
   return -1;
@@ -51,8 +80,9 @@ export function maybeInjectMaestroServer(ctx, log) {
   const args = ctx?.argv;
   if (!Array.isArray(args) || args.length < 2) return;
   if (path.basename(args[0]) !== 'maestro') return;
-  if (args[1] !== 'test') return;
-  if (hasExistingPercyServerFlag(args)) return;
+  const testIdx = findTestSubcommandIdx(args);
+  if (testIdx < 0) return;
+  if (hasExistingPercyServerFlag(args, testIdx)) return;
   const addr = ctx.percy?.address();
   if (!addr) {
     log?.warn(
@@ -62,7 +92,9 @@ export function maybeInjectMaestroServer(ctx, log) {
     );
     return;
   }
-  args.splice(2, 0, '-e', `PERCY_SERVER=${addr}`);
+  // Inject after `test` so `-e KEY=VAL` is bound to the `test` subcommand
+  // (the only Maestro subcommand that accepts `-e`).
+  args.splice(testIdx + 1, 0, '-e', `PERCY_SERVER=${addr}`);
 }
 
 // Auto-resolve the Maestro screenshot output directory so customers don't
@@ -87,10 +119,11 @@ export function maybeInjectScreenshotDir(ctx, log) {
   const args = ctx?.argv;
   if (!Array.isArray(args) || args.length < 2) return;
   if (path.basename(args[0]) !== 'maestro') return;
-  if (args[1] !== 'test') return;
+  const testIdx = findTestSubcommandIdx(args);
+  if (testIdx < 0) return;
 
   const envSet = !!process.env.PERCY_MAESTRO_SCREENSHOT_DIR;
-  const flagValueIdx = findTestOutputDirValueIdx(args);
+  const flagValueIdx = findTestOutputDirValueIdx(args, testIdx);
   const flagSet = flagValueIdx > 0;
 
   // Fully customer-controlled — nothing to do.
@@ -124,7 +157,8 @@ export function maybeInjectScreenshotDir(ctx, log) {
   }
 
   if (!envSet) process.env.PERCY_MAESTRO_SCREENSHOT_DIR = resolved;
-  if (!flagSet) args.splice(2, 0, '--test-output-dir', resolved);
+  // Inject right after `test` (the subcommand that owns `--test-output-dir`).
+  if (!flagSet) args.splice(testIdx + 1, 0, '--test-output-dir', resolved);
 }
 
 export const exec = command('exec', {
