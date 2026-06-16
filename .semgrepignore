@@ -32,6 +32,16 @@ packages/core/src/archive.js
 # rationale.
 packages/core/src/maestro-screenshot-file.js
 
+# api.js: createStaticServer builds an automatic sitemap by joining the
+# operator-provided `baseUrl` config with locally-globbed `*.html` filenames
+# via `path.posix.join('/', baseUrl, …)` to construct sitemap URLs (not a
+# filesystem read of external request input). semgrep's
+# path-join-resolve-traversal rule flags the join regardless of the source
+# being trusted server config + locally-enumerated files. Inline `// nosemgrep`
+# directives are not honored by the semgrep CI version in use — suppress at the
+# file level with this rationale.
+packages/core/src/api.js
+
 # Test files load fixtures from hardcoded subpaths under
 # test/fixtures/maestro-{hierarchy,ios-hierarchy}. The fixture filenames
 # are static literals in each test; semgrep flags the path.join() used
