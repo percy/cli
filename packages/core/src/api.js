@@ -634,10 +634,13 @@ export function createPercyServer(percy, port) {
       // Canonicalize and confirm the resolved path still lives under scopeRoot.
       // Defeats symlink swaps where the root points elsewhere. Both ends are
       // realpath'd because /tmp is a symlink on macOS (where iOS hosts run).
-      // The trailing separator on the prefix is load-bearing — it prevents
+      // The trailing `/` on the prefix is load-bearing — it prevents
       // sibling-prefix bypass (e.g. /x/.maestro vs /x/.maestro-secrets).
-      // Use `path.sep` (not hardcoded `/`) so the prefix check is correct on
-      // Windows, where realpath returns backslash-separated paths.
+      //
+      // Normalize both sides to forward-slashes before the prefix check so
+      // the same code works on Windows (real-fs returns backslashes) AND on
+      // POSIX (no-op) AND on memfs in tests (POSIX-style virtual paths
+      // regardless of host OS).
       let realPath, realPrefix;
       try {
         realPath = await fs.promises.realpath(chosenFile);
@@ -645,7 +648,9 @@ export function createPercyServer(percy, port) {
       } catch {
         throw new ServerError(404, `Screenshot not found: ${name}.png (path resolution failed)`);
       }
-      if (!realPath.startsWith(`${realPrefix}${path.sep}`)) {
+      const realPathFwd = realPath.replace(/\\/g, '/');
+      const realPrefixFwd = realPrefix.replace(/\\/g, '/');
+      if (!realPathFwd.startsWith(`${realPrefixFwd}/`)) {
         throw new ServerError(404, `Screenshot not found: ${name}.png (resolved outside ${selfHosted ? 'PERCY_MAESTRO_SCREENSHOT_DIR' : 'session dir'})`);
       }
 
