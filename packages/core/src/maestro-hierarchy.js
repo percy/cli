@@ -1273,23 +1273,40 @@ export async function dump(options) {
 
   if (platform === 'ios') {
     const udid = getEnv('PERCY_IOS_DEVICE_UDID');
-    const driverHostPortRaw = getEnv('PERCY_IOS_DRIVER_HOST_PORT');
+    let driverHostPortRaw = getEnv('PERCY_IOS_DRIVER_HOST_PORT');
 
-    // `PERCY_IOS_DRIVER_HOST_PORT` is the single source of truth for the
-    // iOS Maestro driver port. It is set by:
+    // Self-hosted env-absent path: probe the Maestro 2.4.0 documented
+    // single-simulator default port (127.0.0.1:7001) before giving up.
+    // Maestro 2.4.0's TestCommand binds the driver to 7001 deterministically
+    // for the single-simulator case, so a single HTTP probe resolves the
+    // dominant self-hosted scenario without any port discovery from outside
+    // the process. Older releases used the same default; newer releases
+    // (2.6+, ephemeral port via ServerSocket(0)) require the customer to
+    // pin via `PERCY_IOS_DRIVER_HOST_PORT` (or `maestro --driver-host-port`,
+    // which 2.6+ accepts at the parent level).
+    //
+    // `PERCY_IOS_DRIVER_HOST_PORT` is the only signal the explicit branch
+    // below reads. Set by:
     //   * BrowserStack hosts (canonical 11100-11110 range, via
     //     `cli_manager.rb#start_percy_cli` env injection)
-    //   * `@percy/cli-app`'s `maybeInjectDriverHostPort` helper for
-    //     self-hosted customers running `percy app:exec` (any port,
-    //     either customer-supplied or picked by the OS at startup)
-    //   * Manually by power users who pin the driver port themselves
+    //   * Customers who pin the driver host port themselves
     //
-    // When the env var is absent, the customer skipped `percy app:exec`
-    // (or BS host injection failed). Element regions degrade gracefully
-    // with `env-missing` — coordinate regions and the snapshot itself
-    // continue to upload via the relay's other paths.
+    // If neither the env var nor a live driver on 7001 is found, element
+    // regions degrade gracefully with `env-missing` — coordinate regions
+    // and the snapshot itself continue to upload via the relay's other
+    // paths.
     if (!driverHostPortRaw) {
-      log.warn('[percy] iOS element regions unavailable — PERCY_IOS_DRIVER_HOST_PORT is not set. Run `percy app:exec -- maestro test ...` so it is injected automatically, or set it manually to your Maestro driver-host-port.');
+      const probe = await runIosHttpDump({ port: 7001, sessionId, httpRequest });
+      if (probe.kind === 'hierarchy' || probe.kind === 'no-aut-tree') {
+        log.debug(`dump took ${Date.now() - started}ms via maestro-http (self-hosted probe :7001, ${probe.kind === 'hierarchy' ? `${probe.nodes.length} nodes` : probe.reason})`);
+        if (probe.kind === 'hierarchy') {
+          recordResolverSuccess({ platform: 'ios', via: 'maestro-http' });
+        } else {
+          recordResolverFinalFailure({ platform: 'ios', failureClass: failureClassFromReason(probe.reason) });
+        }
+        return probe;
+      }
+      log.warn('[percy] iOS element regions unavailable — no Maestro driver responded on 127.0.0.1:7001. Set PERCY_IOS_DRIVER_HOST_PORT if your driver binds a non-default port (e.g. Maestro 2.6+ ephemeral or sharded runs).');
       recordResolverFinalFailure({ platform: 'ios', failureClass: 'other' });
       return { kind: 'unavailable', reason: 'env-missing' };
     }

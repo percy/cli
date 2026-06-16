@@ -491,28 +491,57 @@ describe('Unit / maestro-hierarchy', () => {
       expect(res).toEqual({ kind: 'unavailable', reason: 'self-hosted-no-udid' });
     });
 
-    // Self-hosted (UDID-set, PORT-unset): the prescribe-don't-discover refactor
-    // (Phase 3) removed the port-discovery cascade. PERCY_IOS_DRIVER_HOST_PORT
-    // is now the single source of truth. When it is absent the relay returns
-    // env-missing and the snapshot continues to upload via other paths;
-    // element regions degrade gracefully. UDID presence/absence is irrelevant
-    // when the port env is unset — without a port there is nothing to call.
-    it('warn-skips with env-missing when port is unset (udid set)', async () => {
+    // Self-hosted env-absent path: with PERCY_IOS_DRIVER_HOST_PORT unset, the
+    // relay probes Maestro 2.4.0's documented single-simulator default port
+    // (127.0.0.1:7001) before degrading. When the probe finds a live Maestro
+    // driver, element regions resolve through the same `runIosHttpDump`
+    // transport the BS path uses. When the probe fails, we warn-skip with
+    // env-missing — coordinate regions and the snapshot itself still upload.
+    // Maestro 2.6+ (ephemeral port) customers set PERCY_IOS_DRIVER_HOST_PORT
+    // explicitly to bypass the probe.
+
+    it('probes 127.0.0.1:7001 when env is unset, returns the dump on hit', async () => {
+      let observedPort = null;
+      const minimalAxElement = JSON.stringify({
+        axElement: {
+          elementType: 1,
+          identifier: 'com.example.app',
+          frame: { X: 0, Y: 0, Width: 100, Height: 100 },
+          children: []
+        }
+      });
+      const httpRequest = async opts => {
+        observedPort = opts.port;
+        return { statusCode: 200, headers: { 'content-type': 'application/json' }, body: minimalAxElement };
+      };
+      const res = await dump({ platform: 'ios', getEnv: () => undefined, httpRequest });
+      expect(observedPort).toBe(7001);
+      expect(res.kind).toBe('hierarchy');
+    });
+
+    it('warn-skips with env-missing when port is unset and the 7001 probe finds no driver', async () => {
       const getEnv = key => {
         if (key === 'PERCY_IOS_DEVICE_UDID') return '00008110-000065081404401E';
         return undefined;
       };
-      const httpRequest = jasmine.createSpy('httpRequest');
+      const httpRequest = jasmine.createSpy('httpRequest').and.callFake(async () => {
+        throw Object.assign(new Error('econnrefused'), { code: 'ECONNREFUSED' });
+      });
       const res = await dump({ platform: 'ios', getEnv, httpRequest });
       expect(res).toEqual({ kind: 'unavailable', reason: 'env-missing' });
-      expect(httpRequest).not.toHaveBeenCalled();
+      // The probe must have been attempted exactly once (port 7001).
+      expect(httpRequest).toHaveBeenCalledTimes(1);
+      expect(httpRequest.calls.mostRecent().args[0].port).toBe(7001);
     });
 
-    it('warn-skips with env-missing when both env vars are unset', async () => {
-      const httpRequest = jasmine.createSpy('httpRequest');
+    it('warn-skips with env-missing when both env vars are unset and the 7001 probe finds no driver', async () => {
+      const httpRequest = jasmine.createSpy('httpRequest').and.callFake(async () => {
+        throw Object.assign(new Error('econnrefused'), { code: 'ECONNREFUSED' });
+      });
       const res = await dump({ platform: 'ios', getEnv: () => undefined, httpRequest });
       expect(res).toEqual({ kind: 'unavailable', reason: 'env-missing' });
-      expect(httpRequest).not.toHaveBeenCalled();
+      expect(httpRequest).toHaveBeenCalledTimes(1);
+      expect(httpRequest.calls.mostRecent().args[0].port).toBe(7001);
     });
 
     it('does not invoke adb on iOS dispatch', async () => {
