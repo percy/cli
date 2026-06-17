@@ -887,13 +887,13 @@ export class PercyClient {
       // marks this snapshot failed — an unfinalized comparison is otherwise swept
       // by the build-cleanup retry loop and surfaces as a misleading render_timeout.
       // Re-throw afterwards so the snapshot is reported as failed to the caller.
-      this.log.error(`Failed to upload tiles for comparison: ${comparison.data.id} ${options.tag?.name}`, meta);
+      this.log.error(`Failed to upload tiles for comparison: ${comparison.data.id} ${options.tag.name}`, meta);
       try {
         await this.finalizeComparison(comparison.data.id);
       } catch (finalizeError) {
-        // Coerce defensively: a non-Error rejection (null/undefined/string) must not
-        // throw here and mask the original tile-upload error we re-throw below.
-        this.log.debug(`Failed to finalize failed comparison ${comparison.data.id}: ${finalizeError?.message || finalizeError}`, meta);
+        // String-coerce the rejection so a non-Error value (null/undefined/string)
+        // can't throw here and mask the original tile-upload error we re-throw below.
+        this.log.debug(`Failed to finalize failed comparison ${comparison.data.id}: ${finalizeError}`, meta);
       }
       throw error;
     }
