@@ -2441,6 +2441,9 @@ describe('PercyClient', () => {
           tag: { name: 'test tag' },
           tiles: [{ sha: 'abcd' }]
         })).toBeRejectedWithError('Uploading comparison tile failed');
+
+        // the finalize attempt was still made (and its own failure swallowed)
+        expect(client.finalizeComparison).toHaveBeenCalled();
       });
     });
 

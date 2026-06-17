@@ -891,7 +891,9 @@ export class PercyClient {
       try {
         await this.finalizeComparison(comparison.data.id);
       } catch (finalizeError) {
-        this.log.debug(`Failed to finalize failed comparison ${comparison.data.id}: ${finalizeError.message}`, meta);
+        // Coerce defensively: a non-Error rejection (null/undefined/string) must not
+        // throw here and mask the original tile-upload error we re-throw below.
+        this.log.debug(`Failed to finalize failed comparison ${comparison.data.id}: ${finalizeError?.message || finalizeError}`, meta);
       }
       throw error;
     }
