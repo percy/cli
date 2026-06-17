@@ -888,10 +888,13 @@ export class PercyClient {
     return comparison;
   }
 
-  async sendBuildEvents(buildId, body, meta = {}) {
+  async sendBuildEvents(buildId, body, meta = {}, { eventName, category } = {}) {
     validateId('build', buildId);
     this.log.debug('Sending Build Events');
     return this.post(`builds/${buildId}/send-events`, {
+      // newer params are optional; when omitted the API applies its defaults
+      ...(eventName && { event_name: eventName }),
+      ...(category && { category }),
       data: body
     }, { identifier: 'build.send_events', ...meta });
   }

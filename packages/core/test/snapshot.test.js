@@ -2194,6 +2194,110 @@ describe('Snapshot', () => {
       });
     });
   });
+
+  describe('VRA layout tip', () => {
+    let tip = '[percy] Tip: VRA is Percy\'s recommended visual review mode — more accurate and adaptable than Layout. Learn more: https://www.browserstack.com/docs/percy/ai-agents/visual-review-agent/overview.';
+
+    it('logs a VRA tip before finalizing when a snapshot has layout enabled', async () => {
+      await percy.snapshot({
+        name: 'test snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot: '<html></html>',
+        enableLayout: true
+      });
+
+      await percy.stop();
+
+      expect(logger.stderr).toContain(tip);
+      expect(logger.stdout).toContain(
+        '[percy] Finalized build #1: https://percy.io/test/test/123'
+      );
+
+      // the recommendation is instrumented with the newer send-events params
+      let vraEvents = (api.requests['/builds/123/send-events'] || [])
+        .filter(r => r.body.event_name === 'percy_cli_vra_recommendation_emitted');
+      expect(vraEvents.length).toEqual(1);
+      expect(vraEvents[0].body).toEqual({
+        event_name: 'percy_cli_vra_recommendation_emitted',
+        category: 'percy:cli',
+        data: {
+          message: 'VRA recommendation shown for a build using Layout review mode'
+        }
+      });
+    });
+
+    it('logs the VRA tip when enableLayout is set globally in config', async () => {
+      percy.config.snapshot.enableLayout = true;
+
+      await percy.snapshot({
+        name: 'test snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot: '<html></html>'
+      });
+
+      await percy.stop();
+
+      expect(logger.stderr).toContain(tip);
+    });
+
+    it('logs the VRA tip only once when multiple snapshots have layout enabled', async () => {
+      await percy.snapshot({
+        name: 'snapshot one',
+        url: 'http://localhost:8000',
+        domSnapshot: '<html></html>',
+        enableLayout: true
+      });
+      await percy.snapshot({
+        name: 'snapshot two',
+        url: 'http://localhost:8000',
+        domSnapshot: '<html></html>',
+        enableLayout: true
+      });
+
+      await percy.stop();
+
+      expect(logger.stderr.filter(l => l === tip).length).toEqual(1);
+    });
+
+    it('still finalizes the build when recommendation telemetry fails', async () => {
+      percy.loglevel('debug');
+      spyOn(percy.client, 'sendBuildEvents').and.rejectWith(new Error('network down'));
+
+      await percy.snapshot({
+        name: 'test snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot: '<html></html>',
+        enableLayout: true
+      });
+
+      await percy.stop();
+
+      // telemetry failure is swallowed and logged at debug; build still finalizes
+      expect(logger.stderr).toContain('[percy:core] VRA recommendation telemetry failed');
+      expect(logger.stdout).toContain(
+        '[percy:core] Finalized build #1: https://percy.io/test/test/123'
+      );
+    });
+
+    it('does not log the VRA tip when no snapshot has layout enabled', async () => {
+      await percy.snapshot({
+        name: 'test snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot: '<html></html>'
+      });
+
+      await percy.stop();
+
+      expect(logger.stderr).not.toContain(tip);
+      expect(logger.stdout).toContain(
+        '[percy] Finalized build #1: https://percy.io/test/test/123'
+      );
+      // no recommendation event is sent when Layout is not used
+      let vraEvents = (api.requests['/builds/123/send-events'] || [])
+        .filter(r => r.body.event_name === 'percy_cli_vra_recommendation_emitted');
+      expect(vraEvents.length).toEqual(0);
+    });
+  });
 });
 
 // ── runDoctorOnFailure ────────────────────────────────────────────────────────
