@@ -1,4 +1,4 @@
-import { decodeAndEncodeURLWithLogging, waitForSelectorInsideBrowser, compareObjectTypes, isGzipped, checkSDKVersion, percyAutomateRequestHandler, detectFontMimeType, handleIncorrectFontMimeType, computeResponsiveWidths, appendUrlSearchParam, processCorsIframesInDomSnapshot, processCorsIframes } from '../src/utils.js';
+import { decodeAndEncodeURLWithLogging, waitForSelectorInsideBrowser, compareObjectTypes, isGzipped, checkSDKVersion, percyAutomateRequestHandler, detectFontMimeType, handleIncorrectFontMimeType, computeResponsiveWidths, appendUrlSearchParam, processCorsIframesInDomSnapshot, processCorsIframes, isHttpOrHttpsUrl } from '../src/utils.js';
 import { logger, setupTest, mockRequests } from './helpers/index.js';
 import percyLogger from '@percy/logger';
 import Percy from '@percy/core';
@@ -808,6 +808,26 @@ describe('utils', () => {
     });
   });
 
+  describe('isHttpOrHttpsUrl', () => {
+    it('returns true for http and https URLs', () => {
+      expect(isHttpOrHttpsUrl('http://example.com')).toBe(true);
+      expect(isHttpOrHttpsUrl('https://example.com/path?q=1')).toBe(true);
+    });
+
+    it('returns false for blob, data, about and other schemes', () => {
+      expect(isHttpOrHttpsUrl('blob:https://example.com/abc-123')).toBe(false);
+      expect(isHttpOrHttpsUrl('data:text/html,<p>hi</p>')).toBe(false);
+      expect(isHttpOrHttpsUrl('about:blank')).toBe(false);
+      expect(isHttpOrHttpsUrl('file:///tmp/x.html')).toBe(false);
+    });
+
+    it('returns false for malformed or non-string URLs', () => {
+      expect(isHttpOrHttpsUrl('not a url')).toBe(false);
+      expect(isHttpOrHttpsUrl('')).toBe(false);
+      expect(isHttpOrHttpsUrl(undefined)).toBe(false);
+    });
+  });
+
   describe('processCorsIframesInDomSnapshot', () => {
     it('returns domSnapshot unchanged when corsIframes is not present', () => {
       const domSnapshot = {
@@ -1145,6 +1165,75 @@ describe('utils', () => {
       const result = processCorsIframesInDomSnapshot(domSnapshot);
 
       expect(result.resources.length).toBe(0);
+    });
+
+    it('skips entries whose frameUrl is a blob URL', () => {
+      const domSnapshot = {
+        html: '<html><body><iframe data-percy-element-id="frame1" src="blob:https://example.com/abc"></iframe></body></html>',
+        width: 1280,
+        resources: [],
+        corsIframes: [{
+          frameUrl: 'blob:https://example.com/abc-123',
+          iframeData: { percyElementId: 'frame1' },
+          iframeSnapshot: { html: 'iframe-content' }
+        }]
+      };
+
+      const result = processCorsIframesInDomSnapshot(domSnapshot);
+
+      // No resource is created and the HTML is left untouched, so the blob URL
+      // never reaches upload validation.
+      expect(result.resources.length).toBe(0);
+      expect(result.html).toContain('src="blob:https://example.com/abc"');
+    });
+
+    it('skips entries with non-http(s) frameUrl schemes (data:, about:)', () => {
+      const domSnapshot = {
+        html: '<html><body></body></html>',
+        width: 1280,
+        resources: [],
+        corsIframes: [
+          {
+            frameUrl: 'data:text/html,<p>hi</p>',
+            iframeData: { percyElementId: 'frame1' },
+            iframeSnapshot: { html: 'data-content' }
+          },
+          {
+            frameUrl: 'about:blank',
+            iframeData: { percyElementId: 'frame2' },
+            iframeSnapshot: { html: 'about-content' }
+          }
+        ]
+      };
+
+      const result = processCorsIframesInDomSnapshot(domSnapshot);
+
+      expect(result.resources.length).toBe(0);
+    });
+
+    it('processes valid http(s) entries and skips blob ones in mixed array', () => {
+      const domSnapshot = {
+        html: '<html><body><iframe data-percy-element-id="frame1"></iframe></body></html>',
+        width: 1280,
+        resources: [],
+        corsIframes: [
+          {
+            frameUrl: 'https://example.com/iframe1',
+            iframeData: { percyElementId: 'frame1' },
+            iframeSnapshot: { html: 'valid-content' }
+          },
+          {
+            frameUrl: 'blob:https://example.com/blob-123',
+            iframeData: { percyElementId: 'frame2' },
+            iframeSnapshot: { html: 'blob-content' }
+          }
+        ]
+      };
+
+      const result = processCorsIframesInDomSnapshot(domSnapshot);
+
+      expect(result.resources.length).toBe(1);
+      expect(result.resources[0].url).toBe('https://example.com/iframe1?percy_width=1280');
     });
 
     it('processes valid entries and skips invalid ones in mixed array', () => {

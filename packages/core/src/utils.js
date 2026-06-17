@@ -44,6 +44,18 @@ export function appendUrlSearchParam(urlString, key, value) {
   }
 }
 
+// Returns true when the URL has an http or https scheme. Percy can only fetch
+// and serve http(s) resources, so frame URLs with other schemes (blob:, data:,
+// about:, etc.) must not be turned into upload resources.
+export function isHttpOrHttpsUrl(urlString) {
+  try {
+    const { protocol } = new URL(urlString);
+    return protocol === 'http:' || protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
 // Process CORS iframes in a single domSnapshot object
 export function processCorsIframesInDomSnapshot(domSnapshot) {
   if (!domSnapshot?.corsIframes?.length) {
@@ -63,6 +75,14 @@ export function processCorsIframesInDomSnapshot(domSnapshot) {
     // Validate required fields and skip malformed entries
     if (!frameUrl || !iframeSnapshot?.html) {
       logger('core:utils').debug('Skipping malformed corsIframes entry: missing frameUrl or iframeSnapshot.html', frame);
+      continue;
+    }
+
+    // Skip frames whose URL is not http(s) (e.g. blob:, data:, about:). These
+    // schemes cannot be served by Percy and would otherwise be added as upload
+    // resources, causing the API to reject the entire snapshot upload.
+    if (!isHttpOrHttpsUrl(frameUrl)) {
+      logger('core:utils').debug(`Skipping corsIframes entry with non-http(s) frameUrl: ${frameUrl}`);
       continue;
     }
 
