@@ -1,4 +1,4 @@
-import { decodeAndEncodeURLWithLogging, waitForSelectorInsideBrowser, compareObjectTypes, isGzipped, checkSDKVersion, percyAutomateRequestHandler, detectFontMimeType, handleIncorrectFontMimeType, computeResponsiveWidths, appendUrlSearchParam, processCorsIframesInDomSnapshot, processCorsIframes, isHttpOrHttpsUrl } from '../src/utils.js';
+import { decodeAndEncodeURLWithLogging, waitForSelectorInsideBrowser, compareObjectTypes, isGzipped, checkSDKVersion, percyAutomateRequestHandler, detectFontMimeType, handleIncorrectFontMimeType, computeResponsiveWidths, appendUrlSearchParam, processCorsIframesInDomSnapshot, processCorsIframes, isHttpOrHttpsUrl, rewriteLocalhostURL, buildSyntheticFrameResourceUrl } from '../src/utils.js';
 import { logger, setupTest, mockRequests } from './helpers/index.js';
 import percyLogger from '@percy/logger';
 import Percy from '@percy/core';
@@ -828,6 +828,46 @@ describe('utils', () => {
     });
   });
 
+  describe('rewriteLocalhostURL', () => {
+    it('rewrites localhost and 127.0.0.1 origins to render.percy.local', () => {
+      expect(rewriteLocalhostURL('http://localhost:8000/a.html')).toBe('http://render.percy.local/a.html');
+      expect(rewriteLocalhostURL('https://127.0.0.1/a.html')).toBe('https://render.percy.local/a.html');
+    });
+
+    it('leaves non-localhost origins untouched', () => {
+      expect(rewriteLocalhostURL('https://example.com/a.html')).toBe('https://example.com/a.html');
+    });
+  });
+
+  describe('buildSyntheticFrameResourceUrl', () => {
+    it('returns null when percyElementId is missing', () => {
+      expect(buildSyntheticFrameResourceUrl('https://example.com', undefined)).toBeNull();
+      expect(buildSyntheticFrameResourceUrl('https://example.com', '')).toBeNull();
+    });
+
+    it('builds a /__serialized__ URL against the page origin', () => {
+      expect(buildSyntheticFrameResourceUrl('https://example.com/page', 'frame1'))
+        .toBe('https://example.com/__serialized__/cors-iframe-frame1.html');
+    });
+
+    it('rewrites a localhost page origin to render.percy.local', () => {
+      expect(buildSyntheticFrameResourceUrl('http://localhost:3000/page', 'frame1'))
+        .toBe('http://render.percy.local/__serialized__/cors-iframe-frame1.html');
+    });
+
+    it('falls back to render.percy.local when rootUrl is missing or non-http(s)', () => {
+      expect(buildSyntheticFrameResourceUrl(undefined, 'frame1'))
+        .toBe('https://render.percy.local/__serialized__/cors-iframe-frame1.html');
+      expect(buildSyntheticFrameResourceUrl('blob:https://example.com/x', 'frame1'))
+        .toBe('https://render.percy.local/__serialized__/cors-iframe-frame1.html');
+    });
+
+    it('url-encodes the percyElementId', () => {
+      expect(buildSyntheticFrameResourceUrl('https://example.com', 'a/b c'))
+        .toBe('https://example.com/__serialized__/cors-iframe-a%2Fb%20c.html');
+    });
+  });
+
   describe('processCorsIframesInDomSnapshot', () => {
     it('returns domSnapshot unchanged when corsIframes is not present', () => {
       const domSnapshot = {
@@ -1167,7 +1207,7 @@ describe('utils', () => {
       expect(result.resources.length).toBe(0);
     });
 
-    it('skips entries whose frameUrl is a blob URL', () => {
+    it('re-hosts a blob frameUrl under a synthetic http(s) resource URL', () => {
       const domSnapshot = {
         html: '<html><body><iframe data-percy-element-id="frame1" src="blob:https://example.com/abc"></iframe></body></html>',
         width: 1280,
@@ -1179,18 +1219,25 @@ describe('utils', () => {
         }]
       };
 
-      const result = processCorsIframesInDomSnapshot(domSnapshot);
+      const result = processCorsIframesInDomSnapshot(domSnapshot, 'https://example.com/page');
 
-      // No resource is created and the HTML is left untouched, so the blob URL
-      // never reaches upload validation.
-      expect(result.resources.length).toBe(0);
-      expect(result.html).toContain('src="blob:https://example.com/abc"');
+      // The blob URL is replaced with a synthetic http(s) URL on both the
+      // resource and the iframe src, so the content is preserved and uploads
+      // pass the API's http(s)-only validation.
+      const expectedUrl = 'https://example.com/__serialized__/cors-iframe-frame1.html?percy_width=1280';
+      expect(result.resources.length).toBe(1);
+      expect(result.resources[0]).toEqual({
+        url: expectedUrl,
+        content: 'iframe-content',
+        mimetype: 'text/html'
+      });
+      expect(result.html).toContain(`src="${expectedUrl}"`);
+      expect(result.html).not.toContain('blob:');
     });
 
-    it('skips entries with non-http(s) frameUrl schemes (data:, about:)', () => {
+    it('re-hosts blob/data frames against render.percy.local when rootUrl is absent', () => {
       const domSnapshot = {
         html: '<html><body></body></html>',
-        width: 1280,
         resources: [],
         corsIframes: [
           {
@@ -1208,10 +1255,33 @@ describe('utils', () => {
 
       const result = processCorsIframesInDomSnapshot(domSnapshot);
 
-      expect(result.resources.length).toBe(0);
+      expect(result.resources.map(r => r.url)).toEqual([
+        'https://render.percy.local/__serialized__/cors-iframe-frame1.html',
+        'https://render.percy.local/__serialized__/cors-iframe-frame2.html'
+      ]);
     });
 
-    it('processes valid http(s) entries and skips blob ones in mixed array', () => {
+    it('skips a non-http(s) frame that has no percyElementId (cannot rewrite src)', () => {
+      const domSnapshot = {
+        html: '<html><body><iframe src="blob:https://example.com/abc"></iframe></body></html>',
+        width: 1280,
+        resources: [],
+        corsIframes: [{
+          frameUrl: 'blob:https://example.com/abc-123',
+          iframeData: {},
+          iframeSnapshot: { html: 'iframe-content' }
+        }]
+      };
+
+      const result = processCorsIframesInDomSnapshot(domSnapshot, 'https://example.com/page');
+
+      // No percyElementId means we cannot point the iframe at the synthetic
+      // URL, so the frame is skipped rather than orphaning a resource.
+      expect(result.resources.length).toBe(0);
+      expect(result.html).toContain('src="blob:https://example.com/abc"');
+    });
+
+    it('processes valid http(s) entries and re-hosts blob ones in a mixed array', () => {
       const domSnapshot = {
         html: '<html><body><iframe data-percy-element-id="frame1"></iframe></body></html>',
         width: 1280,
@@ -1230,10 +1300,11 @@ describe('utils', () => {
         ]
       };
 
-      const result = processCorsIframesInDomSnapshot(domSnapshot);
+      const result = processCorsIframesInDomSnapshot(domSnapshot, 'https://example.com/page');
 
-      expect(result.resources.length).toBe(1);
+      expect(result.resources.length).toBe(2);
       expect(result.resources[0].url).toBe('https://example.com/iframe1?percy_width=1280');
+      expect(result.resources[1].url).toBe('https://example.com/__serialized__/cors-iframe-frame2.html?percy_width=1280');
     });
 
     it('processes valid entries and skips invalid ones in mixed array', () => {

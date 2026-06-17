@@ -45,8 +45,9 @@ export function appendUrlSearchParam(urlString, key, value) {
 }
 
 // Returns true when the URL has an http or https scheme. Percy can only fetch
-// and serve http(s) resources, so frame URLs with other schemes (blob:, data:,
-// about:, etc.) must not be turned into upload resources.
+// and serve http(s) resources, so a frame URL with another scheme (blob:,
+// data:, about:, etc.) cannot be used as-is for an upload resource — its
+// captured content is re-hosted under a synthetic http(s) URL instead.
 export function isHttpOrHttpsUrl(urlString) {
   try {
     const { protocol } = new URL(urlString);
@@ -56,8 +57,37 @@ export function isHttpOrHttpsUrl(urlString) {
   }
 }
 
-// Process CORS iframes in a single domSnapshot object
-export function processCorsIframesInDomSnapshot(domSnapshot) {
+// Rewrites localhost/127.0.0.1 origins to Percy's internal render host so
+// serialized resources resolve consistently during rendering. Mirrors the
+// rewrite applied to serialized DOM resources in @percy/dom (serialize-cssom).
+export function rewriteLocalhostURL(url) {
+  return url.replace(/(http[s]{0,1}:\/\/)(localhost|127.0.0.1)[:\d+]*/, '$1render.percy.local');
+}
+
+// Builds a synthetic, renderable http(s) URL for a CORS iframe whose own URL is
+// not http(s) (e.g. a blob: iframe). The captured iframe HTML is re-hosted at a
+// `/__serialized__/` path resolved against the page origin — the same scheme
+// @percy/dom uses for blob stylesheets — so Percy's renderer can serve it and
+// the API's http(s)-only URL validation passes. Returns null when there is no
+// percyElementId, since without it the iframe `src` cannot be rewritten to point
+// at the synthetic URL and the resource would be orphaned.
+export function buildSyntheticFrameResourceUrl(rootUrl, percyElementId) {
+  if (!percyElementId) return null;
+
+  const path = `/__serialized__/cors-iframe-${encodeURIComponent(percyElementId)}.html`;
+  const base = rootUrl && isHttpOrHttpsUrl(rootUrl) ? rootUrl : 'https://render.percy.local';
+
+  try {
+    return rewriteLocalhostURL(new URL(path, base).toString());
+  } catch {
+    /* istanbul ignore next: base is always a valid absolute URL, kept as a defensive guard */
+    return rewriteLocalhostURL(`https://render.percy.local${path}`);
+  }
+}
+
+// Process CORS iframes in a single domSnapshot object. `rootUrl` is the page
+// URL of the snapshot, used as the base for synthetic resource URLs.
+export function processCorsIframesInDomSnapshot(domSnapshot, rootUrl) {
   if (!domSnapshot?.corsIframes?.length) {
     return domSnapshot;
   }
@@ -78,19 +108,30 @@ export function processCorsIframesInDomSnapshot(domSnapshot) {
       continue;
     }
 
-    // Skip frames whose URL is not http(s) (e.g. blob:, data:, about:). These
-    // schemes cannot be served by Percy and would otherwise be added as upload
-    // resources, causing the API to reject the entire snapshot upload.
-    if (!isHttpOrHttpsUrl(frameUrl)) {
-      logger('core:utils').debug(`Skipping corsIframes entry with non-http(s) frameUrl: ${frameUrl}`);
-      continue;
+    // Determine the URL used for both the uploaded resource and the rewritten
+    // iframe src. For http(s) frames this is the frame URL (plus width); for
+    // non-http(s) frames (e.g. blob:) the frame URL cannot be served or
+    // validated by Percy, so the captured iframe HTML is re-hosted under a
+    // synthetic http(s) URL instead — mirroring blob stylesheet handling in
+    // @percy/dom. Frames we cannot re-host (no percyElementId) are skipped so a
+    // bad URL never reaches upload validation and fails the whole snapshot.
+    let resourceUrl;
+    if (isHttpOrHttpsUrl(frameUrl)) {
+      // width is only passed in case of responsiveSnapshotCapture
+      resourceUrl = domSnapshot.width
+        ? appendUrlSearchParam(frameUrl, 'percy_width', domSnapshot.width)
+        : frameUrl;
+    } else {
+      const syntheticUrl = buildSyntheticFrameResourceUrl(rootUrl, iframeData?.percyElementId);
+      if (!syntheticUrl) {
+        logger('core:utils').debug(`Skipping corsIframes entry with non-http(s) frameUrl and no percyElementId: ${frameUrl}`);
+        continue;
+      }
+      resourceUrl = domSnapshot.width
+        ? appendUrlSearchParam(syntheticUrl, 'percy_width', domSnapshot.width)
+        : syntheticUrl;
+      logger('core:utils').debug(`Re-hosting non-http(s) corsIframes frameUrl ${frameUrl} as ${resourceUrl}`);
     }
-
-    // width is only passed in case of responsiveSnapshotCapture
-    // Build frame URL with width parameter if available
-    const frameUrlWithWidth = domSnapshot.width
-      ? appendUrlSearchParam(frameUrl, 'percy_width', domSnapshot.width)
-      : frameUrl;
 
     // Add iframe snapshot resources to main resources
     if (iframeSnapshot?.resources) {
@@ -99,7 +140,7 @@ export function processCorsIframesInDomSnapshot(domSnapshot) {
 
     // Create a new resource for the iframe's HTML
     const iframeResource = {
-      url: frameUrlWithWidth,
+      url: resourceUrl,
       content: iframeSnapshot.html,
       mimetype: 'text/html'
     };
@@ -117,7 +158,7 @@ export function processCorsIframesInDomSnapshot(domSnapshot) {
       /* istanbul ignore next: iframe matching logic depends on DOM structure */
       if (match) {
         const iframeTag = match[1];
-        const newIframeTag = iframeTag.replace(/src="[^"]*"/i, `src="${frameUrlWithWidth}"`);
+        const newIframeTag = iframeTag.replace(/src="[^"]*"/i, `src="${resourceUrl}"`);
         domSnapshot.html = domSnapshot.html.replace(iframeTag, newIframeTag);
       }
     }
@@ -126,15 +167,16 @@ export function processCorsIframesInDomSnapshot(domSnapshot) {
   return domSnapshot;
 }
 
-// Process CORS iframes - handles both single object and array of domSnapshots
-export function processCorsIframes(domSnapshot) {
+// Process CORS iframes - handles both single object and array of domSnapshots.
+// `rootUrl` is the snapshot's page URL, used as the base for synthetic URLs.
+export function processCorsIframes(domSnapshot, rootUrl) {
   if (!domSnapshot) return domSnapshot;
 
   if (Array.isArray(domSnapshot)) {
-    return domSnapshot.map(snap => processCorsIframesInDomSnapshot(snap));
+    return domSnapshot.map(snap => processCorsIframesInDomSnapshot(snap, rootUrl));
   }
 
-  return processCorsIframesInDomSnapshot(domSnapshot);
+  return processCorsIframesInDomSnapshot(domSnapshot, rootUrl);
 }
 
 /**
