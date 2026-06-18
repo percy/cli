@@ -544,6 +544,37 @@ describe('Unit / maestro-hierarchy', () => {
       expect(httpRequest.calls.mostRecent().args[0].port).toBe(7001);
     });
 
+    // When env is unset but the 7001 probe responds with a SpringBoard-only
+    // hierarchy (no AUT subtree — the user app isn't foregrounded), the dump
+    // returns kind: 'no-aut-tree'. The dispatch records a final failure with
+    // the classified reason and returns the probe result directly so the
+    // caller surfaces the actionable AUT-not-running diagnostic instead of
+    // the generic env-missing warn-skip.
+    it('returns no-aut-tree via the 7001 probe when env is unset and the driver reports SpringBoard-only', async () => {
+      // findAxAutRoot returns null when it walks an axElement tree that
+      // contains only the SpringBoard application (identifier
+      // 'com.apple.springboard') with no AUT child — i.e. the user app
+      // isn't foregrounded. runIosHttpDump then returns kind: 'no-aut-tree'
+      // and the dispatch's self-hosted-probe branch returns that result
+      // directly after recording the classified failure (line 1305).
+      const httpRequest = jasmine.createSpy('httpRequest').and.callFake(async () => ({
+        statusCode: 200,
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          axElement: {
+            elementType: 1,
+            identifier: 'com.apple.springboard',
+            children: []
+          }
+        })
+      }));
+      const res = await dump({ platform: 'ios', getEnv: () => undefined, httpRequest });
+      expect(res.kind).toBe('no-aut-tree');
+      expect(res.reason).toBe('springboard-only');
+      expect(httpRequest).toHaveBeenCalledTimes(1);
+      expect(httpRequest.calls.mostRecent().args[0].port).toBe(7001);
+    });
+
     it('does not invoke adb on iOS dispatch', async () => {
       const execAdb = async () => { throw new Error('should not hit adb on iOS'); };
       const getEnv = key => {
