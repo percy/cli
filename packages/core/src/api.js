@@ -501,6 +501,13 @@ export function createPercyServer(percy, port) {
         if (!path.isAbsolute(dir)) {
           throw new ServerError(400, 'PERCY_MAESTRO_SCREENSHOT_DIR must be an absolute path');
         }
+        // UX guard ONLY: surface an actionable 400 ("dir not found") instead
+        // of the opaque 404 the realpath+prefix containment check below would
+        // emit for a missing dir. There is a small TOCTOU window between this
+        // stat and the realpath at line 647 — that window is acceptable here
+        // because realpath (not stat) is the security invariant: even if the
+        // dir is replaced with a symlink in between, realpath resolves the
+        // target and the sep-prefix check rejects anything outside scopeRoot.
         let stat;
         try { stat = await fs.promises.stat(dir); } catch { stat = null; }
         if (!stat || !stat.isDirectory()) {

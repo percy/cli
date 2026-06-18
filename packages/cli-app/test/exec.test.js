@@ -451,5 +451,49 @@ describe('percy app:exec', () => {
         '--test-output-dir', '/custom/path', 'flow.yaml'
       ]);
     });
+
+    // --test-output-dir=<value> is valid picocli syntax (single token, `=`).
+    // Without equals-form handling, the helper would think no flag is set,
+    // inject a SECOND --test-output-dir, and overwrite PERCY_MAESTRO_SCREENSHOT_DIR
+    // to the auto-resolved .percy-out — Maestro then writes screenshots to one
+    // dir while the relay reads from another → silent all-404 snapshots.
+    it('honors customer-supplied --test-output-dir=<value> equals-form', () => {
+      const mkdir = spyOn(fs, 'mkdirSync').and.callFake(() => {});
+      const ctx = ctxFor(['maestro', 'test', '--test-output-dir=/custom/eq', 'flow.yaml']);
+      maybeInjectScreenshotDir(ctx);
+      expect(mkdir).not.toHaveBeenCalled();
+      expect(process.env.PERCY_MAESTRO_SCREENSHOT_DIR).toBe('/custom/eq');
+      // argv unchanged — no duplicate --test-output-dir injection
+      expect(ctx.argv).toEqual([
+        'maestro', 'test', '--test-output-dir=/custom/eq', 'flow.yaml'
+      ]);
+    });
+
+    it('honors --test-output-dir=<value> when global flags precede `test`', () => {
+      const mkdir = spyOn(fs, 'mkdirSync').and.callFake(() => {});
+      const ctx = ctxFor([
+        'maestro', '--udid', '61031VDCR0004B', 'test',
+        '--test-output-dir=/custom/eq', 'flow.yaml'
+      ]);
+      maybeInjectScreenshotDir(ctx);
+      expect(mkdir).not.toHaveBeenCalled();
+      expect(process.env.PERCY_MAESTRO_SCREENSHOT_DIR).toBe('/custom/eq');
+      expect(ctx.argv).toEqual([
+        'maestro', '--udid', '61031VDCR0004B', 'test',
+        '--test-output-dir=/custom/eq', 'flow.yaml'
+      ]);
+    });
+
+    it('treats env var as override when both env and --test-output-dir=<value> equals-form are set', () => {
+      process.env.PERCY_MAESTRO_SCREENSHOT_DIR = '/from/env';
+      const mkdir = spyOn(fs, 'mkdirSync').and.callFake(() => {});
+      const argv = ['maestro', 'test', '--test-output-dir=/from/eq', 'flow.yaml'];
+      const ctx = ctxFor(argv);
+      maybeInjectScreenshotDir(ctx);
+      expect(mkdir).not.toHaveBeenCalled();
+      // env wins on read; argv untouched (both customer-set → fully passive)
+      expect(process.env.PERCY_MAESTRO_SCREENSHOT_DIR).toBe('/from/env');
+      expect(ctx.argv).toEqual(argv);
+    });
   });
 });

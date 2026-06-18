@@ -54,14 +54,22 @@ function hasExistingPercyServerFlag(args, testIdx) {
   return false;
 }
 
-// Returns the index of the value following `--test-output-dir`, or -1 if absent.
-// We return the value-index (not just a boolean) so the screenshot-dir helper
-// can align PERCY_MAESTRO_SCREENSHOT_DIR with a customer-supplied flag value.
-function findTestOutputDirValueIdx(args, testIdx) {
-  for (let i = testIdx + 1; i < args.length - 1; i++) {
-    if (args[i] === '--test-output-dir') return i + 1;
+// Returns the customer-supplied value of `--test-output-dir` (whether the
+// space-form `--test-output-dir <path>` or the equals-form
+// `--test-output-dir=<path>` — both are valid picocli syntax), or null if
+// absent. Returning the value (not just an index) lets the screenshot-dir
+// helper align PERCY_MAESTRO_SCREENSHOT_DIR with the customer's value in
+// either form without re-deriving it.
+const TEST_OUTPUT_DIR_EQ_PREFIX = '--test-output-dir=';
+function findTestOutputDirValue(args, testIdx) {
+  for (let i = testIdx + 1; i < args.length; i++) {
+    const tok = args[i];
+    if (tok === '--test-output-dir' && i + 1 < args.length) return args[i + 1];
+    if (typeof tok === 'string' && tok.startsWith(TEST_OUTPUT_DIR_EQ_PREFIX)) {
+      return tok.slice(TEST_OUTPUT_DIR_EQ_PREFIX.length);
+    }
   }
-  return -1;
+  return null;
 }
 
 // Maestro's GraalJS sandbox does NOT inherit the parent process's env,
@@ -123,8 +131,8 @@ export function maybeInjectScreenshotDir(ctx, log) {
   if (testIdx < 0) return;
 
   const envSet = !!process.env.PERCY_MAESTRO_SCREENSHOT_DIR;
-  const flagValueIdx = findTestOutputDirValueIdx(args, testIdx);
-  const flagSet = flagValueIdx > 0;
+  const existingFlagValue = findTestOutputDirValue(args, testIdx);
+  const flagSet = existingFlagValue !== null;
 
   // Fully customer-controlled — nothing to do.
   if (envSet && flagSet) return;
@@ -133,7 +141,7 @@ export function maybeInjectScreenshotDir(ctx, log) {
   if (envSet) {
     resolved = process.env.PERCY_MAESTRO_SCREENSHOT_DIR;
   } else if (flagSet) {
-    resolved = args[flagValueIdx];
+    resolved = existingFlagValue;
   } else {
     const preferred = path.join(process.cwd(), '.percy-out');
     try {

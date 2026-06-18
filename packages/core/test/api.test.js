@@ -1999,6 +1999,53 @@ describe('API Server', () => {
           .toEqual({ x: 0, y: 10, width: 100, height: 40 });
         expect(payload.regions[0].algorithm).toBe('ignore');
       });
+
+      // Multi-match mtime selection — Maestro re-runs in the same root leave
+      // older fixtures behind under different timestamped sub-dirs. The relay
+      // picks the most-recently-modified match. This locks that determinism
+      // for the self-hosted code path (the BS arm has been exercising this
+      // branch via integration tests).
+      it('selects the most-recently-modified PNG when multiple matches exist under the root', async () => {
+        // Two PNG fixtures at different depths with distinct dimensions and
+        // mtimes. The newer one (larger size) must win.
+        const OLD_DIR = path.join(SELF_HOSTED_ROOT, '.maestro', 'run-old', 'screenshots');
+        const NEW_DIR = path.join(SELF_HOSTED_ROOT, '.maestro', 'run-new', 'screenshots');
+        fs.mkdirSync(OLD_DIR, { recursive: true });
+        fs.mkdirSync(NEW_DIR, { recursive: true });
+
+        // Helper: a valid 24-byte PNG header with the supplied dimensions.
+        const pngOf = (w, h) => {
+          const buf = Buffer.alloc(24);
+          Buffer.from([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]).copy(buf, 0);
+          buf.writeUInt32BE(13, 8);
+          Buffer.from('IHDR', 'ascii').copy(buf, 12);
+          buf.writeUInt32BE(w, 16);
+          buf.writeUInt32BE(h, 20);
+          return buf;
+        };
+
+        // Same `name` under both — recursive glob will find both.
+        const NAME = 'MultiMatch';
+        const oldFile = path.join(OLD_DIR, `${NAME}.png`);
+        const newFile = path.join(NEW_DIR, `${NAME}.png`);
+        fs.writeFileSync(oldFile, pngOf(720, 1280));
+        fs.writeFileSync(newFile, pngOf(1080, 2400));
+
+        // Stamp explicit mtimes so the assertion doesn't depend on fs write
+        // order (CI filesystems can be sub-millisecond).
+        const now = Date.now() / 1000;
+        fs.utimesSync(oldFile, now - 60, now - 60);
+        fs.utimesSync(newFile, now, now);
+
+        await percy.start();
+        spyOn(percy, 'upload').and.resolveTo();
+        let res = await postMaestro({ name: NAME, platform: 'android' });
+        expect(res.success).toBe(true);
+        let [payload] = percy.upload.calls.mostRecent().args;
+        // Newer fixture's dimensions reach the payload.
+        expect(payload.tag.width).toBe(1080);
+        expect(payload.tag.height).toBe(2400);
+      });
     });
   });
 });
