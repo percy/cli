@@ -44,8 +44,10 @@ gsed -i '/Update NODE_ENV for executable/{s//\nprocess.env.NODE_ENV = "executabl
 npm run build_cjs
 cp -R ./build/* packages/
 
-# Create executables
-pkg ./packages/cli/bin/run.js -d
+# Create executables. (No `-d`/`--debug`: it only adds per-file "included as
+# DISCLOSED code / asset content" logging — thousands of lines — without
+# changing the output binaries.)
+pkg ./packages/cli/bin/run.js
 
 # Rename executables
 mv run-linux percy && chmod +x percy
