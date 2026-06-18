@@ -91,17 +91,20 @@ describe('Unit / maestro-hierarchy / cross-platform parity', () => {
 
     it('iOS env-missing returns { kind: "unavailable", reason: "env-missing" }', async () => {
       // Same envelope shape as Android-failure paths, just a different reason
-      // tag. Post-Phase-3 (prescribe-don't-discover): the port-discovery
-      // cascade was removed. PERCY_IOS_DRIVER_HOST_PORT is now the single
-      // source of truth — set by BS hosts, by @percy/cli-app's
-      // `maybeInjectDriverHostPort`, or manually by power users. When
-      // absent the dispatch returns env-missing and the snapshot continues
-      // to upload via other paths; element regions degrade gracefully.
-      const httpRequest = jasmine.createSpy('httpRequest');
+      // tag. When PERCY_IOS_DRIVER_HOST_PORT is absent, the iOS dispatch
+      // probes the deterministic 127.0.0.1:7001 fallback once; if the probe
+      // is rejected (no Maestro driver listening) the dispatch returns
+      // env-missing and the snapshot continues to upload via other paths
+      // — element regions degrade gracefully.
+      const httpRequest = jasmine.createSpy('httpRequest').and.callFake(async () => {
+        throw Object.assign(new Error('econnrefused'), { code: 'ECONNREFUSED' });
+      });
       const res = await dump({ platform: 'ios', getEnv: () => undefined, httpRequest });
       expect(res.kind).toBe('unavailable');
       expect(res.reason).toBe('env-missing');
-      expect(httpRequest).not.toHaveBeenCalled();
+      // The 7001 probe must be attempted exactly once before the warn-skip.
+      expect(httpRequest).toHaveBeenCalledTimes(1);
+      expect(httpRequest.calls.mostRecent().args[0].port).toBe(7001);
     });
 
     it('iOS env-set with no http/maestro reachable returns same envelope kinds as Android failure paths', async () => {
