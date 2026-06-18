@@ -52,24 +52,34 @@ mv run-linux percy && chmod +x percy
 mv run-macos percy-osx && chmod +x percy-osx
 mv run-win.exe percy.exe && chmod +x percy.exe
 
-# Sign & Notrize mac app
-echo "$APPLE_DEV_CERT" | base64 -d > AppleDevIDApp.p12
+# Sign, notarize and package the assets only when the Apple signing secrets are
+# present. Pull-request builds run without secrets: there we only want to prove
+# the executables build and run (the verify step), not sign or ship them.
+if [ -n "${APPLE_DEV_CERT:-}" ]; then
+  # Sign & Notrize mac app
+  echo "$APPLE_DEV_CERT" | base64 -d > AppleDevIDApp.p12
 
-security create-keychain -p percy percy.keychain
-security import AppleDevIDApp.p12 -t agg -k percy.keychain -P $APPLE_CERT_KEY -A
-security list-keychains -s ~/Library/Keychains/percy.keychain
-security default-keychain -s ~/Library/Keychains/percy.keychain
-security unlock-keychain -p "percy" ~/Library/Keychains/percy.keychain
-security set-keychain-settings -t 3600 -l ~/Library/Keychains/percy.keychain
-security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k percy ~/Library/Keychains/percy.keychain-db
+  security create-keychain -p percy percy.keychain
+  security import AppleDevIDApp.p12 -t agg -k percy.keychain -P $APPLE_CERT_KEY -A
+  security list-keychains -s ~/Library/Keychains/percy.keychain
+  security default-keychain -s ~/Library/Keychains/percy.keychain
+  security unlock-keychain -p "percy" ~/Library/Keychains/percy.keychain
+  security set-keychain-settings -t 3600 -l ~/Library/Keychains/percy.keychain
+  security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k percy ~/Library/Keychains/percy.keychain-db
 
-codesign  --force --verbose=4 -s "Developer ID Application: BrowserStack Inc ($APPLE_TEAM_ID)" --options runtime --entitlements scripts/files/entitlement.plist --keychain ~/Library/Keychains/percy.keychain percy-osx
+  codesign  --force --verbose=4 -s "Developer ID Application: BrowserStack Inc ($APPLE_TEAM_ID)" --options runtime --entitlements scripts/files/entitlement.plist --keychain ~/Library/Keychains/percy.keychain percy-osx
 
-# Create zip file for uploading as assets
-zip percy-linux.zip percy
-mv percy-osx percy
-zip percy-osx.zip percy
+  # Create zip file for uploading as assets
+  zip percy-linux.zip percy
+  mv percy-osx percy
+  zip percy-osx.zip percy
 
-xcrun notarytool submit --apple-id "$APPLE_ID_USERNAME" --password $APPLE_ID_KEY --team-id $APPLE_TEAM_ID percy-osx.zip --wait
+  xcrun notarytool submit --apple-id "$APPLE_ID_USERNAME" --password $APPLE_ID_KEY --team-id $APPLE_TEAM_ID percy-osx.zip --wait
 
-cleanup
+  cleanup
+else
+  echo "APPLE_DEV_CERT not set — skipping macOS signing/notarization (PR build)."
+  # Leave ./percy as the macOS binary so the verify step runs natively on the
+  # macOS runner (mirrors the signed path, which ends with percy == percy-osx).
+  mv percy-osx percy
+fi

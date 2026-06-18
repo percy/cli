@@ -1,0 +1,33 @@
+name: Verify Executable
+
+# Per-PR gate: build the packaged executables exactly as the release pipeline
+# does and smoke-test them — but without signing, notarizing or uploading. This
+# catches binary-only breakages (e.g. a bad require produced by the CJS
+# transpile that never shows up in the Node/source test suite) on the PR that
+# introduces them, so they can't reach a release.
+#
+# No secrets are used or needed: scripts/executable.sh skips the macOS
+# signing/notarization block when APPLE_DEV_CERT is unset, which also makes this
+# safe to run on pull requests from forks.
+on:
+  pull_request:
+    branches: [master]
+
+concurrency:
+  group: verify-executable-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Build & verify executable
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 14
+          architecture: x64
+      - name: Build executables (no signing, no upload)
+        run: ./scripts/executable.sh
+      - name: Verify executable
+        run: ./scripts/verify-executable.sh ./percy
