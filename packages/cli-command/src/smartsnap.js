@@ -8,11 +8,16 @@ import { diffLockfileDeps } from './lockfileDiff.js';
 import { renderGraphTraceHtml } from './graphTrace.js';
 
 // stream-json is CommonJS — load via createRequire to avoid named-import interop issues.
-const require = createRequire(import.meta.url);
-const { parser } = require('stream-json');
-const { pick } = require('stream-json/filters/Pick');
-const { streamArray } = require('stream-json/streamers/StreamArray');
-const { streamValues } = require('stream-json/streamers/StreamValues');
+// Bound to a non-`require` name on purpose: in the CommonJS-transpiled binary,
+// naming it `require` collides with Babel's preset-env + transform-import-meta,
+// which rewrite `import.meta.url` into a `require('url')` call that then gets
+// renamed alongside the local binding to `_require(...)` inside its own
+// initializer (TypeError: _require is not a function).
+const cjsRequire = createRequire(import.meta.url);
+const { parser } = cjsRequire('stream-json');
+const { pick } = cjsRequire('stream-json/filters/Pick');
+const { streamArray } = cjsRequire('stream-json/streamers/StreamArray');
+const { streamValues } = cjsRequire('stream-json/streamers/StreamValues');
 
 // Webpack/Vite stats prefix loader-resolved virtual modules with a NUL byte
 // (e.g. "\u0000/path/to/file?commonjs-es-import"). Strip it so the path lines

@@ -6,7 +6,13 @@ import logger from '@percy/logger';
 // time — that way importing this module never throws on older Node versions
 // (or when the optional install was skipped for any other reason). Cached on
 // first successful load so the require only resolves once per process.
-const require = createRequire(import.meta.url);
+// Bound to a non-`require` name on purpose: when this ESM file is transpiled to
+// CommonJS for the packaged binary, naming it `require` collides with two Babel
+// transforms at once — preset-env renames the local `require` to `_require`, and
+// transform-import-meta expands `import.meta.url` into a `require('url')` call
+// that gets renamed to `_require` too, producing `_require(...)` inside its own
+// initializer (TypeError: _require is not a function). See PER smartsnap binary.
+const cjsRequire = createRequire(import.meta.url);
 let _snykModule;
 /* istanbul ignore next: snyk-backed path — the parser requires Node >=18 while
    CI runs the suite on Node 14, so these lines can't execute there; they're
@@ -14,7 +20,7 @@ let _snykModule;
 function loadSnyk() {
   if (_snykModule) return _snykModule;
   try {
-    _snykModule = require('snyk-nodejs-lockfile-parser');
+    _snykModule = cjsRequire('snyk-nodejs-lockfile-parser');
     return _snykModule;
   } catch (e) {
     // Surface the underlying require failure so callers can distinguish
