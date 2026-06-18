@@ -2032,7 +2032,11 @@ describe('API Server', () => {
         fs.writeFileSync(newFile, pngOf(1080, 2400));
 
         // Stamp explicit mtimes so the assertion doesn't depend on fs write
-        // order (CI filesystems can be sub-millisecond).
+        // order. The 60-second gap is chosen to survive CI filesystems with
+        // 1-second mtime resolution (ext4 without `relatime`, common older
+        // CI images) — at that floor the two writes could otherwise round
+        // to the same mtime and the ordering assertion would be racy.
+        // `fs.utimesSync` takes atime/mtime in SECONDS (POSIX `time_t`).
         const now = Date.now() / 1000;
         fs.utimesSync(oldFile, now - 60, now - 60);
         fs.utimesSync(newFile, now, now);

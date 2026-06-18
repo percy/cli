@@ -495,5 +495,41 @@ describe('percy app:exec', () => {
       expect(process.env.PERCY_MAESTRO_SCREENSHOT_DIR).toBe('/from/env');
       expect(ctx.argv).toEqual(argv);
     });
+
+    // An empty equals-form value `--test-output-dir=` (and the space-form
+    // equivalent `--test-output-dir ''`) is a user error / typo. Without
+    // the empty-string guard the helper would treat the empty string as a
+    // customer-set value, leaving PERCY_MAESTRO_SCREENSHOT_DIR unset AND
+    // skipping the auto-resolve fallback — Maestro defaults its own output
+    // dir while the SDK reads an empty env var. Producing all-404 snapshots
+    // silently. The helper instead falls through to the auto-resolve path
+    // as if the flag were absent.
+    it('treats empty --test-output-dir= equals-form value as absent (falls through to auto-resolve)', () => {
+      const mkdir = spyOn(fs, 'mkdirSync').and.callFake(() => {});
+      const expectedDir = path.join(process.cwd(), '.percy-out');
+      const ctx = ctxFor(['maestro', 'test', '--test-output-dir=', 'flow.yaml']);
+      maybeInjectScreenshotDir(ctx);
+      expect(mkdir).toHaveBeenCalledWith(expectedDir, { recursive: true });
+      expect(process.env.PERCY_MAESTRO_SCREENSHOT_DIR).toBe(expectedDir);
+      // argv: original empty --test-output-dir= preserved AND the resolved
+      // value spliced in (Maestro picocli will accept the latter override).
+      expect(ctx.argv).toEqual([
+        'maestro', 'test', '--test-output-dir', expectedDir,
+        '--test-output-dir=', 'flow.yaml'
+      ]);
+    });
+
+    it('treats empty space-form --test-output-dir "" as absent (falls through to auto-resolve)', () => {
+      const mkdir = spyOn(fs, 'mkdirSync').and.callFake(() => {});
+      const expectedDir = path.join(process.cwd(), '.percy-out');
+      const ctx = ctxFor(['maestro', 'test', '--test-output-dir', '', 'flow.yaml']);
+      maybeInjectScreenshotDir(ctx);
+      expect(mkdir).toHaveBeenCalledWith(expectedDir, { recursive: true });
+      expect(process.env.PERCY_MAESTRO_SCREENSHOT_DIR).toBe(expectedDir);
+      expect(ctx.argv).toEqual([
+        'maestro', 'test', '--test-output-dir', expectedDir,
+        '--test-output-dir', '', 'flow.yaml'
+      ]);
+    });
   });
 });

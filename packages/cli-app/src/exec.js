@@ -60,13 +60,24 @@ function hasExistingPercyServerFlag(args, testIdx) {
 // absent. Returning the value (not just an index) lets the screenshot-dir
 // helper align PERCY_MAESTRO_SCREENSHOT_DIR with the customer's value in
 // either form without re-deriving it.
+//
+// An empty value (space-form value === '' or equals-form `--test-output-dir=`
+// with nothing after the `=`) is treated as ABSENT — returning the empty
+// string would tell the caller "customer set this" and bypass the
+// auto-resolve fallback, leaving Maestro to default its output location
+// while PERCY_MAESTRO_SCREENSHOT_DIR stays unset. That mismatch silently
+// produces all-404 snapshots, so fall through to the auto-resolve path
+// instead.
 const TEST_OUTPUT_DIR_EQ_PREFIX = '--test-output-dir=';
 function findTestOutputDirValue(args, testIdx) {
   for (let i = testIdx + 1; i < args.length; i++) {
     const tok = args[i];
-    if (tok === '--test-output-dir' && i + 1 < args.length) return args[i + 1];
-    if (typeof tok === 'string' && tok.startsWith(TEST_OUTPUT_DIR_EQ_PREFIX)) {
-      return tok.slice(TEST_OUTPUT_DIR_EQ_PREFIX.length);
+    if (tok === '--test-output-dir' && i + 1 < args.length) {
+      const val = args[i + 1];
+      if (typeof val === 'string' && val.length > 0) return val;
+    } else if (typeof tok === 'string' && tok.startsWith(TEST_OUTPUT_DIR_EQ_PREFIX)) {
+      const val = tok.slice(TEST_OUTPUT_DIR_EQ_PREFIX.length);
+      if (val.length > 0) return val;
     }
   }
   return null;
