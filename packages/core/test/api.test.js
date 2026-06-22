@@ -1203,6 +1203,12 @@ describe('API Server', () => {
       fs.writeFileSync(path.join(ANDROID_FILEPATH_DIR, `${FILEPATH_NAME}.png`), 'PNGBYTES-FILEPATH-ANDROID');
       fs.mkdirSync(IOS_FILEPATH_DIR, { recursive: true });
       fs.writeFileSync(path.join(IOS_FILEPATH_DIR, `${FILEPATH_NAME}.png`), 'PNGBYTES-FILEPATH-IOS');
+
+      // Short-circuit device system-bar inset derivation in the unit env (no
+      // real device/adb): seeding the per-session cache makes the relay skip
+      // deriveDeviceInsets and fall back to the request's statusBarHeight/
+      // navBarHeight. Tests that assert derived behavior override this seed.
+      percy.maestroInsetCache.set(SID, null);
     });
 
     async function postMaestro(body) {
@@ -1850,6 +1856,82 @@ describe('API Server', () => {
       let [payload] = percy.upload.calls.mostRecent().args;
       expect(payload.tag.width).toBe(1179);
       expect(payload.tag.height).toBe(2556);
+    });
+
+    describe('device system-bar inset derivation (relay wiring)', () => {
+      it('CLI-derived insets are authoritative over the SDK-sent defaults (Android)', async () => {
+        // Override the beforeEach null seed with a derived result.
+        percy.maestroInsetCache.set(SID, { statusBarHeight: 141, navBarHeight: 168 });
+        spyOn(percy, 'upload').and.resolveTo();
+        await percy.start();
+
+        await expectAsync(postMaestro({
+          name: SS_NAME,
+          sessionId: SID,
+          platform: 'android',
+          statusBarHeight: 50,
+          navBarHeight: 48
+        })).toBeResolvedTo(jasmine.objectContaining({ success: true }));
+
+        let [payload] = percy.upload.calls.mostRecent().args;
+        expect(payload.tiles[0]).toEqual(jasmine.objectContaining({ statusBarHeight: 141, navBarHeight: 168 }));
+      });
+
+      it('falls back to the SDK-sent values when derivation yields null (Android)', async () => {
+        percy.maestroInsetCache.set(SID, null);
+        spyOn(percy, 'upload').and.resolveTo();
+        await percy.start();
+
+        await expectAsync(postMaestro({
+          name: SS_NAME,
+          sessionId: SID,
+          platform: 'android',
+          statusBarHeight: 50,
+          navBarHeight: 48
+        })).toBeResolvedTo(jasmine.objectContaining({ success: true }));
+
+        let [payload] = percy.upload.calls.mostRecent().args;
+        expect(payload.tiles[0]).toEqual(jasmine.objectContaining({ statusBarHeight: 50, navBarHeight: 48 }));
+      });
+
+      it('iOS navBarHeight is always 0, even when the SDK sends a value', async () => {
+        percy.maestroInsetCache.set(SID, { statusBarHeight: 141, navBarHeight: 0 });
+        spyOn(percy, 'upload').and.resolveTo();
+        await percy.start();
+
+        await expectAsync(postMaestro({
+          name: SS_NAME,
+          sessionId: SID,
+          platform: 'ios',
+          statusBarHeight: 47,
+          navBarHeight: 80
+        })).toBeResolvedTo(jasmine.objectContaining({ success: true }));
+
+        let [payload] = percy.upload.calls.mostRecent().args;
+        expect(payload.tiles[0].statusBarHeight).toBe(141);
+        expect(payload.tiles[0].navBarHeight).toBe(0);
+      });
+
+      it('derives once and caches the outcome (incl. null) per session', async () => {
+        // Cache miss → derive. iOS with no PERCY_IOS_DRIVER_HOST_PORT env yields
+        // null deterministically (no transport spawn). Outcome is cached.
+        percy.maestroInsetCache.delete(SID);
+        spyOn(percy, 'upload').and.resolveTo();
+        await percy.start();
+
+        await expectAsync(postMaestro({
+          name: SS_NAME,
+          sessionId: SID,
+          platform: 'ios',
+          statusBarHeight: 47
+        })).toBeResolvedTo(jasmine.objectContaining({ success: true }));
+
+        // Null outcome cached, and the tile fell back to the SDK-sent value.
+        expect(percy.maestroInsetCache.has(SID)).toBe(true);
+        expect(percy.maestroInsetCache.get(SID)).toBeNull();
+        let [payload] = percy.upload.calls.mostRecent().args;
+        expect(payload.tiles[0].statusBarHeight).toBe(47);
+      });
     });
   });
 });
