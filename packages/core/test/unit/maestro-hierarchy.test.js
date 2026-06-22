@@ -2019,18 +2019,13 @@ describe('Unit / maestro-hierarchy', () => {
     // children[0] with the given root point-height, and a statusBars sibling
     // (elementType 0) at children[1] whose child is the status bar
     // (elementType 26) with the given point-height.
-    const makeIosBody = (rootPt, statusBarPt) => JSON.stringify({
-      axElement: {
-        identifier: '', frame: { X: 0, Y: 0, Width: 0, Height: 0 }, elementType: 0, children: [
-          { identifier: 'com.example.app', frame: { X: 0, Y: 0, Width: 390, Height: rootPt }, elementType: 1, children: [] },
-          {
-            identifier: '', frame: { X: 0, Y: 0, Width: 0, Height: 0 }, elementType: 0, children: [
-              { identifier: '', frame: { X: 0, Y: 0, Width: 390, Height: statusBarPt }, elementType: 26 }
-            ]
-          }
-        ]
-      }
-    });
+    const makeIosBody = (rootPt, statusBarPt) => {
+      const statusBar = { identifier: '', frame: { X: 0, Y: 0, Width: 390, Height: statusBarPt }, elementType: 26 };
+      const statusContainer = { identifier: '', frame: { X: 0, Y: 0, Width: 0, Height: 0 }, elementType: 0, children: [statusBar] };
+      const aut = { identifier: 'com.example.app', frame: { X: 0, Y: 0, Width: 390, Height: rootPt }, elementType: 1, children: [] };
+      const root = { identifier: '', frame: { X: 0, Y: 0, Width: 0, Height: 0 }, elementType: 0, children: [aut, statusContainer] };
+      return JSON.stringify({ axElement: root });
+    };
 
     describe('iOS', () => {
       it('derives status bar in pixels from the statusBars frame and PNG scale (iPhone 14 → 141px)', async () => {
@@ -2058,9 +2053,8 @@ describe('Unit / maestro-hierarchy', () => {
       });
 
       it('returns null when no status-bar element is present', async () => {
-        const body = JSON.stringify({ axElement: { identifier: '', frame: { X: 0, Y: 0, Width: 0, Height: 0 }, elementType: 0, children: [
-          { identifier: 'com.example.app', frame: { X: 0, Y: 0, Width: 390, Height: 844 }, elementType: 1, children: [] }
-        ] } });
+        const aut = { identifier: 'com.example.app', frame: { X: 0, Y: 0, Width: 390, Height: 844 }, elementType: 1, children: [] };
+        const body = JSON.stringify({ axElement: { identifier: '', frame: { X: 0, Y: 0, Width: 0, Height: 0 }, elementType: 0, children: [aut] } });
         const httpRequest = httpOk(body);
         const res = await deriveDeviceInsets({ platform: 'ios', pngDims: { width: 1170, height: 2532 }, httpRequest, getEnv: iosEnv });
         expect(res).toBeNull();
