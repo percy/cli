@@ -130,7 +130,7 @@ export async function handleMaestroScreenshot(req, res, percy) {
   if (insets === undefined) {
     insets = await deriveDeviceInsets({ platform, sessionId, pngDims });
     percy.maestroInsetCache.set(sessionId, insets);
-    percy.log.debug(`maestro device insets (${platform}): ${insets ? 'derived' : 'fallback'}`);
+    percy.log.debug(`maestro device insets (${platform}): ${JSON.stringify(insets)}`);
   }
   let statusBarHeight = insets?.statusBarHeight ?? (req.body.statusBarHeight || 0);
   let navBarHeight = platform === 'ios'

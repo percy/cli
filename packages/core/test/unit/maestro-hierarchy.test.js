@@ -2107,6 +2107,15 @@ describe('Unit / maestro-hierarchy', () => {
         const res = await deriveDeviceInsets({ platform: 'ios', pngDims: { width: 1170, height: 2532 }, httpRequest, getEnv: () => undefined });
         expect(res).toBeNull();
       });
+
+      it('returns null (never throws) when a transport throws unexpectedly', async () => {
+        const res = await deriveDeviceInsets({
+          platform: 'ios',
+          pngDims: { width: 1170, height: 2532 },
+          getEnv: () => { throw new Error('boom'); }
+        });
+        expect(res).toBeNull();
+      });
     });
 
     describe('Android', () => {

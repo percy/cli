@@ -1213,28 +1213,23 @@ async function deriveIosInsets({ port, pngDims, httpRequest, sessionId }) {
   const requestBody = JSON.stringify({ appIds: [], excludeKeyboardElements: false });
   let response;
   try {
-    response = await Promise.race([
-      httpRequest({
-        host: '127.0.0.1',
-        port,
-        method: 'POST',
-        path: '/viewHierarchy',
-        headers: {
-          'content-type': 'application/json',
-          'content-length': Buffer.byteLength(requestBody)
-        },
-        body: requestBody,
-        timeoutMs: IOS_HTTP_HEALTHY_DEADLINE_MS
-      }),
-      new Promise((_, reject) => setTimeout(
-        () => reject(Object.assign(new Error('circuit-breaker'), { code: 'ETIMEDOUT' })),
-        IOS_HTTP_CIRCUIT_BREAKER_MS
-      ))
-    ]);
+    // Best-effort, cached, fallback-safe: a single request with the transport's
+    // own timeout is sufficient (no outer circuit-breaker race needed — that's
+    // defense-in-depth the resolver cascade owns).
+    response = await httpRequest({
+      host: '127.0.0.1',
+      port,
+      method: 'POST',
+      path: '/viewHierarchy',
+      headers: {
+        'content-type': 'application/json',
+        'content-length': Buffer.byteLength(requestBody)
+      },
+      body: requestBody,
+      timeoutMs: IOS_HTTP_HEALTHY_DEADLINE_MS
+    });
   } catch {
-    // Transport failure — caller falls back to the SDK default. No drift bit:
-    // inset derivation is best-effort observability-free (the resolver cascade
-    // owns the drift surface).
+    // Transport failure — caller falls back to the SDK default.
     return null;
   }
 
@@ -1437,9 +1432,9 @@ export async function deriveDeviceInsets(options) {
       return await deriveIosInsets({ port: driverHostPort, pngDims, httpRequest, sessionId });
     }
     return await deriveAndroidInsets({ execAdb, getEnv });
-    /* istanbul ignore next — defensive catch; the derive paths already return
-       null on their own failures, so this only fires on an unexpected throw. */
   } catch {
+    // Defensive: derive paths return null on their own failures; this only
+    // fires if a transport (e.g. getEnv) throws unexpectedly.
     return null;
   }
 }
