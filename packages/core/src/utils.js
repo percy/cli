@@ -44,6 +44,13 @@ export function appendUrlSearchParam(urlString, key, value) {
   }
 }
 
+// Returns a URL encoded string of nested query params
+export function encodeURLSearchParams(subj, prefix) {
+  return typeof subj === 'object' ? Object.entries(subj).map(([key, value]) => (
+    encodeURLSearchParams(value, prefix ? `${prefix}[${key}]` : key)
+  )).join('&') : `${prefix}=${encodeURIComponent(subj)}`;
+}
+
 // Process CORS iframes in a single domSnapshot object
 export function processCorsIframesInDomSnapshot(domSnapshot) {
   if (!domSnapshot?.corsIframes?.length) {

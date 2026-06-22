@@ -20,15 +20,25 @@ packages/core/src/lock.js
 # every join. Suppress at the file level with this rationale.
 packages/core/src/archive.js
 
-# api.js path-traversal guards live at the top of the /percy/maestro-screenshot
-# route handler: `name` and `sessionId` are both validated against
-# /^[a-zA-Z0-9_-]+$/ (SAFE_ID, line ~322) BEFORE any path.join() runs.
-# Traversal sequences (`..`, `/`, `\0`) are rejected with 400 there. The
-# fallback walker is also depth-capped at 15 levels. semgrep's
-# path-join-resolve-traversal rule cannot follow the regex validation
-# chain across the function body, so it flags the joins on lines 445
-# and 462. Inline `// nosemgrep` directives (preceding and same-line)
-# were not honored by the semgrep CI version in use — suppress at the
+# maestro-screenshot-file.js owns the screenshot-location path joins. The
+# handleMaestroScreenshot handler validates `name` and `sessionId` against
+# /^[a-zA-Z0-9_-]+$/ (SAFE_ID) and rejects traversal sequences (`..`, `/`,
+# `\0`) with 400 BEFORE calling locateScreenshot(); the fallback walker
+# (manualScreenshotWalk) is additionally depth-capped at 15 levels. semgrep's
+# path-join-resolve-traversal rule cannot follow that validation chain across
+# the module boundary, so it flags the joins inside manualScreenshotWalk.
+# Inline `// nosemgrep` directives (preceding and same-line) were not honored
+# by the semgrep CI version in use — suppress at the file level with this
+# rationale.
+packages/core/src/maestro-screenshot-file.js
+
+# api.js: createStaticServer builds an automatic sitemap by joining the
+# operator-provided `baseUrl` config with locally-globbed `*.html` filenames
+# via `path.posix.join('/', baseUrl, …)` to construct sitemap URLs (not a
+# filesystem read of external request input). semgrep's
+# path-join-resolve-traversal rule flags the join regardless of the source
+# being trusted server config + locally-enumerated files. Inline `// nosemgrep`
+# directives are not honored by the semgrep CI version in use — suppress at the
 # file level with this rationale.
 packages/core/src/api.js
 
