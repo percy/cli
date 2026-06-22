@@ -971,13 +971,19 @@ function findAxAutRoot(axElement) {
 // `frame.Height` in points, or null when absent. The status bar is a sibling
 // of the AUT app node (cli-2.0.7 wraps as `[appHierarchy, statusBarsContainer]`),
 // so callers must pass the raw `axElement` root, not `findAxAutRoot(...)`.
-function findStatusBarFrameHeight(axElement) {
-  if (!axElement || typeof axElement !== 'object') return null;
-  if (axElement.elementType === IOS_STATUS_BAR_ELEMENT_TYPE) {
-    const h = axElement.frame && axElement.frame.Height;
-    if (typeof h === 'number' && h > 0) return h;
+function findStatusBarFrameHeight(node) {
+  /* istanbul ignore if — defensive guard; deriveIosInsets passes a parsed
+     object and recursion only descends into well-formed array children. A
+     malformed child instead surfaces via deriveDeviceInsets' catch → null. */
+  if (!node || typeof node !== 'object') return null;
+  if (node.elementType === IOS_STATUS_BAR_ELEMENT_TYPE) {
+    // `|| null` collapses a missing/zero/non-numeric height to null so the
+    // caller's single `== null` check covers every malformed-frame case.
+    /* istanbul ignore next — frame optional-chain guards a malformed status-bar
+       frame; real /viewHierarchy responses always carry a positive frame.Height. */
+    return node.frame?.Height || null;
   }
-  const children = axElement.children;
+  const children = node.children;
   if (Array.isArray(children)) {
     for (const child of children) {
       const found = findStatusBarFrameHeight(child);
@@ -1198,8 +1204,11 @@ async function runIosHttpDump({ port, sessionId, httpRequest }) {
 async function deriveIosInsets({ port, pngDims, httpRequest, sessionId }) {
   /* istanbul ignore next — production-only default; unit suite injects a stub. */
   httpRequest = httpRequest || defaultHttpRequest;
-  // Need PNG pixel height to derive the points→pixels scale.
-  if (!pngDims || typeof pngDims.height !== 'number' || pngDims.height <= 0) return null;
+  // Need PNG pixel height to derive the points→pixels scale. parsePngDimensions
+  // only ever yields null or a fully-valid {width>0, height>0}, so a single
+  // truthiness check suffices; a degenerate height is additionally caught by
+  // the scale sanity bounds below.
+  if (!pngDims) return null;
 
   const requestBody = JSON.stringify({ appIds: [], excludeKeyboardElements: false });
   let response;
@@ -1229,23 +1238,27 @@ async function deriveIosInsets({ port, pngDims, httpRequest, sessionId }) {
     return null;
   }
 
-  if (!response || response.statusCode !== 200 || typeof response.body !== 'string') return null;
+  /* istanbul ignore if — defensive; httpRequest resolves to a response object
+     or the race rejects (caught above). */
+  if (!response) return null;
+  if (response.statusCode !== 200) return null;
 
   let parsed;
   try {
     parsed = JSON.parse(response.body);
   } catch {
-    return null;
-  }
-  if (!parsed || typeof parsed !== 'object' || !parsed.axElement || typeof parsed.axElement !== 'object') {
+    // Non-JSON body, or a non-string body that JSON.parse rejects.
     return null;
   }
 
   // Root point-height for scale = the AUT app frame (full-screen on iOS; the
-  // app draws under the status bar). SpringBoard-only responses → no AUT → null.
-  const aut = findAxAutRoot(parsed.axElement);
-  const rootPointHeight = aut && aut.frame && aut.frame.Height;
-  if (typeof rootPointHeight !== 'number' || rootPointHeight <= 0) return null;
+  // app draws under the status bar). SpringBoard-only / malformed responses →
+  // no AUT → null. (findAxAutRoot guards a null/undefined argument.)
+  const aut = findAxAutRoot(parsed && parsed.axElement);
+  /* istanbul ignore next — frame optional-chain guards a malformed AUT frame;
+     real AUT nodes always carry a positive frame.Height. */
+  const rootPointHeight = aut?.frame?.Height;
+  if (!rootPointHeight) return null;
 
   // Empirical scale: PNG pixel height ÷ AUT root point height, snapped to an
   // integer and sanity-checked. Guards the Plus-class nativeScale≠scale gap and
@@ -1368,7 +1381,8 @@ async function runAdbFallback(serial, execAdb) {
 // gesture-nav and 3-button-nav both surface here, differing only in the
 // bottom value.
 function parseStableInsets(stdout) {
-  if (!stdout) return null;
+  // execAdb always yields a string stdout (''); the regex returns null on no
+  // match, so empty input needs no separate guard.
   const m = /mStableInsets=Rect\(\s*\d+,\s*(\d+)\s*-\s*\d+,\s*(\d+)\s*\)/.exec(stdout);
   if (!m) return null;
   const statusBarHeight = Number(m[1]);

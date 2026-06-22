@@ -2084,6 +2084,12 @@ describe('Unit / maestro-hierarchy', () => {
         expect(res).toBeNull();
       });
 
+      it('returns null when the parsed body is the JSON literal null', async () => {
+        const httpRequest = httpOk('null');
+        const res = await deriveDeviceInsets({ platform: 'ios', pngDims: { width: 1170, height: 2532 }, httpRequest, getEnv: iosEnv });
+        expect(res).toBeNull();
+      });
+
       it('returns null on a non-200 response', async () => {
         const httpRequest = makeHttp(() => ({ statusCode: 500, headers: {}, body: '' }));
         const res = await deriveDeviceInsets({ platform: 'ios', pngDims: { width: 1170, height: 2532 }, httpRequest, getEnv: iosEnv });
