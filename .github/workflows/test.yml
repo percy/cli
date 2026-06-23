@@ -175,7 +175,13 @@ jobs:
           yarn global:link
           yarn link `echo $PERCY_PACKAGES`
           npx percy --version
+      - name: Run CLI config validation (token-free)
+        run: yarn test:regression:config
       - name: Run regression tests
         run: yarn test:regression
+        env:
+          PERCY_TOKEN: ${{ secrets.PERCY_REGRESSION_TOKEN }}
+      - name: Run functional discovery tests
+        run: yarn test:regression:functional
         env:
           PERCY_TOKEN: ${{ secrets.PERCY_REGRESSION_TOKEN }}
