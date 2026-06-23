@@ -50,6 +50,19 @@ describe('AutomateProvider', () => {
       expect(automateProvider.debugUrl).toEqual('https://automate.browserstack.com/builds/12e3/sessions/abc1d');
     });
 
+    it('uses PERCY_AUTOMATE_DOMAIN when set', async () => {
+      Cache.reset();
+      process.env.PERCY_AUTOMATE_DOMAIN = 'automate-k8s-mobile.bsstag.com';
+      try {
+        let automateProvider = new AutomateProvider(args);
+        await automateProvider.createDriver();
+        await automateProvider.screenshot('abc', { });
+        expect(automateProvider.debugUrl).toEqual('https://automate-k8s-mobile.bsstag.com/builds/12e3/sessions/abc1d');
+      } finally {
+        delete process.env.PERCY_AUTOMATE_DOMAIN;
+      }
+    });
+
     it('throws error if driver is not initialized', async () => {
       let automateProvider = new AutomateProvider(args);
       await expectAsync(automateProvider.setDebugUrl())

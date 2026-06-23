@@ -10,6 +10,7 @@ import postBuildEvents from './post-build-event.js';
 import flushSnapshots from './flush-snapshots.js';
 import captureAutomateScreenshot from './post-screenshot.js';
 import getResponsiveWidths from './get-responsive-widths.js';
+import mergeSnapshotOptions from './merge-snapshot-options.js';
 import {
   waitForReadyScript,
   getReadinessConfig,
@@ -47,6 +48,7 @@ export {
   captureAutomateScreenshot,
   postBuildEvents,
   getResponsiveWidths,
+  mergeSnapshotOptions,
   DEFAULT_MAX_IFRAME_DEPTH,
   HARD_MAX_IFRAME_DEPTH,
   clampIframeDepth,

@@ -107,6 +107,58 @@ function gitProjectRoot() {
   return git(['rev-parse', '--show-toplevel']).trim();
 }
 
+// Parse `git diff --unified=0` hunk headers to find which line ranges are new
+// or changed (on the HEAD side) for each file, then key them by the file's
+// index in the stats `files` array — the same index module/source refs use, so
+// the graph can join them without a path lookup. `--unified=0` drops context
+// lines so every hunk header bounds an actual change; `--no-renames` makes a
+// rename surface as add+delete so the new path is always concrete.
+//
+// Files in the diff that aren't tracked in `files` (e.g. node_modules,
+// .storybook, or anything the stats compactor didn't index) are skipped — the
+// graph can only reason about indexed files. Returns { <fileIndex>: [[start, end], ...] }.
+export function getAffectedFileLocations(baseRef, files) {
+  assertSafeRef(baseRef);
+  const diff = git(['diff', '--unified=0', '--no-color', '--no-renames', baseRef, 'HEAD', '--']);
+
+  // The `files` array uses the platform separator (path.relative → back-slash
+  // on Windows); git diff always emits forward slashes. Normalize both to
+  // forward-slash for the path→index lookup.
+  const toPosix = p => p.split(path.sep).join('/');
+  const indexByPath = new Map(files.map((f, i) => [toPosix(f), i]));
+
+  // @@ -a,b +c,d @@ — the new-side `+c,d` is what we want. `d` defaults to 1
+  // when omitted; `d === 0` is a pure deletion anchored at line c (no added
+  // lines), so it contributes no range.
+  const HUNK = /^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@/;
+
+  const locations = {};
+  let currentIdx;
+  for (const line of diff.split('\n')) {
+    // `+++ b/<path>` opens a file's hunks with its new-side path; a pure
+    // deletion shows `+++ /dev/null`, so leave currentIdx unset and skip it.
+    if (line.startsWith('+++ ')) {
+      const p = line.slice(4);
+      if (p === '/dev/null') { currentIdx = undefined; continue; }
+      /* istanbul ignore next: git always prefixes the new-side path with `b/`
+         (anything else is `/dev/null`, handled above), so the bare `: p`
+         fallback is defensive and unreachable in real diff output */
+      const rel = p.startsWith('b/') ? p.slice(2) : p;
+      currentIdx = indexByPath.get(rel);
+      continue;
+    }
+    if (currentIdx === undefined) continue;
+    const m = HUNK.exec(line);
+    if (!m) continue;
+    const start = parseInt(m[1], 10);
+    const count = m[2] === undefined ? 1 : parseInt(m[2], 10);
+    if (count === 0) continue;
+    if (!locations[currentIdx]) locations[currentIdx] = [];
+    locations[currentIdx].push([start, start + count - 1]);
+  }
+  return locations;
+}
+
 // Paths under these directories are dependencies / framework wiring rather
 // than first-party source, so we don't track them in the file index.
 const EXCLUDED_DIRS = new Set(['node_modules', '.storybook']);
@@ -146,6 +198,11 @@ function transformModule(m, fileIndex, projectRoot) {
     const copy = { ...e };
     if (copy.type === 'src' && typeof copy.source === 'string') {
       copy.source = resolveAndIndex(copy.source, fileIndex, projectRoot);
+    }
+    // `loc` (when present) is an array of `{ start, end }` source spans; the
+    // graph expects each span as a `[start, end]` tuple instead.
+    if (Array.isArray(copy.loc)) {
+      copy.loc = copy.loc.map(l => [l.start, l.end]);
     }
     return copy;
   };
@@ -216,7 +273,7 @@ async function pollGraphStatus(percy, buildId, log) {
     const res = await percy.client.getStatus('smartsnap_graph', [buildId]);
     const status = res?.status;
     log.debug(`SmartSnap: graph status (attempt ${i + 1}) = ${status}`);
-    if (status === 'done' || status === 'failure') return { status, data: res?.data };
+    if (status === 'done' || status === 'failed') return { status, data: res?.data };
     if (i < POLL_ATTEMPTS - 1) await new Promise(r => setTimeout(r, POLL_INTERVAL_MS));
   }
   return { status: null };
@@ -430,10 +487,12 @@ export function extractStorybookPaths(snapshots, normalizeImportPath, log) {
 // response body that used to come from `getSmartsnapGraphData`. Bails to a
 // full snapshot set if the job doesn't reach `done`.
 export async function runGraphGeneration(percy, buildId, payload, log) {
-  const { files, modules, storybookPaths, affectedNodes } = payload;
-  log.debug(`SmartSnap: starting graph generation job ${JSON.stringify({ buildId, files, modules, storybookPaths, affectedNodes })}`);
+  const { files, modules, storybookPaths, affectedNodes, affectedFileLocations } = payload;
+  log.debug(`SmartSnap: starting graph generation job ${JSON.stringify({ buildId, files, modules, storybookPaths, affectedNodes, affectedFileLocations })}`);
+  // Pass camelCase to the client, which snake_cases it to `affected_file_locations`
+  // for the API (same convention as storybookPaths → storybook_paths).
   await percy.client.generateSmartsnapGraph(buildId, {
-    files, modules, storybookPaths, affectedNodes
+    files, modules, storybookPaths, affectedNodes, affectedFileLocations
   });
 
   const { status, data } = await pollGraphStatus(percy, buildId, log);
@@ -583,7 +642,10 @@ export async function applySmartSnap(percy, snapshots, smartSnapConfig, buildDir
     affectedNodes = [...affectedNodes, ...packageAffectedNodes];
   }
 
-  const data = await runGraphGeneration(percy, buildId, { files, modules, storybookPaths, affectedNodes }, log);
+  // Line-level diff ranges for the indexed files, keyed by their `files` index.
+  const affectedFileLocations = getAffectedFileLocations(baseRef, files);
+
+  const data = await runGraphGeneration(percy, buildId, { files, modules, storybookPaths, affectedNodes, affectedFileLocations }, log);
 
   maybeWriteTrace(trace, data, log);
 
