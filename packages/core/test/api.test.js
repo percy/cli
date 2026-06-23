@@ -1,3 +1,4 @@
+import os from 'os';
 import path from 'path';
 import PercyConfig from '@percy/config';
 import { logger, setupTest, fs } from './helpers/index.js';
@@ -17,7 +18,13 @@ describe('API Server', () => {
   beforeEach(async () => {
     process.env.PERCY_FORCE_PKG_VALUE = JSON.stringify({ name: '@percy/client', version: '1.0.0' });
     jasmine.DEFAULT_TIMEOUT_INTERVAL = 150000;
-    await setupTest();
+    // The self-hosted maestro tests exercise a recursive `**` + `dot:true`
+    // fast-glob against a `.maestro/` directory. fast-glob's recursive-dot
+    // traversal is unreliable against memfs across volume resets in the full
+    // suite (works in isolation; returns [] mid-suite), so route the
+    // self-hosted root to the REAL filesystem — this also tests the true
+    // production glob path. Only paths under this unique root are affected.
+    await setupTest({ filesystem: { $bypass: [p => typeof p === 'string' && p.includes('percy-self-hosted-real')] } });
 
     percy = new Percy({
       token: 'PERCY_TOKEN',
@@ -1214,9 +1221,21 @@ describe('API Server', () => {
       await expectAsync(postMaestro({ sessionId: SID })).toBeRejectedWithError(/Missing required field: name/);
     });
 
-    it('rejects missing sessionId with 400', async () => {
-      await percy.start();
-      await expectAsync(postMaestro({ name: SS_NAME })).toBeRejectedWithError(/Missing required field: sessionId/);
+    it('400s missing sessionId + missing PERCY_MAESTRO_SCREENSHOT_DIR (self-hosted mode requires the env var)', async () => {
+      // `sessionId` absent is the self-hosted detection signal. Without
+      // PERCY_MAESTRO_SCREENSHOT_DIR set, the relay 400s with actionable
+      // guidance rather than 404'ing on a glob it cannot scope. The
+      // self-hosted happy path is covered in the dedicated describe below.
+      let prior = process.env.PERCY_MAESTRO_SCREENSHOT_DIR;
+      delete process.env.PERCY_MAESTRO_SCREENSHOT_DIR;
+      try {
+        await percy.start();
+        await expectAsync(postMaestro({ name: SS_NAME }))
+          .toBeRejectedWithError(/Missing required env: PERCY_MAESTRO_SCREENSHOT_DIR/);
+      } finally {
+        if (prior === undefined) delete process.env.PERCY_MAESTRO_SCREENSHOT_DIR;
+        else process.env.PERCY_MAESTRO_SCREENSHOT_DIR = prior;
+      }
     });
 
     it('rejects invalid platform with 400', async () => {
@@ -1850,6 +1869,187 @@ describe('API Server', () => {
       let [payload] = percy.upload.calls.mostRecent().args;
       expect(payload.tag.width).toBe(1179);
       expect(payload.tag.height).toBe(2556);
+    });
+
+    // ─────────────────────────────────────────────────────────────────────
+    // Self-hosted mode: `sessionId` absent triggers PERCY_MAESTRO_SCREENSHOT_DIR
+    // resolution. The BS path (sessionId present) is byte-identical and
+    // covered above; these tests lock the new branches.
+    // ─────────────────────────────────────────────────────────────────────
+    describe('self-hosted (sessionId absent)', () => {
+      // Real-fs root (matched by the $bypass registered in the top-level
+      // beforeEach) so the recursive `**` + `dot:true` glob runs against the
+      // real filesystem — the production path — rather than memfs.
+      // Use os.tmpdir() (not hardcoded `/tmp/`) so the fixtures work on
+      // Windows runners too — Windows has no `/tmp/`; the CI fails 404 on
+      // every glob when the root never gets created.
+      const SELF_HOSTED_ROOT = path.join(os.tmpdir(), 'percy-self-hosted-real-root');
+      const NESTED_SUBDIR = path.join(SELF_HOSTED_ROOT, '.maestro', 'run-x', 'screenshots');
+      const SELF_HOSTED_NAME = 'SelfHostedScreen';
+      let priorEnv;
+
+      beforeEach(() => {
+        priorEnv = process.env.PERCY_MAESTRO_SCREENSHOT_DIR;
+        process.env.PERCY_MAESTRO_SCREENSHOT_DIR = SELF_HOSTED_ROOT;
+        fs.rmSync(SELF_HOSTED_ROOT, { recursive: true, force: true });
+        fs.mkdirSync(NESTED_SUBDIR, { recursive: true });
+        // Valid 24-byte PNG header (1080 x 2400) exercises PNG-fill on the
+        // self-hosted path too.
+        const pngHeader = Buffer.alloc(24);
+        Buffer.from([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]).copy(pngHeader, 0);
+        pngHeader.writeUInt32BE(13, 8);
+        Buffer.from('IHDR', 'ascii').copy(pngHeader, 12);
+        pngHeader.writeUInt32BE(1080, 16);
+        pngHeader.writeUInt32BE(2400, 20);
+        fs.writeFileSync(path.join(NESTED_SUBDIR, `${SELF_HOSTED_NAME}.png`), pngHeader);
+      });
+
+      afterEach(() => {
+        if (priorEnv === undefined) delete process.env.PERCY_MAESTRO_SCREENSHOT_DIR;
+        else process.env.PERCY_MAESTRO_SCREENSHOT_DIR = priorEnv;
+        // Clean up the real-fs fixture root (see beforeEach / top-level $bypass).
+        fs.rmSync(SELF_HOSTED_ROOT, { recursive: true, force: true });
+      });
+
+      it('finds screenshot via recursive glob under PERCY_MAESTRO_SCREENSHOT_DIR and uploads without sessionId', async () => {
+        await percy.start();
+        spyOn(percy, 'upload').and.resolveTo();
+        let res = await postMaestro({ name: SELF_HOSTED_NAME, platform: 'android' });
+        expect(res.success).toBe(true);
+        let [payload] = percy.upload.calls.mostRecent().args;
+        expect(payload.name).toBe(SELF_HOSTED_NAME);
+        expect(payload.tag.width).toBe(1080);
+        expect(payload.tag.height).toBe(2400);
+        expect(payload.tiles[0].content).toBeDefined();
+        // sessionId is never forwarded into the upload payload (relay only
+        // used it for scoping; self-hosted has no equivalent).
+        expect(payload.sessionId).toBeUndefined();
+      });
+
+      it('400s when PERCY_MAESTRO_SCREENSHOT_DIR is not absolute', async () => {
+        process.env.PERCY_MAESTRO_SCREENSHOT_DIR = 'relative/path';
+        await percy.start();
+        await expectAsync(postMaestro({ name: SELF_HOSTED_NAME }))
+          .toBeRejectedWithError(/PERCY_MAESTRO_SCREENSHOT_DIR must be an absolute path/);
+      });
+
+      it('400s when PERCY_MAESTRO_SCREENSHOT_DIR does not exist', async () => {
+        process.env.PERCY_MAESTRO_SCREENSHOT_DIR = path.join(os.tmpdir(), 'this-path-does-not-exist-percy-self-hosted');
+        await percy.start();
+        await expectAsync(postMaestro({ name: SELF_HOSTED_NAME }))
+          .toBeRejectedWithError(/PERCY_MAESTRO_SCREENSHOT_DIR is not an existing directory/);
+      });
+
+      it('400s when PERCY_MAESTRO_SCREENSHOT_DIR points to a file, not a directory', async () => {
+        const notADir = path.join(os.tmpdir(), 'percy-self-hosted-not-a-dir');
+        fs.writeFileSync(notADir, 'plain-file');
+        process.env.PERCY_MAESTRO_SCREENSHOT_DIR = notADir;
+        await percy.start();
+        await expectAsync(postMaestro({ name: SELF_HOSTED_NAME }))
+          .toBeRejectedWithError(/PERCY_MAESTRO_SCREENSHOT_DIR is not an existing directory/);
+      });
+
+      it('rejects a supplied filePath in self-hosted mode (security invariant)', async () => {
+        // The SDK never emits filePath self-hosted; honoring it against a
+        // caller-influenceable root would re-open arbitrary in-root reads.
+        await percy.start();
+        await expectAsync(postMaestro({
+          name: SELF_HOSTED_NAME,
+          filePath: `${NESTED_SUBDIR}/${SELF_HOSTED_NAME}.png`
+        })).toBeRejectedWithError(/filePath is not accepted in self-hosted mode/);
+      });
+
+      it('404s when the screenshot is missing under the configured root', async () => {
+        await percy.start();
+        await expectAsync(postMaestro({ name: 'NoSuchScreenshot' }))
+          .toBeRejectedWithError(/Screenshot not found/);
+      });
+
+      it('404s when a globbed file resolves outside the root (symlink escape)', async () => {
+        // A symlink inside the root that points outside it must not exfiltrate
+        // the target — the realpath + prefix check rejects it (self-hosted arm
+        // of the "resolved outside" guard). Uses real fs via the $bypass.
+        const outside = path.join(os.tmpdir(), 'percy-self-hosted-real-OUTSIDE.png');
+        fs.writeFileSync(outside, 'OUTSIDE');
+        fs.symlinkSync(outside, path.join(NESTED_SUBDIR, 'EscapeScreen.png'));
+        await percy.start();
+        await expectAsync(postMaestro({ name: 'EscapeScreen', platform: 'android' }))
+          .toBeRejectedWithError(/resolved outside PERCY_MAESTRO_SCREENSHOT_DIR/);
+        fs.rmSync(outside, { force: true });
+      });
+
+      it('rejects name with traversal characters (SAFE_ID is load-bearing for the recursive glob)', async () => {
+        await percy.start();
+        await expectAsync(postMaestro({ name: '../etc/passwd' }))
+          .toBeRejectedWithError(/Invalid screenshot name/);
+      });
+
+      it('coordinate regions still pass through on the self-hosted path', async () => {
+        await percy.start();
+        spyOn(percy, 'upload').and.resolveTo();
+        await postMaestro({
+          name: SELF_HOSTED_NAME,
+          platform: 'android',
+          regions: [{ top: 10, bottom: 50, left: 0, right: 100, algorithm: 'ignore' }]
+        });
+        let [payload] = percy.upload.calls.mostRecent().args;
+        expect(payload.regions).toBeDefined();
+        expect(payload.regions.length).toBe(1);
+        expect(payload.regions[0].elementSelector.boundingBox)
+          .toEqual({ x: 0, y: 10, width: 100, height: 40 });
+        expect(payload.regions[0].algorithm).toBe('ignore');
+      });
+
+      // Multi-match mtime selection — Maestro re-runs in the same root leave
+      // older fixtures behind under different timestamped sub-dirs. The relay
+      // picks the most-recently-modified match. This locks that determinism
+      // for the self-hosted code path (the BS arm has been exercising this
+      // branch via integration tests).
+      it('selects the most-recently-modified PNG when multiple matches exist under the root', async () => {
+        // Two PNG fixtures at different depths with distinct dimensions and
+        // mtimes. The newer one (larger size) must win.
+        const OLD_DIR = path.join(SELF_HOSTED_ROOT, '.maestro', 'run-old', 'screenshots');
+        const NEW_DIR = path.join(SELF_HOSTED_ROOT, '.maestro', 'run-new', 'screenshots');
+        fs.mkdirSync(OLD_DIR, { recursive: true });
+        fs.mkdirSync(NEW_DIR, { recursive: true });
+
+        // Helper: a valid 24-byte PNG header with the supplied dimensions.
+        const pngOf = (w, h) => {
+          const buf = Buffer.alloc(24);
+          Buffer.from([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]).copy(buf, 0);
+          buf.writeUInt32BE(13, 8);
+          Buffer.from('IHDR', 'ascii').copy(buf, 12);
+          buf.writeUInt32BE(w, 16);
+          buf.writeUInt32BE(h, 20);
+          return buf;
+        };
+
+        // Same `name` under both — recursive glob will find both.
+        const NAME = 'MultiMatch';
+        const oldFile = path.join(OLD_DIR, `${NAME}.png`);
+        const newFile = path.join(NEW_DIR, `${NAME}.png`);
+        fs.writeFileSync(oldFile, pngOf(720, 1280));
+        fs.writeFileSync(newFile, pngOf(1080, 2400));
+
+        // Stamp explicit mtimes so the assertion doesn't depend on fs write
+        // order. The 60-second gap is chosen to survive CI filesystems with
+        // 1-second mtime resolution (ext4 without `relatime`, common older
+        // CI images) — at that floor the two writes could otherwise round
+        // to the same mtime and the ordering assertion would be racy.
+        // `fs.utimesSync` takes atime/mtime in SECONDS (POSIX `time_t`).
+        const now = Date.now() / 1000;
+        fs.utimesSync(oldFile, now - 60, now - 60);
+        fs.utimesSync(newFile, now, now);
+
+        await percy.start();
+        spyOn(percy, 'upload').and.resolveTo();
+        let res = await postMaestro({ name: NAME, platform: 'android' });
+        expect(res.success).toBe(true);
+        let [payload] = percy.upload.calls.mostRecent().args;
+        // Newer fixture's dimensions reach the payload.
+        expect(payload.tag.width).toBe(1080);
+        expect(payload.tag.height).toBe(2400);
+      });
     });
   });
 });
