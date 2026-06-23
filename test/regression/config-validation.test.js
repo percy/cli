@@ -29,14 +29,14 @@ const CASES = [
     name: 'all-config.yml — every global / static / sitemap option',
     args: ['snapshot', 'snapshots.yml', '--base-url', 'http://localhost:9100',
       '--config', 'configs/all-config.yml', '--dry-run'],
-    expectCount: 16,
+    expectCount: 25,
     expectValid: true
   },
   {
     name: 'alt-forms.yml — cookies array form + maxCacheRam null',
     args: ['snapshot', 'snapshots.yml', '--base-url', 'http://localhost:9100',
       '--config', 'configs/alt-forms.yml', '--dry-run'],
-    expectCount: 16,
+    expectCount: 25,
     expectValid: true
   },
   {
@@ -51,7 +51,7 @@ const CASES = [
     name: 'invalid-example.yml — detector self-test (Invalid config EXPECTED)',
     args: ['snapshot', 'snapshots.yml', '--base-url', 'http://localhost:9100',
       '--config', 'configs/invalid-example.yml', '--dry-run'],
-    expectCount: 16,
+    expectCount: 25,
     expectValid: false
   }
 ];
