@@ -553,10 +553,23 @@ export async function withRetries(fn, { count, onRetry, signal, throwOn }) {
   }
 }
 
-export function redactSecrets(data) {
-  const filepath = path.resolve(url.fileURLToPath(import.meta.url), '../secretPatterns.yml');
-  const secretPatterns = YAML.parse(readFileSync(filepath, 'utf-8'));
+// Lazily load and compile the secret patterns once. The pattern file holds
+// ~1.7k regexes; parsing the YAML and compiling every RegExp on each call made
+// redactSecrets O(patterns) per string and re-read the file for every recursive
+// call. Since redactSecrets now runs over the full CLI log array on egress
+// (sendBuildLogs), that per-call cost is paid hundreds of times and could blow
+// past test/runtime timeouts. Compile once and reuse.
+let _compiledSecretPatterns;
+function getSecretPatterns() {
+  if (!_compiledSecretPatterns) {
+    const filepath = path.resolve(url.fileURLToPath(import.meta.url), '../secretPatterns.yml');
+    const secretPatterns = YAML.parse(readFileSync(filepath, 'utf-8'));
+    _compiledSecretPatterns = secretPatterns.patterns.map(p => new RegExp(p.pattern.regex, 'g'));
+  }
+  return _compiledSecretPatterns;
+}
 
+export function redactSecrets(data) {
   if (Array.isArray(data)) {
     // Process each item in the array
     return data.map(item => redactSecrets(item));
@@ -565,8 +578,8 @@ export function redactSecrets(data) {
     data.message = redactSecrets(data.message);
   }
   if (typeof data === 'string') {
-    for (const pattern of secretPatterns.patterns) {
-      data = data.replace(new RegExp(pattern.pattern.regex, 'g'), '[REDACTED]');
+    for (const pattern of getSecretPatterns()) {
+      data = data.replace(pattern, '[REDACTED]');
     }
   }
   return data;
