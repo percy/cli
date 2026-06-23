@@ -361,6 +361,25 @@ describe('API Server', () => {
 
     expect(percy.upload).toHaveBeenCalledOnceWith(
       jasmine.objectContaining({ name: 'Sync regression' }), jasmine.objectContaining({}), 'app');
+    // Proves handleSyncJob ran to completion rather than the request resolving early.
+    expect(percy.client.getComparisonDetails).toHaveBeenCalled();
+  });
+
+  // A generator-level failure that bypasses the sync-queue callback (the upload Promise
+  // rejects without resolve/reject being invoked) must surface as data.error via the
+  // route's .catch(reject), not hang the request.
+  it('/comparison sync mode: surfaces a rejected upload Promise as data.error', async () => {
+    spyOn(percy, 'upload').and.callFake(() => Promise.reject(new Error('generator boom')));
+    await percy.start();
+
+    await expectAsync(request('/percy/comparison', {
+      method: 'POST',
+      body: {
+        name: 'Sync reject',
+        sync: true,
+        tag: { name: 'Tag', osName: 'OS', osVersion: '1', width: 1, height: 1, orientation: 'portrait' }
+      }
+    })).toBeResolvedTo(jasmine.objectContaining({ data: { error: 'generator boom' } }));
   });
 
   it('includes links in the /comparison endpoint response', async () => {
@@ -631,6 +650,8 @@ describe('API Server', () => {
     })).toBeResolvedTo(jasmine.objectContaining({ data: getSnapshotDetailsResponse }));
 
     expect(percy.upload).toHaveBeenCalledOnceWith({ sync: true }, jasmine.objectContaining({}), 'automate');
+    // Proves handleSyncJob ran to completion rather than the request resolving early.
+    expect(percy.client.getComparisonDetails).toHaveBeenCalled();
   });
 
   it('has a /events endpoint that calls #sendBuildEvents() async with provided options with clientInfo present', async () => {
@@ -1603,6 +1624,8 @@ describe('API Server', () => {
 
       expect(percy.upload).toHaveBeenCalledOnceWith(
         jasmine.objectContaining({ sync: true }), jasmine.objectContaining({}), 'app');
+      // Proves handleSyncJob ran to completion rather than the request resolving early.
+      expect(percy.client.getComparisonDetails).toHaveBeenCalled();
     });
 
     it('returns 404 when the screenshot file is missing', async () => {

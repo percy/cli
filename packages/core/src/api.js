@@ -389,8 +389,13 @@ export function createPercyServer(percy, port) {
         // underlying async generator to completion (enqueuing #snapshots) and the sync
         // queue resolves/rejects the attached callback. Do NOT `for await` the return
         // value — it is a Promise, not an async iterable. The raw generator lives at
-        // percy.yield.upload() if direct iteration is ever needed.
-        const snapshotPromise = new Promise((resolve, reject) => percy.upload(req.body, { resolve, reject }, 'app'));
+        // percy.yield.upload() if direct iteration is ever needed. The trailing
+        // .catch(reject) surfaces generator errors that bypass the sync-queue callback
+        // (e.g. a throw before the queue task runs) instead of leaking an unhandled
+        // rejection and hanging the request.
+        const snapshotPromise = new Promise((resolve, reject) => {
+          percy.upload(req.body, { resolve, reject }, 'app').catch(reject);
+        });
         data = await handleSyncJob(snapshotPromise, percy, 'comparison');
       } else {
         let upload = percy.upload(req.body, null, 'app');
@@ -905,7 +910,10 @@ export function createPercyServer(percy, port) {
       if (percy.syncMode(payload)) {
         // See the /percy/comparison route: percy.upload() is the Promise-wrapped method;
         // calling it drives the generator and the sync queue resolves/rejects the callback.
-        const snapshotPromise = new Promise((resolve, reject) => percy.upload(payload, { resolve, reject }, 'app'));
+        // The .catch(reject) surfaces generator errors that bypass that callback.
+        const snapshotPromise = new Promise((resolve, reject) => {
+          percy.upload(payload, { resolve, reject }, 'app').catch(reject);
+        });
         data = await handleSyncJob(snapshotPromise, percy, 'comparison');
         return res.json(200, { success: true, data });
       }
@@ -940,7 +948,10 @@ export function createPercyServer(percy, port) {
       if (percy.syncMode(comparisonData)) {
         // See the /percy/comparison route: percy.upload() is the Promise-wrapped method;
         // calling it drives the generator and the sync queue resolves/rejects the callback.
-        const snapshotPromise = new Promise((resolve, reject) => percy.upload(comparisonData, { resolve, reject }, 'automate'));
+        // The .catch(reject) surfaces generator errors that bypass that callback.
+        const snapshotPromise = new Promise((resolve, reject) => {
+          percy.upload(comparisonData, { resolve, reject }, 'automate').catch(reject);
+        });
         data = await handleSyncJob(snapshotPromise, percy, 'comparison');
       } else {
         percy.upload(comparisonData, null, 'automate');
