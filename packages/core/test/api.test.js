@@ -336,31 +336,31 @@ describe('API Server', () => {
     expect(percy.client.getComparisonDetails).toHaveBeenCalled();
   });
 
-  // Cross-consumer drain canary for /percy/comparison. Mirrors the maestro-screenshot
-  // canary at the bottom of this file. See docs/solutions/best-practices/
-  // 2026-05-20-maestro-sync-promise-bug-investigation.md.
-  it('/comparison sync mode: drains the upload generator (real return shape, no mock)', async () => {
-    let iterCount = 0;
+  // Regression: percy.upload() is the generatePromise-wrapped method and returns a Promise,
+  // not an async iterable. The relay must drive it and let the sync queue resolve the
+  // attached callback — it must never `for await` the return value (that throws
+  // "upload is not async iterable"). Modelled with the real shape: a Promise return whose
+  // callback is resolved asynchronously, so a `for await` over it would reject first.
+  it('/comparison sync mode: resolves via the upload callback, not by iterating the return value', async () => {
     spyOn(percy.client, 'getComparisonDetails').and.returnValue(getSnapshotDetailsResponse);
     spyOn(percy, 'upload').and.callFake((_, callback) => {
-      return (async function*() {
-        iterCount++;
-        callback.resolve();
-        yield;
-      })();
+      let promise = Promise.resolve();
+      promise.then(() => callback.resolve());
+      return promise;
     });
     await percy.start();
 
     await expectAsync(request('/percy/comparison', {
       method: 'POST',
       body: {
-        name: 'Drain canary',
+        name: 'Sync regression',
         sync: true,
         tag: { name: 'Tag', osName: 'OS', osVersion: '1', width: 1, height: 1, orientation: 'portrait' }
       }
     })).toBeResolvedTo(jasmine.objectContaining({ data: getSnapshotDetailsResponse }));
 
-    expect(iterCount).toBeGreaterThan(0);
+    expect(percy.upload).toHaveBeenCalledOnceWith(
+      jasmine.objectContaining({ name: 'Sync regression' }), jasmine.objectContaining({}), 'app');
   });
 
   it('includes links in the /comparison endpoint response', async () => {
@@ -607,33 +607,30 @@ describe('API Server', () => {
     resolve();
   });
 
-  // Cross-consumer drain canary for /percy/automateScreenshot. Mirrors the
-  // maestro-screenshot and /comparison canaries elsewhere in this file. See
-  // docs/solutions/best-practices/2026-05-20-maestro-sync-promise-bug-investigation.md.
-  it('/automateScreenshot sync mode: drains the upload generator (real return shape, no mock)', async () => {
-    let iterCount = 0;
+  // Regression mirror of the /comparison case for the Percy-on-Automate sync route:
+  // percy.upload() returns a Promise, so the relay must resolve through the sync callback
+  // rather than `for await`-ing the return value ("upload is not async iterable").
+  it('/automateScreenshot sync mode: resolves via the upload callback, not by iterating the return value', async () => {
     spyOn(percy.client, 'getComparisonDetails').and.returnValue(getSnapshotDetailsResponse);
     spyOn(WebdriverUtils, 'captureScreenshot').and.returnValue({ sync: true });
     spyOn(percy, 'upload').and.callFake((_, callback) => {
-      return (async function*() {
-        iterCount++;
-        callback.resolve();
-        yield;
-      })();
+      let promise = Promise.resolve();
+      promise.then(() => callback.resolve());
+      return promise;
     });
     await percy.start();
 
     await expectAsync(request('/percy/automateScreenshot', {
       method: 'post',
       body: {
-        name: 'Drain canary',
+        name: 'Sync regression',
         client_info: 'client',
         environment_info: 'environment',
         options: { sync: true }
       }
     })).toBeResolvedTo(jasmine.objectContaining({ data: getSnapshotDetailsResponse }));
 
-    expect(iterCount).toBeGreaterThan(0);
+    expect(percy.upload).toHaveBeenCalledOnceWith({ sync: true }, jasmine.objectContaining({}), 'automate');
   });
 
   it('has a /events endpoint that calls #sendBuildEvents() async with provided options with clientInfo present', async () => {
@@ -1568,11 +1565,9 @@ describe('API Server', () => {
       expect(payload.sync).toBe(true);
     });
 
-    // Sync mode bug fix coverage — see docs/solutions/best-practices/
-    // 2026-05-20-maestro-sync-promise-bug-investigation.md.
-    // Before the fix, the relay's `new Promise(executor => percy.upload(...))`
-    // returned an async generator that was never iterated, so #snapshots.push
-    // never ran and the promise hung forever. The fix drains the generator.
+    // Sync mode: a rejected upload is surfaced as data.error in a 200 response. The relay
+    // wires the sync queue's reject to the snapshot promise, which handleSyncJob converts
+    // into { error } rather than failing the request.
     it('sync mode: surfaces upload reject error as data.error (200 with error field)', async () => {
       spyOn(percy, 'upload').and.callFake((_, callback) => callback.reject(new Error('boom')));
       await percy.start();
@@ -1587,19 +1582,15 @@ describe('API Server', () => {
       }));
     });
 
-    it('sync mode: drains the upload generator (real percy.upload return shape, no mock)', async () => {
-      // Canary for the structural bug: spy on percy.upload but have it return a real
-      // async generator-shaped object that records whether it gets iterated.
-      // Before the fix, this iteration count would stay at 0 and the test would time out.
-      let iterCount = 0;
+    // Regression mirror of the /comparison and /automateScreenshot cases: percy.upload()
+    // returns a Promise, so the relay must resolve through the sync callback rather than
+    // `for await`-ing the return value ("upload is not async iterable").
+    it('sync mode: resolves via the upload callback, not by iterating the return value', async () => {
       spyOn(percy.client, 'getComparisonDetails').and.returnValue(getSnapshotDetailsResponse);
       spyOn(percy, 'upload').and.callFake((options, callback) => {
-        return (async function*() {
-          iterCount++;
-          // Simulate the queue-task path: the syncQueue would invoke callback.resolve.
-          callback.resolve();
-          yield;
-        })();
+        let promise = Promise.resolve();
+        promise.then(() => callback.resolve());
+        return promise;
       });
       await percy.start();
 
@@ -1610,9 +1601,8 @@ describe('API Server', () => {
         sync: true
       })).toBeResolvedTo(jasmine.objectContaining({ data: getSnapshotDetailsResponse }));
 
-      // Iteration count > 0 proves the relay drained the generator (vs the old
-      // bug where the generator was discarded).
-      expect(iterCount).toBeGreaterThan(0);
+      expect(percy.upload).toHaveBeenCalledOnceWith(
+        jasmine.objectContaining({ sync: true }), jasmine.objectContaining({}), 'app');
     });
 
     it('returns 404 when the screenshot file is missing', async () => {
