@@ -1,5 +1,5 @@
 import { fs, mockfs } from '../helpers/index.js';
-import Server from '../../src/server.js';
+import Server, { isLoopbackOrigin } from '../../src/server.js';
 
 describe('Unit / Server', () => {
   let server;
@@ -313,6 +313,25 @@ describe('Unit / Server', () => {
       expect(res.statusCode).toBe(404);
       expect(res.headers).toHaveProperty('content-type', 'application/json');
       expect(res.body).toEqual({ error: 'Not Found' });
+    });
+  });
+
+  describe('isLoopbackOrigin', () => {
+    it('returns true for loopback origins', () => {
+      expect(isLoopbackOrigin('http://localhost:8000')).toBe(true);
+      expect(isLoopbackOrigin('http://127.0.0.1')).toBe(true);
+      expect(isLoopbackOrigin('http://app.localhost')).toBe(true);
+    });
+
+    it('returns false for non-loopback and missing origins', () => {
+      expect(isLoopbackOrigin('https://evil.example.com')).toBe(false);
+      expect(isLoopbackOrigin('')).toBe(false);
+      expect(isLoopbackOrigin(undefined)).toBe(false);
+      expect(isLoopbackOrigin(42)).toBe(false);
+    });
+
+    it('returns false for a malformed origin that cannot be parsed as a URL', () => {
+      expect(isLoopbackOrigin('not a valid origin')).toBe(false);
     });
   });
 
