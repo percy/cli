@@ -936,4 +936,73 @@ describe('SDK Utils', () => {
       expect(result).toBe(null);
     });
   });
+
+  describe('mergeSnapshotOptions(options)', () => {
+    let { mergeSnapshotOptions } = utils;
+
+    beforeEach(async () => {
+      await helpers.setupTest();
+      await utils.isPercyEnabled();
+    });
+
+    it('merges config snapshot options with per-snapshot options', () => {
+      const result = mergeSnapshotOptions({ enableJavaScript: true });
+      expect(result.enableJavaScript).toBe(true);
+      expect(result.widths).toEqual([375, 1280]);
+    });
+
+    it('gives per-snapshot options priority over config', () => {
+      const result = mergeSnapshotOptions({ widths: [768] });
+      expect(result.widths).toEqual([768]);
+    });
+
+    it('returns config options when no per-snapshot options are provided', () => {
+      const result = mergeSnapshotOptions();
+      expect(result.widths).toEqual([375, 1280]);
+    });
+
+    it('returns empty object when config.snapshot is undefined and no options given', () => {
+      const savedConfig = utils.percy.config;
+      utils.percy.config = { ...savedConfig, snapshot: undefined };
+
+      const result = mergeSnapshotOptions();
+      expect(result).toEqual({});
+
+      utils.percy.config = savedConfig;
+    });
+
+    it('returns only per-snapshot options when config.snapshot is undefined', () => {
+      const savedConfig = utils.percy.config;
+      utils.percy.config = { ...savedConfig, snapshot: undefined };
+
+      const result = mergeSnapshotOptions({ enableJavaScript: true });
+      expect(result).toEqual({ enableJavaScript: true });
+
+      utils.percy.config = savedConfig;
+    });
+
+    it('deep-merges nested objects, keeping config sibling keys not overridden', () => {
+      const savedConfig = utils.percy.config;
+      utils.percy.config = {
+        ...savedConfig,
+        snapshot: { discovery: { networkIdleTimeout: 50, disableCache: false } }
+      };
+
+      const result = mergeSnapshotOptions({ discovery: { disableCache: true } });
+      // per-snapshot wins on the overridden nested key, config sibling key survives
+      expect(result.discovery).toEqual({ networkIdleTimeout: 50, disableCache: true });
+
+      utils.percy.config = savedConfig;
+    });
+
+    it('replaces (does not concatenate) arrays from per-snapshot options', () => {
+      const savedConfig = utils.percy.config;
+      utils.percy.config = { ...savedConfig, snapshot: { widths: [375, 1280] } };
+
+      const result = mergeSnapshotOptions({ widths: [768] });
+      expect(result.widths).toEqual([768]);
+
+      utils.percy.config = savedConfig;
+    });
+  });
 });
