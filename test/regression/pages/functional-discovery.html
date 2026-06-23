@@ -14,10 +14,12 @@
   <link rel="stylesheet" href="/gated/cookie.css">
   <link rel="stylesheet" href="/gated/ua.css">
 
-  <!-- Cross-origin (port 9101) probe for discovery.disallowedHostnames. When
-       that host is disallowed, Percy aborts the request and the 9101 server
-       never sees it. -->
-  <link rel="stylesheet" href="http://localhost:9101/disallowed-probe.css">
+  <!-- Cross-origin (port 9101) probe for discovery.disallowedHostnames. Loaded
+       via @import (rather than a <link>, which would need a Subresource
+       Integrity hash that is meaningless for a dynamic localhost test resource)
+       so discovery still attempts the cross-origin request. When the host is
+       disallowed, Percy aborts the request and the 9101 server never sees it. -->
+  <style>@import url("http://localhost:9101/disallowed-probe.css");</style>
 </head>
 <body>
   <h1>Functional Discovery Config</h1>
