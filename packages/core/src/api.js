@@ -126,8 +126,11 @@ export function stripRemoteScriptFields(body, log) {
   walk(stripped);
 
   if (removed.size) {
+    // Report fields in their canonical declaration order, not discovery order,
+    // so the warning is deterministic regardless of body key ordering.
+    let removedList = REMOTE_SCRIPT_FIELDS.filter(f => removed.has(f));
     log.warn(
-      `Ignoring \`${[...removed].join('`, `')}\` from /percy/snapshot request: these run ` +
+      `Ignoring \`${removedList.join('`, `')}\` from /percy/snapshot request: these run ` +
       'arbitrary JavaScript and are not accepted over the local API. Set them via the config ' +
       'file or CLI, or set PERCY_ALLOW_REMOTE_SCRIPTS=true to allow them on this endpoint.'
     );
