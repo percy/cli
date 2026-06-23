@@ -1,0 +1,177 @@
+# Track C — Config validation fixture (token-free, --dry-run)
+#
+# Exercises EVERY non-excluded CLI config option across the percy / snapshot /
+# discovery / project namespaces plus the cli-snapshot static & sitemap config
+# namespaces. The config-validation harness runs this with `percy snapshot
+# ... --dry-run` and asserts the CLI loads & validates it with NO "Invalid
+# config:" output — proving every option below is schema-recognized and valid.
+#
+# onlyAutomate options (fullPage, freezeAnimation, freezeAnimatedImage,
+# freezeAnimatedImageOptions, ignoreRegions, considerRegions) are intentionally
+# absent — they are unreachable via the `percy snapshot` web flow. See README.
+
+version: 2
+
+# ── percy namespace ──────────────────────────────────────────────────────────
+percy:
+  deferUploads: false
+  archiveDir: .percy-archive
+  useSystemProxy: false
+  labels: regression,cli-config
+  skipBaseBuild: false
+  platforms:
+    - browserName: chrome
+      browserVersion: latest
+      osVersion: '14'
+      deviceName: Desktop
+      os: macos
+      percyBrowserCustomName: chrome-mac
+  # token is supplied via the PERCY_TOKEN env var at runtime, not the config file
+
+# ── snapshot namespace ───────────────────────────────────────────────────────
+snapshot:
+  widths: [375, 768, 1280]
+  minHeight: 1024
+  percyCSS: |
+    * { caret-color: transparent !important; }
+  enableJavaScript: false
+  cliEnableJavaScript: true
+  disableShadowDOM: false
+  forceShadowAsLightDOM: false
+  enableLayout: false
+  domTransformation: |
+    (documentElement) => {
+      const body = documentElement.querySelector('body');
+      if (body) body.setAttribute('data-percy-transformed', 'true');
+    }
+  reshuffleInvalidTags: false
+  scope: '#root'
+  scopeOptions:
+    scroll: true
+  sync: false
+  responsiveSnapshotCapture: false
+  testCase: regression-cli-config
+  labels: snapshot-label
+  thTestCaseExecutionId: th-exec-123
+  browsers:
+    - chrome
+    - firefox
+  readiness:
+    preset: balanced
+    stabilityWindowMs: 200
+    jsIdleWindowMs: 200
+    networkIdleWindowMs: 200
+    timeoutMs: 5000
+    domStability: true
+    imageReady: true
+    fontReady: true
+    jsIdle: true
+    readySelectors:
+      - '#ready'
+      - css: '.ready'
+        xpath: '//div[@id="ready"]'
+    notPresentSelectors:
+      - '.spinner'
+      - css: '.loading'
+    maxTimeoutMs: 30000
+  regions:
+    - algorithm: standard
+      elementSelector:
+        elementCSS: '#region'
+      padding:
+        top: 5
+        bottom: 5
+        left: 5
+        right: 5
+      assertion:
+        diffIgnoreThreshold: 0.1
+    - algorithm: intelliignore
+      elementSelector:
+        boundingBox:
+          x: 0
+          y: 0
+          width: 100
+          height: 100
+      configuration:
+        diffSensitivity: 2
+        imageIgnoreThreshold: 0.2
+        carouselsEnabled: true
+        bannersEnabled: true
+        adsEnabled: true
+  algorithm: standard
+  algorithmConfiguration:
+    diffSensitivity: 3
+    imageIgnoreThreshold: 0.5
+    carouselsEnabled: false
+    bannersEnabled: false
+    adsEnabled: false
+  ignoreCanvasSerializationErrors: false
+  ignoreStyleSheetSerializationErrors: false
+  ignoreIframeSelectors:
+    - '.ad-frame'
+  pseudoClassEnabledElements:
+    id:
+      - hover-by-id
+    className:
+      - hover-by-class
+    xpath:
+      - '//button[@data-hover]'
+    selectors:
+      - '.hover-test'
+      - '.active-test'
+
+# ── discovery namespace ──────────────────────────────────────────────────────
+discovery:
+  allowedHostnames:
+    - localhost:9101
+  disallowedHostnames:
+    - blocked.example.com
+  networkIdleTimeout: 150
+  waitForSelector: '#ready'
+  waitForTimeout: 1000
+  scrollToBottom: false
+  disableCache: false
+  maxCacheRam: 524288000
+  captureMockedServiceWorker: false
+  captureSrcset: false
+  requestHeaders:
+    X-Percy-Regression: 'true'
+  authorization:
+    username: percy
+    password: secret
+  cookies:
+    session: abc123
+  userAgent: PercyRegression/1.0
+  devicePixelRatio: 2
+  concurrency: 5
+  snapshotConcurrency: 2
+  retry: true
+  launchOptions:
+    executable: /usr/bin/google-chrome
+    timeout: 120000
+    headless: true
+    closeBrowser: true
+    args:
+      - --no-sandbox
+  fontDomains:
+    - localhost:9101
+  autoConfigureAllowedHostnames: true
+
+# ── project namespace ────────────────────────────────────────────────────────
+project:
+  id: 12345
+  name: percy-cli-regression
+
+# ── static mode config (cli-snapshot) ────────────────────────────────────────
+static:
+  cleanUrls: true
+  rewrites:
+    /old-path: /new-path
+  baseUrl: /
+  include: '*'
+  exclude: 'ignore-*'
+
+# ── sitemap mode config (cli-snapshot) ───────────────────────────────────────
+sitemap:
+  include: '*'
+  exclude: 'ignore-*'
