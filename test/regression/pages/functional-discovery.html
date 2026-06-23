@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Functional Discovery Regression Test</title>
+  <link rel="stylesheet" href="/assets/css/base.css">
+
+  <!-- Gated same-origin resources. Discovery must fetch each one, carrying the
+       headers / auth / cookies / user-agent configured under discovery.*; the
+       /gated/* server routes record what they received. -->
+  <link rel="stylesheet" href="/gated/header.css">
+  <link rel="stylesheet" href="/gated/auth.css">
+  <link rel="stylesheet" href="/gated/cookie.css">
+  <link rel="stylesheet" href="/gated/ua.css">
+
+  <!-- Cross-origin (port 9101) probe for discovery.disallowedHostnames. When
+       that host is disallowed, Percy aborts the request and the 9101 server
+       never sees it. -->
+  <link rel="stylesheet" href="http://localhost:9101/disallowed-probe.css">
+</head>
+<body>
+  <h1>Functional Discovery Config</h1>
+  <p>Exercises discovery.requestHeaders, authorization, cookies, userAgent,
+     captureSrcset and disallowedHostnames. The functional harness asserts on
+     what the test servers observed during discovery, not on log text.</p>
+
+  <!-- captureSrcset: both srcset candidates should be fetched when enabled. -->
+  <img src="/gated/srcset-1x.png"
+       srcset="/gated/srcset-1x.png 1x, /gated/srcset-2x.png 2x"
+       alt="srcset probe" width="120" height="120">
+</body>
+</html>
