@@ -901,8 +901,7 @@ describe('PercyClient', () => {
         files: ['a.js', 'b.js'],
         modules: [{ id: 1, name: 'mod' }],
         storybookPaths: ['stories/a.js'],
-        affectedNodes: ['node-1'],
-        affectedFileLocations: { 0: [[3, 3], [6, 7]], 1: [[1, 1]] }
+        affectedNodes: ['node-1']
       })).toBeResolvedTo({ status: 'queued' });
 
       expect(api.requests['/smartsnap/generate-graph']).toBeDefined();
@@ -912,8 +911,7 @@ describe('PercyClient', () => {
         files: ['a.js', 'b.js'],
         modules: [{ id: 1, name: 'mod' }],
         storybook_paths: ['stories/a.js'],
-        affected_nodes: ['node-1'],
-        affected_file_locations: { 0: [[3, 3], [6, 7]], 1: [[1, 1]] }
+        affected_nodes: ['node-1']
       });
     });
 
