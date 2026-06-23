@@ -606,7 +606,7 @@ export class Percy {
     options = validateSnapshotOptions(options);
     // process CORS iframes in domSnapshot before validation
     if (options.domSnapshot) {
-      options.domSnapshot = processCorsIframes(options.domSnapshot);
+      options.domSnapshot = processCorsIframes(options.domSnapshot, options.url);
     }
     this.client.addClientInfo(options.clientInfo);
     this.client.addEnvironmentInfo(options.environmentInfo);
