@@ -11,6 +11,7 @@ import {
   assertNoBailOnChanges,
   enforceUntraced,
   getAffectedPackages,
+  getAffectedFileLocations,
   extractStorybookPaths,
   runGraphGeneration,
   maybeWriteTrace,
@@ -148,12 +149,12 @@ describe('smartsnap', () => {
             {
               id: '/root/src/A.js',
               imports: [
-                { type: 'src', source: '/root/src/B.js' },
+                { type: 'src', source: '/root/src/B.js', loc: [{ start: 38, end: 38 }, { start: 40, end: 42 }] },
                 { type: 'src', source: '/root/src/B.js' }, // duplicate → reuses the existing index
                 { type: 'src', source: 'lib/rel.js' }, // non-absolute → returned as-is, not indexed
                 { type: 'module', source: 'react' }
               ],
-              passThroughExports: [{ type: 'src', source: '/root/src/C.js' }],
+              passThroughExports: [{ type: 'src', source: '/root/src/C.js', loc: [{ start: 5, end: 5 }] }],
               nonPassThroughExports: [{ type: 'module', source: 'lodash' }]
             },
             { id: '/root/node_modules/dep/index.js' }, // excluded → string id → dropped
@@ -174,7 +175,9 @@ describe('smartsnap', () => {
       expect(res.modules[0].imports[1].source).toEqual(1); // duplicate → same index
       expect(res.modules[0].imports[2].source).toEqual('lib/rel.js'); // non-absolute → as-is
       expect(res.modules[0].imports[3].source).toEqual('react'); // module ref → untouched
+      expect(res.modules[0].imports[0].loc).toEqual([[38, 38], [40, 42]]); // {start,end} spans → [start,end] tuples
       expect(res.modules[0].passThroughExports[0].source).toEqual(2);
+      expect(res.modules[0].passThroughExports[0].loc).toEqual([[5, 5]]);
       expect(res.modules[0].nonPassThroughExports).toEqual([{ type: 'module', source: 'lodash' }]);
       expect(res.modules[1]).toEqual({});
     });
@@ -363,7 +366,14 @@ describe('smartsnap', () => {
           getStatus: async () => ({ status: 'done', data })
         }
       };
-      let payload = { files: ['f'], modules: [{ id: 0 }], storybookPaths: ['p'], affectedNodes: ['a'] };
+      // affectedFileLocations is forwarded verbatim; the client snake_cases it.
+      let payload = {
+        files: ['f'],
+        modules: [{ id: 0 }],
+        storybookPaths: ['p'],
+        affectedNodes: ['a'],
+        affectedFileLocations: { 0: [[3, 3], [6, 7]] }
+      };
 
       let res = await runGraphGeneration(percy, 'bld-1', payload, log);
 
@@ -376,7 +386,7 @@ describe('smartsnap', () => {
       let percy = {
         client: {
           generateSmartsnapGraph: async () => {},
-          getStatus: async () => ({ status: 'failure' })
+          getStatus: async () => ({ status: 'failed' })
         }
       };
       await expectBail(
@@ -606,6 +616,65 @@ describe('smartsnap', () => {
       }
       if (NODE_MAJOR >= 18) expect(res).toBeDefined();
       else expect(res).toBeInstanceOf(SmartSnapBailError);
+    });
+  });
+
+  describe('getAffectedFileLocations()', () => {
+    let origCwd = process.cwd();
+    let repos = [];
+    afterEach(() => {
+      process.chdir(origCwd);
+      for (let d of repos.splice(0)) fs.rmSync(d, { recursive: true, force: true });
+    });
+
+    function setup(seed, changed) {
+      let info = makeRepo(seed, changed);
+      repos.push(info.dir);
+      process.chdir(info.dir);
+      return info;
+    }
+
+    it('maps changed line ranges to file index, skipping unindexed and deleted files', () => {
+      let { dir, baseSha } = setup(
+        {
+          'src/A.js': 'a\nb\nc\nd\ne\n', // indexed; line 3 changed + lines 6-7 appended
+          'src/del.js': 'x\n' // indexed; deleted at HEAD → no new-side lines
+        },
+        {
+          'src/A.js': 'a\nb\nC\nd\ne\nf\ng\n',
+          'src/B.js': 'new\n' // NOT in the files index → skipped
+        });
+      // makeRepo's writeAll can't delete; drop del.js in a follow-up commit so the
+      // baseSha→HEAD diff carries its `+++ /dev/null` deletion hunk.
+      fs.rmSync(path.join(dir, 'src/del.js'));
+      git(['add', '-A'], dir);
+      git(['commit', '-qm', 'remove del'], dir);
+
+      // files index: A=0, del=1; B.js is absent (not indexed).
+      let res = getAffectedFileLocations(baseSha, ['src/A.js', 'src/del.js']);
+
+      // A.js: `@@ -3 +3 @@` → [3,3] and `@@ -5,0 +6,2 @@` → [6,7].
+      // del.js shows `+++ /dev/null` (pure deletion) → no entry. B.js unindexed → no entry.
+      expect(res).toEqual({ 0: [[3, 3], [6, 7]] });
+    });
+
+    it('ignores pure-deletion hunks that add no new lines', () => {
+      let { baseSha } = setup(
+        { 'src/A.js': '1\n2\n3\n' }, // line 2 removed, file kept
+        { 'src/A.js': '1\n3\n' });
+      // `@@ -2 +1,0 @@` → new-side count 0 → no range contributed.
+      expect(getAffectedFileLocations(baseSha, ['src/A.js'])).toEqual({});
+    });
+
+    it('returns an empty map when there is no diff', () => {
+      let { baseSha } = setup({ 'src/A.js': 'a\n' });
+      // baseSha === HEAD (no second commit) → `git diff <sha> HEAD` is empty.
+      expect(getAffectedFileLocations(baseSha, ['src/A.js'])).toEqual({});
+    });
+
+    it('bails on an unsafe base ref before shelling out to git', () => {
+      expect(() => getAffectedFileLocations('--upload-pack=evil', []))
+        .toThrowMatching(e => e instanceof SmartSnapBailError && e.message.includes('unsafe baseline ref'));
     });
   });
 

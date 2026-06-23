@@ -96,6 +96,9 @@ export default class GenericProvider {
 
   async browserstackExecutor(action, args) {
     if (!this.driver) throw new Error('Driver is null, please initialize driver with createDriver().');
+    if (action === 'percyScreenshot' && process.env.PERCY_ENABLE_DEV === 'true') {
+      args = { ...args, projectId: 'percy-dev' };
+    }
     let options = args ? { action, arguments: args } : { action };
     let res = await this.driver.executeScript({ script: `browserstack_executor: ${JSON.stringify(options)}`, args: [] });
     return res;
