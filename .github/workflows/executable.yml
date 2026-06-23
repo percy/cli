@@ -20,7 +20,7 @@ jobs:
           APPLE_CERT_KEY: ${{secrets.APPLE_CERT_KEY}}
           APPLE_TEAM_ID: ${{secrets.APPLE_TEAM_ID}}
       - name: Verify executable
-        run: ./percy --version
+        run: ./scripts/verify-executable.sh ./percy
       - name: Upload win artifact
         uses: actions/upload-artifact@v4
         with:
@@ -98,7 +98,8 @@ jobs:
           Remove-Item -Force gcp-sa-key.json -ErrorAction SilentlyContinue
           Remove-Item -Force comodo_signing_cert.crt -ErrorAction SilentlyContinue
       - name: Verify executable
-        run: ./percy.exe --version
+        shell: bash
+        run: ./scripts/verify-executable.sh ./percy.exe
       - run: |
           powershell -Command "Compress-Archive -Path 'percy.exe' -DestinationPath 'percy-win.zip'"
       - name: Upload assets
