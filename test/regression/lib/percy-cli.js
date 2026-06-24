@@ -7,15 +7,13 @@ import { spawn } from 'child_process';
 export function runPercy(args, { env = {}, cwd } = {}) {
   return new Promise((resolve, reject) => {
     let output = '';
-    // shell:true lets `npx` resolve cross-platform (matches regression.test.js).
-    // Args are static and test-controlled — no untrusted input — so there is no
-    // command-injection surface here.
-    // nosemgrep: javascript.lang.security.audit.spawn-shell-true.spawn-shell-true
+    // No shell:true — `npx` resolves via PATH directly (this regression suite is
+    // Linux-only), and args are passed as an array, so there is no shell parsing
+    // or command-injection surface.
     const child = spawn('npx', ['percy', ...args], {
       env: { ...process.env, ...env },
       cwd,
-      stdio: ['ignore', 'pipe', 'pipe'],
-      shell: true
+      stdio: ['ignore', 'pipe', 'pipe']
     });
 
     const onData = data => {
