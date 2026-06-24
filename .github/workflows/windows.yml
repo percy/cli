@@ -7,6 +7,9 @@ on:
 jobs:
   build:
     name: Build
+    # Skip on release PRs (version-only bump); reports "skipped" = passing for
+    # the required check. See test.yml for rationale.
+    if: ${{ !startsWith(github.head_ref, 'release/') }}
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
@@ -36,6 +39,7 @@ jobs:
   test:
     name: Test ${{ matrix.package }}
     needs: [build]
+    if: ${{ !startsWith(github.head_ref, 'release/') }}
     strategy:
       fail-fast: false
       matrix:
