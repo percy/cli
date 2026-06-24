@@ -6,6 +6,7 @@ import { encodeURLSearchParams } from './utils.js';
 import { handleSyncJob } from './snapshot.js';
 import { locateScreenshot } from './maestro-screenshot-file.js';
 import { validateRegionInputs, resolveRegions } from './maestro-regions.js';
+import { deriveDeviceInsets } from './maestro-hierarchy.js';
 
 // Parse PNG IHDR chunk for the screenshot's actual rendered dimensions.
 // Returns { width, height } when the buffer is a valid PNG with non-zero
@@ -162,14 +163,32 @@ export async function handleMaestroScreenshot(req, res, percy) {
     }
   }
 
+  // Derive exact device system-bar insets (pixels), once per session — they're
+  // device-constant, so the first snapshot pays one /viewHierarchy (iOS) or
+  // `dumpsys` (Android) call and the rest reuse the cached result (incl. a null
+  // "use SDK default" outcome). CLI-derived values are authoritative over the
+  // SDK's static defaults (those are SDK internal constants, not customer-set);
+  // any derivation failure falls back to the SDK value. iOS navBarHeight is
+  // always 0 — the home indicator is static and unmeasured, fleet-consistent.
+  let insets = percy.maestroInsetCache.get(sessionId);
+  if (insets === undefined) {
+    insets = await deriveDeviceInsets({ platform, sessionId, pngDims });
+    percy.maestroInsetCache.set(sessionId, insets);
+    percy.log.debug(`maestro device insets (${platform}): ${JSON.stringify(insets)}`);
+  }
+  let statusBarHeight = insets?.statusBarHeight ?? (req.body.statusBarHeight || 0);
+  let navBarHeight = platform === 'ios'
+    ? 0
+    : (insets?.navBarHeight ?? (req.body.navBarHeight || 0));
+
   // Construct comparison payload with tile metadata from request
   let payload = {
     name,
     tag,
     tiles: [{
       content: base64Content,
-      statusBarHeight: req.body.statusBarHeight || 0,
-      navBarHeight: req.body.navBarHeight || 0,
+      statusBarHeight,
+      navBarHeight,
       headerHeight: 0,
       footerHeight: 0,
       fullscreen: req.body.fullscreen || false
