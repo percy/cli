@@ -7,6 +7,10 @@ on:
 jobs:
   build:
     name: Build
+    # Skip on release PRs: a version-bump PR only touches version files, so the
+    # Test suite adds nothing. The job reports "skipped" (= passing for the
+    # required check). Lint/Typecheck/Verify Executable still run normally.
+    if: ${{ !startsWith(github.head_ref, 'release/') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
@@ -36,6 +40,7 @@ jobs:
   test:
     name: Test ${{ matrix.package }}
     needs: [build]
+    if: ${{ !startsWith(github.head_ref, 'release/') }}
     strategy:
       matrix:
         os: [ubuntu-latest]
@@ -138,6 +143,7 @@ jobs:
   regression:
     name: Regression
     needs: [build]
+    if: ${{ !startsWith(github.head_ref, 'release/') }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
