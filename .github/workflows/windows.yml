@@ -7,9 +7,15 @@ on:
 jobs:
   build:
     name: Build
-    # Skip CI for release ("Release X.Y.Z") version-bump PRs; the Create Release
-    # PR workflow posts the required checks as passing for those.
-    if: ${{ !startsWith(github.head_ref, 'release/') }}
+    # Skip CI only for the automated release PR: opened by github-actions[bot],
+    # from this same repo, on a release/* branch (the Create Release PR workflow
+    # posts the required checks as passing for it). Keyed on the PR author, not the
+    # branch name, so a "release/…" branch can't be used to bypass required checks.
+    if: >-
+      ${{ !(github.event_name == 'pull_request'
+      && github.event.pull_request.user.login == 'github-actions[bot]'
+      && github.event.pull_request.head.repo.full_name == github.repository
+      && startsWith(github.head_ref, 'release/')) }}
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
@@ -38,7 +44,12 @@ jobs:
 
   test:
     name: Test ${{ matrix.package }}
-    if: ${{ !startsWith(github.head_ref, 'release/') }}
+    # Skip only for the automated release PR (see the build job for rationale).
+    if: >-
+      ${{ !(github.event_name == 'pull_request'
+      && github.event.pull_request.user.login == 'github-actions[bot]'
+      && github.event.pull_request.head.repo.full_name == github.repository
+      && startsWith(github.head_ref, 'release/')) }}
     needs: [build]
     strategy:
       fail-fast: false
