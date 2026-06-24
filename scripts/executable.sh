@@ -76,7 +76,10 @@ if [ -n "${APPLE_DEV_CERT:-}" ]; then
   mv percy-osx percy
   zip percy-osx.zip percy
 
-  xcrun notarytool submit --apple-id "$APPLE_ID_USERNAME" --password $APPLE_ID_KEY --team-id $APPLE_TEAM_ID percy-osx.zip --wait
+  # Read the Apple app-specific password from the environment via notarytool's
+  # `@env:` prefix instead of passing it as a CLI argument, so it is not visible
+  # in the process table / `ps aux` (CWE-214).
+  xcrun notarytool submit --apple-id "$APPLE_ID_USERNAME" --password "@env:APPLE_ID_KEY" --team-id "$APPLE_TEAM_ID" percy-osx.zip --wait
 
   cleanup
 else
