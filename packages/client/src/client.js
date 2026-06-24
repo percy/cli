@@ -313,15 +313,25 @@ export class PercyClient {
   // Creates a build with optional build resources. Only one build can be
   // created at a time per instance so snapshots and build finalization can be
   // done more seamlessly without manually tracking build ids
-  async createBuild({ resources = [], projectType, cliStartTime = null } = {}) {
+  // `parallelNonce`/`parallelTotal` override the env-derived parallel identity so callers can
+  // create a *separate* parallel build (e.g. the playwright-dropin baseline build) with its own
+  // deterministic nonce — engaging the percy-api named-lock dedup independently of the head build.
+  // `source` overrides the env-derived build source tag. These are additive and only used by the
+  // baseline-seed path; the normal head/snapshot flow passes none of them and behaves unchanged.
+  async createBuild({ resources = [], projectType, cliStartTime = null, parallelNonce = null, parallelTotal = null, source = null } = {}) {
     this.log.debug('Creating a new build...');
     let visualConfig = parseVisualConfigFromEnv(this.log);
-    let source = 'user_created';
+    // Source precedence: explicit param (baseline-seed path) > PERCY_BUILD_SOURCE env > legacy
+    // env-derived sources > default. PERCY_BUILD_SOURCE lets an SDK tag the head build it doesn't
+    // create directly (e.g. @percy/playwright-dropin sets it to 'playwright-dropin').
+    let buildSource = source || process.env.PERCY_BUILD_SOURCE || 'user_created';
 
-    if (process.env.PERCY_ORIGINATED_SOURCE) {
-      source = 'bstack_sdk_created';
-    } else if (process.env.PERCY_AUTO_ENABLED_GROUP_BUILD === 'true') {
-      source = 'auto_enabled_group';
+    if (!source && !process.env.PERCY_BUILD_SOURCE) {
+      if (process.env.PERCY_ORIGINATED_SOURCE) {
+        buildSource = 'bstack_sdk_created';
+      } else if (process.env.PERCY_AUTO_ENABLED_GROUP_BUILD === 'true') {
+        buildSource = 'auto_enabled_group';
+      }
     }
 
     let tagsArr = tagsList(this.labels);
@@ -342,12 +352,12 @@ export class PercyClient {
           'commit-committer-email': this.env.git.committerEmail,
           'commit-message': this.env.git.message,
           'pull-request-number': this.env.pullRequest,
-          'parallel-nonce': this.env.parallel.nonce,
-          'parallel-total-shards': this.env.parallel.total,
+          'parallel-nonce': parallelNonce ?? this.env.parallel.nonce,
+          'parallel-total-shards': parallelTotal ?? this.env.parallel.total,
           partial: this.env.partial,
           tags: tagsArr,
           'cli-start-time': cliStartTime,
-          source: source,
+          source: buildSource,
           'skip-base-build': this.config.percy?.skipBaseBuild,
           'testhub-build-uuid': this.env.testhubBuildUuid,
           'testhub-build-run-id': this.env.testhubBuildRunId,

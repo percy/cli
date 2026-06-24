@@ -1952,6 +1952,29 @@ describe('Snapshot', () => {
 
       expect(logger.stderr).toEqual(jasmine.arrayContaining([jasmine.stringContaining('[percy] Error: Cannot run App Percy screenshots in automate project. Please use App Percy project token')]));
     });
+
+    it('should allow the app (BYOS) comparison flow on a generic project', async () => {
+      await percy.stop(true);
+      await api.mock();
+
+      percy = await Percy.start({
+        token: 'PERCY_TOKEN',
+        projectType: 'generic'
+      });
+
+      percy.client.buildType = 'generic';
+      await percy.upload({
+        name: 'Snapshot',
+        external_debug_url: 'localhost',
+        tag: { name: 'chromium', browserName: 'chromium', width: 1280 },
+        tiles: [{ content: 'foo' }]
+      }, null, 'app');
+
+      // @percy/playwright-dropin uploads raw images into a generic project via the 'app' flow —
+      // this must NOT be rejected (the guard only blocks rendering-type projects).
+      expect(logger.stderr).not.toEqual(jasmine.arrayContaining([jasmine.stringContaining('Cannot run App Percy screenshots in generic project')]));
+      expect(api.requests['/builds/123/comparisons']).toBeDefined();
+    });
   });
 
   describe('with percy-css', () => {
