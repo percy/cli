@@ -4,9 +4,45 @@ on:
     branches: [master]
   pull_request:
   workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: read
+
 jobs:
+  changes:
+    name: Detect version-only changes
+    runs-on: ubuntu-latest
+    outputs:
+      version_only: ${{ steps.filter.outputs.version_only }}
+    steps:
+      - name: Check the PR changes only version files
+        id: filter
+        if: github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          if ! files=$(gh api "repos/$REPO/pulls/$PR/files" --paginate --jq '.[].filename'); then
+            echo "Could not list PR files — running full CI to be safe."
+            echo "version_only=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          printf 'Changed files:\n%s\n' "$files"
+          # version_only=true only if EVERY changed file is lerna.json or a top-level
+          # packages/<pkg>/package.json (exactly what version-bump.yml commits).
+          others=$(printf '%s\n' "$files" | grep -vE '^(lerna\.json|packages/[^/]+/package\.json)$' || true)
+          if [ -n "$files" ] && [ -z "$others" ]; then
+            echo "version_only=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "version_only=false" >> "$GITHUB_OUTPUT"
+          fi
+
   build:
     name: Build
+    needs: [changes]
+    if: ${{ !(startsWith(github.head_ref, 'release/') && github.event.pull_request.user.login == 'github-actions[bot]' && needs.changes.outputs.version_only == 'true') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
@@ -35,7 +71,8 @@ jobs:
 
   test:
     name: Test ${{ matrix.package }}
-    needs: [build]
+    needs: [build, changes]
+    if: ${{ !(startsWith(github.head_ref, 'release/') && github.event.pull_request.user.login == 'github-actions[bot]' && needs.changes.outputs.version_only == 'true') }}
     strategy:
       matrix:
         os: [ubuntu-latest]
@@ -137,7 +174,8 @@ jobs:
 
   regression:
     name: Regression
-    needs: [build]
+    needs: [build, changes]
+    if: ${{ !(startsWith(github.head_ref, 'release/') && github.event.pull_request.user.login == 'github-actions[bot]' && needs.changes.outputs.version_only == 'true') }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
