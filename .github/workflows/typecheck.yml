@@ -10,6 +10,9 @@ permissions:
 jobs:
   typecheck:
     name: Typecheck
+    # Skip for release ("Release X.Y.Z") version-bump PRs; the Create Release PR
+    # workflow posts the required checks as passing for those.
+    if: ${{ !startsWith(github.head_ref, 'release/') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0

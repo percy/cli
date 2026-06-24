@@ -7,6 +7,9 @@ on:
 jobs:
   build:
     name: Build
+    # Release ("Release X.Y.Z") PRs only bump version files; CI is skipped and the
+    # required checks are posted as passing by the Create Release PR workflow.
+    if: ${{ !startsWith(github.head_ref, 'release/') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
@@ -35,6 +38,7 @@ jobs:
 
   test:
     name: Test ${{ matrix.package }}
+    if: ${{ !startsWith(github.head_ref, 'release/') }}
     needs: [build]
     strategy:
       matrix:
@@ -137,6 +141,7 @@ jobs:
 
   regression:
     name: Regression
+    if: ${{ !startsWith(github.head_ref, 'release/') }}
     needs: [build]
     runs-on: ubuntu-latest
     timeout-minutes: 15
