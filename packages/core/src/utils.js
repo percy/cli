@@ -85,6 +85,13 @@ export function buildSyntheticFrameResourceUrl(rootUrl, percyElementId) {
   }
 }
 
+// Returns a URL encoded string of nested query params
+export function encodeURLSearchParams(subj, prefix) {
+  return typeof subj === 'object' ? Object.entries(subj).map(([key, value]) => (
+    encodeURLSearchParams(value, prefix ? `${prefix}[${key}]` : key)
+  )).join('&') : `${prefix}=${encodeURIComponent(subj)}`;
+}
+
 // Process CORS iframes in a single domSnapshot object. `rootUrl` is the page
 // URL of the snapshot, used as the base for synthetic resource URLs.
 export function processCorsIframesInDomSnapshot(domSnapshot, rootUrl) {
