@@ -366,6 +366,71 @@ describe('serialize-pseudo-classes', () => {
     });
   });
 
+  // Regression guard for the customer scenario: a native popover opened via
+  // showPopover() and living inside an open shadow root (e.g. Tecton q2-popover).
+  // The open/top-layer state is lost on serialization unless the pre-clone pass
+  // pierces shadow DOM and stamps data-percy-popover-open — and it must do so
+  // automatically, with no pseudoClassEnabledElements config.
+  describe('popover auto-detection inside shadow DOM', () => {
+    let host;
+
+    function popoverSupported() {
+      return typeof document.createElement('div').showPopover === 'function';
+    }
+
+    function openShadowPopover({ mode = 'open', type = 'manual', open = true } = {}) {
+      host = document.createElement('div');
+      host.id = 'shadow-popover-host';
+      const root = host.attachShadow({ mode });
+      // nosemgrep: javascript.browser.security.insecure-document-method.insecure-document-method
+      root.innerHTML = `<div id="sp" popover="${type}">menu</div>`;
+      document.body.appendChild(host);
+      const popover = root.getElementById('sp');
+      if (open) popover.showPopover();
+      return popover;
+    }
+
+    afterEach(() => {
+      if (!host) return;
+      try {
+        const p = host.shadowRoot && host.shadowRoot.querySelector('[popover]');
+        if (p && typeof p.hidePopover === 'function' && p.matches(':popover-open')) p.hidePopover();
+      } catch (e) { /* ignore */ }
+      host.remove();
+      host = null;
+    });
+
+    it('auto-stamps an open popover inside an open shadow root with NO config', () => {
+      if (!popoverSupported()) { pending('Popover API not supported in this environment'); return; }
+      const popover = openShadowPopover();
+
+      // No pseudoClassEnabledElements passed — auto-detection must still reach it.
+      markPseudoClassElements(ctx);
+
+      expect(popover.getAttribute('data-percy-popover-open')).toBe('true');
+    });
+
+    it('removes the shadow-DOM popover marker from the live DOM on cleanup', () => {
+      if (!popoverSupported()) { pending('Popover API not supported in this environment'); return; }
+      const popover = openShadowPopover();
+
+      markPseudoClassElements(ctx);
+      expect(popover.hasAttribute('data-percy-popover-open')).toBe(true);
+
+      cleanupInteractiveStateMarkers(ctx);
+      expect(popover.hasAttribute('data-percy-popover-open')).toBe(false);
+    });
+
+    it('does NOT stamp a closed popover inside a shadow root', () => {
+      if (!popoverSupported()) { pending('Popover API not supported in this environment'); return; }
+      const popover = openShadowPopover({ open: false });
+
+      markPseudoClassElements(ctx);
+
+      expect(popover.hasAttribute('data-percy-popover-open')).toBe(false);
+    });
+  });
+
   describe('rewriteCustomStateCSS', () => {
     it('rewrites :state() selectors in style elements', () => {
       withExample('<style>my-el:state(open) { color: green; }</style><my-el id="myel"></my-el>');
