@@ -803,6 +803,7 @@ describe('SDK Utils', () => {
 
       it('returns [] when nothing is configured', () => {
         expect(resolveIgnoreSelectors({})).toEqual([]);
+        expect(resolveIgnoreSelectors()).toEqual([]);
       });
     });
   });
