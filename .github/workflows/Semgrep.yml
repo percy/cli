@@ -33,8 +33,16 @@ jobs:
       # suppressions were ignored. See https://semgrep.dev/docs CHANGELOG v1.164.0.
       image: semgrep/semgrep:1.164.0
 
-    # Skip any PR created by dependabot to avoid permission issues:
-    if: (github.actor != 'dependabot[bot]')
+    # Skip any PR created by dependabot to avoid permission issues, and skip the
+    # automated release PR (opened by github-actions[bot], same repo, release/*
+    # branch — the Create Release PR workflow posts the required checks for it).
+    # The release gate is keyed on the PR author, not the branch name (which any
+    # contributor controls), so a "release/…" branch can't bypass required checks.
+    if: >-
+      ${{ github.actor != 'dependabot[bot]'
+      && !(github.event.pull_request.user.login == 'github-actions[bot]'
+      && github.event.pull_request.head.repo.full_name == github.repository
+      && startsWith(github.head_ref, 'release/')) }}
 
     steps:
       # Fetch project source with GitHub Actions Checkout.

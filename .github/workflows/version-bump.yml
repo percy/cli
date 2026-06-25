@@ -97,6 +97,14 @@ jobs:
         uses: peter-evans/create-pull-request@271a8d0340265f705b14b6d32b9829c1cb33d45e # v7.0.8
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
+          # Fully attribute the commit to the GitHub Actions bot (not the human
+          # who clicked "Run workflow", which is create-pull-request's default
+          # author). A bot-authored, GITHUB_TOKEN-pushed commit lets GitHub's
+          # recursion guard suppress the on:pull_request CI runs entirely, so the
+          # release PR never sits in the "Approve and run workflows" gate — the
+          # synthetic check runs posted below satisfy branch protection on their own.
+          author: "github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>"
+          committer: "github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>"
           base: master
           branch: release/${{ steps.bump.outputs.version }}
           # Only commit version files — never workflow files (GITHUB_TOKEN may
