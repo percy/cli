@@ -46,6 +46,14 @@ const CASES = [
     expectValid: true
   },
   {
+    // Server mode: `percy snapshot <dir>` exercises the /snapshot/server schema
+    // (serve) plus the static cleanUrls flag, which list/base-url mode doesn't.
+    name: 'static-site/ — server mode (serve) + cleanUrls via percy snapshot <dir>',
+    args: ['snapshot', 'static-site', '--dry-run', '--clean-urls'],
+    expectCount: 2,
+    expectValid: true
+  },
+  {
     // Negative guard: proves the "Invalid config:" detector actually fires, so
     // the assertion protecting the valid fixtures above is not a no-op.
     name: 'invalid-example.yml — detector self-test (Invalid config EXPECTED)',

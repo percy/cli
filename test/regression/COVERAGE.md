@@ -30,6 +30,11 @@ PERCY_TOKEN=… yarn test:regression  # Track V — token-gated, creates the bui
   `considerRegions`.
 - **`comparisonSchema`** (the upload/comparison wire format) is not user-facing
   CLI config — out of scope.
+- **`/snapshot/server` `port`** is not reachable via `percy snapshot`: there is
+  no `--port` flag on the command and it isn't in the `static` config namespace
+  (the command only sets `serve`/`cleanUrls`/`baseUrl` for a directory — see
+  `cli-snapshot/src/snapshot.js`). It's a programmatic/SDK option only. `serve`
+  itself IS covered (server mode via `percy snapshot static-site/`).
 - All additions are test-only; no production code changes.
 
 ## Coverage by namespace
@@ -60,8 +65,8 @@ Every listed option is at minimum **C** (in a config the CLI loads & validates).
 | readiness.* (preset, *WindowMs, timeoutMs, domStability, imageReady, fontReady, jsIdle, readySelectors, notPresentSelectors, maxTimeoutMs) | C | `all-config.yml` |
 | responsiveSnapshotCapture | C, V | "Config - Responsive Snapshot Capture" |
 | testCase, labels, thTestCaseExecutionId, browsers | C | `all-config.yml` |
-| regions[] (elementSelector, padding, algorithm, configuration, assertion) | C | `all-config.yml` + `per-snapshot-options.yml` |
-| algorithm, algorithmConfiguration.* | C | `all-config.yml` |
+| regions[] (elementSelector: boundingBox / elementCSS / elementXpath; padding, algorithm, configuration, assertion) | C | `all-config.yml` (all 3 selector forms) + `per-snapshot-options.yml` |
+| algorithm (standard / layout / intelliignore / ignore), algorithmConfiguration.* | C | `all-config.yml` (incl. `layout`); `ignore` via region in `per-snapshot-options.yml` |
 | ignoreCanvasSerializationErrors, ignoreStyleSheetSerializationErrors | C | `all-config.yml` |
 | ignoreIframeSelectors | C, V | `snapshots.yml` "DOM Structures Coverage" |
 | pseudoClassEnabledElements (id, className, xpath, selectors) | C, V | `all-config.yml` (all forms); "Interactive States" (selectors) |
@@ -102,7 +107,8 @@ Every listed option is at minimum **C** (in a config the CLI loads & validates).
 | precapture waitForSelector / waitForTimeout | C | `per-snapshot-options.yml` |
 | include / exclude (filter; also `--include`/`--exclude`) | C | `per-snapshot-options.yml` |
 | list baseUrl, options | C | `per-snapshot-options.yml` |
-| static cleanUrls, rewrites, baseUrl, options | C | `all-config.yml` (`static:` section) |
+| static cleanUrls, rewrites, baseUrl, options | C | `all-config.yml` (`static:` section); `serve` + `cleanUrls` also via server mode `percy snapshot static-site/` |
+| server mode: serve | C | `static-site/` via `percy snapshot <dir> --dry-run` (`port` is not CLI-reachable — see Scope) |
 | sitemap options | C | `all-config.yml` (`sitemap:` section) |
 
 ## Adding coverage for a new option

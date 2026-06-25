@@ -98,6 +98,11 @@ snapshot:
         carouselsEnabled: true
         bannersEnabled: true
         adsEnabled: true
+    # Third selector form (elementXpath) + the `layout` algorithm enum value,
+    # which the other regions / top-level algorithm don't exercise.
+    - algorithm: layout
+      elementSelector:
+        elementXpath: '//div[@id="region"]'
   algorithm: standard
   algorithmConfiguration:
     diffSensitivity: 3
