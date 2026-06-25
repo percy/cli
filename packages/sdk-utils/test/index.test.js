@@ -731,7 +731,9 @@ describe('SDK Utils', () => {
       });
 
       it('skips browser-internal and non-http schemes (case-insensitive)', () => {
-        for (let src of ['about:blank', 'about:srcdoc', 'JavaScript:void(0)', 'DATA:text/html,x', 'blob:https://x', 'file:///etc', 'ftp://h/f', 'ws://h', 'chrome-extension://id']) {
+        // 'ws://h' below is a scheme-list test fixture (asserting ws: is rejected as an unsupported
+        // iframe src), not a real WebSocket connection — hence the inline nosemgrep on that line.
+        for (let src of ['about:blank', 'about:srcdoc', 'JavaScript:void(0)', 'DATA:text/html,x', 'blob:https://x', 'file:///etc', 'ftp://h/f', 'ws://h', 'chrome-extension://id']) { // nosemgrep: javascript.lang.security.detect-insecure-websocket
           expect(isUnsupportedIframeSrc(src)).toBe(true);
         }
       });
