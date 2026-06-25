@@ -710,6 +710,103 @@ describe('SDK Utils', () => {
     });
   });
 
+  describe('iframe capture helpers', () => {
+    let { UNSUPPORTED_IFRAME_SRCS, isUnsupportedIframeSrc, normalizeIgnoreSelectors, resolveMaxFrameDepth, resolveIgnoreSelectors } = utils;
+
+    afterEach(() => { utils.percy.config = undefined; });
+
+    describe('isUnsupportedIframeSrc(src)', () => {
+      it('exposes the canonical scheme prefix list', () => {
+        expect(UNSUPPORTED_IFRAME_SRCS).toEqual([
+          'about:', 'chrome:', 'chrome-extension:', 'devtools:', 'edge:',
+          'opera:', 'view-source:', 'data:', 'javascript:', 'blob:',
+          'vbscript:', 'file:', 'ws:', 'wss:', 'ftp:'
+        ]);
+      });
+
+      it('treats a missing/empty src as unsupported', () => {
+        expect(isUnsupportedIframeSrc()).toBe(true);
+        expect(isUnsupportedIframeSrc('')).toBe(true);
+        expect(isUnsupportedIframeSrc(null)).toBe(true);
+      });
+
+      it('skips browser-internal and non-http schemes (case-insensitive)', () => {
+        for (let src of ['about:blank', 'about:srcdoc', 'JavaScript:void(0)', 'DATA:text/html,x', 'blob:https://x', 'file:///etc', 'ftp://h/f', 'ws://h', 'chrome-extension://id']) {
+          expect(isUnsupportedIframeSrc(src)).toBe(true);
+        }
+      });
+
+      it('allows real http(s) iframe sources', () => {
+        expect(isUnsupportedIframeSrc('https://example.com/frame')).toBe(false);
+        expect(isUnsupportedIframeSrc('http://ads.com/banner')).toBe(false);
+      });
+    });
+
+    describe('normalizeIgnoreSelectors(value)', () => {
+      it('returns [] for falsy / non-array-or-string values', () => {
+        expect(normalizeIgnoreSelectors()).toEqual([]);
+        expect(normalizeIgnoreSelectors(null)).toEqual([]);
+        expect(normalizeIgnoreSelectors(0)).toEqual([]);
+        expect(normalizeIgnoreSelectors({})).toEqual([]);
+        expect(normalizeIgnoreSelectors(42)).toEqual([]);
+      });
+
+      it('wraps a single string', () => {
+        expect(normalizeIgnoreSelectors('.ad')).toEqual(['.ad']);
+      });
+
+      it('filters an array down to non-empty strings', () => {
+        expect(normalizeIgnoreSelectors(['.ad', '', '.tracker', 5, null])).toEqual(['.ad', '.tracker']);
+      });
+    });
+
+    describe('resolveMaxFrameDepth(options)', () => {
+      it('uses the per-snapshot option, clamped', () => {
+        expect(resolveMaxFrameDepth({ maxIframeDepth: 5 })).toEqual(5);
+        expect(resolveMaxFrameDepth({ maxIframeDepth: 99 })).toEqual(10);
+        expect(resolveMaxFrameDepth({ maxIframeDepth: 3.7 })).toEqual(3);
+      });
+
+      it('falls back to global config when the option is absent', () => {
+        utils.percy.config = { snapshot: { maxIframeDepth: 7 } };
+        expect(resolveMaxFrameDepth({})).toEqual(7);
+        expect(resolveMaxFrameDepth()).toEqual(7);
+      });
+
+      it('per-snapshot option wins over global config', () => {
+        utils.percy.config = { snapshot: { maxIframeDepth: 7 } };
+        expect(resolveMaxFrameDepth({ maxIframeDepth: 2 })).toEqual(2);
+      });
+
+      it('defaults when neither is set or value is invalid', () => {
+        expect(resolveMaxFrameDepth({})).toEqual(3);
+        expect(resolveMaxFrameDepth({ maxIframeDepth: 0 })).toEqual(3);
+      });
+    });
+
+    describe('resolveIgnoreSelectors(options)', () => {
+      it('normalizes the per-snapshot option', () => {
+        expect(resolveIgnoreSelectors({ ignoreIframeSelectors: '.ad' })).toEqual(['.ad']);
+        expect(resolveIgnoreSelectors({ ignoreIframeSelectors: ['.ad', '.x'] })).toEqual(['.ad', '.x']);
+        expect(resolveIgnoreSelectors({ ignoreSelectors: '.legacy' })).toEqual(['.legacy']);
+      });
+
+      it('falls back to global config when the option is absent', () => {
+        utils.percy.config = { snapshot: { ignoreIframeSelectors: ['.global'] } };
+        expect(resolveIgnoreSelectors({})).toEqual(['.global']);
+      });
+
+      it('per-snapshot option wins over global config', () => {
+        utils.percy.config = { snapshot: { ignoreIframeSelectors: ['.global'] } };
+        expect(resolveIgnoreSelectors({ ignoreIframeSelectors: ['.local'] })).toEqual(['.local']);
+      });
+
+      it('returns [] when nothing is configured', () => {
+        expect(resolveIgnoreSelectors({})).toEqual([]);
+      });
+    });
+  });
+
   describe('waitForReadyScript(config[, flags])', () => {
     let { waitForReadyScript } = utils;
 
