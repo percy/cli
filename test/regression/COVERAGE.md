@@ -10,15 +10,15 @@ and how. The option source of truth is `packages/core/src/config.js`
 | Track | File(s) | Token? | What it proves |
 |-------|---------|--------|----------------|
 | **C — Config validation** | `config-validation.test.js`, `configs/`, `per-snapshot-options.yml` | no | The CLI parses, validates & loads **every** option with no `Invalid config:` output. Runs token-free + discovery-free (`--dry-run`), so it gates every PR including forks. The literal-100% option backbone. |
-| **V — Visual** | `regression.test.js`, `snapshots.yml`, `pages/config-*.html` | yes | Render-affecting options produce the correct snapshot (reviewed via Percy's dashboard). |
-| **F — Functional** | `functional.test.js`, `configs/functional-config.yml`, `server.js` gated routes | yes | Discovery options behave correctly — asserted on what the test servers observed, not on log text. |
+| **V — Visual** | `regression.test.js`, `snapshots.yml`, `pages/config-*.html` | yes | Render-affecting options produce the correct snapshot (reviewed via Percy's dashboard). The **only** track that creates a Percy build. |
+| **F — Functional** | `functional.test.js`, `configs/functional-config.yml`, `server.js` gated routes | no | Discovery options behave correctly — asserted on what the test servers observed, not on log text. Runs `percy snapshot --debug` (skipUploads): discovery runs but **no build is created**, so it stays token-free and never adds a stray build to the visual project. |
 
 Run:
 
 ```bash
 yarn test:regression:config        # Track C — no token needed
-PERCY_TOKEN=… yarn test:regression          # Track V
-PERCY_TOKEN=… yarn test:regression:functional   # Track F
+yarn test:regression:functional    # Track F — no token needed (--debug, no build)
+PERCY_TOKEN=… yarn test:regression  # Track V — token-gated, creates the build
 ```
 
 ## Scope boundaries (explicit non-goals)

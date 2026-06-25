@@ -9,9 +9,11 @@ per-option matrix):
   accepts them all (no `Invalid config:`). Runs on every PR, no token needed.
 - **Visual** (`regression.test.js`) — uploads real snapshots; render-affecting
   options are reviewed as visual diffs in the Percy dashboard.
-- **Functional** (`functional.test.js`) — one real run whose discovery options
-  are asserted against what the test servers observed (headers, auth, cookies,
-  user-agent, blocked hosts).
+- **Functional** (`functional.test.js`) — runs `percy snapshot --debug`
+  (discovery runs but no build is uploaded) and asserts discovery options
+  against what the test servers observed (headers, auth, cookies, user-agent,
+  blocked hosts). Token-free, and creates no build — so it never adds a stray
+  build to the visual project.
 
 > **Scope:** `onlyAutomate` snapshot options (`fullPage`, `freezeAnimation`,
 > `freezeAnimatedImage`, `freezeAnimatedImageOptions`, `ignoreRegions`,
@@ -28,12 +30,12 @@ per-option matrix):
 ## Running Locally
 
 ```bash
-# Config validation — no token required, runs anywhere
+# Config validation + functional — no token required, run anywhere
 yarn test:regression:config
+yarn test:regression:functional
 
-# Visual + functional — require PERCY_TOKEN, skip gracefully without it
+# Visual — requires PERCY_TOKEN (creates the build); skips gracefully without it
 PERCY_TOKEN=your_token_here yarn test:regression
-PERCY_TOKEN=your_token_here yarn test:regression:functional
 ```
 
 ## How It Works
@@ -72,5 +74,6 @@ Each snapshot entry supports all Percy options: `widths`, `enableJavaScript`, `d
 ## CI
 
 Runs automatically on PRs and pushes to master via the `regression` job in
-`.github/workflows/test.yml` (Linux only): config validation runs token-free,
-visual + functional run with `PERCY_REGRESSION_TOKEN`.
+`.github/workflows/test.yml` (Linux only): config validation and functional
+run token-free; the visual track runs with `PERCY_REGRESSION_TOKEN` and is the
+only step that creates a Percy build.

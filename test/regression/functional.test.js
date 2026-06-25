@@ -1,13 +1,16 @@
-// Track F — functional discovery coverage (token-gated).
+// Track F — functional discovery coverage (token-free).
 //
 // Some discovery options have no reviewable visual effect — their correctness
 // is in behavior (which headers/auth/cookies/user-agent reach the server, which
-// resources are fetched or blocked). This harness runs ONE real `percy snapshot`
+// resources are fetched or blocked). This harness runs `percy snapshot --debug`
 // against gated server routes and asserts on what those routes observed, so the
 // assertions verify Percy's actual behavior rather than fragile debug-log text.
 //
-// Requires PERCY_TOKEN (real capture + upload); skips cleanly without it, like
-// the visual regression harness.
+// `--debug` sets skipUploads: discovery still runs (the browser fetches every
+// resource, so the servers observe the requests) but NO Percy build is created
+// or uploaded. That keeps this track token-free AND stops it from creating a
+// stray 1-snapshot build that would otherwise supersede the visual build on the
+// same commit. It needs no PERCY_TOKEN and runs on every PR.
 //
 // Run: node test/regression/functional.test.js  (or yarn test:regression:functional)
 
@@ -18,13 +21,8 @@ import { runPercy } from './lib/percy-cli.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-if (!process.env.PERCY_TOKEN) {
-  console.log('Skipping functional regression tests (PERCY_TOKEN not set)');
-  process.exit(0);
-}
-
 async function run() {
-  console.log('Track F — functional discovery coverage (token-gated)\n');
+  console.log('Track F — functional discovery coverage (token-free, --debug)\n');
   await startServers();
   console.log('Servers listening on 127.0.0.1:9100 and :9101');
   resetObservations();
@@ -35,6 +33,9 @@ async function run() {
       'snapshot', join(__dirname, 'functional-snapshots.yml'),
       '--base-url', 'http://localhost:9100',
       '--config', join(__dirname, 'configs/functional-config.yml'),
+      // --debug => skipUploads: discovery runs (servers observe the requests)
+      // but no build is created, so this stays token-free and build-free.
+      '--debug',
       '--verbose'
     ], { cwd: __dirname });
   } finally {
@@ -57,7 +58,10 @@ async function run() {
 
   console.log('');
   check(code === 0, `percy snapshot exits 0 (got ${code})`);
-  check(/Finalized build/.test(output), 'build finalized');
+  // --debug => skipUploads: confirm we ran discovery WITHOUT creating a build
+  // (so this track never pollutes the visual project with a stray build).
+  check(!/\/builds\/[0-9]/.test(output) && !/Finalized build/.test(output),
+    'no Percy build created (--debug / skipUploads)');
 
   // discovery.requestHeaders — custom header injected on discovery requests
   check(obs.requestHeader === 'present',
@@ -78,9 +82,11 @@ async function run() {
   check(!!obs.userAgent && obs.userAgent.includes('PercyRegressionUA/1.0'),
     `discovery.userAgent sent (ua=${obs.userAgent})`);
 
-  // discovery.captureSrcset — every srcset candidate fetched
-  check(obs.srcset.includes('1x') && obs.srcset.includes('2x'),
-    `discovery.captureSrcset fetched all candidates (got [${obs.srcset.join(', ')}])`);
+  // discovery.captureSrcset — the 2x candidate is the discriminating signal:
+  // 1x is the <img src> and would load regardless, but 2x is only fetched when
+  // srcset candidates are captured.
+  check(obs.srcset.includes('2x'),
+    `discovery.captureSrcset fetched the srcset-only 2x candidate (got [${obs.srcset.join(', ')}])`);
 
   // discovery.disallowedHostnames — request to the disallowed 9101 host aborted
   // before it left the browser, so the server never saw it.
