@@ -366,6 +366,106 @@ describe('serialize-pseudo-classes', () => {
     });
   });
 
+  // Regression guard for the customer scenario: a native popover opened via
+  // showPopover() and living inside an open shadow root (e.g. Tecton q2-popover).
+  // The open/top-layer state is lost on serialization unless the pre-clone pass
+  // pierces shadow DOM and stamps data-percy-popover-open — and it must do so
+  // automatically, with no pseudoClassEnabledElements config.
+  describe('popover auto-detection inside shadow DOM', () => {
+    let host;
+    // For the closed-root case: keep a handle to the (otherwise unreachable)
+    // closed root, and remember the previous WeakMap so we can restore it.
+    let closedRoot;
+    let origClosedMap;
+
+    function popoverSupported() {
+      return typeof document.createElement('div').showPopover === 'function';
+    }
+
+    function openShadowPopover({ mode = 'open', type = 'manual', open = true } = {}) {
+      host = document.createElement('div');
+      host.id = 'shadow-popover-host';
+      const root = host.attachShadow({ mode });
+      // nosemgrep: javascript.browser.security.insecure-document-method.insecure-document-method
+      root.innerHTML = `<div id="sp" popover="${type}">menu</div>`;
+      document.body.appendChild(host);
+      if (mode === 'closed') {
+        // host.shadowRoot is null for closed roots. Mimic the CDP closed-shadow
+        // exposure path: register host -> root in the WeakMap that
+        // getShadowRoot()/getClosedShadowRoot() reads, so the marking walk can
+        // reach inside.
+        closedRoot = root;
+        origClosedMap = window.__percyClosedShadowRoots;
+        const map = new WeakMap();
+        map.set(host, root);
+        window.__percyClosedShadowRoots = map;
+      }
+      const popover = root.getElementById('sp');
+      if (open) popover.showPopover();
+      return popover;
+    }
+
+    afterEach(() => {
+      if (!host) return;
+      try {
+        const root = host.shadowRoot || closedRoot;
+        const p = root && root.querySelector('[popover]');
+        if (p && typeof p.hidePopover === 'function' && p.matches(':popover-open')) p.hidePopover();
+      } catch (e) { /* ignore */ }
+      host.remove();
+      host = null;
+      if (closedRoot) {
+        window.__percyClosedShadowRoots = origClosedMap;
+        closedRoot = null;
+        origClosedMap = undefined;
+      }
+    });
+
+    it('auto-stamps an open popover inside an open shadow root with NO config', () => {
+      if (!popoverSupported()) { pending('Popover API not supported in this environment'); return; }
+      const popover = openShadowPopover();
+
+      // No pseudoClassEnabledElements passed — auto-detection must still reach it.
+      markPseudoClassElements(ctx);
+
+      expect(popover.getAttribute('data-percy-popover-open')).toBe('true');
+    });
+
+    it('removes the shadow-DOM popover marker from the live DOM on cleanup', () => {
+      if (!popoverSupported()) { pending('Popover API not supported in this environment'); return; }
+      const popover = openShadowPopover();
+
+      markPseudoClassElements(ctx);
+      expect(popover.hasAttribute('data-percy-popover-open')).toBe(true);
+
+      cleanupInteractiveStateMarkers(ctx);
+      expect(popover.hasAttribute('data-percy-popover-open')).toBe(false);
+    });
+
+    it('does NOT stamp a closed popover inside a shadow root', () => {
+      if (!popoverSupported()) { pending('Popover API not supported in this environment'); return; }
+      const popover = openShadowPopover({ open: false });
+
+      markPseudoClassElements(ctx);
+
+      expect(popover.hasAttribute('data-percy-popover-open')).toBe(false);
+    });
+
+    it('auto-stamps an open popover inside a CLOSED shadow root (via the CDP WeakMap)', () => {
+      if (!popoverSupported()) { pending('Popover API not supported in this environment'); return; }
+      const popover = openShadowPopover({ mode: 'closed' });
+
+      // host.shadowRoot is null for closed roots — reaching the popover relies
+      // ENTIRELY on getShadowRoot() falling back to __percyClosedShadowRoots.
+      // This guards the closed-root path from diverging from the open-root one.
+      expect(host.shadowRoot).toBe(null);
+
+      markPseudoClassElements(ctx);
+
+      expect(popover.getAttribute('data-percy-popover-open')).toBe('true');
+    });
+  });
+
   describe('rewriteCustomStateCSS', () => {
     it('rewrites :state() selectors in style elements', () => {
       withExample('<style>my-el:state(open) { color: green; }</style><my-el id="myel"></my-el>');

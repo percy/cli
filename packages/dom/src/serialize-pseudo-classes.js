@@ -146,6 +146,49 @@ function markInteractiveStates(ctx) {
   });
 }
 
+// Walk the LIVE document and every shadow root (open, or closed via the CDP
+// WeakMap) WITHOUT relying on data-percy-shadow-host markers. walkShadowDOM
+// descends through those markers, but they are only stamped later during
+// cloning — so during this pre-clone marking pass it cannot reach shadow
+// content. We descend via the live shadowRoot directly instead.
+function eachScopeIncludingShadow(root, visit) {
+  if (!root || typeof root.querySelectorAll !== 'function') return;
+  visit(root);
+  for (const el of root.querySelectorAll('*')) {
+    const shadow = getShadowRoot(el);
+    if (shadow) eachScopeIncludingShadow(shadow, visit);
+  }
+}
+
+// Auto-detect open native popovers page-wide, INCLUDING inside shadow roots.
+// `:popover-open` is an unambiguous serialize-time state (like :checked /
+// :disabled), so it is stamped automatically rather than only on
+// pseudoClassEnabledElements. The renderer's popover-element-helper already
+// re-opens any [popover][data-percy-popover-open] across shadow boundaries;
+// without this stamp a popover open at snapshot time renders hidden via the
+// UA `[popover]:not(:popover-open){display:none}` rule. If `:popover-open`
+// is unsupported the selector throws — we stop querying and warn once.
+function markOpenPopovers(ctx) {
+  let supported = true;
+  eachScopeIncludingShadow(ctx.dom, scope => {
+    if (!supported) return;
+    // Only the `:popover-open` SELECTOR can legitimately throw a SyntaxError
+    // (engines without popover support). Scope the try to the query and
+    // materialize the matches; stamp OUTSIDE the try. Otherwise a throw from
+    // stampOnce mid-iteration would be misreported as "unsupported" AND would
+    // silently skip every remaining scope.
+    let matches;
+    try {
+      matches = scope.querySelectorAll('[popover]:popover-open');
+    } catch (e) {
+      supported = false;
+      ctx.warnings.add('Browser does not support :popover-open pseudo-class.');
+      return;
+    }
+    for (const el of matches) stampOnce(ctx, el, POPOVER_OPEN_ATTR, 'true');
+  });
+}
+
 function isPopoverOpen(ctx, element) {
   try {
     return element.matches(':popover-open');
@@ -258,6 +301,7 @@ export function getElementsToProcess(ctx, config, markWithId = false) {
 export function markPseudoClassElements(ctx, config) {
   ctx._liveMutations = [];
   markInteractiveStates(ctx);
+  markOpenPopovers(ctx);
   if (config) getElementsToProcess(ctx, config, true);
 }
 
