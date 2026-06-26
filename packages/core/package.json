@@ -1,6 +1,6 @@
 {
   "name": "@percy/core",
-  "version": "1.32.3-beta.0",
+  "version": "1.32.3-beta.1",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -46,12 +46,12 @@
   "dependencies": {
     "@grpc/grpc-js": "^1.14.3",
     "@grpc/proto-loader": "^0.8.0",
-    "@percy/client": "1.32.3-beta.0",
-    "@percy/config": "1.32.3-beta.0",
-    "@percy/dom": "1.32.3-beta.0",
-    "@percy/logger": "1.32.3-beta.0",
-    "@percy/monitoring": "1.32.3-beta.0",
-    "@percy/webdriver-utils": "1.32.3-beta.0",
+    "@percy/client": "1.32.3-beta.1",
+    "@percy/config": "1.32.3-beta.1",
+    "@percy/dom": "1.32.3-beta.1",
+    "@percy/logger": "1.32.3-beta.1",
+    "@percy/monitoring": "1.32.3-beta.1",
+    "@percy/webdriver-utils": "1.32.3-beta.1",
     "busboy": "^1.6.0",
     "content-disposition": "^0.5.4",
     "cross-spawn": "^7.0.3",
@@ -67,6 +67,6 @@
     "yaml": "^2.4.1"
   },
   "optionalDependencies": {
-    "@percy/cli-doctor": "1.32.3-beta.0"
+    "@percy/cli-doctor": "1.32.3-beta.1"
   }
 }
