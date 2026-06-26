@@ -1,7 +1,9 @@
 name: SDK Regression
 on:
   issue_comment:
-    types: [created, edited] 
+    types: [created, edited]
+  pull_request:
+    types: [labeled, synchronize, reopened]
 permissions:
   contents: read
 jobs:
@@ -15,7 +17,14 @@ jobs:
       contents: read
       pull-requests: read
       statuses: write
-    if: ${{ github.event.issue.pull_request && github.event.comment.body == 'RUN_REGRESSION' }}
+    # Run when either:
+    #  - a maintainer comments RUN_REGRESSION on a PR (legacy manual path), or
+    #  - the PR carries the `run-sdk-regression` label (auto path / quality gate).
+    # Both paths are internal-only: only write/admin collaborators can comment-gate
+    # (enforced by check-access below) or apply a label.
+    if: >-
+      (github.event_name == 'issue_comment' && github.event.issue.pull_request && github.event.comment.body == 'RUN_REGRESSION') ||
+      (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'run-sdk-regression'))
     strategy:
       matrix:
         # Format: repo@branch (default branch is master)
@@ -40,7 +49,10 @@ jobs:
           - percy-appium-js
           - gatsby-plugin-percy
     steps:
+      # Permission check applies only to the comment path; the label path is
+      # already gated by GitHub (only write+ collaborators can label a PR).
       - name: Get user permissions
+        if: ${{ github.event_name == 'issue_comment' }}
         uses: actions/github-script@f891eff65186019cbb3f7190c4590bc0a1b76fbc # v4.1.0
         id: check-access
         with:
@@ -51,15 +63,34 @@ jobs:
             return data.permission;
           result-encoding: string
       - name: Check Access Level
-        if: steps.check-access.outputs.result != 'write' && steps.check-access.outputs.result != 'admin'
+        if: ${{ github.event_name == 'issue_comment' && steps.check-access.outputs.result != 'write' && steps.check-access.outputs.result != 'admin' }}
         run: exit 1
       - uses: xt0rted/pull-request-comment-branch@e8b8daa837e8ea7331c0003c9c316a64c6d8b0b1 # v3.0.0
-        if: ${{ github.event.issue.pull_request }}
+        if: ${{ github.event_name == 'issue_comment' }}
         id: comment-branch
+      # Pass event data via env (never interpolate untrusted head.ref into the
+      # shell directly). The ref is validated by the regex-match step below
+      # before it is ever used to trigger a downstream workflow.
+      - name: Resolve PR head ref and sha
+        id: pr
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          COMMENT_HEAD_REF: ${{ steps.comment-branch.outputs.head_ref }}
+          COMMENT_HEAD_SHA: ${{ steps.comment-branch.outputs.head_sha }}
+        run: |
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            echo "head_ref=$PR_HEAD_REF" >> "$GITHUB_OUTPUT"
+            echo "head_sha=$PR_HEAD_SHA" >> "$GITHUB_OUTPUT"
+          else
+            echo "head_ref=$COMMENT_HEAD_REF" >> "$GITHUB_OUTPUT"
+            echo "head_sha=$COMMENT_HEAD_SHA" >> "$GITHUB_OUTPUT"
+          fi
       - uses: actions-ecosystem/action-regex-match@9e6c4fb3d5e898f505be7a1fb6e7b0a278f6665b # v2.0.2
         id: regex-match
         with:
-          text: ${{ steps.comment-branch.outputs.head_ref }}
+          text: ${{ steps.pr.outputs.head_ref }}
           regex: '^[a-zA-Z0-9_/\-]+$'
       - name: Break on invalid branch name
         run: exit 1
@@ -78,7 +109,7 @@ jobs:
           github-token: ${{ secrets.WORKFLOW_DISPATCH_ACTIONS_TOKEN }}
           script: |
             const { owner, repo } = context.repo;
-            const sha = '${{ steps.comment-branch.outputs.head_sha }}'
+            const sha = '${{ steps.pr.outputs.head_sha }}'
             const state = 'pending';
             const target_url = '${{ steps.job-url.outputs.html_url }}'
             const check_name = 'SDK Regression ${{ matrix.repo }}'
@@ -105,7 +136,7 @@ jobs:
           github_token: ${{ secrets.WORKFLOW_DISPATCH_ACTIONS_TOKEN }}
           workflow_file_name: test.yml
           ref: ${{ steps.split.outputs._1 || 'master' }}
-          client_payload: '{ "branch": "${{ steps.comment-branch.outputs.head_ref }}"}'
+          client_payload: '{ "branch": "${{ steps.pr.outputs.head_ref }}"}'
           wait_interval: 15
       - name: Update Status
         uses: actions/github-script@f891eff65186019cbb3f7190c4590bc0a1b76fbc # v4.1.0
@@ -113,7 +144,7 @@ jobs:
           github-token: ${{ secrets.WORKFLOW_DISPATCH_ACTIONS_TOKEN }}
           script: |
             const { owner, repo } = context.repo;
-            const sha = '${{ steps.comment-branch.outputs.head_sha }}'
+            const sha = '${{ steps.pr.outputs.head_sha }}'
             const state = '${{ steps.reg-test.outcome }}';
             const target_url = '${{ steps.job-url.outputs.html_url }}'
             const check_name = 'SDK Regression ${{ matrix.repo }}'
