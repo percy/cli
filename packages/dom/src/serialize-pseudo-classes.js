@@ -172,14 +172,20 @@ function markOpenPopovers(ctx) {
   let supported = true;
   eachScopeIncludingShadow(ctx.dom, scope => {
     if (!supported) return;
+    // Only the `:popover-open` SELECTOR can legitimately throw a SyntaxError
+    // (engines without popover support). Scope the try to the query and
+    // materialize the matches; stamp OUTSIDE the try. Otherwise a throw from
+    // stampOnce mid-iteration would be misreported as "unsupported" AND would
+    // silently skip every remaining scope.
+    let matches;
     try {
-      for (const el of scope.querySelectorAll('[popover]:popover-open')) {
-        stampOnce(ctx, el, POPOVER_OPEN_ATTR, 'true');
-      }
+      matches = scope.querySelectorAll('[popover]:popover-open');
     } catch (e) {
       supported = false;
       ctx.warnings.add('Browser does not support :popover-open pseudo-class.');
+      return;
     }
+    for (const el of matches) stampOnce(ctx, el, POPOVER_OPEN_ATTR, 'true');
   });
 }
 
