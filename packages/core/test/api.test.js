@@ -169,6 +169,44 @@ describe('API Server', () => {
     ]));
   });
 
+  it('rejects /config POST carrying a cross-origin Origin header (PER-8601)', async () => {
+    await percy.start();
+    let before = percy.config;
+
+    await expectAsync(request('/percy/config', {
+      method: 'POST',
+      body: { snapshot: { widths: [1234] } },
+      headers: { Origin: 'https://evil.example' }
+    })).toBeRejected();
+
+    // live config was not mutated by the cross-origin request
+    expect(percy.config).toEqual(before);
+  });
+
+  it('allows /config POST from a loopback origin', async () => {
+    await percy.start();
+
+    await expectAsync(request('/percy/config', {
+      method: 'POST',
+      body: { snapshot: { widths: [1000] } },
+      headers: { Origin: 'http://localhost:6006' }
+    })).toBeResolved();
+
+    expect(percy.config.snapshot.widths).toEqual([1000]);
+  });
+
+  it('rejects /stop carrying a cross-origin Origin header (PER-8600)', async () => {
+    await percy.start();
+    let stopSpy = spyOn(percy, 'stop').and.resolveTo();
+
+    await expectAsync(request('/percy/stop', {
+      method: 'POST',
+      headers: { Origin: 'https://evil.example' }
+    })).toBeRejected();
+
+    expect(stopSpy).not.toHaveBeenCalled();
+  });
+
   it('has an /idle endpoint that calls #idle()', async () => {
     spyOn(percy, 'idle').and.resolveTo();
     await percy.start();

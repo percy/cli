@@ -1,5 +1,5 @@
 import { fs, mockfs } from '../helpers/index.js';
-import Server from '../../src/server.js';
+import Server, { isLoopbackOrigin } from '../../src/server.js';
 
 describe('Unit / Server', () => {
   let server;
@@ -241,26 +241,52 @@ describe('Unit / Server', () => {
       });
     });
 
-    it('handles CORS preflight requests', async () => {
+    it('handles CORS preflight requests for loopback origins', async () => {
       server.route(['get', 'post'], '/1', (req, res) => res.send(200));
       server.route(['put', 'delete'], '/2', (req, res) => res.text(200));
 
-      let res1 = await request('/1', 'OPTIONS', false);
+      // CORS is scoped to loopback origins (CWE-942): Access-Control-Allow-Origin
+      // is the echoed loopback origin, not a wildcard `*`.
+      let origin = server.address(); // http://localhost:8000
+
+      let res1 = await request('/1', {
+        method: 'OPTIONS',
+        headers: { Origin: origin }
+      }, false);
 
       expect(res1.statusCode).toBe(204);
-      expect(res1.headers).toHaveProperty('access-control-allow-origin', '*');
+      expect(res1.headers).toHaveProperty('access-control-allow-origin', origin);
       expect(res1.headers).toHaveProperty('access-control-allow-headers', '*');
       expect(res1.headers).toHaveProperty('access-control-allow-methods', 'GET, POST');
 
       let res2 = await request('/2', {
         method: 'OPTIONS',
-        headers: { 'Access-Control-Request-Headers': 'Content-Type' }
+        headers: { Origin: origin, 'Access-Control-Request-Headers': 'Content-Type' }
       }, false);
 
       expect(res2.statusCode).toBe(204);
-      expect(res2.headers).toHaveProperty('access-control-allow-origin', '*');
+      expect(res2.headers).toHaveProperty('access-control-allow-origin', origin);
       expect(res2.headers).toHaveProperty('access-control-allow-headers', 'Content-Type');
       expect(res2.headers).toHaveProperty('access-control-allow-methods', 'PUT, DELETE');
+    });
+
+    it('omits CORS headers for missing or non-loopback origins', async () => {
+      server.route(['get', 'post'], '/1', (req, res) => res.send(200));
+
+      // No Origin header (e.g. a Node SDK client) — still a valid 204 preflight,
+      // but no CORS headers are emitted.
+      let res1 = await request('/1', 'OPTIONS', false);
+      expect(res1.statusCode).toBe(204);
+      expect(res1.headers).not.toHaveProperty('access-control-allow-origin');
+      expect(res1.headers).not.toHaveProperty('access-control-allow-methods');
+
+      // Cross-origin website must not receive permissive CORS headers.
+      let res2 = await request('/1', {
+        method: 'OPTIONS',
+        headers: { Origin: 'https://evil.example.com' }
+      }, false);
+      expect(res2.statusCode).toBe(204);
+      expect(res2.headers).not.toHaveProperty('access-control-allow-origin');
     });
 
     it('handles server errors', async () => {
@@ -287,6 +313,25 @@ describe('Unit / Server', () => {
       expect(res.statusCode).toBe(404);
       expect(res.headers).toHaveProperty('content-type', 'application/json');
       expect(res.body).toEqual({ error: 'Not Found' });
+    });
+  });
+
+  describe('isLoopbackOrigin', () => {
+    it('returns true for loopback origins', () => {
+      expect(isLoopbackOrigin('http://localhost:8000')).toBe(true);
+      expect(isLoopbackOrigin('http://127.0.0.1')).toBe(true);
+      expect(isLoopbackOrigin('http://app.localhost')).toBe(true);
+    });
+
+    it('returns false for non-loopback and missing origins', () => {
+      expect(isLoopbackOrigin('https://evil.example.com')).toBe(false);
+      expect(isLoopbackOrigin('')).toBe(false);
+      expect(isLoopbackOrigin(undefined)).toBe(false);
+      expect(isLoopbackOrigin(42)).toBe(false);
+    });
+
+    it('returns false for a malformed origin that cannot be parsed as a URL', () => {
+      expect(isLoopbackOrigin('not a valid origin')).toBe(false);
     });
   });
 
