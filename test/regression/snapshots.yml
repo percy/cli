@@ -83,3 +83,76 @@
 - name: Sandbox & Nested Iframes
   url: /sandbox-iframes.html
   widths: [1280]
+
+# ─────────────────────────────────────────────────────────────────────────────
+# CLI config visual coverage (PER-8250, Track V) — each entry exercises a
+# render-affecting config option. See COVERAGE.md for the full option matrix.
+# ─────────────────────────────────────────────────────────────────────────────
+
+# scope + scopeOptions.scroll — capture only the scoped element (surrounding
+# .noise blocks must be excluded; the inner region is scrolled during capture).
+- name: Config - Scope
+  url: /config-scope.html
+  widths: [1280]
+  scope: '#scope-target'
+  scopeOptions:
+    scroll: true
+
+# percyCSS per-snapshot override — recolors the page via snapshot-level CSS,
+# proving per-snapshot percyCSS overrides the global anti-flake CSS.
+- name: Config - percyCSS Override
+  url: /config-scope.html
+  widths: [1280]
+  percyCSS: |
+    body { background: #102a43 !important; }
+    h1 { color: #7ee787 !important; }
+
+# execute — pre-capture JS reveals a hidden panel; additionalSnapshots takes a
+# second snapshot from the same URL in a different state (suffix-named).
+- name: Config - Execute
+  url: /config-execute.html
+  widths: [1280]
+  execute: "() => { document.getElementById('panel').style.display = 'block'; document.getElementById('counter').textContent = 'state: executed'; }"
+  additionalSnapshots:
+    - suffix: ' (alt state)'
+      execute: "() => { var p = document.getElementById('panel'); p.style.display = 'block'; p.style.background = '#fde8e8'; document.getElementById('counter').textContent = 'state: alt'; }"
+
+# domTransformation — inject a banner into the serialized DOM before capture.
+- name: Config - DOM Transformation
+  url: /config-dom-transformation.html
+  widths: [1280]
+  domTransformation: |
+    (documentElement) => {
+      const doc = documentElement.ownerDocument;
+      const banner = doc.createElement('div');
+      banner.textContent = 'Injected by domTransformation';
+      banner.setAttribute('style', 'background:#b91c1c;color:#fff;padding:12px;font-weight:bold;');
+      documentElement.querySelector('body').prepend(banner);
+    }
+
+# discovery.scrollToBottom — scroll the page during capture so lazy content is
+# serialized into the snapshot.
+- name: Config - Scroll To Bottom
+  url: /config-scroll-to-bottom.html
+  widths: [1280]
+  discovery:
+    scrollToBottom: true
+
+# disableShadowDOM — shadow roots are not serialized as declarative shadow DOM.
+- name: Config - Disable Shadow DOM
+  url: /shadow-dom.html
+  widths: [1280]
+  disableShadowDOM: true
+
+# forceShadowAsLightDOM — shadow content is flattened into light DOM.
+- name: Config - Force Shadow As Light DOM
+  url: /shadow-dom.html
+  widths: [1280]
+  forceShadowAsLightDOM: true
+
+# responsiveSnapshotCapture — capture each width via CDP responsive emulation
+# instead of reloading per width.
+- name: Config - Responsive Snapshot Capture
+  url: /responsive.html
+  widths: [375, 768, 1280]
+  responsiveSnapshotCapture: true

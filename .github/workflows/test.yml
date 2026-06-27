@@ -197,7 +197,14 @@ jobs:
           yarn global:link
           yarn link `echo $PERCY_PACKAGES`
           npx percy --version
-      - name: Run regression tests
+      - name: Run CLI config validation (token-free)
+        run: yarn test:regression:config
+      - name: Run functional discovery tests (token-free)
+        run: yarn test:regression:functional
+      # Visual track runs last and is the ONLY step that creates a Percy build,
+      # so the PR's single build carries all visual snapshots (no stray build
+      # superseding it on the same commit).
+      - name: Run visual regression tests
         run: yarn test:regression
         env:
           PERCY_TOKEN: ${{ secrets.PERCY_REGRESSION_TOKEN }}
