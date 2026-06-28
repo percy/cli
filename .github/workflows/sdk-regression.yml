@@ -33,6 +33,9 @@ jobs:
       (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'run-sdk-regression')) ||
       (github.event_name == 'workflow_dispatch')
     strategy:
+      # Don't let one SDK's failure cancel the rest — a regression run must
+      # report every SDK's result, not abort on the first failure.
+      fail-fast: false
       matrix:
         # Format: repo@branch (default branch is master)
         repo: 
