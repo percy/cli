@@ -48,6 +48,14 @@ jobs:
           - percy-capybara
           - percy-appium-js
           - gatsby-plugin-percy
+          # Injection-capable SDKs previously missing from the fan-out.
+          # Their default branch is `main`, so pin the dispatch ref with @main
+          # (the split default below is `master`, which would 404 for these).
+          - percy-detox@main
+          - percy-playwright-python@main
+          - percy-robotframework@main
+          - percy-playwright-java@main
+          - percy-playwright-dotnet@main
     steps:
       # Permission check applies only to the comment path; the label path is
       # already gated by GitHub (only write+ collaborators can label a PR).
