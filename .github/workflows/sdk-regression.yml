@@ -148,7 +148,7 @@ jobs:
             const state = '${{ steps.reg-test.outcome }}';
             const target_url = '${{ steps.job-url.outputs.html_url }}'
             const check_name = 'SDK Regression ${{ matrix.repo }}'
-            
+
             github.repos.createCommitStatus({
               context: check_name,
               owner,
@@ -157,3 +157,77 @@ jobs:
               state,
               target_url
             });
+
+  # The same regression also fans out to the App Percy + POA suites, which run
+  # on Buildkite (real BrowserStack devices/browsers). We don't run them here —
+  # we repository_dispatch to percy/percy-automation, whose workflow turns this
+  # into Buildkite builds against this CLI branch. percy-automation stays the
+  # single owner of App/POA-on-Buildkite; this job is just the trigger.
+  trigger-app-poa:
+    name: trigger App Percy + POA (Buildkite)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    if: >-
+      (github.event_name == 'issue_comment' && github.event.issue.pull_request && github.event.comment.body == 'RUN_REGRESSION') ||
+      (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'run-sdk-regression'))
+    steps:
+      # Same internal-only guard as the web job: comment path must be write/admin.
+      - name: Check access (comment path only)
+        if: ${{ github.event_name == 'issue_comment' }}
+        uses: actions/github-script@f891eff65186019cbb3f7190c4590bc0a1b76fbc # v4.1.0
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const { login } = context.payload.comment.user;
+            const { data } = await github.repos.getCollaboratorPermissionLevel({ owner, repo, username: login });
+            if (data.permission !== 'write' && data.permission !== 'admin') {
+              core.setFailed(`@${login} lacks write access for regression`);
+            }
+      - uses: xt0rted/pull-request-comment-branch@e8b8daa837e8ea7331c0003c9c316a64c6d8b0b1 # v3.0.0
+        if: ${{ github.event_name == 'issue_comment' }}
+        id: comment-branch
+      # Untrusted head.ref flows via env (not interpolated into the shell) and
+      # is regex-validated before it reaches the dispatch payload.
+      - name: Resolve PR head ref
+        id: pr
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          COMMENT_HEAD_REF: ${{ steps.comment-branch.outputs.head_ref }}
+        run: |
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            echo "head_ref=$PR_HEAD_REF" >> "$GITHUB_OUTPUT"
+          else
+            echo "head_ref=$COMMENT_HEAD_REF" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions-ecosystem/action-regex-match@9e6c4fb3d5e898f505be7a1fb6e7b0a278f6665b # v2.0.2
+        id: regex-match
+        with:
+          text: ${{ steps.pr.outputs.head_ref }}
+          regex: '^[a-zA-Z0-9_/\-]+$'
+      - name: Break on invalid branch name
+        if: ${{ steps.regex-match.outputs.match == '' }}
+        run: exit 1
+      - name: Dispatch App Percy + POA regression (Buildkite) to percy-automation
+        env:
+          # Token (PAT / GitHub App) allowed to create a repository_dispatch on
+          # percy/percy-automation. That repo's workflow creates the Buildkite
+          # builds on the app-percy + poa SDK regression suites.
+          DISPATCH_TOKEN: ${{ secrets.PERCY_AUTOMATION_DISPATCH_TOKEN }}
+          HEAD_REF: ${{ steps.pr.outputs.head_ref }}
+        run: |
+          set -euo pipefail
+          if [ -z "${DISPATCH_TOKEN:-}" ]; then
+            echo "::error::PERCY_AUTOMATION_DISPATCH_TOKEN secret is not set"; exit 1
+          fi
+          payload=$(jq -n --arg b "$HEAD_REF" \
+            '{event_type:"sdk-regression", client_payload:{cli_branch:$b, suites:"both"}}')
+          curl -sSf -X POST \
+            -H "Authorization: Bearer $DISPATCH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            https://api.github.com/repos/percy/percy-automation/dispatches \
+            -d "$payload"
+          echo "Dispatched App Percy + POA regression for CLI branch: $HEAD_REF"
