@@ -268,12 +268,20 @@ jobs:
             echo "|---|---|---|"
           } > comment.md
           overall_fail=0
+          # The bootstrap step that uploads the matrix is named after the pipeline
+          # ("App-Percy-SDK-tests" / "POA-SDK-tests"); exclude it and the unnamed
+          # wait job so the table is only the real per-SDK device jobs.
           for i in "${!nums[@]}"; do
             jobs=$(curl -sSf -H "$auth" "$api/pipelines/${slugs[$i]}/builds/${nums[$i]}")
             echo "$jobs" | jq -r --arg s "${slugs[$i]}" '
-              .jobs[] | select(.type=="script" and .name != null) |
-              "| \($s) | \(.name) | " + (if .state=="passed" then "✅ pass" else "❌ " + .state end) + " |"' >> comment.md
-            if echo "$jobs" | jq -e '.jobs[] | select(.type=="script") | select(.state=="failed" or .state=="canceled")' >/dev/null; then
+              .jobs[]
+              | select(.type=="script" and .name != null and .name != "")
+              | select(.name != "App-Percy-SDK-tests" and .name != "POA-SDK-tests")
+              | "| \($s) | \(.name) | " + (if .state=="passed" then "✅ pass" else "❌ " + (.state // "n/a") end) + " |"' >> comment.md
+            if echo "$jobs" | jq -e '
+              .jobs[]
+              | select(.type=="script" and .name != "App-Percy-SDK-tests" and .name != "POA-SDK-tests")
+              | select(.state=="failed" or .state=="canceled")' >/dev/null; then
               overall_fail=1
             fi
           done
