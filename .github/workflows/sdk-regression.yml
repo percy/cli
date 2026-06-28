@@ -4,6 +4,12 @@ on:
     types: [created, edited]
   pull_request:
     types: [labeled, synchronize, reopened]
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: CLI branch to run all SDK regression against
+        required: false
+        default: master
 permissions:
   contents: read
 jobs:
@@ -24,7 +30,8 @@ jobs:
     # (enforced by check-access below) or apply a label.
     if: >-
       (github.event_name == 'issue_comment' && github.event.issue.pull_request && github.event.comment.body == 'RUN_REGRESSION') ||
-      (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'run-sdk-regression'))
+      (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'run-sdk-regression')) ||
+      (github.event_name == 'workflow_dispatch')
     strategy:
       matrix:
         # Format: repo@branch (default branch is master)
@@ -87,8 +94,13 @@ jobs:
           PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           COMMENT_HEAD_REF: ${{ steps.comment-branch.outputs.head_ref }}
           COMMENT_HEAD_SHA: ${{ steps.comment-branch.outputs.head_sha }}
+          DISPATCH_BRANCH: ${{ github.event.inputs.branch }}
+          DISPATCH_SHA: ${{ github.sha }}
         run: |
-          if [ "$EVENT_NAME" = "pull_request" ]; then
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            echo "head_ref=$DISPATCH_BRANCH" >> "$GITHUB_OUTPUT"
+            echo "head_sha=$DISPATCH_SHA" >> "$GITHUB_OUTPUT"
+          elif [ "$EVENT_NAME" = "pull_request" ]; then
             echo "head_ref=$PR_HEAD_REF" >> "$GITHUB_OUTPUT"
             echo "head_sha=$PR_HEAD_SHA" >> "$GITHUB_OUTPUT"
           else
