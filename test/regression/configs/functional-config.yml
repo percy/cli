@@ -1,0 +1,17 @@
+# Track F — global discovery config for the functional harness.
+# These options are applied during a real discovery run; functional.test.js
+# asserts on what the gated server routes observed. cookies is a global-only
+# discovery option (not valid per-snapshot), so the whole set lives here.
+version: 2
+discovery:
+  requestHeaders:
+    X-Percy-Regression: present
+  authorization:
+    username: percy
+    password: secret
+  cookies:
+    session: regression-cookie
+  userAgent: PercyRegressionUA/1.0
+  captureSrcset: true
+  disallowedHostnames:
+    - localhost:9101
