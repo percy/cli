@@ -119,3 +119,24 @@ Every listed option is at minimum **C** (in a config the CLI loads & validates).
 2. If it changes the render, add a page + `snapshots.yml` entry (Track V).
 3. If its effect is behavioral (a request/header/resource decision), add a
    gated route to `server.js` and an assertion to `functional.test.js` (Track F).
+
+## Verifying the suite actually catches regressions (mutation testing)
+
+The suite was mutation-tested — break an option, confirm the *matching* spec
+fails (and only that one), then restore. This proves the assertions are real,
+not vacuous passes:
+
+- **Track C** — set an out-of-range value (e.g. `widths: [99999]`) → the
+  "no `Invalid config:`" assertion fails. Token-free, local.
+- **Track F** — remove `disallowedHostnames` / set `captureSrcset: false` /
+  use a wrong `authorization.password` → the matching server-observation
+  assertion fails. Token-free, local.
+- **Track V** — change a visual option (`scope`, `percyCSS`, `disableShadowDOM`,
+  `domTransformation`) → Percy flags a diff on *that snapshot only*, the rest
+  unchanged. Run against a **throwaway project** (never the real
+  `percy-cli-regression`): build a baseline on `main`, then a mutated build on a
+  feature branch with `PERCY_TARGET_BRANCH=main`, and confirm the diff in the
+  dashboard.
+
+Re-run any time before trusting a change — the specs are only as good as their
+ability to fail when the behavior they guard changes.
