@@ -66,6 +66,8 @@ jobs:
           - percy-robotframework@main
           - percy-playwright-java@main
           - percy-playwright-dotnet@main
+          - percy-appium-dotnet@main
+          - percy-styleguidist@main
     steps:
       # Permission check applies only to the comment path; the label path is
       # already gated by GitHub (only write+ collaborators can label a PR).
