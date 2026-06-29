@@ -136,9 +136,16 @@ jobs:
       - name: Get Current Job Log URL
         uses: Tiryoh/gha-jobid-action@be260d8673c9211a84cdcf37794ebd654ba81eef # v1.4.0
         id: job-url
+        # This step only resolves a target_url for the commit status; a lookup
+        # failure must never gate the regression itself.
+        continue-on-error: true
         with:
           github_token: ${{ secrets.WORKFLOW_DISPATCH_ACTIONS_TOKEN }}
-          job_name: "regression (${{ matrix.repo }})" 
+          job_name: "regression (${{ matrix.repo }})"
+          # The fan-out matrix is >30 jobs (currently 35); the action defaults to
+          # per_page=30, so jobs on page 2 resolve to null and exit 1. Cover the
+          # whole matrix (GitHub jobs API max page size is 100).
+          per_page: 100
       - name: Output Current Job Log URL
         run: echo ${{ steps.jobs.outputs.html_url }}
       - uses: actions/github-script@f891eff65186019cbb3f7190c4590bc0a1b76fbc # v4.1.0
