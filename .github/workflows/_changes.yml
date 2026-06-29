@@ -1,0 +1,54 @@
+name: changes
+
+# Reusable detector shared by the PR-triggered CI workflows (lint, typecheck,
+# test, windows, executable-check, semgrep). It reports a single output, `code`,
+# which is 'true' when the triggering pull request changes anything other than
+# documentation, and 'false' for docs-only PRs.
+#
+# Docs allowlist: *.md, *.txt, README*, LICENSE, docs/**. Anything else --
+# source, lockfiles, Dockerfiles, Makefiles, the workflows themselves -- counts
+# as code and forces the full suite to run.
+#
+# Callers gate their heavy jobs on `needs.changes.outputs.code == 'true'`. A
+# docs-only PR therefore SKIPS those jobs, and GitHub branch protection treats a
+# skipped required check as passing, so the PR can still merge with zero tests.
+#
+# Fail-safe by construction: only a clean docs-only `pull_request` yields
+# 'false'. Any other event (push, workflow_dispatch, schedule), an empty or
+# failed diff, or any non-docs path yields 'true' (full CI).
+on:
+  workflow_call:
+    outputs:
+      code:
+        description: "true when non-docs files changed (or for non-PR events)"
+        value: ${{ jobs.detect.outputs.code }}
+
+permissions:
+  contents: read
+
+jobs:
+  detect:
+    name: Detect changes
+    runs-on: ubuntu-latest
+    outputs:
+      code: ${{ steps.detect.outputs.code }}
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          fetch-depth: 0
+      - id: detect
+        name: Detect non-docs changes
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          code=true
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            files="$(git diff --name-only "origin/${BASE_REF}...HEAD" || true)"
+            echo "Changed files:"; printf '%s\n' "$files"
+            if [ -n "$files" ] && ! printf '%s\n' "$files" | grep -qvE '(\.md|\.txt)$|(^|/)README[^/]*$|(^|/)LICENSE$|^docs/'; then
+              code=false
+            fi
+          fi
+          echo "Resolved code=$code (docs-only PR => code=false => skip CI)"
+          echo "code=$code" >> "$GITHUB_OUTPUT"

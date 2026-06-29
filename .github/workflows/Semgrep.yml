@@ -16,8 +16,15 @@ permissions:
   contents: read
 
 jobs:
+  # Docs-only PRs skip the semgrep scan; a skipped required check is treated as
+  # passing by branch protection. Non-PR events (push, schedule) always scan.
+  # See .github/workflows/_changes.yml.
+  changes:
+    uses: ./.github/workflows/_changes.yml
+
   semgrep:
     # User definable name of this GitHub Actions job.
+    needs: [changes]
     permissions:
       contents: read  # for actions/checkout to fetch code
       security-events: write  # for github/codeql-action/upload-sarif to upload SARIF results
@@ -38,11 +45,14 @@ jobs:
     # branch — the Create Release PR workflow posts the required checks for it).
     # The release gate is keyed on the PR author, not the branch name (which any
     # contributor controls), so a "release/…" branch can't bypass required checks.
+    # Also skipped for docs-only PRs (changes.code == 'false').
     if: >-
       ${{ github.actor != 'dependabot[bot]'
       && !(github.event.pull_request.user.login == 'github-actions[bot]'
       && github.event.pull_request.head.repo.full_name == github.repository
-      && startsWith(github.head_ref, 'release/')) }}
+      && startsWith(github.head_ref, 'release/'))
+      && (github.event_name != 'pull_request'
+      || needs.changes.outputs.code == 'true') }}
 
     steps:
       # Fetch project source with GitHub Actions Checkout.

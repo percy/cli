@@ -8,17 +8,27 @@ permissions:
   contents: read
 
 jobs:
+  # Resolve whether this PR touches anything other than docs. Docs-only PRs skip
+  # the lint job below; a skipped required check is treated as passing by branch
+  # protection. See .github/workflows/_changes.yml.
+  changes:
+    uses: ./.github/workflows/_changes.yml
+
   lint:
     name: Lint
+    needs: [changes]
     # Skip CI only for the automated release PR: opened by github-actions[bot],
     # from this same repo, on a release/* branch (the Create Release PR workflow
     # posts the required checks as passing for it). Keyed on the PR author, not the
     # branch name, so a "release/…" branch can't be used to bypass required checks.
+    # Also skipped for docs-only PRs (changes.code == 'false').
     if: >-
       ${{ !(github.event_name == 'pull_request'
       && github.event.pull_request.user.login == 'github-actions[bot]'
       && github.event.pull_request.head.repo.full_name == github.repository
-      && startsWith(github.head_ref, 'release/')) }}
+      && startsWith(github.head_ref, 'release/'))
+      && (github.event_name != 'pull_request'
+      || needs.changes.outputs.code == 'true') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
