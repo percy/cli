@@ -1794,14 +1794,14 @@ describe('serialize-pseudo-classes', () => {
     });
   });
 
-  // Regression: PER-9775. Native CSS nesting (emotion / CSS-in-JS) produces
-  // child rules with `&`-relative selectors. Before the fix, walkCSSRules
-  // emitted those children with the parent selector stripped, so an
-  // interactive-pseudo child like `&:hover` was injected as a bare
-  // `&[data-percy-hover]`. A top-level `&` resolves to :root on engines that
-  // support nesting, leaking component styles to the whole page (blue
-  // background, black SVG backgrounds, wrong button colors).
-  describe('native CSS nesting — parent selector resolution (PER-9775)', () => {
+  // Regression: native CSS nesting (emotion / CSS-in-JS) produces child rules
+  // with `&`-relative selectors. Before the fix, walkCSSRules emitted those
+  // children with the parent selector stripped, so an interactive-pseudo child
+  // like `&:hover` was injected as a bare `&[data-percy-hover]`. A top-level
+  // `&` resolves to :root on engines that support nesting, leaking component
+  // styles to the whole page (blue background, black SVG backgrounds, wrong
+  // button colors).
+  describe('native CSS nesting — parent selector resolution', () => {
     function nestingCtx() {
       let ctx = {
         dom: document,

@@ -364,11 +364,13 @@ function walkCSSRules(ruleList, parentSelector = null) {
       // (native CSS nesting) becomes the scope for its children — resolve
       // its own selector against any outer parent first so deeper nesting
       // composes correctly.
-      const childParent = atRulePrelude
-        ? parentSelector
-        : (rule.selectorText
-            ? resolveNestedSelector(rule.selectorText, parentSelector)
-            : parentSelector);
+      // Default to the current scope (also covers at-rules and nested-decl
+      // rules that have no selector of their own). A style rule with nested
+      // children resolves its own selector first and becomes the new scope.
+      let childParent = parentSelector;
+      if (!atRulePrelude && rule.selectorText) {
+        childParent = resolveNestedSelector(rule.selectorText, parentSelector);
+      }
       for (const inner of walkCSSRules(rule.cssRules, childParent)) {
         if (atRulePrelude && inner.selectorText) {
           result.push({
