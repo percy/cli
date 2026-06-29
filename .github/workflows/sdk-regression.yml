@@ -68,6 +68,17 @@ jobs:
           - percy-playwright-dotnet@main
           - percy-appium-dotnet@main
           - percy-styleguidist@main
+          # App Percy + remaining SDKs (default branch noted; @main where not master)
+          - percy-appium-python
+          - percy-appium-java
+          - percy-appium-wd
+          - percy-appium-ruby@main
+          - percy-maestro-web@main
+          - percy-maestro-app@main
+          - percy-react-native-app@main
+          - percy-tosca-dotnet@main
+          - percy-uipath@main
+          - percy-xcui-swift@main
     steps:
       # Permission check applies only to the comment path; the label path is
       # already gated by GitHub (only write+ collaborators can label a PR).
@@ -161,7 +172,7 @@ jobs:
           github_token: ${{ secrets.WORKFLOW_DISPATCH_ACTIONS_TOKEN }}
           # Most SDKs expose `test.yml`; percy-storybook uses versioned
           # `test-storybook-vN.yml` files (latest = v10), so dispatch that one.
-          workflow_file_name: ${{ steps.split.outputs._0 == 'percy-storybook' && 'test-storybook-v10.yml' || 'test.yml' }}
+          workflow_file_name: ${{ steps.split.outputs._0 == 'percy-storybook' && 'test-storybook-v10.yml' || (steps.split.outputs._0 == 'percy-react-native-app' && 'storybook-rn-ci.yml' || 'test.yml') }}
           ref: ${{ steps.split.outputs._1 || 'master' }}
           client_payload: '{ "branch": "${{ steps.pr.outputs.head_ref }}"}'
           wait_interval: 15
