@@ -39,9 +39,10 @@ jobs:
       matrix:
         # Format: repo@branch (default branch is master)
         repo: 
-          - percy-ember
+          # percy-ember and percy-puppeteer intentionally excluded: their tests
+          # assert on the PER-7348 readiness-gate contract and fail against an
+          # ahead-of-release cli@master until they adapt + bump @percy/sdk-utils.
           - percy-cypress
-          - percy-puppeteer
           - percy-storybook
           - percy-playwright
           - percy-testcafe
