@@ -330,10 +330,26 @@ function stylesToCSSText(styles) {
   return decls.join(' ');
 }
 
+// Resolve a nested rule's selector against its parent per CSS Nesting.
+// The CSSOM serializes nested selectors with the implicit nesting selector
+// made explicit, so every nested selector — including each item of a
+// selector list — carries its own `&`. Replacing every `&` with :is(parent)
+// therefore fully scopes the rule. Without this, a bare top-level `&`
+// resolves to :root on engines that support nesting, so component-scoped
+// interactive-state rules leak page-wide (PER-9775). :is(...) preserves the
+// parent's grouping/specificity.
+function resolveNestedSelector(selectorText, parentSelector) {
+  if (!parentSelector) return selectorText;
+  return selectorText.replace(/&/g, `:is(${parentSelector})`);
+}
+
 // Walk a CSSRule list yielding every reachable style rule. Nested rules
 // inside @media/@layer/@supports are emitted with the at-rule prelude
 // preserved as a wrapper string; flat-emitting would drop the guard.
-function walkCSSRules(ruleList) {
+// `parentSelector` carries the enclosing style rule's (already-resolved)
+// selector down through native CSS nesting so `&`-relative children are
+// resolved against it rather than leaking as a bare top-level `&`.
+function walkCSSRules(ruleList, parentSelector = null) {
   const result = [];
   for (let i = 0; i < ruleList.length; i++) {
     const rule = ruleList[i];
@@ -343,7 +359,19 @@ function walkCSSRules(ruleList) {
       const atRulePrelude = conditionText && rule.cssText
         ? rule.cssText.split('{')[0].trim()
         : null;
-      for (const inner of walkCSSRules(rule.cssRules)) {
+      // An at-rule (@media/@layer/@supports) keeps the current parent scope
+      // and is re-applied as a wrapper. A style rule with nested children
+      // (native CSS nesting) becomes the scope for its children — resolve
+      // its own selector against any outer parent first so deeper nesting
+      // composes correctly.
+      // Default to the current scope (also covers at-rules and nested-decl
+      // rules that have no selector of their own). A style rule with nested
+      // children resolves its own selector first and becomes the new scope.
+      let childParent = parentSelector;
+      if (!atRulePrelude && rule.selectorText) {
+        childParent = resolveNestedSelector(rule.selectorText, parentSelector);
+      }
+      for (const inner of walkCSSRules(rule.cssRules, childParent)) {
         if (atRulePrelude && inner.selectorText) {
           result.push({
             selectorText: inner.selectorText,
@@ -358,7 +386,11 @@ function walkCSSRules(ruleList) {
       // Rules without nested cssRules and without selectorText (@font-face,
       // @charset, @counter-style, etc.) are skipped — they can't contain
       // interactive pseudos.
-      result.push({ selectorText: rule.selectorText, style: rule.style, wrapper: null });
+      result.push({
+        selectorText: resolveNestedSelector(rule.selectorText, parentSelector),
+        style: rule.style,
+        wrapper: null
+      });
     }
   }
   return result;
