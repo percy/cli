@@ -34,7 +34,7 @@ jobs:
       && startsWith(github.head_ref, 'release/')) }}
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7.0.0
       - uses: actions/setup-node@v4
         with:
           node-version: 14
