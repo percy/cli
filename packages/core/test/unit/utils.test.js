@@ -220,6 +220,17 @@ describe('Unit / Utils', () => {
     });
   });
 
+  describe('Percy token prefixes', () => {
+    for (const prefix of ['web', 'app', 'auto', 'ss', 'vmw', 'res']) {
+      it(`redacts a ${prefix}_ Percy token`, () => {
+        let token = `${prefix}_aB3dE7gH1jK4mN6pQ9sTuVwXyZ012345`;
+        let redacted = redactSecrets(`Authenticated build using ${token} now`);
+        expect(redacted).toContain('[REDACTED]');
+        expect(redacted).not.toContain(token);
+      });
+    }
+  });
+
   describe('base64encode', () => {
     it('should return base64 string', () => {
       expect(base64encode('abcd')).toEqual('YWJjZA==');
