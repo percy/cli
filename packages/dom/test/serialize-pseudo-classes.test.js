@@ -1793,4 +1793,109 @@ describe('serialize-pseudo-classes', () => {
       expect(s.size).toBe(0);
     });
   });
+
+  // Regression: PER-9775. Native CSS nesting (emotion / CSS-in-JS) produces
+  // child rules with `&`-relative selectors. Before the fix, walkCSSRules
+  // emitted those children with the parent selector stripped, so an
+  // interactive-pseudo child like `&:hover` was injected as a bare
+  // `&[data-percy-hover]`. A top-level `&` resolves to :root on engines that
+  // support nesting, leaking component styles to the whole page (blue
+  // background, black SVG backgrounds, wrong button colors).
+  describe('native CSS nesting — parent selector resolution (PER-9775)', () => {
+    function nestingCtx() {
+      let ctx = {
+        dom: document,
+        clone: document.implementation.createHTMLDocument('Clone'),
+        warnings: new Set(),
+        cache: new Map(),
+        resources: new Set(),
+        hints: new Set(),
+        shadowRootElements: []
+      };
+      // nosemgrep: javascript.browser.security.insecure-document-method.insecure-document-method
+      ctx.clone.body.innerHTML = document.body.innerHTML;
+      return ctx;
+    }
+
+    function injectedRules() {
+      let style = ctx.clone.querySelector('style[data-percy-interactive-states]');
+      return style ? style.textContent : '';
+    }
+
+    // Confirms the test browser actually parses nesting into nested cssRules;
+    // otherwise these assertions wouldn't exercise the nesting path.
+    function nestingSupported() {
+      for (let sheet of document.styleSheets) {
+        try {
+          for (let rule of sheet.cssRules) {
+            if (rule.cssRules && rule.cssRules.length) return true;
+          }
+        } catch (e) { /* cross-origin */ }
+      }
+      return false;
+    }
+
+    it('scopes a nested &:hover to its parent instead of leaking to :root', () => {
+      withExample(
+        '<style>.cta-card { color: black; &:hover { background-color: blue; } }</style>' +
+        '<button class="cta-card" id="cta">x</button>',
+        { withShadow: false }
+      );
+      expect(nestingSupported()).toBe(true);
+
+      ctx = nestingCtx();
+      serializePseudoClasses(ctx);
+
+      let rules = injectedRules();
+      expect(rules).toContain(':is(.cta-card)[data-percy-hover]');
+      // No bare leading `&` (which would resolve to :root page-wide).
+      expect(rules).not.toMatch(/(^|[\s,{])&/);
+    });
+
+    it('treats an &-less nested selector as a descendant of the parent', () => {
+      withExample(
+        '<style>.menu { a:hover { color: red; } }</style>' +
+        '<nav class="menu"><a href="#" id="lnk">x</a></nav>',
+        { withShadow: false }
+      );
+      expect(nestingSupported()).toBe(true);
+
+      ctx = nestingCtx();
+      serializePseudoClasses(ctx);
+
+      expect(injectedRules()).toContain(':is(.menu) a[data-percy-hover]');
+    });
+
+    it('resolves each part of a nested selector list (top-level comma)', () => {
+      withExample(
+        '<style>.btn { &:hover, &:focus { outline: 1px solid red; } }</style>' +
+        '<button class="btn" id="b1">x</button>',
+        { withShadow: false }
+      );
+      expect(nestingSupported()).toBe(true);
+
+      ctx = nestingCtx();
+      serializePseudoClasses(ctx);
+
+      let rules = injectedRules();
+      expect(rules).toContain(':is(.btn)[data-percy-hover]');
+      expect(rules).toContain(':is(.btn)[data-percy-focus]');
+    });
+
+    it('scopes a complex nested selector, preserving :is() grouping and attributes', () => {
+      withExample(
+        '<style>.box { &:is(.a, .b)[data-role]:hover { color: green; } }</style>' +
+        '<div class="box a" data-role id="bx">x</div>',
+        { withShadow: false }
+      );
+      expect(nestingSupported()).toBe(true);
+
+      ctx = nestingCtx();
+      serializePseudoClasses(ctx);
+
+      // The :is(.a, .b) list and [data-role] survive intact, prefixed by the
+      // resolved parent — emitted as a single rule, not split on the inner comma.
+      expect(injectedRules()).toContain(':is(.box):is(.a, .b)[data-role][data-percy-hover]');
+    });
+  });
 });
