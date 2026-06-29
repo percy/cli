@@ -323,6 +323,11 @@ describe('Unit / Server', () => {
       expect(isLoopbackOrigin('http://app.localhost')).toBe(true);
     });
 
+    it('returns true for the bracketed IPv6 loopback literal', () => {
+      expect(isLoopbackOrigin('http://[::1]:5338')).toBe(true);
+      expect(isLoopbackOrigin('http://[::1]')).toBe(true);
+    });
+
     it('returns false for non-loopback and missing origins', () => {
       expect(isLoopbackOrigin('https://evil.example.com')).toBe(false);
       expect(isLoopbackOrigin('')).toBe(false);
