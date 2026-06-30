@@ -2294,6 +2294,40 @@ describe('PercyClient', () => {
       });
     });
 
+    describe('when a tile fails to upload after all retries', () => {
+      it('finalizes the comparison and rethrows so the snapshot is marked failed', async () => {
+        spyOn(client, 'uploadComparisonTiles').and.callFake(() =>
+          Promise.reject(new Error('Uploading comparison tile failed')));
+        spyOn(client, 'finalizeComparison').and.callThrough();
+
+        await expectAsync(client.sendComparison(123, {
+          name: 'test snapshot name',
+          tag: { name: 'test tag' },
+          tiles: [{ sha: 'abcd' }]
+        })).toBeRejectedWithError('Uploading comparison tile failed');
+
+        // the comparison is still finalized so the server fails it deterministically
+        expect(client.finalizeComparison).toHaveBeenCalled();
+        expect(api.requests['/comparisons/891011/finalize']).toBeDefined();
+      });
+
+      it('still rethrows the original error when finalizing the failed comparison also fails', async () => {
+        spyOn(client, 'uploadComparisonTiles').and.callFake(() =>
+          Promise.reject(new Error('Uploading comparison tile failed')));
+        spyOn(client, 'finalizeComparison').and.callFake(() =>
+          Promise.reject(new Error('finalize boom')));
+
+        await expectAsync(client.sendComparison(123, {
+          name: 'test snapshot name',
+          tag: { name: 'test tag' },
+          tiles: [{ sha: 'abcd' }]
+        })).toBeRejectedWithError('Uploading comparison tile failed');
+
+        // the finalize attempt was still made (and its own failure swallowed)
+        expect(client.finalizeComparison).toHaveBeenCalled();
+      });
+    });
+
     describe('when labels are provided on a POA comparison', () => {
       beforeEach(async () => {
         await client.sendComparison(123, {
