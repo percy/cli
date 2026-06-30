@@ -38,10 +38,13 @@ jobs:
       fail-fast: false
       matrix:
         # Format: repo@branch (default branch is master)
-        repo: 
-          # percy-ember and percy-puppeteer intentionally excluded: their tests
-          # assert on the PER-7348 readiness-gate contract and fail against an
+        repo:
+          # NOTE: percy-ember and percy-puppeteer assert on the PER-7348
+          # readiness-gate contract, so they are expected to RED against an
           # ahead-of-release cli@master until they adapt + bump @percy/sdk-utils.
+          # Kept in the matrix intentionally (run them, fix the reds as they come).
+          - percy-ember
+          - percy-puppeteer
           - percy-cypress
           - percy-storybook
           - percy-playwright
