@@ -3,7 +3,7 @@ import path, { dirname, resolve } from 'path';
 import logger from '@percy/logger';
 import { normalize } from '@percy/config/utils';
 import { getPackageJSON, Server, percyAutomateRequestHandler, percyBuildEventHandler, computeResponsiveWidths } from './utils.js';
-import { ServerError } from './server.js';
+import { ServerError, isLoopbackOrigin } from './server.js';
 import WebdriverUtils from '@percy/webdriver-utils';
 import { handleSyncJob } from './snapshot.js';
 import { dump as maestroDump, firstMatch as maestroFirstMatch, SELECTOR_KEYS_WHITELIST, getMaestroHierarchyDrift } from './maestro-hierarchy.js';
@@ -89,6 +89,19 @@ export function _applyHttpReadOnlyStripping(body, paths, log) {
 // Returns a body with `httpReadOnly` fields removed. Caller guarantees `body` is truthy.
 function stripBlockedConfigFields(body, log) {
   return _applyHttpReadOnlyStripping(body, findHttpReadOnlyPaths(body, ROOT_CONFIG_SCHEMA), log);
+}
+
+// Reject state-changing requests that carry a cross-origin (non-loopback) Origin
+// header. The local server is unauthenticated by design (SDKs post to it), so
+// this blocks a malicious website the user is visiting from driving sensitive
+// endpoints — live config mutation or stopping the build — via the browser
+// (CWE-352 / CWE-306, PER-8600/8601). Node SDK clients send no Origin header and
+// are unaffected; loopback browser tooling (any localhost port) is allowed.
+function assertNotCrossOrigin(req) {
+  let origin = req.headers.origin;
+  if (origin && !isLoopbackOrigin(origin)) {
+    throw new ServerError(403, 'Cross-origin requests are not allowed on this endpoint');
+  }
 }
 
 // Parse PNG IHDR chunk for the screenshot's actual rendered dimensions.
@@ -344,6 +357,8 @@ export function createPercyServer(percy, port) {
     })
   // get or set config options
     .route(['get', 'post'], '/percy/config', async (req, res) => {
+      // mutating the live config is only allowed from same-host callers
+      if (req.body) assertNotCrossOrigin(req);
       let body = req.body && stripBlockedConfigFields(req.body, logger('core:server'));
       return res.json(200, {
         config: body ? percy.set(body) : percy.config,
@@ -981,6 +996,7 @@ export function createPercyServer(percy, port) {
     })
   // stops percy at the end of the current event loop
     .route('/percy/stop', (req, res) => {
+      assertNotCrossOrigin(req);
       setImmediate(() => percy.stop());
       return res.json(200, { success: true });
     });
