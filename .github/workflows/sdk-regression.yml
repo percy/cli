@@ -181,9 +181,12 @@ jobs:
           owner: percy
           repo: ${{ steps.split.outputs._0 }}
           github_token: ${{ secrets.WORKFLOW_DISPATCH_ACTIONS_TOKEN }}
-          # Most SDKs expose `test.yml`; percy-storybook uses versioned
-          # `test-storybook-vN.yml` files (latest = v10), so dispatch that one.
-          workflow_file_name: ${{ steps.split.outputs._0 == 'percy-storybook' && 'test-storybook-v10.yml' || (steps.split.outputs._0 == 'percy-react-native-app' && 'storybook-rn-ci.yml' || 'test.yml') }}
+          # Most SDKs expose `test.yml`; a few use a differently-named workflow
+          # that carries the @percy/cli inject step:
+          #   percy-storybook        -> versioned test-storybook-vN.yml (latest v10)
+          #   percy-react-native-app -> storybook-rn-ci.yml
+          #   percy-tosca-dotnet / percy-uipath -> ci.yml (they have no test.yml)
+          workflow_file_name: ${{ steps.split.outputs._0 == 'percy-storybook' && 'test-storybook-v10.yml' || (steps.split.outputs._0 == 'percy-react-native-app' && 'storybook-rn-ci.yml' || ((steps.split.outputs._0 == 'percy-tosca-dotnet' || steps.split.outputs._0 == 'percy-uipath') && 'ci.yml' || 'test.yml')) }}
           ref: ${{ steps.split.outputs._1 || 'master' }}
           client_payload: '{ "branch": "${{ steps.pr.outputs.head_ref }}"}'
           wait_interval: 15
