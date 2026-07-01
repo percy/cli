@@ -15,6 +15,9 @@ docs/
 # spec-level retry bookkeeping (CI only, see PER-9011)
 .cli-test-failures.json
 
+# regression config-validation archive artifact (PER-8250)
+test/regression/.percy-archive
+
 # bstack-ai-harness:begin (managed — do not edit between markers)
 bstack-ai-harness.yml
 .harness-docs.json

@@ -210,13 +210,16 @@ export function createPercyServer(percy, port) {
     .route('post', '/percy/comparison', async (req, res) => {
       let data;
       if (percy.syncMode(req.body)) {
-        // percy.upload returns an async generator that must be drained for #snapshots.push to run.
+        // percy.upload() is the generatePromise-wrapped method: calling it drives the
+        // underlying async generator to completion (enqueuing #snapshots) and the sync
+        // queue resolves/rejects the attached callback. Do NOT `for await` the return
+        // value — it is a Promise, not an async iterable. The raw generator lives at
+        // percy.yield.upload() if direct iteration is ever needed. The trailing
+        // .catch(reject) surfaces generator errors that bypass the sync-queue callback
+        // (e.g. a throw before the queue task runs) instead of leaking an unhandled
+        // rejection and hanging the request.
         const snapshotPromise = new Promise((resolve, reject) => {
-          const upload = percy.upload(req.body, { resolve, reject }, 'app');
-          (async () => {
-            // eslint-disable-next-line no-unused-vars
-            try { for await (const _ of upload) { /* drain */ } } catch (e) { reject(e); }
-          })();
+          percy.upload(req.body, { resolve, reject }, 'app').catch(reject);
         });
         data = await handleSyncJob(snapshotPromise, percy, 'comparison');
       } else {
@@ -256,13 +259,11 @@ export function createPercyServer(percy, port) {
       let comparisonData = await WebdriverUtils.captureScreenshot(req.body);
 
       if (percy.syncMode(comparisonData)) {
-        // percy.upload returns an async generator that must be drained for #snapshots.push to run.
+        // See the /percy/comparison route: percy.upload() is the Promise-wrapped method;
+        // calling it drives the generator and the sync queue resolves/rejects the callback.
+        // The .catch(reject) surfaces generator errors that bypass that callback.
         const snapshotPromise = new Promise((resolve, reject) => {
-          const upload = percy.upload(comparisonData, { resolve, reject }, 'automate');
-          (async () => {
-            // eslint-disable-next-line no-unused-vars
-            try { for await (const _ of upload) { /* drain */ } } catch (e) { reject(e); }
-          })();
+          percy.upload(comparisonData, { resolve, reject }, 'automate').catch(reject);
         });
         data = await handleSyncJob(snapshotPromise, percy, 'comparison');
       } else {

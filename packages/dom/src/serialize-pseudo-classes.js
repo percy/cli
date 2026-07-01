@@ -146,6 +146,49 @@ function markInteractiveStates(ctx) {
   });
 }
 
+// Walk the LIVE document and every shadow root (open, or closed via the CDP
+// WeakMap) WITHOUT relying on data-percy-shadow-host markers. walkShadowDOM
+// descends through those markers, but they are only stamped later during
+// cloning — so during this pre-clone marking pass it cannot reach shadow
+// content. We descend via the live shadowRoot directly instead.
+function eachScopeIncludingShadow(root, visit) {
+  if (!root || typeof root.querySelectorAll !== 'function') return;
+  visit(root);
+  for (const el of root.querySelectorAll('*')) {
+    const shadow = getShadowRoot(el);
+    if (shadow) eachScopeIncludingShadow(shadow, visit);
+  }
+}
+
+// Auto-detect open native popovers page-wide, INCLUDING inside shadow roots.
+// `:popover-open` is an unambiguous serialize-time state (like :checked /
+// :disabled), so it is stamped automatically rather than only on
+// pseudoClassEnabledElements. The renderer's popover-element-helper already
+// re-opens any [popover][data-percy-popover-open] across shadow boundaries;
+// without this stamp a popover open at snapshot time renders hidden via the
+// UA `[popover]:not(:popover-open){display:none}` rule. If `:popover-open`
+// is unsupported the selector throws — we stop querying and warn once.
+function markOpenPopovers(ctx) {
+  let supported = true;
+  eachScopeIncludingShadow(ctx.dom, scope => {
+    if (!supported) return;
+    // Only the `:popover-open` SELECTOR can legitimately throw a SyntaxError
+    // (engines without popover support). Scope the try to the query and
+    // materialize the matches; stamp OUTSIDE the try. Otherwise a throw from
+    // stampOnce mid-iteration would be misreported as "unsupported" AND would
+    // silently skip every remaining scope.
+    let matches;
+    try {
+      matches = scope.querySelectorAll('[popover]:popover-open');
+    } catch (e) {
+      supported = false;
+      ctx.warnings.add('Browser does not support :popover-open pseudo-class.');
+      return;
+    }
+    for (const el of matches) stampOnce(ctx, el, POPOVER_OPEN_ATTR, 'true');
+  });
+}
+
 function isPopoverOpen(ctx, element) {
   try {
     return element.matches(':popover-open');
@@ -258,6 +301,7 @@ export function getElementsToProcess(ctx, config, markWithId = false) {
 export function markPseudoClassElements(ctx, config) {
   ctx._liveMutations = [];
   markInteractiveStates(ctx);
+  markOpenPopovers(ctx);
   if (config) getElementsToProcess(ctx, config, true);
 }
 
@@ -286,10 +330,26 @@ function stylesToCSSText(styles) {
   return decls.join(' ');
 }
 
+// Resolve a nested rule's selector against its parent per CSS Nesting.
+// The CSSOM serializes nested selectors with the implicit nesting selector
+// made explicit, so every nested selector — including each item of a
+// selector list — carries its own `&`. Replacing every `&` with :is(parent)
+// therefore fully scopes the rule. Without this, a bare top-level `&`
+// resolves to :root on engines that support nesting, so component-scoped
+// interactive-state rules leak page-wide (PER-9775). :is(...) preserves the
+// parent's grouping/specificity.
+function resolveNestedSelector(selectorText, parentSelector) {
+  if (!parentSelector) return selectorText;
+  return selectorText.replace(/&/g, `:is(${parentSelector})`);
+}
+
 // Walk a CSSRule list yielding every reachable style rule. Nested rules
 // inside @media/@layer/@supports are emitted with the at-rule prelude
 // preserved as a wrapper string; flat-emitting would drop the guard.
-function walkCSSRules(ruleList) {
+// `parentSelector` carries the enclosing style rule's (already-resolved)
+// selector down through native CSS nesting so `&`-relative children are
+// resolved against it rather than leaking as a bare top-level `&`.
+function walkCSSRules(ruleList, parentSelector = null) {
   const result = [];
   for (let i = 0; i < ruleList.length; i++) {
     const rule = ruleList[i];
@@ -299,7 +359,19 @@ function walkCSSRules(ruleList) {
       const atRulePrelude = conditionText && rule.cssText
         ? rule.cssText.split('{')[0].trim()
         : null;
-      for (const inner of walkCSSRules(rule.cssRules)) {
+      // An at-rule (@media/@layer/@supports) keeps the current parent scope
+      // and is re-applied as a wrapper. A style rule with nested children
+      // (native CSS nesting) becomes the scope for its children — resolve
+      // its own selector against any outer parent first so deeper nesting
+      // composes correctly.
+      // Default to the current scope (also covers at-rules and nested-decl
+      // rules that have no selector of their own). A style rule with nested
+      // children resolves its own selector first and becomes the new scope.
+      let childParent = parentSelector;
+      if (!atRulePrelude && rule.selectorText) {
+        childParent = resolveNestedSelector(rule.selectorText, parentSelector);
+      }
+      for (const inner of walkCSSRules(rule.cssRules, childParent)) {
         if (atRulePrelude && inner.selectorText) {
           result.push({
             selectorText: inner.selectorText,
@@ -314,7 +386,11 @@ function walkCSSRules(ruleList) {
       // Rules without nested cssRules and without selectorText (@font-face,
       // @charset, @counter-style, etc.) are skipped — they can't contain
       // interactive pseudos.
-      result.push({ selectorText: rule.selectorText, style: rule.style, wrapper: null });
+      result.push({
+        selectorText: resolveNestedSelector(rule.selectorText, parentSelector),
+        style: rule.style,
+        wrapper: null
+      });
     }
   }
   return result;

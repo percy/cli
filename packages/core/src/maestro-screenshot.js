@@ -217,14 +217,16 @@ export async function handleMaestroScreenshot(req, res, percy) {
 
   let data;
   if (percy.syncMode(payload)) {
-    // percy.upload returns an async generator that must be drained for #snapshots.push to run.
-    // See docs/solutions/best-practices/2026-05-20-maestro-sync-promise-bug-investigation.md.
+    // percy.upload() is the generatePromise-wrapped method: calling it drives the
+    // underlying async generator to completion (enqueuing #snapshots) and the sync
+    // queue resolves/rejects the attached callback. Do NOT `for await` the return
+    // value — it is a Promise, not an async iterable (that throws "upload is not
+    // async iterable"). The raw generator lives at percy.yield.upload() if direct
+    // iteration is ever needed. The trailing .catch(reject) surfaces generator
+    // errors that bypass the sync-queue callback (e.g. a throw before the queue task
+    // runs) instead of leaking an unhandled rejection and hanging the request.
     const snapshotPromise = new Promise((resolve, reject) => {
-      const upload = percy.upload(payload, { resolve, reject }, 'app');
-      (async () => {
-        // eslint-disable-next-line no-unused-vars
-        try { for await (const _ of upload) { /* drain */ } } catch (e) { reject(e); }
-      })();
+      percy.upload(payload, { resolve, reject }, 'app').catch(reject);
     });
     data = await handleSyncJob(snapshotPromise, percy, 'comparison');
     return res.json(200, { success: true, data });
