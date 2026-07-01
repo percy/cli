@@ -655,6 +655,20 @@ describe('percy app:exec', () => {
       expect(process.env.PERCY_IOS_DRIVER_HOST_PORT).toBe('9555');
     });
 
+    it('no-ops (warn) when pickFreePort rejects, degrading to the relay probe', async () => {
+      const log = { info: jasmine.createSpy('info'), warn: jasmine.createSpy('warn'), debug: jasmine.createSpy('debug') };
+      const argv = ['maestro', '--platform=ios', 'test', 'flow.yaml'];
+      const ctx = ctxFor(argv);
+      await maybeInjectDriverHostPort(ctx, log, {
+        execMaestro: () => ({ stdout: '2.6.1', stderr: '', status: 0 }),
+        pickFreePort: () => Promise.reject(new Error('EMFILE'))
+      });
+      expect(ctx.argv).toEqual(argv);
+      expect(process.env.PERCY_IOS_DRIVER_HOST_PORT).toBeUndefined();
+      expect(log.warn).toHaveBeenCalled();
+      expect(log.info).not.toHaveBeenCalled();
+    });
+
     it('no-ops (debug) when execMaestro returns nothing', async () => {
       const log = { debug: jasmine.createSpy('debug') };
       const argv = ['maestro', '--platform=ios', 'test', 'flow.yaml'];

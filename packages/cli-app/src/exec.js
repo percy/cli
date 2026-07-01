@@ -31,10 +31,11 @@ export const exec = command('exec', {
     skipDiscovery: true
   }
 }, async function*(ctx) {
-  // The two helpers splice their flag groups at argv index 2 (between `test`
-  // and the flow file) because `-e` and `--test-output-dir` are
-  // `test`-subcommand options. Resulting argv for `maestro test flow.yaml`:
-  //   maestro test --test-output-dir <dir> -e PERCY_SERVER=<url> flow.yaml
+  // The helpers splice their flag groups right after `test` because `-e` and
+  // `--test-output-dir` are `test`-subcommand options; on iOS + Maestro >= 2.6 a
+  // third adds `--driver-host-port <port>`. Resulting argv for
+  // `maestro --platform=ios test flow.yaml`:
+  //   maestro --platform=ios test --driver-host-port <port> --test-output-dir <dir> -e PERCY_SERVER=<url> flow.yaml
   // iOS driver port: on Maestro >= 2.6 (ephemeral driver port) we prescribe a
   // free port via `--driver-host-port` and mirror it to PERCY_IOS_DRIVER_HOST_PORT
   // so the @percy/core relay reaches `/viewHierarchy` deterministically for

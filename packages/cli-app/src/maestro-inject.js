@@ -237,7 +237,7 @@ function hasShardingFlag(args) {
 // equals-form), or null if absent. An empty value is treated as ABSENT (mirrors
 // findTestOutputDirValue) so `--driver-host-port=` falls through to our own pick.
 function findDriverHostPortValue(args) {
-  for (let i = 0; i < args.length; i++) {
+  for (let i = 1; i < args.length; i++) {
     const tok = args[i];
     if (tok === '--driver-host-port' && i + 1 < args.length) {
       const val = args[i + 1];
@@ -327,7 +327,22 @@ export async function maybeInjectDriverHostPort(ctx, log, deps = {}) {
   /* istanbul ignore next -- production DI default; unit tests always inject deps.pickFreePort. */
   const pickFreePort = deps.pickFreePort || defaultPickFreePort;
   const envPort = validDriverHostPort(process.env.PERCY_IOS_DRIVER_HOST_PORT);
-  const port = envPort !== null ? envPort : await pickFreePort();
+  let port = envPort;
+  if (port === null) {
+    // Picking a free port can reject (OS resource exhaustion on listen(0), etc.).
+    // Degrade gracefully like every other failure path here — no-op and let the
+    // relay's 127.0.0.1:7001 probe handle it — rather than crashing app:exec with
+    // an unattributed rejection AND leaving Maestro 2.6+ with no port at all.
+    try {
+      port = await pickFreePort();
+    } catch (err) {
+      log?.warn(
+        `[percy] could not reserve a free port for --driver-host-port (${err.message}); ` +
+        'relying on the 127.0.0.1:7001 relay probe'
+      );
+      return;
+    }
+  }
 
   args.splice(testIdx + 1, 0, '--driver-host-port', String(port));
   process.env.PERCY_IOS_DRIVER_HOST_PORT = String(port);
