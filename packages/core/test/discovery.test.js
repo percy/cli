@@ -2560,6 +2560,32 @@ describe('Discovery', () => {
       let nonRootResources = Array.from(percy[RESOURCE_CACHE_KEY].values()).filter(resource => !resource.root);
       expect(nonRootResources.length).toEqual(2);
     });
+
+    it('serves cached resources only for cacheable methods (PER-9766)', async () => {
+      // A resource is cached on the initial GET during discovery. An in-page POST to
+      // that same URL (e.g. a login form submitted from an execute script) must reach
+      // the origin instead of being answered from the URL-keyed cache — otherwise the
+      // request never authenticates and the snapshot captures unauthenticated content.
+      let methods = [];
+      server.reply('/cached.css', req => (methods.push(req.method), [200, 'text/css', '.a{}']));
+      server.reply('/', () => [200, 'text/html', dedent`
+        <html><head><link rel="stylesheet" href="/cached.css"/></head>
+        <body><p>auth</p></body></html>`
+      ]);
+
+      await percy.snapshot({
+        name: 'post bypasses cache',
+        url: 'http://localhost:8000',
+        // execute runs after initial discovery, so /cached.css is already cached here
+        execute: async () => { await fetch('/cached.css', { method: 'POST' }); }
+      });
+      await percy.idle();
+
+      // GET is cached on first load; the POST must NOT be served from cache, so the
+      // origin sees it too. On the buggy path the POST was a cache hit and never arrived.
+      expect(methods).toContain('GET');
+      expect(methods).toContain('POST');
+    });
   });
 
   describe('with --max-cache-ram', () => {
