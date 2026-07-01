@@ -1,6 +1,6 @@
 import command from '@percy/cli-command';
 import * as ExecPlugin from '@percy/cli-exec';
-import { maybeInjectMaestroServer, maybeInjectScreenshotDir } from './maestro-inject.js';
+import { maybeInjectMaestroServer, maybeInjectScreenshotDir, maybeInjectDriverHostPort } from './maestro-inject.js';
 
 export const ping = ExecPlugin.ping;
 export const stop = ExecPlugin.stop;
@@ -35,12 +35,16 @@ export const exec = command('exec', {
   // and the flow file) because `-e` and `--test-output-dir` are
   // `test`-subcommand options. Resulting argv for `maestro test flow.yaml`:
   //   maestro test --test-output-dir <dir> -e PERCY_SERVER=<url> flow.yaml
-  // iOS driver port: not prescribed from this side — the @percy/core relay
-  // reads `PERCY_IOS_DRIVER_HOST_PORT` (BS-host-injected on production
-  // hosts) and probes the documented Maestro 2.4.0 single-simulator default
-  // (`127.0.0.1:7001`) when it isn't set. See `packages/core/src/maestro-hierarchy.js`.
+  // iOS driver port: on Maestro >= 2.6 (ephemeral driver port) we prescribe a
+  // free port via `--driver-host-port` and mirror it to PERCY_IOS_DRIVER_HOST_PORT
+  // so the @percy/core relay reaches `/viewHierarchy` deterministically for
+  // element regions and device insets. On Maestro <= 2.4 the helper no-ops and
+  // the relay's `127.0.0.1:7001` probe (the deterministic 2.4.0 default) serves
+  // those customers. On BrowserStack the port is host-injected and this path
+  // never runs. See `packages/core/src/maestro-hierarchy.js`.
   maybeInjectMaestroServer(ctx, ctx.log);
   maybeInjectScreenshotDir(ctx, ctx.log);
+  await maybeInjectDriverHostPort(ctx, ctx.log);
   yield* ExecPlugin.default.callback(ctx);
 });
 

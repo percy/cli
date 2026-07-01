@@ -1,6 +1,8 @@
 import fs from 'fs';
 import os from 'os';
+import net from 'net';
 import path from 'path';
+import { spawnSync } from 'child_process';
 
 // Locate the `test` subcommand in argv. Maestro accepts global parent
 // flags before the subcommand, e.g.:
@@ -162,4 +164,172 @@ export function maybeInjectScreenshotDir(ctx, log) {
   if (!envSet) process.env.PERCY_MAESTRO_SCREENSHOT_DIR = resolved;
   // Inject right after `test` (the subcommand that owns `--test-output-dir`).
   if (!flagSet) args.splice(testIdx + 1, 0, '--test-output-dir', resolved);
+}
+
+// ─── iOS driver-host-port prescription ──────────────────────────────────────
+//
+// Maestro 2.6.0 changed the iOS driver to bind an OS-assigned ephemeral port
+// (`ServerSocket(0)`); Maestro ≤ 2.4.0 bound the deterministic `7001`. The
+// @percy/core relay resolves the iOS `/viewHierarchy` port by reading
+// `PERCY_IOS_DRIVER_HOST_PORT` first, then probing `127.0.0.1:7001`. On Maestro
+// 2.6+ the probe finds nothing (ephemeral), so self-hosted iOS element regions
+// (and device insets, whose relay path is env-only with no probe) degrade.
+//
+// Fix: pick a free port, pin Maestro's iOS driver to it via `--driver-host-port
+// <port>`, and mirror it to `process.env.PERCY_IOS_DRIVER_HOST_PORT` so the
+// relay (same Node process — env IS inherited there) targets it. This only fires
+// on Maestro ≥ 2.6.0: the flag does not exist on 2.4.0 and passing it there is a
+// fatal `Unknown option` (the reason commit 13616a87 was reverted). On ≤ 2.4.0
+// the helper no-ops and the relay's 7001 probe serves those customers.
+//
+// Gated conservatively to iOS (`--platform=ios`/`-p ios`), non-sharded runs (a
+// single pinned port collides across shards), and no-ops on any version-detection
+// failure — degrading to the existing 7001-probe + warn-skip path.
+const DRIVER_HOST_PORT_EQ_PREFIX = '--driver-host-port=';
+const DRIVER_HOST_PORT_MIN_MAJOR = 2;
+const DRIVER_HOST_PORT_MIN_MINOR = 6;
+// Sharding flags — a single prescribed port cannot serve parallel shards
+// (Maestro 2.6+ throws CliError on the second shard's bind).
+const MAESTRO_SHARDING_FLAGS = new Set(['--shards', '--shard-split', '--shard-all', '-s']);
+const MAESTRO_SHARDING_EQ_PREFIXES = ['--shards=', '--shard-split=', '--shard-all='];
+
+/* istanbul ignore next — production default; tests inject deps.execMaestro. */
+function defaultExecMaestro() {
+  return spawnSync('maestro', ['--version'], { encoding: 'utf8' });
+}
+
+/* istanbul ignore next — production default; tests inject deps.pickFreePort. */
+function defaultPickFreePort() {
+  return new Promise((resolve, reject) => {
+    const srv = net.createServer();
+    srv.on('error', reject);
+    srv.listen(0, '127.0.0.1', () => {
+      const { port } = srv.address();
+      srv.close(() => resolve(port));
+    });
+  });
+}
+
+// Explicit iOS platform signal — `--platform=ios`, `--platform ios`, or `-p ios`.
+// Case-sensitive (Maestro is). Scans the whole argv so a parent-position flag
+// (the usual place) or an after-`test` one is both detected.
+function isIosPlatform(args) {
+  for (let i = 1; i < args.length; i++) {
+    const tok = args[i];
+    if ((tok === '--platform' || tok === '-p') && args[i + 1] === 'ios') return true;
+    if (tok === '--platform=ios') return true;
+  }
+  return false;
+}
+
+// True when argv requests sharded/parallel execution (space- or equals-form).
+// argv tokens are always strings (process argv / spliced literals).
+function hasShardingFlag(args) {
+  for (let i = 1; i < args.length; i++) {
+    const tok = args[i];
+    if (MAESTRO_SHARDING_FLAGS.has(tok)) return true;
+    if (MAESTRO_SHARDING_EQ_PREFIXES.some(p => tok.startsWith(p))) return true;
+  }
+  return false;
+}
+
+// Returns the customer-supplied `--driver-host-port` value (space- or
+// equals-form), or null if absent. An empty value is treated as ABSENT (mirrors
+// findTestOutputDirValue) so `--driver-host-port=` falls through to our own pick.
+function findDriverHostPortValue(args) {
+  for (let i = 0; i < args.length; i++) {
+    const tok = args[i];
+    if (tok === '--driver-host-port' && i + 1 < args.length) {
+      const val = args[i + 1];
+      if (typeof val === 'string' && val.length > 0) return val;
+    } else if (typeof tok === 'string' && tok.startsWith(DRIVER_HOST_PORT_EQ_PREFIX)) {
+      const val = tok.slice(DRIVER_HOST_PORT_EQ_PREFIX.length);
+      if (val.length > 0) return val;
+    }
+  }
+  return null;
+}
+
+// Validate a port string as an integer in 1..65535 (mirrors @percy/core's
+// parseIosDriverHostPort). Returns the number, or null when absent/invalid so a
+// stale/garbage PERCY_IOS_DRIVER_HOST_PORT export is treated as unset.
+function validDriverHostPort(raw) {
+  if (typeof raw !== 'string') return null;
+  const trimmed = raw.trim();
+  if (!/^\d+$/.test(trimmed)) return null;
+  const n = Number(trimmed);
+  return (n >= 1 && n <= 65535) ? n : null;
+}
+
+// Detect the installed Maestro MAJOR.MINOR via `maestro --version`. Returns
+// { major, minor } or null on any spawn/parse failure (helper then no-ops).
+// The flag is `hidden` in Maestro's CLI, so version — not `--help` — is the
+// only reliable capability signal.
+function detectMaestroVersion(execMaestro, log) {
+  let result;
+  try {
+    result = execMaestro();
+  } catch (err) {
+    log?.debug(`maestro --version failed (${err.code || err.message}); skipping --driver-host-port injection`);
+    return null;
+  }
+  if (!result || result.error || result.status !== 0) {
+    log?.debug('maestro --version returned no usable output; skipping --driver-host-port injection');
+    return null;
+  }
+  const out = `${result.stdout || ''}${result.stderr || ''}`;
+  const m = out.match(/(\d+)\.(\d+)/);
+  if (!m) {
+    log?.debug('could not parse maestro version; skipping --driver-host-port injection');
+    return null;
+  }
+  return { major: Number(m[1]), minor: Number(m[2]) };
+}
+
+// Prescribe the iOS Maestro driver port on Maestro ≥ 2.6.0 so the @percy/core
+// relay can reach `/viewHierarchy` deterministically (regions + insets) without
+// customer-side `PERCY_IOS_DRIVER_HOST_PORT` configuration. No-ops on every path
+// that would be unsafe or unnecessary (non-maestro, non-`test`, sharded,
+// non-iOS, customer already pinned, Maestro < 2.6, detection failure). Async
+// because picking a free port (`net`) is inherently async.
+export async function maybeInjectDriverHostPort(ctx, log, deps = {}) {
+  const args = ctx?.argv;
+  if (!Array.isArray(args) || args.length < 2) return;
+  if (path.basename(args[0]) !== 'maestro') return;
+  const testIdx = findTestSubcommandIdx(args);
+  if (testIdx < 0) return;
+
+  // Sharded runs can't share one pinned port — leave them to the relay probe.
+  if (hasShardingFlag(args)) return;
+  // Conservative: the flag is an iOS-driver concern; require an explicit signal.
+  if (!isIosPlatform(args)) return;
+  // Customer already pinned the port — stay fully passive (argv + env untouched).
+  if (findDriverHostPortValue(args) !== null) return;
+
+  // Capability gate: the flag only exists on Maestro ≥ 2.6.0. Injecting it on
+  // 2.4.0 is a fatal `Unknown option`, so detect first and bail otherwise.
+  /* istanbul ignore next -- production DI default; unit tests always inject deps.execMaestro. */
+  const execMaestro = deps.execMaestro || defaultExecMaestro;
+  const version = detectMaestroVersion(execMaestro, log);
+  if (!version) return;
+  if (version.major < DRIVER_HOST_PORT_MIN_MAJOR ||
+      (version.major === DRIVER_HOST_PORT_MIN_MAJOR && version.minor < DRIVER_HOST_PORT_MIN_MINOR)) {
+    log?.debug(
+      `Maestro ${version.major}.${version.minor} predates --driver-host-port ` +
+      '(>= 2.6.0); relying on the 127.0.0.1:7001 relay probe'
+    );
+    return;
+  }
+
+  // A valid customer-exported port wins its value; otherwise pick a free one.
+  // Either way we splice the argv flag (so Maestro binds it) and mirror env (so
+  // the relay targets it). Stale/invalid env values fall through to a fresh pick.
+  /* istanbul ignore next -- production DI default; unit tests always inject deps.pickFreePort. */
+  const pickFreePort = deps.pickFreePort || defaultPickFreePort;
+  const envPort = validDriverHostPort(process.env.PERCY_IOS_DRIVER_HOST_PORT);
+  const port = envPort !== null ? envPort : await pickFreePort();
+
+  args.splice(testIdx + 1, 0, '--driver-host-port', String(port));
+  process.env.PERCY_IOS_DRIVER_HOST_PORT = String(port);
+  log?.info(`[percy] iOS Maestro driver port prescribed → ${port} (Maestro ${version.major}.${version.minor})`);
 }
