@@ -1,0 +1,45 @@
+name: Verify Executable
+
+# Per-PR gate: build the packaged executables exactly as the release pipeline
+# does and smoke-test them — but without signing, notarizing or uploading. This
+# catches binary-only breakages (e.g. a bad require produced by the CJS
+# transpile that never shows up in the Node/source test suite) on the PR that
+# introduces them, so they can't reach a release.
+#
+# No secrets are used or needed: scripts/executable.sh skips the macOS
+# signing/notarization block when APPLE_DEV_CERT is unset, which also makes this
+# safe to run on pull requests from forks.
+on:
+  pull_request:
+    branches: [master]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verify-executable-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Build & verify executable
+    # Skip CI only for the automated release PR: opened by github-actions[bot],
+    # from this same repo, on a release/* branch (the Create Release PR workflow
+    # posts the required checks as passing for it). Keyed on the PR author, not the
+    # branch name, so a "release/…" branch can't be used to bypass required checks.
+    if: >-
+      ${{ !(github.event_name == 'pull_request'
+      && github.event.pull_request.user.login == 'github-actions[bot]'
+      && github.event.pull_request.head.repo.full_name == github.repository
+      && startsWith(github.head_ref, 'release/')) }}
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.1.0
+        with:
+          node-version: 14
+          architecture: x64
+      - name: Build executables (no signing, no upload)
+        run: ./scripts/executable.sh
+      - name: Verify executable
+        run: ./scripts/verify-executable.sh ./percy

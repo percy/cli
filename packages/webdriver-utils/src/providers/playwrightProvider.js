@@ -35,7 +35,8 @@ export default class PlaywrightProvider extends GenericProvider {
   }
 
   async setDebugUrl() {
-    this.debugUrl = `https://automate.browserstack.com/builds/${this.automateResults.buildHash}/sessions/${this.automateResults.sessionHash}`;
+    const automateDomain = process.env.PERCY_AUTOMATE_DOMAIN || 'automate.browserstack.com';
+    this.debugUrl = `https://${automateDomain}/builds/${this.automateResults.buildHash}/sessions/${this.automateResults.sessionHash}`;
   }
 
   async screenshot(name, options) {

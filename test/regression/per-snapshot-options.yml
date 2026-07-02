@@ -1,0 +1,104 @@
+# Track C — per-snapshot capture options (list-mode snapshots file).
+#
+# Validated token-free via `percy snapshot per-snapshot-options.yml --dry-run`.
+# Exercises the cli-snapshot LIST schema (baseUrl, include/exclude filter,
+# shared options) plus every per-snapshot capture option shape: execute as a
+# string / lifecycle-object / array, additionalSnapshots (name / prefix /
+# suffix / execute), precapture waitForSelector & waitForTimeout, and the
+# per-snapshot discovery subset.
+
+baseUrl: http://localhost:9100
+
+# filter — also available as the --include / --exclude CLI flags
+include: '*'
+exclude: 'skip-*'
+
+# shared options merged into every snapshot below
+options:
+  widths: [1280]
+  enableJavaScript: false
+
+snapshots:
+  # execute: string function body + precapture waits
+  - url: /comprehensive.html
+    name: exec-string
+    execute: "() => { document.body.classList.add('ready'); }"
+    waitForSelector: '#root'
+    waitForTimeout: 500
+
+  # execute: lifecycle-object form (all four hooks)
+  - url: /comprehensive.html
+    name: exec-object
+    execute:
+      afterNavigation: "() => window.scrollTo(0, 0)"
+      beforeResize: "() => {}"
+      afterResize: "() => {}"
+      beforeSnapshot: "() => document.body.setAttribute('data-ready', '1')"
+
+  # execute: array of function bodies
+  - url: /comprehensive.html
+    name: exec-array
+    execute:
+      - "() => {}"
+      - "() => {}"
+
+  # additionalSnapshots: name / prefix / suffix / execute
+  - url: /comprehensive.html
+    name: additional-base
+    additionalSnapshots:
+      - name: additional-by-name
+        execute: "() => {}"
+      - prefix: 'prefixed-'
+      - suffix: '-suffixed'
+
+  # per-snapshot common overrides + per-snapshot discovery subset
+  - url: /comprehensive.html
+    name: per-snapshot-overrides
+    minHeight: 800
+    scope: '#root'
+    scopeOptions:
+      scroll: true
+    percyCSS: '* { color: black !important; }'
+    disableShadowDOM: false
+    forceShadowAsLightDOM: false
+    domTransformation: "(d) => d"
+    enableLayout: false
+    sync: false
+    responsiveSnapshotCapture: false
+    testCase: per-snap
+    labels: per-snap-label
+    thTestCaseExecutionId: th-1
+    browsers: [chrome]
+    reshuffleInvalidTags: false
+    algorithm: standard
+    algorithmConfiguration:
+      diffSensitivity: 1
+    ignoreCanvasSerializationErrors: false
+    ignoreStyleSheetSerializationErrors: false
+    ignoreIframeSelectors: ['.ad-frame']
+    pseudoClassEnabledElements:
+      selectors: ['.x']
+    readiness:
+      preset: fast
+    regions:
+      - algorithm: ignore
+        elementSelector:
+          elementCSS: '#r'
+    discovery:
+      allowedHostnames: [localhost:9101]
+      disallowedHostnames: [blocked.example.com]
+      requestHeaders:
+        X-Test: '1'
+      waitForSelector: '#root'
+      waitForTimeout: 100
+      authorization:
+        username: u
+        password: p
+      disableCache: false
+      captureMockedServiceWorker: false
+      captureSrcset: false
+      userAgent: PerSnap/1.0
+      devicePixelRatio: 2
+      retry: true
+      scrollToBottom: false
+      fontDomains: [localhost:9101]

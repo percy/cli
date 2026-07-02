@@ -476,27 +476,103 @@ describe('Unit / maestro-hierarchy', () => {
   });
 
   describe('iOS dispatch — env handling', () => {
-    it('returns env-missing when PERCY_IOS_DEVICE_UDID is unset', async () => {
+    // Self-hosted-with-explicit-port-but-no-UDID: enters the EXPLICIT branch
+    // (port present), runs the HTTP primary. With UDID absent, the CLI
+    // fallback is unavailable — on HTTP success the dump returns; on HTTP
+    // failure (connection-fail here), warn-skip with the new
+    // `self-hosted-no-udid` reason.
+    it('warn-skips with self-hosted-no-udid when port is set, udid is unset, and HTTP primary fails', async () => {
       const getEnv = key => {
         if (key === 'PERCY_IOS_DRIVER_HOST_PORT') return '11100';
         return undefined;
       };
-      const res = await dump({ platform: 'ios', getEnv });
-      expect(res).toEqual({ kind: 'unavailable', reason: 'env-missing' });
+      const httpRequest = async () => { throw Object.assign(new Error('econnrefused'), { code: 'ECONNREFUSED' }); };
+      const res = await dump({ platform: 'ios', getEnv, httpRequest });
+      expect(res).toEqual({ kind: 'unavailable', reason: 'self-hosted-no-udid' });
     });
 
-    it('returns env-missing when PERCY_IOS_DRIVER_HOST_PORT is unset', async () => {
+    // Self-hosted env-absent path: with PERCY_IOS_DRIVER_HOST_PORT unset, the
+    // relay probes Maestro 2.4.0's documented single-simulator default port
+    // (127.0.0.1:7001) before degrading. When the probe finds a live Maestro
+    // driver, element regions resolve through the same `runIosHttpDump`
+    // transport the BS path uses. When the probe fails, we warn-skip with
+    // env-missing — coordinate regions and the snapshot itself still upload.
+    // Maestro 2.6+ (ephemeral port) customers set PERCY_IOS_DRIVER_HOST_PORT
+    // explicitly to bypass the probe.
+
+    it('probes 127.0.0.1:7001 when env is unset, returns the dump on hit', async () => {
+      let observedPort = null;
+      const minimalAxElement = JSON.stringify({
+        axElement: {
+          elementType: 1,
+          identifier: 'com.example.app',
+          frame: { X: 0, Y: 0, Width: 100, Height: 100 },
+          children: []
+        }
+      });
+      const httpRequest = async opts => {
+        observedPort = opts.port;
+        return { statusCode: 200, headers: { 'content-type': 'application/json' }, body: minimalAxElement };
+      };
+      const res = await dump({ platform: 'ios', getEnv: () => undefined, httpRequest });
+      expect(observedPort).toBe(7001);
+      expect(res.kind).toBe('hierarchy');
+    });
+
+    it('warn-skips with env-missing when port is unset and the 7001 probe finds no driver', async () => {
       const getEnv = key => {
         if (key === 'PERCY_IOS_DEVICE_UDID') return '00008110-000065081404401E';
         return undefined;
       };
-      const res = await dump({ platform: 'ios', getEnv });
+      const httpRequest = jasmine.createSpy('httpRequest').and.callFake(async () => {
+        throw Object.assign(new Error('econnrefused'), { code: 'ECONNREFUSED' });
+      });
+      const res = await dump({ platform: 'ios', getEnv, httpRequest });
       expect(res).toEqual({ kind: 'unavailable', reason: 'env-missing' });
+      // The probe must have been attempted exactly once (port 7001).
+      expect(httpRequest).toHaveBeenCalledTimes(1);
+      expect(httpRequest.calls.mostRecent().args[0].port).toBe(7001);
     });
 
-    it('returns env-missing when both env vars are unset', async () => {
-      const res = await dump({ platform: 'ios', getEnv: () => undefined });
+    it('warn-skips with env-missing when both env vars are unset and the 7001 probe finds no driver', async () => {
+      const httpRequest = jasmine.createSpy('httpRequest').and.callFake(async () => {
+        throw Object.assign(new Error('econnrefused'), { code: 'ECONNREFUSED' });
+      });
+      const res = await dump({ platform: 'ios', getEnv: () => undefined, httpRequest });
       expect(res).toEqual({ kind: 'unavailable', reason: 'env-missing' });
+      expect(httpRequest).toHaveBeenCalledTimes(1);
+      expect(httpRequest.calls.mostRecent().args[0].port).toBe(7001);
+    });
+
+    // When env is unset but the 7001 probe responds with a SpringBoard-only
+    // hierarchy (no AUT subtree — the user app isn't foregrounded), the dump
+    // returns kind: 'no-aut-tree'. The dispatch records a final failure with
+    // the classified reason and returns the probe result directly so the
+    // caller surfaces the actionable AUT-not-running diagnostic instead of
+    // the generic env-missing warn-skip.
+    it('returns no-aut-tree via the 7001 probe when env is unset and the driver reports SpringBoard-only', async () => {
+      // findAxAutRoot returns null when it walks an axElement tree that
+      // contains only the SpringBoard application (identifier
+      // 'com.apple.springboard') with no AUT child — i.e. the user app
+      // isn't foregrounded. runIosHttpDump then returns kind: 'no-aut-tree'
+      // and the dispatch's self-hosted-probe branch returns that result
+      // directly after recording the classified failure (line 1305).
+      const httpRequest = jasmine.createSpy('httpRequest').and.callFake(async () => ({
+        statusCode: 200,
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          axElement: {
+            elementType: 1,
+            identifier: 'com.apple.springboard',
+            children: []
+          }
+        })
+      }));
+      const res = await dump({ platform: 'ios', getEnv: () => undefined, httpRequest });
+      expect(res.kind).toBe('no-aut-tree');
+      expect(res.reason).toBe('springboard-only');
+      expect(httpRequest).toHaveBeenCalledTimes(1);
+      expect(httpRequest.calls.mostRecent().args[0].port).toBe(7001);
     });
 
     it('does not invoke adb on iOS dispatch', async () => {

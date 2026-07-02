@@ -27,7 +27,8 @@ export default class PlaywrightDriver {
       command.script = `/* percy_automate_script */ \n ${command.script}`;
     }
     const options = this.requestPostOptions(command);
-    const baseUrl = `https://cdp.browserstack.com/wd/hub/session/${this.sessionId}/execute`;
+    const cdpDomain = process.env.PERCY_CDP_DOMAIN || 'cdp.browserstack.com';
+    const baseUrl = `https://${cdpDomain}/wd/hub/session/${this.sessionId}/execute`;
     const response = JSON.parse((await request(baseUrl, options)).body);
     return response;
   }
