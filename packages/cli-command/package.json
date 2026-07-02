@@ -1,6 +1,6 @@
 {
   "name": "@percy/cli-command",
-  "version": "1.32.2",
+  "version": "1.32.3-beta.3",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -9,7 +9,7 @@
   },
   "publishConfig": {
     "access": "public",
-    "tag": "latest"
+    "tag": "beta"
   },
   "files": [
     "dist",
@@ -27,7 +27,6 @@
     ".": "./dist/index.js",
     "./flags": "./dist/flags.js",
     "./utils": "./dist/utils.js",
-    "./smartsnap": "./dist/smartsnap.js",
     "./test/helpers": "./test/helpers.js"
   },
   "scripts": {
@@ -37,13 +36,8 @@
     "test:coverage": "yarn test --coverage"
   },
   "dependencies": {
-    "@percy/config": "1.32.2",
-    "@percy/core": "1.32.2",
-    "@percy/logger": "1.32.2",
-    "glob-to-regexp": "^0.4.1",
-    "stream-json": "^1.8.0"
-  },
-  "optionalDependencies": {
-    "snyk-nodejs-lockfile-parser": "2.7.1"
+    "@percy/config": "1.32.3-beta.3",
+    "@percy/core": "1.32.3-beta.3",
+    "@percy/logger": "1.32.3-beta.3"
   }
 }

@@ -7,13 +7,23 @@ on:
 jobs:
   build:
     name: Build
+    # Skip CI only for the automated release PR: opened by github-actions[bot],
+    # from this same repo, on a release/* branch (the Create Release PR workflow
+    # posts the required checks as passing for it). The gate is keyed on the PR
+    # author — NOT the branch name, which any contributor controls — so a PR from
+    # a "release/…" branch can't be used to bypass required checks.
+    if: >-
+      ${{ !(github.event_name == 'pull_request'
+      && github.event.pull_request.user.login == 'github-actions[bot]'
+      && github.event.pull_request.head.repo.full_name == github.repository
+      && startsWith(github.head_ref, 'release/')) }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v3
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - uses: actions/setup-node@3235b876344d2a9aa001b8d1453c930bba69e610 # v3.9.1
         with:
           node-version: 14
-      - uses: actions/cache@v3
+      - uses: actions/cache@f4b3439a656ba812b8cb417d2d49f9c810103092 # v3.4.0
         with:
           path: |
             node_modules
@@ -28,13 +38,19 @@ jobs:
             ${{ hashFiles('.github/.cache-key') }}/
       - run: yarn
       - run: yarn build
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: dist
           path: packages/*/dist
 
   test:
     name: Test ${{ matrix.package }}
+    # Skip only for the automated release PR (see the build job for rationale).
+    if: >-
+      ${{ !(github.event_name == 'pull_request'
+      && github.event.pull_request.user.login == 'github-actions[bot]'
+      && github.event.pull_request.head.repo.full_name == github.repository
+      && startsWith(github.head_ref, 'release/')) }}
     needs: [build]
     strategy:
       matrix:
@@ -65,11 +81,11 @@ jobs:
     env:
       CLI_TEST_FAILURES_FILE: ${{ github.workspace }}/.cli-test-failures.json
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v3
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - uses: actions/setup-node@3235b876344d2a9aa001b8d1453c930bba69e610 # v3.9.1
         with:
           node-version: ${{ matrix.node }}
-      - uses: actions/cache@v3
+      - uses: actions/cache@f4b3439a656ba812b8cb417d2d49f9c810103092 # v3.4.0
         with:
           path: |
             node_modules
@@ -82,7 +98,7 @@ jobs:
           restore-keys: >
             ${{ runner.os }}/node-${{ matrix.node }}/
             ${{ hashFiles('.github/.cache-key') }}/
-      - uses: actions/download-artifact@v5
+      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
         with:
           name: dist
           path: packages
@@ -137,17 +153,23 @@ jobs:
 
   regression:
     name: Regression
+    # Skip only for the automated release PR (see the build job for rationale).
+    if: >-
+      ${{ !(github.event_name == 'pull_request'
+      && github.event.pull_request.user.login == 'github-actions[bot]'
+      && github.event.pull_request.head.repo.full_name == github.repository
+      && startsWith(github.head_ref, 'release/')) }}
     needs: [build]
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
           fetch-depth: 50
-      - uses: actions/setup-node@v3
+      - uses: actions/setup-node@3235b876344d2a9aa001b8d1453c930bba69e610 # v3.9.1
         with:
           node-version: 14
-      - uses: actions/cache@v3
+      - uses: actions/cache@f4b3439a656ba812b8cb417d2d49f9c810103092 # v3.4.0
         with:
           path: |
             node_modules
@@ -160,7 +182,7 @@ jobs:
           restore-keys: >
             ${{ runner.os }}/node-14/
             ${{ hashFiles('.github/.cache-key') }}/
-      - uses: actions/download-artifact@v5
+      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
         with:
           name: dist
           path: packages
@@ -175,7 +197,14 @@ jobs:
           yarn global:link
           yarn link `echo $PERCY_PACKAGES`
           npx percy --version
-      - name: Run regression tests
+      - name: Run CLI config validation (token-free)
+        run: yarn test:regression:config
+      - name: Run functional discovery tests (token-free)
+        run: yarn test:regression:functional
+      # Visual track runs last and is the ONLY step that creates a Percy build,
+      # so the PR's single build carries all visual snapshots (no stray build
+      # superseding it on the same commit).
+      - name: Run visual regression tests
         run: yarn test:regression
         env:
           PERCY_TOKEN: ${{ secrets.PERCY_REGRESSION_TOKEN }}

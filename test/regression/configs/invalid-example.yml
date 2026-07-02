@@ -1,0 +1,11 @@
+# Negative-guard fixture for the config-validation harness self-test.
+# Intentionally invalid: an unknown property and out-of-range values. The
+# harness asserts the CLI emits "Invalid config:" for this file, proving the
+# detector that protects the valid fixtures actually fires (Track C is not a
+# no-op). NOT representative of a real config.
+version: 2
+snapshot:
+  widths: [99999]
+  bogusUnknownOption: true
+discovery:
+  networkIdleTimeout: 99999

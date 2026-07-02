@@ -1,0 +1,7 @@
+# Track F — functional discovery coverage (token-gated).
+# One real snapshot of a page that references gated resources. The discovery.*
+# behavior under test is configured globally in configs/functional-config.yml;
+# functional.test.js asserts on what the test servers observed during discovery.
+- name: Functional - Discovery Config
+  url: /functional-discovery.html
+  widths: [1280]
