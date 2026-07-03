@@ -366,6 +366,106 @@ describe('serialize-pseudo-classes', () => {
     });
   });
 
+  // Regression guard for the customer scenario: a native popover opened via
+  // showPopover() and living inside an open shadow root (e.g. Tecton q2-popover).
+  // The open/top-layer state is lost on serialization unless the pre-clone pass
+  // pierces shadow DOM and stamps data-percy-popover-open — and it must do so
+  // automatically, with no pseudoClassEnabledElements config.
+  describe('popover auto-detection inside shadow DOM', () => {
+    let host;
+    // For the closed-root case: keep a handle to the (otherwise unreachable)
+    // closed root, and remember the previous WeakMap so we can restore it.
+    let closedRoot;
+    let origClosedMap;
+
+    function popoverSupported() {
+      return typeof document.createElement('div').showPopover === 'function';
+    }
+
+    function openShadowPopover({ mode = 'open', type = 'manual', open = true } = {}) {
+      host = document.createElement('div');
+      host.id = 'shadow-popover-host';
+      const root = host.attachShadow({ mode });
+      // nosemgrep: javascript.browser.security.insecure-document-method.insecure-document-method
+      root.innerHTML = `<div id="sp" popover="${type}">menu</div>`;
+      document.body.appendChild(host);
+      if (mode === 'closed') {
+        // host.shadowRoot is null for closed roots. Mimic the CDP closed-shadow
+        // exposure path: register host -> root in the WeakMap that
+        // getShadowRoot()/getClosedShadowRoot() reads, so the marking walk can
+        // reach inside.
+        closedRoot = root;
+        origClosedMap = window.__percyClosedShadowRoots;
+        const map = new WeakMap();
+        map.set(host, root);
+        window.__percyClosedShadowRoots = map;
+      }
+      const popover = root.getElementById('sp');
+      if (open) popover.showPopover();
+      return popover;
+    }
+
+    afterEach(() => {
+      if (!host) return;
+      try {
+        const root = host.shadowRoot || closedRoot;
+        const p = root && root.querySelector('[popover]');
+        if (p && typeof p.hidePopover === 'function' && p.matches(':popover-open')) p.hidePopover();
+      } catch (e) { /* ignore */ }
+      host.remove();
+      host = null;
+      if (closedRoot) {
+        window.__percyClosedShadowRoots = origClosedMap;
+        closedRoot = null;
+        origClosedMap = undefined;
+      }
+    });
+
+    it('auto-stamps an open popover inside an open shadow root with NO config', () => {
+      if (!popoverSupported()) { pending('Popover API not supported in this environment'); return; }
+      const popover = openShadowPopover();
+
+      // No pseudoClassEnabledElements passed — auto-detection must still reach it.
+      markPseudoClassElements(ctx);
+
+      expect(popover.getAttribute('data-percy-popover-open')).toBe('true');
+    });
+
+    it('removes the shadow-DOM popover marker from the live DOM on cleanup', () => {
+      if (!popoverSupported()) { pending('Popover API not supported in this environment'); return; }
+      const popover = openShadowPopover();
+
+      markPseudoClassElements(ctx);
+      expect(popover.hasAttribute('data-percy-popover-open')).toBe(true);
+
+      cleanupInteractiveStateMarkers(ctx);
+      expect(popover.hasAttribute('data-percy-popover-open')).toBe(false);
+    });
+
+    it('does NOT stamp a closed popover inside a shadow root', () => {
+      if (!popoverSupported()) { pending('Popover API not supported in this environment'); return; }
+      const popover = openShadowPopover({ open: false });
+
+      markPseudoClassElements(ctx);
+
+      expect(popover.hasAttribute('data-percy-popover-open')).toBe(false);
+    });
+
+    it('auto-stamps an open popover inside a CLOSED shadow root (via the CDP WeakMap)', () => {
+      if (!popoverSupported()) { pending('Popover API not supported in this environment'); return; }
+      const popover = openShadowPopover({ mode: 'closed' });
+
+      // host.shadowRoot is null for closed roots — reaching the popover relies
+      // ENTIRELY on getShadowRoot() falling back to __percyClosedShadowRoots.
+      // This guards the closed-root path from diverging from the open-root one.
+      expect(host.shadowRoot).toBe(null);
+
+      markPseudoClassElements(ctx);
+
+      expect(popover.getAttribute('data-percy-popover-open')).toBe('true');
+    });
+  });
+
   describe('rewriteCustomStateCSS', () => {
     it('rewrites :state() selectors in style elements', () => {
       withExample('<style>my-el:state(open) { color: green; }</style><my-el id="myel"></my-el>');
@@ -1691,6 +1791,111 @@ describe('serialize-pseudo-classes', () => {
       let s = new Set();
       expect(rewriteCustomStateSelectors(':--', s)).toBe(':--');
       expect(s.size).toBe(0);
+    });
+  });
+
+  // Regression: native CSS nesting (emotion / CSS-in-JS) produces child rules
+  // with `&`-relative selectors. Before the fix, walkCSSRules emitted those
+  // children with the parent selector stripped, so an interactive-pseudo child
+  // like `&:hover` was injected as a bare `&[data-percy-hover]`. A top-level
+  // `&` resolves to :root on engines that support nesting, leaking component
+  // styles to the whole page (blue background, black SVG backgrounds, wrong
+  // button colors).
+  describe('native CSS nesting — parent selector resolution', () => {
+    function nestingCtx() {
+      let ctx = {
+        dom: document,
+        clone: document.implementation.createHTMLDocument('Clone'),
+        warnings: new Set(),
+        cache: new Map(),
+        resources: new Set(),
+        hints: new Set(),
+        shadowRootElements: []
+      };
+      // nosemgrep: javascript.browser.security.insecure-document-method.insecure-document-method
+      ctx.clone.body.innerHTML = document.body.innerHTML;
+      return ctx;
+    }
+
+    function injectedRules() {
+      let style = ctx.clone.querySelector('style[data-percy-interactive-states]');
+      return style ? style.textContent : '';
+    }
+
+    // Confirms the test browser actually parses nesting into nested cssRules;
+    // otherwise these assertions wouldn't exercise the nesting path.
+    function nestingSupported() {
+      for (let sheet of document.styleSheets) {
+        try {
+          for (let rule of sheet.cssRules) {
+            if (rule.cssRules && rule.cssRules.length) return true;
+          }
+        } catch (e) { /* cross-origin */ }
+      }
+      return false;
+    }
+
+    it('scopes a nested &:hover to its parent instead of leaking to :root', () => {
+      withExample(
+        '<style>.cta-card { color: black; &:hover { background-color: blue; } }</style>' +
+        '<button class="cta-card" id="cta">x</button>',
+        { withShadow: false }
+      );
+      expect(nestingSupported()).toBe(true);
+
+      ctx = nestingCtx();
+      serializePseudoClasses(ctx);
+
+      let rules = injectedRules();
+      expect(rules).toContain(':is(.cta-card)[data-percy-hover]');
+      // No bare leading `&` (which would resolve to :root page-wide).
+      expect(rules).not.toMatch(/(^|[\s,{])&/);
+    });
+
+    it('treats an &-less nested selector as a descendant of the parent', () => {
+      withExample(
+        '<style>.menu { a:hover { color: red; } }</style>' +
+        '<nav class="menu"><a href="#" id="lnk">x</a></nav>',
+        { withShadow: false }
+      );
+      expect(nestingSupported()).toBe(true);
+
+      ctx = nestingCtx();
+      serializePseudoClasses(ctx);
+
+      expect(injectedRules()).toContain(':is(.menu) a[data-percy-hover]');
+    });
+
+    it('resolves each part of a nested selector list (top-level comma)', () => {
+      withExample(
+        '<style>.btn { &:hover, &:focus { outline: 1px solid red; } }</style>' +
+        '<button class="btn" id="b1">x</button>',
+        { withShadow: false }
+      );
+      expect(nestingSupported()).toBe(true);
+
+      ctx = nestingCtx();
+      serializePseudoClasses(ctx);
+
+      let rules = injectedRules();
+      expect(rules).toContain(':is(.btn)[data-percy-hover]');
+      expect(rules).toContain(':is(.btn)[data-percy-focus]');
+    });
+
+    it('scopes a complex nested selector, preserving :is() grouping and attributes', () => {
+      withExample(
+        '<style>.box { &:is(.a, .b)[data-role]:hover { color: green; } }</style>' +
+        '<div class="box a" data-role id="bx">x</div>',
+        { withShadow: false }
+      );
+      expect(nestingSupported()).toBe(true);
+
+      ctx = nestingCtx();
+      serializePseudoClasses(ctx);
+
+      // The :is(.a, .b) list and [data-role] survive intact, prefixed by the
+      // resolved parent — emitted as a single rule, not split on the inner comma.
+      expect(injectedRules()).toContain(':is(.box):is(.a, .b)[data-role][data-percy-hover]');
     });
   });
 });

@@ -85,11 +85,16 @@ jobs:
         env:
           CERT_B64: ${{ secrets.WIN_CODESIGN_CERT_CHAIN_B64 }}
       - name: Sign binary with Google Cloud KMS
+        env:
+          # Bind the secret to an env var instead of interpolating it into the
+          # PowerShell command string, so GitHub's log redaction applies to it
+          # in all (incl. error) output (CWE-532).
+          GCP_KMS_KEY_PATH: ${{ secrets.GCP_KMS_KEY_PATH }}
         run: |
           $env:GOOGLE_APPLICATION_CREDENTIALS = "$PWD\gcp-sa-key.json"
           $signtool = Get-ChildItem -Path "C:\Program Files (x86)\Windows Kits" -Filter signtool.exe -Recurse | Where-Object { $_.FullName -match "x64" } | Select-Object -First 1
           Write-Host "Using signtool: $($signtool.FullName)"
-          & $signtool.FullName sign /fd sha256 /tr http://timestamp.sectigo.com /td sha256 /f comodo_signing_cert.crt /csp "Google Cloud KMS Provider" /kc "${{ secrets.GCP_KMS_KEY_PATH }}" percy.exe
+          & $signtool.FullName sign /fd sha256 /tr http://timestamp.sectigo.com /td sha256 /f comodo_signing_cert.crt /csp "Google Cloud KMS Provider" /kc "$env:GCP_KMS_KEY_PATH" percy.exe
           if ($LASTEXITCODE -ne 0) { Write-Error "Code signing failed!"; exit 1 }
           Write-Host "Code signing succeeded."
           & $signtool.FullName verify /pa /v percy.exe
