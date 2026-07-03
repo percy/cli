@@ -2,14 +2,19 @@ name: SDK Regression
 on:
   issue_comment:
     types: [created, edited]
-  pull_request:
-    types: [labeled, synchronize, reopened]
   workflow_dispatch:
     inputs:
       branch:
         description: CLI branch to run all SDK regression against
         required: false
         default: master
+      sdk_refs:
+        description: >-
+          Per-SDK workflow ref overrides, comma-separated repo@branch
+          (e.g. percy-cypress@my-fix,percy-ember@feat-x). SDKs not listed
+          run from their matrix default ref.
+        required: false
+        default: ''
 permissions:
   contents: read
 jobs:
@@ -24,13 +29,12 @@ jobs:
       pull-requests: read
       statuses: write
     # Run when either:
-    #  - a maintainer comments RUN_REGRESSION on a PR (legacy manual path), or
-    #  - the PR carries the `run-sdk-regression` label (auto path / quality gate).
-    # Both paths are internal-only: only write/admin collaborators can comment-gate
-    # (enforced by check-access below) or apply a label.
+    #  - a maintainer comments RUN_REGRESSION on a PR, or
+    #  - the workflow is dispatched manually (CLI branch + optional per-SDK refs).
+    # Both paths are internal-only: the comment path is gated to write/admin
+    # collaborators (check-access below); dispatch requires repo write access.
     if: >-
       (github.event_name == 'issue_comment' && github.event.issue.pull_request && github.event.comment.body == 'RUN_REGRESSION') ||
-      (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'run-sdk-regression')) ||
       (github.event_name == 'workflow_dispatch')
     strategy:
       # Don't let one SDK's failure cancel the rest — a regression run must
@@ -108,8 +112,6 @@ jobs:
         id: pr
         env:
           EVENT_NAME: ${{ github.event_name }}
-          PR_HEAD_REF: ${{ github.event.pull_request.head.ref }}
-          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           COMMENT_HEAD_REF: ${{ steps.comment-branch.outputs.head_ref }}
           COMMENT_HEAD_SHA: ${{ steps.comment-branch.outputs.head_sha }}
           DISPATCH_BRANCH: ${{ github.event.inputs.branch }}
@@ -118,9 +120,6 @@ jobs:
           if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
             echo "head_ref=$DISPATCH_BRANCH" >> "$GITHUB_OUTPUT"
             echo "head_sha=$DISPATCH_SHA" >> "$GITHUB_OUTPUT"
-          elif [ "$EVENT_NAME" = "pull_request" ]; then
-            echo "head_ref=$PR_HEAD_REF" >> "$GITHUB_OUTPUT"
-            echo "head_sha=$PR_HEAD_SHA" >> "$GITHUB_OUTPUT"
           else
             echo "head_ref=$COMMENT_HEAD_REF" >> "$GITHUB_OUTPUT"
             echo "head_sha=$COMMENT_HEAD_SHA" >> "$GITHUB_OUTPUT"
@@ -172,6 +171,30 @@ jobs:
         with:
           msg: ${{ matrix.repo }}
           separator: '@'
+      # Resolve the ref the SDK's workflow runs from. Dispatch may override it
+      # per SDK via the sdk_refs input (comma-separated repo@branch); anything
+      # not listed keeps the matrix default. The chosen ref is validated before
+      # use — it flows into a downstream workflow dispatch.
+      - name: Resolve SDK workflow ref
+        id: sdk-ref
+        env:
+          SDK_REFS: ${{ github.event.inputs.sdk_refs }}
+          REPO_NAME: ${{ steps.split.outputs._0 }}
+          DEFAULT_REF: ${{ steps.split.outputs._1 || 'master' }}
+        run: |
+          ref="$DEFAULT_REF"
+          IFS=',' read -ra overrides <<< "${SDK_REFS:-}"
+          for o in "${overrides[@]}"; do
+            o="${o#"${o%%[![:space:]]*}"}"; o="${o%"${o##*[![:space:]]}"}"
+            case "$o" in
+              "$REPO_NAME"@?*) ref="${o#*@}" ;;
+            esac
+          done
+          if ! printf '%s' "$ref" | grep -Eq '^[a-zA-Z0-9_/.\-]+$'; then
+            echo "::error::invalid sdk ref '$ref' for $REPO_NAME"
+            exit 1
+          fi
+          echo "ref=$ref" >> "$GITHUB_OUTPUT"
       - name: Trigger Workflow & Wait
         uses: convictional/trigger-workflow-and-wait@f69fa9eedd3c62a599220f4d5745230e237904be # v1.6.5
         id: reg-test
@@ -185,7 +208,7 @@ jobs:
           #   percy-react-native-app -> storybook-rn-ci.yml
           #   percy-tosca-dotnet / percy-uipath -> ci.yml (they have no test.yml)
           workflow_file_name: ${{ steps.split.outputs._0 == 'percy-storybook' && 'test-storybook-v10.yml' || (steps.split.outputs._0 == 'percy-react-native-app' && 'storybook-rn-ci.yml' || ((steps.split.outputs._0 == 'percy-tosca-dotnet' || steps.split.outputs._0 == 'percy-uipath') && 'ci.yml' || 'test.yml')) }}
-          ref: ${{ steps.split.outputs._1 || 'master' }}
+          ref: ${{ steps.sdk-ref.outputs.ref }}
           client_payload: '{ "branch": "${{ steps.pr.outputs.head_ref }}"}'
           wait_interval: 15
       - name: Update Status
