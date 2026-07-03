@@ -50,7 +50,6 @@ jobs:
           - percy-playwright
           - percy-testcafe
           - percy-nightwatch
-          - percy-nightmare
           - percy-webdriverio
           - percy-webdriverio@v2
           - percy-protractor
@@ -67,7 +66,6 @@ jobs:
           # (the split default below is `master`, which would 404 for these).
           - percy-detox@main
           - percy-playwright-python@main
-          - percy-robotframework@main
           - percy-playwright-java@main
           - percy-playwright-dotnet@main
           - percy-appium-dotnet@main
