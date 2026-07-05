@@ -321,13 +321,87 @@ export function cleanupInteractiveStateMarkers(ctx) {
   ctx._liveMutations = [];
 }
 
+// Layout / box-model / positioning properties are deliberately NOT baked into
+// the pseudo-class computed-style block. serializePseudoClasses captures a
+// single getComputedStyle snapshot taken at the SDK capture viewport; baking
+// sizing/position as `!important` would freeze that viewport's geometry and
+// override the page's responsive rules at every OTHER render width (PER-9836:
+// a CTA anchor baked at `width: 134px !important` rendered content-width at
+// Percy's 375px width instead of the site's mobile full-width). We only want
+// the *paint* delta of the forced :hover/:active state (color, background,
+// border, shadow, etc.); layout stays governed by the page's own stylesheets
+// (which are serialized separately and re-evaluate media queries per width).
+const NON_BAKED_STYLE_PROPS = new Set([
+  // intrinsic sizing
+  'width', 'height', 'min-width', 'max-width', 'min-height', 'max-height',
+  'inline-size', 'block-size', 'min-inline-size', 'max-inline-size',
+  'min-block-size', 'max-block-size', 'aspect-ratio',
+  // padding
+  'padding', 'padding-top', 'padding-right', 'padding-bottom', 'padding-left',
+  'padding-block', 'padding-block-start', 'padding-block-end',
+  'padding-inline', 'padding-inline-start', 'padding-inline-end',
+  // margin
+  'margin', 'margin-top', 'margin-right', 'margin-bottom', 'margin-left',
+  'margin-block', 'margin-block-start', 'margin-block-end',
+  'margin-inline', 'margin-inline-start', 'margin-inline-end',
+  // positioning
+  'position', 'top', 'right', 'bottom', 'left',
+  'inset', 'inset-block', 'inset-block-start', 'inset-block-end',
+  'inset-inline', 'inset-inline-start', 'inset-inline-end', 'float', 'clear',
+  // box / display model
+  'display', 'box-sizing',
+  // flexbox
+  'flex', 'flex-basis', 'flex-grow', 'flex-shrink', 'flex-direction',
+  'flex-flow', 'flex-wrap',
+  // grid
+  'grid', 'grid-template', 'grid-template-columns', 'grid-template-rows',
+  'grid-template-areas', 'grid-auto-columns', 'grid-auto-rows',
+  'grid-auto-flow', 'grid-column', 'grid-row', 'grid-area',
+  // alignment / gaps / multicol
+  'gap', 'row-gap', 'column-gap', 'order',
+  'justify-content', 'justify-items', 'justify-self',
+  'align-content', 'align-items', 'align-self',
+  'place-content', 'place-items', 'place-self',
+  'columns', 'column-count', 'column-width',
+  // transition timing — a static clone never animates; baking it only risks
+  // a load-time tween in the renderer, never a benefit
+  'transition', 'transition-property', 'transition-duration',
+  'transition-timing-function', 'transition-delay', 'transition-behavior'
+]);
+
 function stylesToCSSText(styles) {
   const decls = [];
   for (let i = 0; i < styles.length; i++) {
     const property = styles[i];
+    if (NON_BAKED_STYLE_PROPS.has(property)) continue;
     decls.push(`${property}: ${styles.getPropertyValue(property)} !important;`);
   }
   return decls.join(' ');
+}
+
+// Read an element's computed style with CSS transitions momentarily disabled, so
+// the baked snapshot reflects the element's FINAL forced-state style rather than
+// a mid-transition frame. The SDK typically forces :hover/:active (e.g. via a
+// Playwright `.hover()`) and serializes immediately, which can catch a running
+// transition partway — PER-9836: a hover snapshot baked a half-faded background
+// (rgb(197,230,249), the mid-point of the rest→hover fade) instead of the settled
+// hover colour. Setting `transition: none` makes getComputedStyle return the
+// after-change value; the element's original inline transition is restored in a
+// `finally` so the live page (SDK mode runs in the customer's tab) is untouched
+// whether or not getComputedStyle throws.
+function computedStyleTextSettled(win, element) {
+  // Element nodes always expose `.style`; if reading/mutating it ever throws
+  // (exotic node), the caller's try/catch downgrades to a warning as before.
+  const style = element.style;
+  const prevValue = style.getPropertyValue('transition');
+  const prevPriority = style.getPropertyPriority('transition');
+  style.setProperty('transition', 'none', 'important');
+  try {
+    return stylesToCSSText(win.getComputedStyle(element));
+  } finally {
+    if (prevValue) style.setProperty('transition', prevValue, prevPriority);
+    else style.removeProperty('transition');
+  }
 }
 
 // Resolve a nested rule's selector against its parent per CSS Nesting.
@@ -530,8 +604,7 @@ export function serializePseudoClasses(ctx) {
       // fall back to the global window when ctx.dom is the top document or a
       // synthetic root that doesn't expose defaultView (e.g. tests).
       const win = ctx.dom.defaultView || window;
-      const computedStyles = win.getComputedStyle(element);
-      const cssText = stylesToCSSText(computedStyles);
+      const cssText = computedStyleTextSettled(win, element);
       cssRules.push(`[${PSEUDO_ELEMENT_MARKER_ATTR}="${percyElementId}"] { ${cssText} }`);
     } catch (err) {
       console.warn('Could not get computed styles for element', element, err);
