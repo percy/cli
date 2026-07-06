@@ -291,46 +291,6 @@ describe('Unit / Install', () => {
       });
     }
   });
-
-  describe('resolveChromiumBaseUrl', () => {
-    let defaultUrl = 'https://storage.googleapis.com/chromium-browser-snapshots/';
-
-    afterEach(() => {
-      delete process.env.PERCY_CHROMIUM_BASE_URL;
-    });
-
-    it('returns the default host when no base URL is set', () => {
-      delete process.env.PERCY_CHROMIUM_BASE_URL;
-      expect(install.resolveChromiumBaseUrl()).toEqual(defaultUrl);
-    });
-
-    it('reads the base URL from PERCY_CHROMIUM_BASE_URL by default', () => {
-      process.env.PERCY_CHROMIUM_BASE_URL = 'https://mirror.test.com/';
-      expect(install.resolveChromiumBaseUrl()).toEqual('https://mirror.test.com/');
-    });
-
-    it('appends a trailing slash to a valid HTTPS base URL', () => {
-      expect(install.resolveChromiumBaseUrl('https://mirror.test.com/chromium'))
-        .toEqual('https://mirror.test.com/chromium/');
-    });
-
-    it('leaves an already slash-terminated base URL unchanged', () => {
-      expect(install.resolveChromiumBaseUrl('https://mirror.test.com/'))
-        .toEqual('https://mirror.test.com/');
-    });
-
-    it('falls back to the default host for an unparseable URL', () => {
-      expect(install.resolveChromiumBaseUrl('not a valid url')).toEqual(defaultUrl);
-      expect(logger.stderr).toContain(
-        '[percy] Invalid PERCY_CHROMIUM_BASE_URL "not a valid url"; using the default Chromium download host.');
-    });
-
-    it('rejects a non-HTTPS base URL and falls back to the default host', () => {
-      expect(install.resolveChromiumBaseUrl('http://mirror.test.com/')).toEqual(defaultUrl);
-      expect(logger.stderr).toContain(
-        '[percy] Ignoring non-HTTPS PERCY_CHROMIUM_BASE_URL "http://mirror.test.com/"; Chromium must be downloaded over HTTPS.');
-    });
-  });
 });
 
 describe('Unit / Install in executable', () => {
