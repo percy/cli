@@ -1,7 +1,7 @@
 import { request as makeRequest } from '@percy/client/utils';
 import logger from '@percy/logger';
 import mime from 'mime-types';
-import { AbortError, DefaultMap, createResource, hostnameMatches, normalizeURL, waitFor, decodeAndEncodeURLWithLogging, handleIncorrectFontMimeType, executeDomainValidation } from './utils.js';
+import { AbortError, DefaultMap, createResource, hostnameMatches, normalizeURL, waitFor, decodeAndEncodeURLWithLogging, handleIncorrectFontMimeType, executeDomainValidation, isMetadataTarget } from './utils.js';
 
 export const MAX_RESOURCE_SIZE = 25 * (1024 ** 2) * 0.63; // 25MB, 0.63 factor for accounting for base64 encoding
 // CDP returns binary bodies via Network.getResponseBody as base64 in the JSON-RPC
@@ -578,7 +578,8 @@ export function logAssetInstrumentation(log, category, reason, details) {
     resource_too_large: 'Resource too large',
     no_response: 'No response received',
     empty_response: 'Empty response',
-    disallowed_resource_type: 'Disallowed resource type'
+    disallowed_resource_type: 'Disallowed resource type',
+    metadata_endpoint_blocked: 'Cloud metadata endpoint blocked'
   };
 
   const prefix = categoryMap[category];
@@ -694,6 +695,21 @@ async function sendResponseResource(network, request, session) {
         body: Buffer.from(resource.content).toString('base64'),
         responseHeaders: Object.entries(resource.headers || {})
           .map(([k, v]) => ({ name: k.toLowerCase(), value: String(v) }))
+      });
+    } else if (await isMetadataTarget(url)) {
+      // Block SSRF pivots to cloud instance-metadata endpoints before issuing a
+      // real outbound request. Cache hits and root resources are served above
+      // and never reach here, so loopback/RFC1918 snapshotting is unaffected.
+      logAssetInstrumentation(log, 'asset_not_uploaded', 'metadata_endpoint_blocked', {
+        url,
+        hostname: new URL(url).hostname,
+        snapshot: meta.snapshot
+      });
+      log.warn(`Refusing to fetch resource from cloud metadata endpoint: ${new URL(url).hostname}`, meta);
+
+      await send('Fetch.failRequest', {
+        requestId: request.interceptId,
+        errorReason: 'Aborted'
       });
     } else {
       // interceptResponse:true triggers a second pause at the response stage. See _handleResponsePaused.

@@ -14,7 +14,8 @@ import {
   withRetries,
   waitForSelectorInsideBrowser,
   isGzipped,
-  maybeScrollToBottom
+  maybeScrollToBottom,
+  assertNotMetadataTarget
 } from './utils.js';
 import { ByteLRU, entrySize, DiskSpillStore, createSpillDir } from './cache/byte-lru.js';
 import {
@@ -315,6 +316,8 @@ async function* captureSnapshotResources(page, snapshot, options) {
 
   // navigate to the url
   yield resizePage(snapshot.widths[0]);
+  // refuse to navigate the top-level snapshot URL to a cloud metadata endpoint
+  await assertNotMetadataTarget(snapshot.url);
   yield page.goto(snapshot.url, { cookies, forceReload: discovery.captureResponsiveAssetsEnabled });
 
   // wait for any specified timeout

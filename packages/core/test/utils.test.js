@@ -1,5 +1,6 @@
-import { decodeAndEncodeURLWithLogging, waitForSelectorInsideBrowser, compareObjectTypes, isGzipped, checkSDKVersion, percyAutomateRequestHandler, detectFontMimeType, handleIncorrectFontMimeType, computeResponsiveWidths, appendUrlSearchParam, processCorsIframesInDomSnapshot, processCorsIframes, isHttpOrHttpsUrl, rewriteLocalhostURL, buildSyntheticFrameResourceUrl } from '../src/utils.js';
+import { decodeAndEncodeURLWithLogging, waitForSelectorInsideBrowser, compareObjectTypes, isGzipped, checkSDKVersion, percyAutomateRequestHandler, detectFontMimeType, handleIncorrectFontMimeType, computeResponsiveWidths, appendUrlSearchParam, processCorsIframesInDomSnapshot, processCorsIframes, isHttpOrHttpsUrl, rewriteLocalhostURL, buildSyntheticFrameResourceUrl, isMetadataTarget, assertNotMetadataTarget } from '../src/utils.js';
 import { logger, setupTest, mockRequests } from './helpers/index.js';
+import dns from 'dns';
 import percyLogger from '@percy/logger';
 import Percy from '@percy/core';
 import Pako from 'pako';
@@ -825,6 +826,67 @@ describe('utils', () => {
       expect(isHttpOrHttpsUrl('not a url')).toBe(false);
       expect(isHttpOrHttpsUrl('')).toBe(false);
       expect(isHttpOrHttpsUrl(undefined)).toBe(false);
+    });
+  });
+
+  describe('isMetadataTarget', () => {
+    it('blocks literal cloud metadata IPs', async () => {
+      expect(await isMetadataTarget('http://169.254.169.254/latest/meta-data/')).toBe('169.254.169.254');
+      expect(await isMetadataTarget('http://169.254.170.2/v2/credentials')).toBe('169.254.170.2');
+      expect(await isMetadataTarget('http://100.100.100.200/latest/meta-data/')).toBe('100.100.100.200');
+    });
+
+    it('blocks the AWS IMDS IPv6 endpoint regardless of formatting', async () => {
+      // the URL parser normalizes IPv6 hostnames to their compressed, bracketed form
+      expect(await isMetadataTarget('http://[fd00:ec2::254]/latest/meta-data/')).toBe('[fd00:ec2::254]');
+      expect(await isMetadataTarget('http://[fd00:ec2:0:0:0:0:0:254]/')).toBe('[fd00:ec2::254]');
+    });
+
+    it('blocks known metadata hostnames case-insensitively and with a trailing dot', async () => {
+      expect(await isMetadataTarget('http://metadata.google.internal/computeMetadata/v1/')).toBe('metadata.google.internal');
+      // the URL parser lowercases and preserves the trailing dot in the returned hostname
+      expect(await isMetadataTarget('http://Metadata.Google.Internal./')).toBe('metadata.google.internal.');
+      expect(await isMetadataTarget('http://metadata.goog/')).toBe('metadata.goog');
+    });
+
+    it('blocks hostnames that resolve to a metadata IP (DNS rebinding)', async () => {
+      spyOn(dns.promises, 'lookup').and.resolveTo([{ address: '169.254.169.254', family: 4 }]);
+      expect(await isMetadataTarget('http://rebind.attacker.example/')).toBe('rebind.attacker.example');
+    });
+
+    it('allows loopback hosts', async () => {
+      spyOn(dns.promises, 'lookup').and.resolveTo([{ address: '127.0.0.1', family: 4 }, { address: '::1', family: 6 }]);
+      expect(await isMetadataTarget('http://localhost:3000/')).toBeNull();
+      expect(await isMetadataTarget('http://127.0.0.1:8080/')).toBeNull();
+      expect(await isMetadataTarget('http://[::1]/')).toBeNull();
+    });
+
+    it('allows RFC1918 private hosts and normal public hosts', async () => {
+      spyOn(dns.promises, 'lookup').and.resolveTo([{ address: '93.184.216.34', family: 4 }]);
+      expect(await isMetadataTarget('http://192.168.1.10:3000/')).toBeNull();
+      expect(await isMetadataTarget('http://10.0.0.5/')).toBeNull();
+      expect(await isMetadataTarget('https://example.com/index.html')).toBeNull();
+    });
+
+    it('does not block when DNS resolution fails', async () => {
+      spyOn(dns.promises, 'lookup').and.rejectWith(new Error('ENOTFOUND'));
+      expect(await isMetadataTarget('http://offline.internal.example/')).toBeNull();
+    });
+
+    it('returns null for unparseable URLs', async () => {
+      expect(await isMetadataTarget('not a url')).toBeNull();
+    });
+  });
+
+  describe('assertNotMetadataTarget', () => {
+    it('throws a clear error for a metadata endpoint', async () => {
+      await expectAsync(assertNotMetadataTarget('http://169.254.169.254/'))
+        .toBeRejectedWithError('Refusing to navigate to cloud metadata endpoint: 169.254.169.254');
+    });
+
+    it('resolves for a normal host', async () => {
+      spyOn(dns.promises, 'lookup').and.resolveTo([{ address: '93.184.216.34', family: 4 }]);
+      await expectAsync(assertNotMetadataTarget('https://example.com/')).toBeResolved();
     });
   });
 

@@ -4,6 +4,8 @@ import { camelcase, merge } from '@percy/config/utils';
 import YAML from 'yaml';
 import path from 'path';
 import url from 'url';
+import net from 'net';
+import dns from 'dns';
 import { readFileSync } from 'fs';
 import logger from '@percy/logger';
 import DetectProxy from '@percy/client/detect-proxy';
@@ -54,6 +56,89 @@ export function isHttpOrHttpsUrl(urlString) {
     return protocol === 'http:' || protocol === 'https:';
   } catch {
     return false;
+  }
+}
+
+// Cloud instance-metadata endpoints. These are never legitimate snapshot
+// targets, but they hand out short-lived cloud credentials to anything that
+// can reach them — so a page (or a subresource it requests) that navigates
+// Chromium to one of these can exfiltrate credentials via SSRF. We block
+// these specific targets only; loopback and general RFC1918 hosts stay
+// allowed so that snapshotting http://localhost:3000 and internal staging
+// hosts keeps working.
+const METADATA_IPS = new Set([
+  '169.254.169.254', // AWS/Azure/GCP IMDS
+  '169.254.170.2', // AWS ECS task metadata
+  '100.100.100.200', // Alibaba Cloud
+  'fd00:ec2::254' // AWS IMDS over IPv6
+].map(canonicalHost));
+
+const METADATA_HOSTNAMES = new Set([
+  'metadata.google.internal',
+  'metadata.goog'
+]);
+
+// Canonicalizes a host for comparison: lowercases, strips a trailing dot and
+// IPv6 brackets, and normalizes IPv6 addresses to their compressed form (so
+// e.g. fd00:ec2:0:0:0:0:0:254 and fd00:ec2::254 compare equal).
+function canonicalHost(host) {
+  if (!host) return host;
+  let h = String(host).toLowerCase().replace(/\.$/, '');
+  let bare = h.replace(/^\[/, '').replace(/\]$/, '');
+
+  if (bare.includes(':')) {
+    try {
+      return new URL(`http://[${bare}]/`).hostname.replace(/^\[/, '').replace(/\]$/, '');
+    } catch {
+      return bare;
+    }
+  }
+
+  return bare;
+}
+
+// Returns the offending host string when the URL points at a known cloud
+// instance-metadata endpoint, otherwise null. Matches literal metadata IPs
+// (IPv4 and IPv6) and metadata hostnames, and — to defeat DNS rebinding — also
+// resolves hostnames and matches when any resolved address is a metadata IP.
+// DNS resolution failures are intentionally non-fatal (only a positive
+// metadata match blocks) so offline/localhost snapshots are unaffected.
+export async function isMetadataTarget(rawUrl) {
+  let host;
+
+  try {
+    host = new URL(rawUrl).hostname;
+  } catch {
+    // Unparseable URLs are handled elsewhere; they are not our concern here.
+    return null;
+  }
+
+  let canon = canonicalHost(host);
+  if (METADATA_IPS.has(canon) || METADATA_HOSTNAMES.has(canon)) return host;
+
+  // Resolving an IP literal is pointless, and resolving arbitrary hostnames
+  // must stay best-effort, so only look up non-IP hosts.
+  if (net.isIP(canon)) return null;
+
+  try {
+    let addresses = await dns.promises.lookup(canon, { all: true });
+    for (let { address } of addresses) {
+      if (METADATA_IPS.has(canonicalHost(address))) return host;
+    }
+  } catch {
+    // Non-fatal: unresolvable hosts (offline, localhost-only, private DNS) are
+    // left alone. Only a positive metadata match blocks a request.
+  }
+
+  return null;
+}
+
+// Throws when the URL points at a cloud instance-metadata endpoint. Used to
+// refuse navigating the top-level snapshot URL to such a target.
+export async function assertNotMetadataTarget(rawUrl) {
+  let host = await isMetadataTarget(rawUrl);
+  if (host) {
+    throw new Error(`Refusing to navigate to cloud metadata endpoint: ${host}`);
   }
 }
 
