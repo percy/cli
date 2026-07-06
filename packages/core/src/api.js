@@ -433,13 +433,16 @@ export function createPercyServer(percy, port) {
     .route('post', '/percy/comparison', async (req, res) => {
       let data;
       if (percy.syncMode(req.body)) {
-        // percy.upload returns an async generator that must be drained for #snapshots.push to run.
+        // percy.upload() is the generatePromise-wrapped method: calling it drives the
+        // underlying async generator to completion (enqueuing #snapshots) and the sync
+        // queue resolves/rejects the attached callback. Do NOT `for await` the return
+        // value — it is a Promise, not an async iterable. The raw generator lives at
+        // percy.yield.upload() if direct iteration is ever needed. The trailing
+        // .catch(reject) surfaces generator errors that bypass the sync-queue callback
+        // (e.g. a throw before the queue task runs) instead of leaking an unhandled
+        // rejection and hanging the request.
         const snapshotPromise = new Promise((resolve, reject) => {
-          const upload = percy.upload(req.body, { resolve, reject }, 'app');
-          (async () => {
-            // eslint-disable-next-line no-unused-vars
-            try { for await (const _ of upload) { /* drain */ } } catch (e) { reject(e); }
-          })();
+          percy.upload(req.body, { resolve, reject }, 'app').catch(reject);
         });
         data = await handleSyncJob(snapshotPromise, percy, 'comparison');
       } else {
@@ -473,15 +476,19 @@ export function createPercyServer(percy, port) {
       let { name, sessionId } = req.body || {};
 
       if (!name) throw new ServerError(400, 'Missing required field: name');
-      if (!sessionId) throw new ServerError(400, 'Missing required field: sessionId');
+
+      // Self-hosted vs BrowserStack is signaled by sessionId presence: BS
+      // host-injection always supplies it; self-hosted runs never do.
+      let selfHosted = !sessionId;
 
       // Strict character-class validation — rejects path separators, shell metacharacters,
       // NUL, newlines, and anything else that could confuse the glob or the filesystem.
+      // `name` is load-bearing for the recursive glob — must not be loosened.
       const SAFE_ID = /^[a-zA-Z0-9_-]+$/;
       if (!SAFE_ID.test(name)) {
         throw new ServerError(400, 'Invalid screenshot name');
       }
-      if (!SAFE_ID.test(sessionId)) {
+      if (sessionId && !SAFE_ID.test(sessionId)) {
         throw new ServerError(400, 'Invalid sessionId');
       }
 
@@ -519,6 +526,49 @@ export function createPercyServer(percy, port) {
           throw new ServerError(400, 'Invalid filePath: must be an absolute path');
         }
         suppliedFilePath = req.body.filePath;
+      }
+
+      // Resolve the file-find scope root. On BrowserStack (sessionId present),
+      // the root is the BS host's /tmp/{sessionId}{_test_suite} convention.
+      // Self-hosted (sessionId absent) requires PERCY_MAESTRO_SCREENSHOT_DIR
+      // (read from process.env, never the request body) to be an absolute,
+      // existing directory — typically the customer's
+      // `maestro test --test-output-dir <DIR>` path. The realpath + prefix
+      // check below enforces the security invariant at whichever root applies;
+      // the boundary is relocated, not removed.
+      let scopeRoot;
+      if (selfHosted) {
+        // Reject filePath outright in self-hosted mode. The SDK never emits
+        // it (it sends a relative SCREENSHOT_NAME); honoring an absolute
+        // filePath against a caller-influenceable root would re-open
+        // arbitrary in-root reads.
+        if (suppliedFilePath) {
+          throw new ServerError(400, 'filePath is not accepted in self-hosted mode (omit it; PERCY_MAESTRO_SCREENSHOT_DIR + relative SCREENSHOT_NAME is the supported path)');
+        }
+        let dir = process.env.PERCY_MAESTRO_SCREENSHOT_DIR;
+        if (!dir) {
+          throw new ServerError(400, 'Missing required env: PERCY_MAESTRO_SCREENSHOT_DIR (set it to your `maestro test --test-output-dir` path)');
+        }
+        if (!path.isAbsolute(dir)) {
+          throw new ServerError(400, 'PERCY_MAESTRO_SCREENSHOT_DIR must be an absolute path');
+        }
+        // UX guard ONLY: surface an actionable 400 ("dir not found") instead
+        // of the opaque 404 the realpath+prefix containment check below would
+        // emit for a missing dir. There is a small TOCTOU window between this
+        // stat and the realpath at line 647 — that window is acceptable here
+        // because realpath (not stat) is the security invariant: even if the
+        // dir is replaced with a symlink in between, realpath resolves the
+        // target and the sep-prefix check rejects anything outside scopeRoot.
+        let stat;
+        try { stat = await fs.promises.stat(dir); } catch { stat = null; }
+        if (!stat || !stat.isDirectory()) {
+          throw new ServerError(400, `PERCY_MAESTRO_SCREENSHOT_DIR is not an existing directory: ${dir}`);
+        }
+        scopeRoot = dir;
+      } else {
+        scopeRoot = platform === 'ios'
+          ? `/tmp/${sessionId}`
+          : `/tmp/${sessionId}_test_suite`;
       }
 
       // Validate regions input shape early (before file I/O and ADB work) so
@@ -577,21 +627,44 @@ export function createPercyServer(percy, port) {
         //     {device}_maestro_debug_ root. The `**` recursive match handles any depth.
         //     Exact {name}.png match at the leaf filters out Maestro's emoji-prefixed
         //     debug frames (e.g., `screenshot-❌-<timestamp>-(flow).png`).
-        let searchPattern = platform === 'ios'
-          ? `/tmp/${sessionId}/*_maestro_debug_*/**/${name}.png`
-          : `/tmp/${sessionId}_test_suite/logs/*/screenshots/${name}.png`;
+        let searchPattern;
+        if (selfHosted) {
+          // Self-hosted: recursive glob under the customer's --test-output-dir
+          // (PERCY_MAESTRO_SCREENSHOT_DIR). Recursive depth handles arbitrary
+          // Maestro layouts; `name` is SAFE_ID-validated above so it cannot
+          // contain separators or traversal characters.
+          //
+          // fast-glob requires forward-slashes in patterns on every platform
+          // (per its docs: "Always use forward-slashes in glob expressions").
+          // On Windows the scopeRoot from path.resolve contains backslashes,
+          // so we normalize before embedding into the pattern. Production-
+          // code Windows portability — verified by the CI Windows runner.
+          const globRoot = scopeRoot.replace(/\\/g, '/');
+          searchPattern = `${globRoot}/**/${name}.png`;
+        } else {
+          searchPattern = platform === 'ios'
+            ? `/tmp/${sessionId}/*_maestro_debug_*/**/${name}.png`
+            : `/tmp/${sessionId}_test_suite/logs/*/screenshots/${name}.png`;
+        }
 
         let files;
         try {
           let { default: glob } = await import('fast-glob');
-          files = await glob(searchPattern);
+          // Self-hosted needs `dot: true` because Maestro's default output
+          // directory is `.maestro/` — a dot-prefixed entry that fast-glob
+          // hides by default. BS layouts have no dot-prefixed segments, so
+          // omitting the option there keeps the byte-identical behavior.
+          files = await glob(searchPattern, selfHosted ? { dot: true } : undefined);
         } catch {
           // Fast-glob import / glob call failed — fall back to manual walker.
           // See manualScreenshotWalk() at file top for the rationale + the
           // file-level .semgrepignore covering path-traversal sinks inside.
+          // Self-hosted has no walker fallback (no fixed-layout convention) —
+          // empty files → 404 with the actionable PERCY_MAESTRO_SCREENSHOT_DIR
+          // guidance above.
           /* istanbul ignore next — only fires when fast-glob import throws
              (broken install / FS corruption); integration-test territory. */
-          files = await manualScreenshotWalk(platform, sessionId, name);
+          files = selfHosted ? [] : await manualScreenshotWalk(platform, sessionId, name);
         }
 
         if (!files || files.length === 0) {
@@ -616,22 +689,27 @@ export function createPercyServer(percy, port) {
         }
       }
 
-      // Canonicalize and confirm the resolved path still lives under the sessionId-owned dir.
-      // Defeats symlink swaps where a sessionId-named dir points elsewhere.
-      // We resolve both the file and the expected prefix because /tmp is a symlink on macOS
-      // (iOS hosts run macOS, where /tmp → /private/tmp).
-      let expectedSessionRoot = platform === 'ios'
-        ? `/tmp/${sessionId}`
-        : `/tmp/${sessionId}_test_suite`;
+      // Canonicalize and confirm the resolved path still lives under scopeRoot.
+      // Defeats symlink swaps where the root points elsewhere. Both ends are
+      // realpath'd because /tmp is a symlink on macOS (where iOS hosts run).
+      // The trailing `/` on the prefix is load-bearing — it prevents
+      // sibling-prefix bypass (e.g. /x/.maestro vs /x/.maestro-secrets).
+      //
+      // Normalize both sides to forward-slashes before the prefix check so
+      // the same code works on Windows (real-fs returns backslashes) AND on
+      // POSIX (no-op) AND on memfs in tests (POSIX-style virtual paths
+      // regardless of host OS).
       let realPath, realPrefix;
       try {
         realPath = await fs.promises.realpath(chosenFile);
-        realPrefix = await fs.promises.realpath(expectedSessionRoot);
+        realPrefix = await fs.promises.realpath(scopeRoot);
       } catch {
         throw new ServerError(404, `Screenshot not found: ${name}.png (path resolution failed)`);
       }
-      if (!realPath.startsWith(`${realPrefix}/`)) {
-        throw new ServerError(404, `Screenshot not found: ${name}.png (resolved outside session dir)`);
+      const realPathFwd = realPath.replace(/\\/g, '/');
+      const realPrefixFwd = realPrefix.replace(/\\/g, '/');
+      if (!realPathFwd.startsWith(`${realPrefixFwd}/`)) {
+        throw new ServerError(404, `Screenshot not found: ${name}.png (resolved outside ${selfHosted ? 'PERCY_MAESTRO_SCREENSHOT_DIR' : 'session dir'})`);
       }
 
       // Read and base64-encode the screenshot
@@ -763,7 +841,10 @@ export function createPercyServer(percy, port) {
           if (cachedDump === null) {
             // Thread the per-Percy gRPC client cache so the Android gRPC
             // primary path can reuse channels across snapshots in the same
-            // session (D9 of 2026-05-07-002 plan). iOS path ignores it.
+            // session (D9 of 2026-05-07-002 plan). iOS path ignores it
+            // (the iOS resolver reads PERCY_IOS_DRIVER_HOST_PORT directly;
+            // no per-session port cache needed since the port is prescribed
+            // upstream by `@percy/cli-app`'s `maybeInjectDriverHostPort`).
             cachedDump = await maestroDump({
               platform,
               sessionId,
@@ -875,14 +956,11 @@ export function createPercyServer(percy, port) {
 
       let data;
       if (percy.syncMode(payload)) {
-        // percy.upload returns an async generator that must be drained for #snapshots.push to run.
-        // See docs/solutions/best-practices/2026-05-20-maestro-sync-promise-bug-investigation.md.
+        // See the /percy/comparison route: percy.upload() is the Promise-wrapped method;
+        // calling it drives the generator and the sync queue resolves/rejects the callback.
+        // The .catch(reject) surfaces generator errors that bypass that callback.
         const snapshotPromise = new Promise((resolve, reject) => {
-          const upload = percy.upload(payload, { resolve, reject }, 'app');
-          (async () => {
-            // eslint-disable-next-line no-unused-vars
-            try { for await (const _ of upload) { /* drain */ } } catch (e) { reject(e); }
-          })();
+          percy.upload(payload, { resolve, reject }, 'app').catch(reject);
         });
         data = await handleSyncJob(snapshotPromise, percy, 'comparison');
         return res.json(200, { success: true, data });
@@ -916,13 +994,11 @@ export function createPercyServer(percy, port) {
       let comparisonData = await WebdriverUtils.captureScreenshot(req.body);
 
       if (percy.syncMode(comparisonData)) {
-        // percy.upload returns an async generator that must be drained for #snapshots.push to run.
+        // See the /percy/comparison route: percy.upload() is the Promise-wrapped method;
+        // calling it drives the generator and the sync queue resolves/rejects the callback.
+        // The .catch(reject) surfaces generator errors that bypass that callback.
         const snapshotPromise = new Promise((resolve, reject) => {
-          const upload = percy.upload(comparisonData, { resolve, reject }, 'automate');
-          (async () => {
-            // eslint-disable-next-line no-unused-vars
-            try { for await (const _ of upload) { /* drain */ } } catch (e) { reject(e); }
-          })();
+          percy.upload(comparisonData, { resolve, reject }, 'automate').catch(reject);
         });
         data = await handleSyncJob(snapshotPromise, percy, 'comparison');
       } else {
