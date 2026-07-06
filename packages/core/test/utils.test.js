@@ -873,6 +873,14 @@ describe('utils', () => {
       expect(await isMetadataTarget('http://offline.internal.example/')).toBeNull();
     });
 
+    it('does not block when a resolved address cannot be canonicalized', async () => {
+      // a resolved address that looks IPv6-ish (contains colons) but is not a
+      // valid IPv6 literal exercises the canonicalization fallback and must not
+      // match a metadata IP
+      spyOn(dns.promises, 'lookup').and.resolveTo([{ address: 'not:a:valid::ipv6::x', family: 6 }]);
+      expect(await isMetadataTarget('http://weird.example/')).toBeNull();
+    });
+
     it('returns null for unparseable URLs', async () => {
       expect(await isMetadataTarget('not a url')).toBeNull();
     });

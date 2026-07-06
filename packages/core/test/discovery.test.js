@@ -1109,6 +1109,35 @@ describe('Discovery', () => {
       expect(emptyLogs[0].message).toContain('[ASSET_NOT_UPLOADED]');
     });
 
+    it('blocks and logs instrumentation for cloud metadata endpoints', async () => {
+      await percy.snapshot({
+        name: 'test snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot: testDOM.replace('img.gif', 'http://169.254.169.254/latest/meta-data/'),
+        discovery: { disableCache: true }
+      });
+
+      await percy.idle();
+
+      const logs = logger.instance.query(log => log.debug === 'core:discovery');
+      expect(logs.length).toBeGreaterThan(0, 'No core:discovery logs found');
+
+      const notUploadedLogs = logs.filter(l => l.meta && l.meta.instrumentationCategory === 'asset_not_uploaded');
+      const metadataLogs = notUploadedLogs.filter(l => l.meta && l.meta.reason === 'metadata_endpoint_blocked');
+      expect(metadataLogs.length).toBeGreaterThan(0, 'No metadata_endpoint_blocked logs found');
+      expect(metadataLogs[0].meta.hostname).toBe('169.254.169.254');
+      expect(metadataLogs[0].message).toContain('[ASSET_NOT_UPLOADED]');
+
+      // the metadata subresource must never be captured/uploaded
+      expect(captured[0]).not.toContain(
+        jasmine.objectContaining({
+          attributes: jasmine.objectContaining({
+            'resource-url': 'http://169.254.169.254/latest/meta-data/'
+          })
+        })
+      );
+    });
+
     it('logs instrumentation for network errors', async () => {
       // Simulate a network error by closing connection without response
       server.reply('/aborted.css', req => {
