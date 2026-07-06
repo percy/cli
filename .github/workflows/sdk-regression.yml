@@ -8,13 +8,16 @@ jobs:
   regression:
     name: regression
     runs-on: ubuntu-latest
-    # Least-privilege: read code/PR data and write commit statuses only. Note an
-    # author-permission guard below (check-access) already restricts triggering
-    # to write/admin collaborators (CWE-284 / PER-8610).
+    # Least-privilege GITHUB_TOKEN: read code/PR data, write commit statuses, and
+    # read this run's Actions job metadata (for the job log URL) only. Triggering
+    # is further gated by the author-permission check (check-access) below, which
+    # restricts it to write/admin collaborators. The powerful cross-repo dispatch
+    # PAT is NOT granted here; it is injected only into the single trigger step.
     permissions:
       contents: read
       pull-requests: read
       statuses: write
+      actions: read
     if: ${{ github.event.issue.pull_request && github.event.comment.body == 'RUN_REGRESSION' }}
     strategy:
       matrix:
@@ -69,13 +72,18 @@ jobs:
         uses: Tiryoh/gha-jobid-action@be260d8673c9211a84cdcf37794ebd654ba81eef # v1.4.0
         id: job-url
         with:
-          github_token: ${{ secrets.WORKFLOW_DISPATCH_ACTIONS_TOKEN }}
-          job_name: "regression (${{ matrix.repo }})" 
+          # Third-party action: only reads this run's job metadata on percy/cli,
+          # so the built-in GITHUB_TOKEN (actions: read) is sufficient. The
+          # cross-repo dispatch PAT is deliberately not exposed to it.
+          github_token: ${{ github.token }}
+          job_name: "regression (${{ matrix.repo }})"
       - name: Output Current Job Log URL
         run: echo ${{ steps.jobs.outputs.html_url }}
       - uses: actions/github-script@f891eff65186019cbb3f7190c4590bc0a1b76fbc # v4.1.0
         with:
-          github-token: ${{ secrets.WORKFLOW_DISPATCH_ACTIONS_TOKEN }}
+          # Writes a commit status on percy/cli itself (job-level statuses: write),
+          # so the built-in GITHUB_TOKEN is used instead of the cross-repo PAT.
+          github-token: ${{ github.token }}
           script: |
             const { owner, repo } = context.repo;
             const sha = '${{ steps.comment-branch.outputs.head_sha }}'
@@ -102,6 +110,9 @@ jobs:
         with:
           owner: percy
           repo: ${{ steps.split.outputs._0 }}
+          # Only step that strictly needs the cross-repo dispatch PAT: it triggers
+          # test.yml in a *different* percy repo, which the built-in GITHUB_TOKEN
+          # cannot do. Injection is scoped to this step alone.
           github_token: ${{ secrets.WORKFLOW_DISPATCH_ACTIONS_TOKEN }}
           workflow_file_name: test.yml
           ref: ${{ steps.split.outputs._1 || 'master' }}
@@ -110,7 +121,9 @@ jobs:
       - name: Update Status
         uses: actions/github-script@f891eff65186019cbb3f7190c4590bc0a1b76fbc # v4.1.0
         with:
-          github-token: ${{ secrets.WORKFLOW_DISPATCH_ACTIONS_TOKEN }}
+          # Writes a commit status on percy/cli itself (job-level statuses: write),
+          # so the built-in GITHUB_TOKEN is used instead of the cross-repo PAT.
+          github-token: ${{ github.token }}
           script: |
             const { owner, repo } = context.repo;
             const sha = '${{ steps.comment-branch.outputs.head_sha }}'
