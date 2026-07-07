@@ -400,7 +400,10 @@ export function createSnapshotsQueue(percy) {
         let number = data.attributes['build-number'];
         let usageWarning = data.attributes['usage-warning'];
         percy.client.buildType = data.attributes?.type;
-        Object.assign(build, { id: data.id, url, number });
+        // `source` carries the server's baseline-candidate decision ('playwright-dropin-baseline'
+        // on a project's first flagged build) out through /percy/healthcheck so SDKs can adapt —
+        // the drop-in seeds committed snapshots into this build instead of posting live captures.
+        Object.assign(build, { id: data.id, url, number, source: data.attributes.source });
 
         // Display usage warning if present
         if (usageWarning) {

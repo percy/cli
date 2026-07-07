@@ -358,6 +358,13 @@ export class PercyClient {
           tags: tagsArr,
           'cli-start-time': cliStartTime,
           source: buildSource,
+          // @percy/playwright-dropin flag-passing model: mark this build as a baseline CANDIDATE.
+          // The SERVER decides first-ness — on the project's genuine first build it rewrites the
+          // source to 'playwright-dropin-baseline' (auto-approved at finish); on an established
+          // project the flag is ignored. Set by the percy-playwright wrapper (or exported by the
+          // customer), mirroring PERCY_BUILD_SOURCE.
+          'dropin-baseline-candidate':
+            process.env.PERCY_DROPIN_BASELINE_CANDIDATE === 'true' || undefined,
           'skip-base-build': this.config.percy?.skipBaseBuild,
           'testhub-build-uuid': this.env.testhubBuildUuid,
           'testhub-build-run-id': this.env.testhubBuildRunId,
