@@ -400,7 +400,10 @@ export function createSnapshotsQueue(percy) {
         let number = data.attributes['build-number'];
         let usageWarning = data.attributes['usage-warning'];
         percy.client.buildType = data.attributes?.type;
-        Object.assign(build, { id: data.id, url, number });
+        // `source` carries the server's baseline-candidate decision ('playwright-dropin-baseline'
+        // on a project's first flagged build) out through /percy/healthcheck so SDKs can adapt —
+        // the drop-in seeds committed snapshots into this build instead of posting live captures.
+        Object.assign(build, { id: data.id, url, number, source: data.attributes.source });
 
         // Display usage warning if present
         if (usageWarning) {
@@ -479,7 +482,10 @@ export function createSnapshotsQueue(percy) {
 
       if (percy.client.screenshotFlow === 'automate' && percy.client.buildType !== 'automate') {
         throw new Error(`Cannot run automate screenshots in ${percy.client.buildType} project. Please use automate project token`);
-      } else if (percy.client.screenshotFlow === 'app' && percy.client.buildType !== 'app') {
+      } else if (percy.client.screenshotFlow === 'app' && !['app', 'generic'].includes(percy.client.buildType)) {
+        // The BYOS comparison flow ('app') also serves generic (screenshot-type) projects — e.g.
+        // @percy/playwright-dropin uploads raw images into a framework-agnostic generic project.
+        // Only reject rendering-type projects (web/scanner/lca), which can't ingest raw tiles.
         throw new Error(`Cannot run App Percy screenshots in ${percy.client.buildType} project. Please use App Percy project token`);
       }
       // yield to evaluated snapshot resources
