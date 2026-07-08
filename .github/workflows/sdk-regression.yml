@@ -1,7 +1,20 @@
 name: SDK Regression
 on:
   issue_comment:
-    types: [created, edited] 
+    types: [created, edited]
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: CLI branch to run all SDK regression against
+        required: false
+        default: master
+      sdk_refs:
+        description: >-
+          Per-SDK workflow ref overrides, comma-separated repo@branch
+          (e.g. percy-cypress@my-fix,percy-ember@feat-x). SDKs not listed
+          run from their matrix default ref.
+        required: false
+        default: ''
 permissions:
   contents: read
 jobs:
@@ -18,19 +31,32 @@ jobs:
       pull-requests: read
       statuses: write
       actions: read
-    if: ${{ github.event.issue.pull_request && github.event.comment.body == 'RUN_REGRESSION' }}
+    # Run when either:
+    #  - a maintainer comments RUN_REGRESSION on a PR, or
+    #  - the workflow is dispatched manually (CLI branch + optional per-SDK refs).
+    # Both paths are internal-only: the comment path is gated to write/admin
+    # collaborators (check-access below); dispatch requires repo write access.
+    if: >-
+      (github.event_name == 'issue_comment' && github.event.issue.pull_request && github.event.comment.body == 'RUN_REGRESSION') ||
+      (github.event_name == 'workflow_dispatch')
     strategy:
+      # Don't let one SDK's failure cancel the rest — a regression run must
+      # report every SDK's result, not abort on the first failure.
+      fail-fast: false
       matrix:
         # Format: repo@branch (default branch is master)
-        repo: 
+        repo:
+          # NOTE: percy-ember and percy-puppeteer assert on the PER-7348
+          # readiness-gate contract, so they are expected to RED against an
+          # ahead-of-release cli@master until they adapt + bump @percy/sdk-utils.
+          # Kept in the matrix intentionally (run them, fix the reds as they come).
           - percy-ember
-          - percy-cypress
           - percy-puppeteer
+          - percy-cypress
           - percy-storybook
           - percy-playwright
           - percy-testcafe
           - percy-nightwatch
-          - percy-nightmare
           - percy-webdriverio
           - percy-webdriverio@v2
           - percy-protractor
@@ -42,8 +68,31 @@ jobs:
           - percy-capybara
           - percy-appium-js
           - gatsby-plugin-percy
+          # Injection-capable SDKs previously missing from the fan-out.
+          # Their default branch is `main`, so pin the dispatch ref with @main
+          # (the split default below is `master`, which would 404 for these).
+          - percy-detox@main
+          - percy-playwright-python@main
+          - percy-playwright-java@main
+          - percy-playwright-dotnet@main
+          - percy-appium-dotnet@main
+          - percy-styleguidist@main
+          # App Percy + remaining SDKs (default branch noted; @main where not master)
+          - percy-appium-python
+          - percy-appium-java
+          - percy-appium-wd
+          - percy-appium-ruby@main
+          - percy-maestro-web@main
+          - percy-maestro-app@main
+          - percy-react-native-app@main
+          - percy-tosca-dotnet@main
+          - percy-uipath@main
+          - percy-xcui-swift@main
     steps:
+      # Permission check applies only to the comment path; the label path is
+      # already gated by GitHub (only write+ collaborators can label a PR).
       - name: Get user permissions
+        if: ${{ github.event_name == 'issue_comment' }}
         uses: actions/github-script@f891eff65186019cbb3f7190c4590bc0a1b76fbc # v4.1.0
         id: check-access
         with:
@@ -54,15 +103,34 @@ jobs:
             return data.permission;
           result-encoding: string
       - name: Check Access Level
-        if: steps.check-access.outputs.result != 'write' && steps.check-access.outputs.result != 'admin'
+        if: ${{ github.event_name == 'issue_comment' && steps.check-access.outputs.result != 'write' && steps.check-access.outputs.result != 'admin' }}
         run: exit 1
       - uses: xt0rted/pull-request-comment-branch@e8b8daa837e8ea7331c0003c9c316a64c6d8b0b1 # v3.0.0
-        if: ${{ github.event.issue.pull_request }}
+        if: ${{ github.event_name == 'issue_comment' }}
         id: comment-branch
+      # Pass event data via env (never interpolate untrusted head.ref into the
+      # shell directly). The ref is validated by the regex-match step below
+      # before it is ever used to trigger a downstream workflow.
+      - name: Resolve PR head ref and sha
+        id: pr
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          COMMENT_HEAD_REF: ${{ steps.comment-branch.outputs.head_ref }}
+          COMMENT_HEAD_SHA: ${{ steps.comment-branch.outputs.head_sha }}
+          DISPATCH_BRANCH: ${{ github.event.inputs.branch }}
+          DISPATCH_SHA: ${{ github.sha }}
+        run: |
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            echo "head_ref=$DISPATCH_BRANCH" >> "$GITHUB_OUTPUT"
+            echo "head_sha=$DISPATCH_SHA" >> "$GITHUB_OUTPUT"
+          else
+            echo "head_ref=$COMMENT_HEAD_REF" >> "$GITHUB_OUTPUT"
+            echo "head_sha=$COMMENT_HEAD_SHA" >> "$GITHUB_OUTPUT"
+          fi
       - uses: actions-ecosystem/action-regex-match@9e6c4fb3d5e898f505be7a1fb6e7b0a278f6665b # v2.0.2
         id: regex-match
         with:
-          text: ${{ steps.comment-branch.outputs.head_ref }}
+          text: ${{ steps.pr.outputs.head_ref }}
           regex: '^[a-zA-Z0-9_/\-]+$'
       - name: Break on invalid branch name
         run: exit 1
@@ -71,12 +139,19 @@ jobs:
       - name: Get Current Job Log URL
         uses: Tiryoh/gha-jobid-action@be260d8673c9211a84cdcf37794ebd654ba81eef # v1.4.0
         id: job-url
+        # This step only resolves a target_url for the commit status; a lookup
+        # failure must never gate the regression itself.
+        continue-on-error: true
         with:
           # Third-party action: only reads this run's job metadata on percy/cli,
           # so the built-in GITHUB_TOKEN (actions: read) is sufficient. The
           # cross-repo dispatch PAT is deliberately not exposed to it.
           github_token: ${{ github.token }}
           job_name: "regression (${{ matrix.repo }})"
+          # The fan-out matrix is >30 jobs (currently 35); the action defaults to
+          # per_page=30, so jobs on page 2 resolve to null and exit 1. Cover the
+          # whole matrix (GitHub jobs API max page size is 100).
+          per_page: 100
       - name: Output Current Job Log URL
         run: echo ${{ steps.jobs.outputs.html_url }}
       - uses: actions/github-script@f891eff65186019cbb3f7190c4590bc0a1b76fbc # v4.1.0
@@ -86,7 +161,7 @@ jobs:
           github-token: ${{ github.token }}
           script: |
             const { owner, repo } = context.repo;
-            const sha = '${{ steps.comment-branch.outputs.head_sha }}'
+            const sha = '${{ steps.pr.outputs.head_sha }}'
             const state = 'pending';
             const target_url = '${{ steps.job-url.outputs.html_url }}'
             const check_name = 'SDK Regression ${{ matrix.repo }}'
@@ -104,6 +179,30 @@ jobs:
         with:
           msg: ${{ matrix.repo }}
           separator: '@'
+      # Resolve the ref the SDK's workflow runs from. Dispatch may override it
+      # per SDK via the sdk_refs input (comma-separated repo@branch); anything
+      # not listed keeps the matrix default. The chosen ref is validated before
+      # use — it flows into a downstream workflow dispatch.
+      - name: Resolve SDK workflow ref
+        id: sdk-ref
+        env:
+          SDK_REFS: ${{ github.event.inputs.sdk_refs }}
+          REPO_NAME: ${{ steps.split.outputs._0 }}
+          DEFAULT_REF: ${{ steps.split.outputs._1 || 'master' }}
+        run: |
+          ref="$DEFAULT_REF"
+          IFS=',' read -ra overrides <<< "${SDK_REFS:-}"
+          for o in "${overrides[@]}"; do
+            o="${o#"${o%%[![:space:]]*}"}"; o="${o%"${o##*[![:space:]]}"}"
+            case "$o" in
+              "$REPO_NAME"@?*) ref="${o#*@}" ;;
+            esac
+          done
+          if ! printf '%s' "$ref" | grep -Eq '^[a-zA-Z0-9_/.\-]+$'; then
+            echo "::error::invalid sdk ref '$ref' for $REPO_NAME"
+            exit 1
+          fi
+          echo "ref=$ref" >> "$GITHUB_OUTPUT"
       - name: Trigger Workflow & Wait
         uses: convictional/trigger-workflow-and-wait@f69fa9eedd3c62a599220f4d5745230e237904be # v1.6.5
         id: reg-test
@@ -114,9 +213,14 @@ jobs:
           # test.yml in a *different* percy repo, which the built-in GITHUB_TOKEN
           # cannot do. Injection is scoped to this step alone.
           github_token: ${{ secrets.WORKFLOW_DISPATCH_ACTIONS_TOKEN }}
-          workflow_file_name: test.yml
-          ref: ${{ steps.split.outputs._1 || 'master' }}
-          client_payload: '{ "branch": "${{ steps.comment-branch.outputs.head_ref }}"}'
+          # Most SDKs expose `test.yml`; a few use a differently-named workflow
+          # that carries the @percy/cli inject step:
+          #   percy-storybook        -> versioned test-storybook-vN.yml (latest v10)
+          #   percy-react-native-app -> storybook-rn-ci.yml
+          #   percy-tosca-dotnet / percy-uipath -> ci.yml (they have no test.yml)
+          workflow_file_name: ${{ steps.split.outputs._0 == 'percy-storybook' && 'test-storybook-v10.yml' || (steps.split.outputs._0 == 'percy-react-native-app' && 'storybook-rn-ci.yml' || ((steps.split.outputs._0 == 'percy-tosca-dotnet' || steps.split.outputs._0 == 'percy-uipath') && 'ci.yml' || 'test.yml')) }}
+          ref: ${{ steps.sdk-ref.outputs.ref }}
+          client_payload: '{ "branch": "${{ steps.pr.outputs.head_ref }}"}'
           wait_interval: 15
       - name: Update Status
         uses: actions/github-script@f891eff65186019cbb3f7190c4590bc0a1b76fbc # v4.1.0
@@ -126,11 +230,11 @@ jobs:
           github-token: ${{ github.token }}
           script: |
             const { owner, repo } = context.repo;
-            const sha = '${{ steps.comment-branch.outputs.head_sha }}'
+            const sha = '${{ steps.pr.outputs.head_sha }}'
             const state = '${{ steps.reg-test.outcome }}';
             const target_url = '${{ steps.job-url.outputs.html_url }}'
             const check_name = 'SDK Regression ${{ matrix.repo }}'
-            
+
             github.repos.createCommitStatus({
               context: check_name,
               owner,
