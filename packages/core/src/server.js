@@ -243,6 +243,9 @@ export class Server extends http.Server {
       let origin = req.headers.origin;
       let originAllowed = isLoopbackOrigin(origin);
       if (originAllowed) {
+        // `origin` is validated against a loopback-only allowlist above, so it
+        // is not attacker-controlled here.
+        // nosemgrep: javascript.express.security.cors-misconfiguration.cors-misconfiguration
         res.setHeader('Access-Control-Allow-Origin', origin);
         res.setHeader('Vary', 'Origin');
       }
