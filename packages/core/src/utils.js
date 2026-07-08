@@ -626,6 +626,9 @@ function getSecretPatterns() {
   if (!_compiledSecretPatterns) {
     const filepath = path.resolve(url.fileURLToPath(import.meta.url), '../secretPatterns.yml');
     const secretPatterns = YAML.parse(readFileSync(filepath, 'utf-8'));
+    // Regex sources come from the first-party, bundled secretPatterns.yml that
+    // ships in this package - never from remote or attacker-controlled input.
+    // nosemgrep: javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp
     _compiledSecretPatterns = secretPatterns.patterns.map(p => new RegExp(p.pattern.regex, 'g'));
   }
   return _compiledSecretPatterns;
