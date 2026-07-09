@@ -671,6 +671,7 @@ async function sendResponseResource(network, request, session) {
 
   try {
     let resource = network.intercept.getResource(url, network.intercept.currentWidth);
+    let metadataHost;
     network.log.debug(`Handling request: ${url}`, meta);
 
     if (!resource?.root && hostnameMatches(disallowedHostnames, url)) {
@@ -696,16 +697,20 @@ async function sendResponseResource(network, request, session) {
         responseHeaders: Object.entries(resource.headers || {})
           .map(([k, v]) => ({ name: k.toLowerCase(), value: String(v) }))
       });
-    } else if (await isMetadataTarget(url)) {
+    } else if ((metadataHost = await isMetadataTarget(url)) ||
+      (request.redirectChain.length && (metadataHost = await isMetadataTarget(request.url)))) {
       // Block SSRF pivots to cloud instance-metadata endpoints before issuing a
       // real outbound request. Cache hits and root resources are served above
       // and never reach here, so loopback/RFC1918 snapshotting is unaffected.
+      // We check both the origin URL and, on a redirect hop, the actual target
+      // (request.url) so an open redirect to a metadata endpoint cannot bypass
+      // the block — originURL reports the pre-redirect URL for resource identity.
       logAssetInstrumentation(log, 'asset_not_uploaded', 'metadata_endpoint_blocked', {
         url,
-        hostname: new URL(url).hostname,
+        hostname: metadataHost,
         snapshot: meta.snapshot
       });
-      log.warn(`Refusing to fetch resource from cloud metadata endpoint: ${new URL(url).hostname}`, meta);
+      log.warn(`Refusing to fetch resource from cloud metadata endpoint: ${metadataHost}`, meta);
 
       await send('Fetch.failRequest', {
         requestId: request.interceptId,

@@ -842,6 +842,18 @@ describe('utils', () => {
       expect(await isMetadataTarget('http://[fd00:ec2:0:0:0:0:0:254]/')).toBe('[fd00:ec2::254]');
     });
 
+    it('blocks IPv4-mapped IPv6 forms of metadata IPs', async () => {
+      // ::ffff:a.b.c.d maps to the IPv4 service at the socket layer, so it must
+      // be folded back to dotted-quad and blocked like the literal IPv4 IP
+      expect(await isMetadataTarget('http://[::ffff:169.254.169.254]/latest/meta-data/')).toBe('[::ffff:a9fe:a9fe]');
+      expect(await isMetadataTarget('http://[::ffff:169.254.170.2]/')).toBe('[::ffff:a9fe:aa02]');
+      expect(await isMetadataTarget('http://[0:0:0:0:0:ffff:100.100.100.200]/')).toBe('[::ffff:6464:64c8]');
+    });
+
+    it('allows a non-metadata IPv4-mapped IPv6 host', async () => {
+      expect(await isMetadataTarget('http://[::ffff:93.184.216.34]/')).toBeNull();
+    });
+
     it('blocks known metadata hostnames case-insensitively and with a trailing dot', async () => {
       expect(await isMetadataTarget('http://metadata.google.internal/computeMetadata/v1/')).toBe('metadata.google.internal');
       // the URL parser lowercases and preserves the trailing dot in the returned hostname

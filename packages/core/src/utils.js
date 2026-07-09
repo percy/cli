@@ -79,8 +79,11 @@ const METADATA_HOSTNAMES = new Set([
 ]);
 
 // Canonicalizes a host for comparison: lowercases, strips a trailing dot and
-// IPv6 brackets, and normalizes IPv6 addresses to their compressed form (so
-// e.g. fd00:ec2:0:0:0:0:0:254 and fd00:ec2::254 compare equal).
+// IPv6 brackets, normalizes IPv6 addresses to their compressed form (so e.g.
+// fd00:ec2:0:0:0:0:0:254 and fd00:ec2::254 compare equal), and unwraps
+// IPv4-mapped IPv6 addresses to their dotted-quad form (so e.g.
+// ::ffff:169.254.169.254 compares equal to the literal 169.254.169.254 — the
+// OS routes it to the IPv4 service, so it must not slip past the IP set).
 function canonicalHost(host) {
   if (!host) return host;
   let h = String(host).toLowerCase().replace(/\.$/, '');
@@ -88,7 +91,16 @@ function canonicalHost(host) {
 
   if (bare.includes(':')) {
     try {
-      return new URL(`http://[${bare}]/`).hostname.replace(/^\[/, '').replace(/\]$/, '');
+      let canon = new URL(`http://[${bare}]/`).hostname.replace(/^\[/, '').replace(/\]$/, '');
+      // The URL parser renders IPv4-mapped IPv6 as ::ffff:wwww:xxxx (hex);
+      // fold those 32 bits back into dotted-quad so mapped metadata IPs match.
+      let mapped = /^::ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/.exec(canon);
+      if (mapped) {
+        let hi = parseInt(mapped[1], 16);
+        let lo = parseInt(mapped[2], 16);
+        return `${hi >> 8}.${hi & 0xff}.${lo >> 8}.${lo & 0xff}`;
+      }
+      return canon;
     } catch {
       return bare;
     }

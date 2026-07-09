@@ -1138,6 +1138,37 @@ describe('Discovery', () => {
       );
     });
 
+    it('blocks a resource that redirects to a cloud metadata endpoint', async () => {
+      // an open redirect on an allowed host must not be able to smuggle a
+      // request through to the metadata endpoint — the redirect hop target
+      // (not just the original URL) has to be checked
+      server.reply('/redirect-meta', () => [301, { Location: 'http://169.254.169.254/latest/meta-data/' }]);
+
+      await percy.snapshot({
+        name: 'test snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot: testDOM.replace('img.gif', 'redirect-meta'),
+        discovery: { disableCache: true }
+      });
+
+      await percy.idle();
+
+      const logs = logger.instance.query(log => log.debug === 'core:discovery');
+      const notUploadedLogs = logs.filter(l => l.meta && l.meta.instrumentationCategory === 'asset_not_uploaded');
+      const metadataLogs = notUploadedLogs.filter(l => l.meta && l.meta.reason === 'metadata_endpoint_blocked');
+      expect(metadataLogs.length).toBeGreaterThan(0, 'No metadata_endpoint_blocked logs found for redirect');
+      expect(metadataLogs[0].meta.hostname).toBe('169.254.169.254');
+
+      // the redirect target must never be captured/uploaded
+      expect(captured[0]).not.toContain(
+        jasmine.objectContaining({
+          attributes: jasmine.objectContaining({
+            'resource-url': 'http://169.254.169.254/latest/meta-data/'
+          })
+        })
+      );
+    });
+
     it('logs instrumentation for network errors', async () => {
       // Simulate a network error by closing connection without response
       server.reply('/aborted.css', req => {
