@@ -996,8 +996,10 @@ export function createPercyServer(percy, port) {
 
       res.json(200, { success: true });
     })
-  // stops percy at the end of the current event loop
-    .route('/percy/stop', (req, res) => {
+  // stops percy at the end of the current event loop; POST-only so a browser
+  // cannot trigger it via a no-Origin GET (e.g. an <img> tag), which would
+  // otherwise slip past the cross-origin gate below
+    .route('post', '/percy/stop', (req, res) => {
       assertNotCrossOrigin(req);
       setImmediate(() => percy.stop());
       return res.json(200, { success: true });

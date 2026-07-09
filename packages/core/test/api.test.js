@@ -207,6 +207,17 @@ describe('API Server', () => {
     expect(stopSpy).not.toHaveBeenCalled();
   });
 
+  it('does not stop Percy on a GET to /stop (no-Origin CSRF vector, PER-8600)', async () => {
+    await percy.start();
+    let stopSpy = spyOn(percy, 'stop').and.resolveTo();
+
+    // A browser can issue a cross-origin GET (e.g. via <img>) with no Origin
+    // header; the endpoint is POST-only so this must not reach the handler.
+    await expectAsync(request('/percy/stop', 'GET')).toBeRejected();
+
+    expect(stopSpy).not.toHaveBeenCalled();
+  });
+
   it('has an /idle endpoint that calls #idle()', async () => {
     spyOn(percy, 'idle').and.resolveTo();
     await percy.start();
