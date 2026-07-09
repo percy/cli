@@ -199,6 +199,9 @@ describe('PercyClient', () => {
       delete process.env.PERCY_AUTO_ENABLED_GROUP_BUILD;
       delete process.env.PERCY_ORIGINATED_SOURCE;
       delete process.env.PERCY_VISUAL_CONFIG;
+      delete process.env.PERCY_BUILD_SOURCE;
+      delete process.env.PERCY_DROPIN_BASELINE_CANDIDATE;
+      delete process.env.PERCY_DROPIN_BASELINE_SETUP;
     });
 
     it('creates a new build', async () => {
@@ -604,6 +607,56 @@ describe('PercyClient', () => {
             tags: []
           }
         }));
+    });
+
+    it('tags an allow-listed drop-in source from PERCY_BUILD_SOURCE', async () => {
+      process.env.PERCY_BUILD_SOURCE = 'playwright-dropin';
+      await expectAsync(client.createBuild({ projectType: 'web' })).toBeResolved();
+
+      let attrs = api.requests['/builds'][0].body.data.attributes;
+      expect(attrs.source).toEqual('playwright-dropin');
+      expect(attrs['dropin-baseline-candidate']).toBeUndefined();
+      expect(attrs['dropin-baseline-setup']).toBeUndefined();
+    });
+
+    it('ignores a non-allow-listed PERCY_BUILD_SOURCE', async () => {
+      process.env.PERCY_BUILD_SOURCE = 'not-a-dropin-source';
+      await expectAsync(client.createBuild({ projectType: 'web' })).toBeResolved();
+
+      expect(api.requests['/builds'][0].body.data.attributes.source)
+        .toEqual('user_created');
+    });
+
+    it('sends the drop-in baseline candidate attribute from the env', async () => {
+      process.env.PERCY_DROPIN_BASELINE_CANDIDATE = 'true';
+      await expectAsync(client.createBuild({ projectType: 'web' })).toBeResolved();
+
+      expect(api.requests['/builds'][0].body.data.attributes['dropin-baseline-candidate'])
+        .toEqual(true);
+    });
+
+    it('accepts explicit drop-in baseline options (used by the seeding flows)', async () => {
+      await expectAsync(client.createBuild({
+        projectType: 'web',
+        source: 'playwright-dropin-baseline',
+        dropinBaselineCandidate: true,
+        dropinBaselineSetup: true
+      })).toBeResolved();
+
+      let attrs = api.requests['/builds'][0].body.data.attributes;
+      expect(attrs.source).toEqual('playwright-dropin-baseline');
+      expect(attrs['dropin-baseline-candidate']).toEqual(true);
+      expect(attrs['dropin-baseline-setup']).toEqual(true);
+    });
+
+    it('ignores a non-allow-listed explicit source option', async () => {
+      await expectAsync(client.createBuild({
+        projectType: 'web',
+        source: 'design'
+      })).toBeResolved();
+
+      expect(api.requests['/builds'][0].body.data.attributes.source)
+        .toEqual('user_created');
     });
 
     it('creates a new build with visual-config from PERCY_VISUAL_CONFIG', async () => {

@@ -5,6 +5,7 @@ import stop from './stop.js';
 import ping from './ping.js';
 import replay from './replay.js';
 import { waitForTimeout } from '@percy/client/utils';
+import { findBaselineProvider, maybeSeedBaseline } from './baseline.js';
 
 export const exec = command('exec', {
   description: 'Start and stop Percy around a supplied command',
@@ -76,6 +77,23 @@ export const exec = command('exec', {
       } else {
         log.debug('Skipping percy project attribute calculation');
       }
+
+      // Drop-in baseline seeding: when an installed SDK declares a baseline provider (e.g. the
+      // @percy/playwright toHaveScreenshot drop-in) and the Percy project is empty, the committed
+      // baseline screenshots are uploaded as an auto-approved build #1 BEFORE the head build
+      // starts — the user's suite doesn't run for the baseline. Never throws.
+      if (percy.projectType === 'web') {
+        let provider = await findBaselineProvider({ log });
+
+        if (provider) {
+          // Tag the head build so the API can key drop-in behavior on its source.
+          if (provider.buildSource && !process.env.PERCY_BUILD_SOURCE) {
+            process.env.PERCY_BUILD_SOURCE = provider.buildSource;
+          }
+          yield maybeSeedBaseline(percy, provider, { log });
+        }
+      }
+
       yield* percy.yield.start();
     } catch (error) {
       if (error.name === 'AbortError') throw error;
