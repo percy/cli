@@ -19,13 +19,27 @@ function fakeLog() {
   };
 }
 
-const BASELINES = [
-  { filepath: '/repo/a.png', name: 'home', browserFamily: 'chromium', width: 1280, height: 720 },
-  { filepath: '/repo/b.png', name: 'cart', browserFamily: 'chromium', width: 1280, height: 800 }
-];
+let tmpPngDir;
+let BASELINES;
 
-function fakeClient({ established = false, failComparisons = false } = {}) {
-  let calls = { createBuild: [], sendComparison: [], finalizeBuild: [] };
+beforeAll(() => {
+  // Real files on disk — uploadBaselines reads image content to build snapshot resources.
+  tmpPngDir = fs.mkdtempSync(path.join(os.tmpdir(), 'percy-baseline-pngs-'));
+  for (let name of ['a', 'b']) {
+    fs.writeFileSync(path.join(tmpPngDir, `${name}.png`), Buffer.from(`png-${name}`));
+  }
+  BASELINES = [
+    { filepath: path.join(tmpPngDir, 'a.png'), name: 'home', browserFamily: 'chromium', width: 1280, height: 720 },
+    { filepath: path.join(tmpPngDir, 'b.png'), name: 'cart', browserFamily: 'chromium', width: 1280, height: 800 }
+  ];
+});
+
+afterAll(() => {
+  fs.rmSync(tmpPngDir, { recursive: true, force: true });
+});
+
+function fakeClient({ established = false, failUploads = false } = {}) {
+  let calls = { createBuild: [], sendSnapshot: [], finalizeBuild: [] };
   return {
     calls,
     async createBuild(options) {
@@ -34,9 +48,9 @@ function fakeClient({ established = false, failComparisons = false } = {}) {
       if (established) return { 'baseline-skipped': true, 'already-established': true };
       return { data: { id: 'seed-build-1', attributes: { 'build-number': 1 } } };
     },
-    async sendComparison(buildId, options) {
-      calls.sendComparison.push({ buildId, options });
-      if (failComparisons) throw new Error('upload failed');
+    async sendSnapshot(buildId, options) {
+      calls.sendSnapshot.push({ buildId, options });
+      if (failUploads) throw new Error('upload failed');
     },
     async finalizeBuild(buildId) {
       calls.finalizeBuild.push(buildId);
@@ -62,12 +76,18 @@ describe('exec baseline seeding', () => {
         source: 'playwright-dropin-baseline',
         dropinBaselineCandidate: true
       }));
-      expect(client.calls.sendComparison.length).toBe(2);
-      expect(client.calls.sendComparison[0].buildId).toBe('seed-build-1');
-      expect(client.calls.sendComparison.map(c => c.options.name).sort())
+      expect(client.calls.sendSnapshot.length).toBe(2);
+      expect(client.calls.sendSnapshot[0].buildId).toBe('seed-build-1');
+      expect(client.calls.sendSnapshot.map(c => c.options.name).sort())
         .toEqual(['cart', 'home']);
-      expect(client.calls.sendComparison[0].options.tag).toEqual(
-        jasmine.objectContaining({ name: 'chromium', width: 1280 }));
+      // Web-snapshot shape: root DOM + image resource, widths from the identity width.
+      let first = client.calls.sendSnapshot.find(c => c.options.name === 'home').options;
+      expect(first.widths).toEqual([1280]);
+      expect(first.minHeight).toBe(720);
+      expect(first.resources.length).toBe(2);
+      expect(first.resources[0].root).toBe(true);
+      expect(first.resources[0].content).toContain('<img src=');
+      expect(first.resources[1].mimetype).toBe('image/png');
       expect(client.calls.finalizeBuild).toEqual(['seed-build-1']);
       expect(log.entries.info.join('\n')).toContain('establishing your baseline');
       expect(log.entries.info.join('\n')).toContain('auto-approved');
@@ -81,7 +101,7 @@ describe('exec baseline seeding', () => {
       let seeded = await maybeSeedBaseline({ client, projectType: 'web' }, provider, { log });
 
       expect(seeded).toBe(false);
-      expect(client.calls.sendComparison.length).toBe(0);
+      expect(client.calls.sendSnapshot.length).toBe(0);
       expect(client.calls.finalizeBuild.length).toBe(0);
       expect(log.entries.info.join('\n')).toContain('already has builds');
       expect(log.entries.info.join('\n')).toContain('percy playwright:setup-baseline');
@@ -138,7 +158,7 @@ describe('exec baseline seeding', () => {
 
   describe('uploadBaselines', () => {
     it('skips per-file failures and reports the seeded count', async () => {
-      let client = fakeClient({ failComparisons: true });
+      let client = fakeClient({ failUploads: true });
       let log = fakeLog();
 
       let seeded = await uploadBaselines(client, 'b1', BASELINES, { log });

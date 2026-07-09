@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import url from 'url';
+import { createResource, createRootResource } from '@percy/cli-command/utils';
 
 // Playwright drop-in baseline seeding — the `percy exec` side.
 //
@@ -136,7 +137,43 @@ export async function maybeSeedBaseline(percy, provider, { log }) {
   }
 }
 
-// Bounded-concurrency upload of committed baseline files as comparisons of `buildId`. Per-file
+// Clamp a pixel dimension to the API's accepted snapshot range (same as `percy upload`).
+function clampDimension(value, fallback) {
+  return Math.max(10, Math.min(value || fallback, 2000));
+}
+
+// A committed baseline PNG becomes a WEB snapshot: a generated root DOM displaying the image at
+// its native size plus the image resource — the exact shape `percy upload` uses for web projects,
+// so Percy renders the baseline in the project's own browsers and it pairs with the head run's
+// DOM snapshots by (name, browser, width).
+async function imageSnapshotResources({ name, filepath, width, height }) {
+  let rootUrl = `http://local/${encodeURIComponent(name)}`;
+  let imageUrl = `http://local/${encodeURIComponent(name)}.png`;
+  let content = await fs.promises.readFile(filepath);
+
+  return [
+    createRootResource(rootUrl, `
+      <!doctype html>
+      <html lang="en">
+        <head>
+          <meta charset="utf-8">
+          <title>${name}</title>
+          <style>
+            *, *::before, *::after { margin: 0; padding: 0; font-size: 0; }
+            html, body { width: 100%; }
+            img { max-width: 100%; }
+          </style>
+        </head>
+        <body>
+          <img src="${imageUrl}" width="${width}px" height="${height}px"/>
+        </body>
+      </html>
+    `),
+    createResource(imageUrl, content, 'image/png')
+  ];
+}
+
+// Bounded-concurrency upload of committed baseline files as web snapshots of `buildId`. Per-file
 // failures are skipped (a partial baseline beats none) and reported in the returned count.
 export async function uploadBaselines(client, buildId, baselines, { log }) {
   let queue = [...baselines];
@@ -145,14 +182,11 @@ export async function uploadBaselines(client, buildId, baselines, { log }) {
   let worker = async () => {
     for (let b = queue.shift(); b; b = queue.shift()) {
       try {
-        await client.sendComparison(buildId, {
+        await client.sendSnapshot(buildId, {
           name: b.name,
-          tag: {
-            name: b.browserFamily,
-            width: b.width,
-            height: b.height
-          },
-          tiles: [{ filepath: b.filepath }]
+          widths: [clampDimension(b.width, 1280)],
+          minHeight: clampDimension(b.height, 1024),
+          resources: await imageSnapshotResources(b)
         });
         seeded += 1;
         log.progress(`Uploading baseline snapshots: ${seeded}/${baselines.length}`, true);
