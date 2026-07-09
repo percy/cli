@@ -39,7 +39,7 @@ afterAll(() => {
 });
 
 function fakeClient({ established = false, failUploads = false } = {}) {
-  let calls = { createBuild: [], sendSnapshot: [], finalizeBuild: [] };
+  let calls = { createBuild: [], sendSnapshot: [], sendComparison: [], finalizeBuild: [] };
   return {
     calls,
     async createBuild(options) {
@@ -50,6 +50,10 @@ function fakeClient({ established = false, failUploads = false } = {}) {
     },
     async sendSnapshot(buildId, options) {
       calls.sendSnapshot.push({ buildId, options });
+      if (failUploads) throw new Error('upload failed');
+    },
+    async sendComparison(buildId, options) {
+      calls.sendComparison.push({ buildId, options });
       if (failUploads) throw new Error('upload failed');
     },
     async finalizeBuild(buildId) {
@@ -166,6 +170,21 @@ describe('exec baseline seeding', () => {
       expect(seeded).toBe(0);
       expect(log.entries.warn.length).toBe(2);
       expect(log.entries.warn[0]).toContain('Skipped baseline snapshot');
+    });
+
+    it('app projects upload through the comparison ingest (tag + tile, no render flow)', async () => {
+      let client = fakeClient();
+      let log = fakeLog();
+
+      let seeded = await uploadBaselines(client, 'b1', BASELINES, { log, projectType: 'app' });
+
+      expect(seeded).toBe(2);
+      expect(client.calls.sendSnapshot.length).toBe(0);
+      expect(client.calls.sendComparison.length).toBe(2);
+      let home = client.calls.sendComparison.find(c => c.options.name === 'home').options;
+      expect(home.tag).toEqual({ name: 'chromium', width: 1280, height: 720 });
+      expect(home.tiles.length).toBe(1);
+      expect(home.tiles[0].filepath.endsWith('a.png')).toBe(true);
     });
   });
 

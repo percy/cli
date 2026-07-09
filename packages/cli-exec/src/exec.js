@@ -81,8 +81,9 @@ export const exec = command('exec', {
       // Drop-in baseline seeding: when an installed SDK declares a baseline provider (e.g. the
       // @percy/playwright toHaveScreenshot drop-in) and the Percy project is empty, the committed
       // baseline screenshots are uploaded as an auto-approved build #1 BEFORE the head build
-      // starts — the user's suite doesn't run for the baseline. Never throws.
-      if (percy.projectType === 'web') {
+      // starts — the user's suite doesn't run for the baseline. Never throws. Web projects seed
+      // rendered snapshots; app projects seed raw comparison uploads (no render flow).
+      if (percy.projectType === 'web' || percy.projectType === 'app') {
         let provider = await findBaselineProvider({ log });
 
         if (provider) {

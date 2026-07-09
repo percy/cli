@@ -124,7 +124,9 @@ export async function maybeSeedBaseline(percy, provider, { log }) {
     log.info(`New Percy project with ${baselines.length} committed baseline snapshot(s) ` +
       'detected — establishing your baseline (build #1) before running tests');
 
-    let seeded = await uploadBaselines(percy.client, buildId, baselines, { log });
+    let seeded = await uploadBaselines(percy.client, buildId, baselines, {
+      log, projectType: percy.projectType
+    });
 
     await percy.client.finalizeBuild(buildId);
     log.info(`Baseline established from ${seeded}/${baselines.length} committed snapshot(s) ` +
@@ -173,21 +175,40 @@ async function imageSnapshotResources({ name, filepath, width, height }) {
   ];
 }
 
-// Bounded-concurrency upload of committed baseline files as web snapshots of `buildId`. Per-file
-// failures are skipped (a partial baseline beats none) and reported in the returned count.
-export async function uploadBaselines(client, buildId, baselines, { log }) {
+// Bounded-concurrency upload of committed baseline files into `buildId`, shaped by project type:
+//   • web — each PNG becomes a rendered WEB SNAPSHOT (root DOM + image resource); web projects
+//     reject bare comparison tiles ("root resource" validation), and rendering server-side makes
+//     the baseline pair with the head run's DOM snapshots.
+//   • app — each PNG uploads straight through the COMPARISON ingest (tag + tile); no render flow
+//     is triggered, exactly how App Percy ingests screenshots. The tag width is the identity
+//     width (project viewport) so it pairs with the head run's uploads; height comes from the
+//     PNG bytes.
+// Per-file failures are skipped (a partial baseline beats none) and reported in the count.
+export async function uploadBaselines(client, buildId, baselines, { log, projectType = 'web' }) {
   let queue = [...baselines];
   let seeded = 0;
+
+  let uploadOne = async b => {
+    if (projectType === 'app') {
+      await client.sendComparison(buildId, {
+        name: b.name,
+        tag: { name: b.browserFamily, width: b.width, height: b.height },
+        tiles: [{ filepath: b.filepath }]
+      });
+    } else {
+      await client.sendSnapshot(buildId, {
+        name: b.name,
+        widths: [clampDimension(b.width, 1280)],
+        minHeight: clampDimension(b.height, 1024),
+        resources: await imageSnapshotResources(b)
+      });
+    }
+  };
 
   let worker = async () => {
     for (let b = queue.shift(); b; b = queue.shift()) {
       try {
-        await client.sendSnapshot(buildId, {
-          name: b.name,
-          widths: [clampDimension(b.width, 1280)],
-          minHeight: clampDimension(b.height, 1024),
-          resources: await imageSnapshotResources(b)
-        });
+        await uploadOne(b);
         seeded += 1;
         log.progress(`Uploading baseline snapshots: ${seeded}/${baselines.length}`, true);
       } catch (err) {
