@@ -28,10 +28,19 @@ describe('percy app:exec', () => {
   });
 
   it('does not accept asset discovery options', async () => {
+    // with loose parsing, unrecognized exec options are treated as the command
     await expectAsync(exec(['--allowed-hostname', 'percy.io']))
-      .toBeRejectedWithError("Unknown option '--allowed-hostname'");
+      .toBeRejectedWithError('Command not found "--allowed-hostname"');
     await expectAsync(start(['--network-idle-timeout', '500']))
       .toBeRejectedWithError("Unknown option '--network-idle-timeout'");
+  });
+
+  it('parses loosely when the command separator is missing', async () => {
+    // some environments (e.g. npx PowerShell shims) strip the `--` separator;
+    // the command should warn and run instead of throwing a parse error
+    expect(exec.definition.loose).toEqual(ExecPlugin.default.definition.loose);
+    await expectAsync(exec(['dotnet', 'test'])).not.toBeRejectedWithError(
+      "Unexpected argument 'dotnet'");
   });
 
   describe('maybeInjectMaestroServer', () => {

@@ -189,6 +189,10 @@ export const exec = command('exec', {
   // grouped flags are built-in flags
     .flags.filter(f => !f.group),
 
+  // some environments (e.g. npx PowerShell shims) strip the `--` separator;
+  // fall back to loose parsing like `percy exec` instead of hard failing
+  loose: ExecPlugin.default.definition.loose,
+
   percy: {
     server: true,
     projectType: 'app',
