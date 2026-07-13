@@ -218,6 +218,27 @@ describe('API Server', () => {
     expect(stopSpy).not.toHaveBeenCalled();
   });
 
+  it('blocks cross-origin POSTs to every state-changing endpoint at the middleware choke point (PER-8600/8601)', async () => {
+    await percy.start();
+
+    // CORS-safelisted content types reach these handlers with no preflight, but
+    // a cross-origin request always carries an Origin, so the general-middleware
+    // choke point must reject all of them before any side effect runs.
+    let endpoints = [
+      '/percy/snapshot', '/percy/comparison', '/percy/comparison/upload',
+      '/percy/maestro-screenshot', '/percy/flush', '/percy/automateScreenshot',
+      '/percy/events', '/percy/log'
+    ];
+
+    for (let path of endpoints) {
+      await expectAsync(request(path, {
+        method: 'POST',
+        body: { name: 'x' },
+        headers: { Origin: 'https://evil.example' }
+      })).toBeRejectedWithError(/Cross-origin requests are not allowed/);
+    }
+  });
+
   it('has an /idle endpoint that calls #idle()', async () => {
     spyOn(percy, 'idle').and.resolveTo();
     await percy.start();

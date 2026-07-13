@@ -284,8 +284,13 @@ export function createPercyServer(percy, port) {
         try { req.body = JSON.parse(req.body); } catch {}
       }
 
-      // add version header
-      res.setHeader('Access-Control-Expose-Headers', '*, X-Percy-Core-Version');
+      // Expose headers only to loopback origins, consistent with the CORS
+      // handler in server.js. Access-Control-Expose-Headers is inert without a
+      // matching Access-Control-Allow-Origin, so gating it here keeps the two
+      // layers aligned rather than emitting it unconditionally.
+      if (isLoopbackOrigin(req.headers.origin)) {
+        res.setHeader('Access-Control-Expose-Headers', '*, X-Percy-Core-Version');
+      }
 
       // skip or change api version header in testing mode
       if (percy.testing?.version !== false) {
@@ -308,12 +313,23 @@ export function createPercyServer(percy, port) {
         next = () => req.connection.destroy();
       }
 
+      // Block cross-origin browser requests to every state-changing route at a
+      // single choke point. CORS-safelisted content types (text/plain, form
+      // data) reach handlers with no preflight, but a cross-origin request
+      // always carries an Origin header, so gating every non-safe method here
+      // covers all present and future mutating routes. Read-only methods and
+      // same-host / no-Origin SDK callers are unaffected.
       // return json errors
-      return next().catch(e => res.json(e.status ?? 500, {
-        build: percy.testing?.build || percy.build,
-        error: e.message,
-        success: false
-      }));
+      return Promise.resolve()
+        .then(() => {
+          if (!['GET', 'HEAD', 'OPTIONS'].includes(req.method)) assertNotCrossOrigin(req);
+          return next();
+        })
+        .catch(e => res.json(e.status ?? 500, {
+          build: percy.testing?.build || percy.build,
+          error: e.message,
+          success: false
+        }));
     })
   // healthcheck returns basic information
     .route('get', '/percy/healthcheck', (req, res) => res.json(200, {
@@ -357,8 +373,7 @@ export function createPercyServer(percy, port) {
     })
   // get or set config options
     .route(['get', 'post'], '/percy/config', async (req, res) => {
-      // mutating the live config is only allowed from same-host callers
-      if (req.body) assertNotCrossOrigin(req);
+      // POST mutation is blocked cross-origin by the general middleware above.
       let body = req.body && stripBlockedConfigFields(req.body, logger('core:server'));
       return res.json(200, {
         config: body ? percy.set(body) : percy.config,
@@ -997,10 +1012,9 @@ export function createPercyServer(percy, port) {
       res.json(200, { success: true });
     })
   // stops percy at the end of the current event loop; POST-only so a browser
-  // cannot trigger it via a no-Origin GET (e.g. an <img> tag), which would
-  // otherwise slip past the cross-origin gate below
+  // cannot trigger it via a no-Origin GET (e.g. an <img> tag). Cross-origin
+  // POSTs are blocked by the general middleware's single choke point above.
     .route('post', '/percy/stop', (req, res) => {
-      assertNotCrossOrigin(req);
       setImmediate(() => percy.stop());
       return res.json(200, { success: true });
     });

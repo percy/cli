@@ -242,12 +242,16 @@ export class Server extends http.Server {
       // from the local Percy server (build data, config) cross-origin (CWE-942).
       let origin = req.headers.origin;
       let originAllowed = isLoopbackOrigin(origin);
+      // The response branches on Origin on every path (ACAO is emitted only for
+      // loopback origins), so Vary: Origin must be set unconditionally —
+      // otherwise a cache/intermediary could serve a no-ACAO body to a loopback
+      // origin, or a loopback body to another origin.
+      res.setHeader('Vary', 'Origin');
       if (originAllowed) {
         // `origin` is validated against a loopback-only allowlist above, so it
         // is not attacker-controlled here.
         // nosemgrep: javascript.express.security.cors-misconfiguration.cors-misconfiguration
         res.setHeader('Access-Control-Allow-Origin', origin);
-        res.setHeader('Vary', 'Origin');
       }
 
       if (req.method === 'OPTIONS') {
