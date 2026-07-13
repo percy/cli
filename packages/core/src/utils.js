@@ -635,18 +635,29 @@ function getSecretPatterns() {
 }
 
 export function redactSecrets(data) {
-  if (Array.isArray(data)) {
-    // Process each item in the array
-    return data.map(item => redactSecrets(item));
-  } else if (typeof data === 'object' && data !== null) {
-    // Process each key-value pair in the object
-    data.message = redactSecrets(data.message);
-  }
+  // Strings are redacted against every compiled secret pattern.
   if (typeof data === 'string') {
     for (const pattern of getSecretPatterns()) {
       data = data.replace(pattern, '[REDACTED]');
     }
+    return data;
   }
+  // Arrays are redacted element-wise into a new array.
+  if (Array.isArray(data)) {
+    return data.map(item => redactSecrets(item));
+  }
+  // Plain objects (e.g. a log entry and its arbitrary `meta`) are redacted
+  // across every own-enumerable value. We return a fresh copy rather than
+  // mutating in place so the canonical in-memory log entries are never
+  // corrupted by the egress redaction pass.
+  if (typeof data === 'object' && data !== null) {
+    const copy = {};
+    for (const [key, value] of Object.entries(data)) {
+      copy[key] = redactSecrets(value);
+    }
+    return copy;
+  }
+  // Any other primitive (number, boolean, null, undefined) passes through.
   return data;
 }
 

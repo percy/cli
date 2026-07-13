@@ -218,6 +218,58 @@ describe('Unit / Utils', () => {
         expect(redactSecrets(msg)).toContain('[REDACTED]');
       });
     });
+
+    // No-false-positive cases: benign text must pass through unchanged, and the
+    // anchored Percy-token pattern must not fire on token-ish substrings.
+    describe('no false positives', () => {
+      it('leaves a plain URL with no secret unchanged', () => {
+        let url = 'https://percy.io/dashboard/builds';
+        expect(redactSecrets(url)).toEqual(url);
+      });
+
+      it('leaves a normal log message unchanged', () => {
+        let msg = 'Snapshot taken for homepage at width 1280';
+        expect(redactSecrets(msg)).toEqual(msg);
+      });
+
+      it('does not redact an access_ substring (ss_ leg must not fire mid-word)', () => {
+        let text = 'access_ABCDEFGHIJKLMNOPQRSTUV';
+        expect(redactSecrets(text)).toEqual(text);
+      });
+
+      it('does not clobber a crossapp_ substring at the app_ leg', () => {
+        let text = 'crossapp_ABCDEFGHIJKLMNOPQRSTUV';
+        expect(redactSecrets(text)).toEqual(text);
+      });
+    });
+
+    // Recursion: redaction must reach arbitrary caller data in `meta`, while
+    // leaving benign nested values (and non-string primitives) untouched, and
+    // without mutating the original object.
+    describe('deep redaction', () => {
+      it('redacts a secret nested inside a meta object', () => {
+        let entry = { message: 'ok', meta: { token: 'web_aB3dE7gH1jK4mN6pQ9sTuVwXyZ012345' } };
+        expect(redactSecrets(entry)).toEqual({ message: 'ok', meta: { token: '[REDACTED]' } });
+      });
+
+      it('passes benign objects, arrays and numbers through unchanged', () => {
+        let entry = { message: 'hello', meta: { width: 1280, tags: ['a', 'b'] }, timestamp: 12345, error: false };
+        expect(redactSecrets(entry)).toEqual(entry);
+      });
+
+      it('passes null and undefined through unchanged', () => {
+        expect(redactSecrets(null)).toBeNull();
+        expect(redactSecrets(undefined)).toBeUndefined();
+      });
+
+      it('does not mutate the original object', () => {
+        let original = 'token web_aB3dE7gH1jK4mN6pQ9sTuVwXyZ012345';
+        let entry = { message: original };
+        let redacted = redactSecrets(entry);
+        expect(redacted.message).toEqual('token [REDACTED]');
+        expect(entry.message).toEqual(original);
+      });
+    });
   });
 
   describe('Percy token prefixes', () => {
