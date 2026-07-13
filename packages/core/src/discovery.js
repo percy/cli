@@ -317,7 +317,7 @@ async function* captureSnapshotResources(page, snapshot, options) {
   // navigate to the url
   yield resizePage(snapshot.widths[0]);
   // refuse to navigate the top-level snapshot URL to a cloud metadata endpoint
-  await assertNotMetadataTarget(snapshot.url);
+  assertNotMetadataTarget(snapshot.url);
   yield page.goto(snapshot.url, { cookies, forceReload: discovery.captureResponsiveAssetsEnabled });
 
   // wait for any specified timeout

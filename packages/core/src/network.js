@@ -1,7 +1,8 @@
 import { request as makeRequest } from '@percy/client/utils';
 import logger from '@percy/logger';
 import mime from 'mime-types';
-import { AbortError, DefaultMap, createResource, hostnameMatches, normalizeURL, waitFor, decodeAndEncodeURLWithLogging, handleIncorrectFontMimeType, executeDomainValidation, isMetadataTarget } from './utils.js';
+import dns from 'dns';
+import { AbortError, DefaultMap, createResource, hostnameMatches, normalizeURL, waitFor, decodeAndEncodeURLWithLogging, handleIncorrectFontMimeType, executeDomainValidation, isMetadataTarget, isMetadataIP } from './utils.js';
 
 export const MAX_RESOURCE_SIZE = 25 * (1024 ** 2) * 0.63; // 25MB, 0.63 factor for accounting for base64 encoding
 // CDP returns binary bodies via Network.getResponseBody as base64 in the JSON-RPC
@@ -37,6 +38,17 @@ export const AbortCodes = Object.freeze({
   ABORTED: 'ABORTED',
   TIMEOUT_NETWORK_IDLE: 'TIMEOUT_NETWORK_IDLE'
 });
+
+// Thrown from the direct-fetch choke point (makeDirectRequest) when a Node-side
+// fetch connects to a cloud metadata IP. Callers treat it as "already blocked
+// and logged" and simply drop the resource without re-logging a network error.
+export class MetadataBlockedError extends Error {
+  constructor(host) {
+    super(`Refusing to save direct-fetched resource from cloud metadata endpoint: ${host}`);
+    this.name = 'MetadataBlockedError';
+    this.host = host;
+  }
+}
 
 // RequestLifeCycleHandler handles life cycle of a requestId
 // Ideal flow:          requestWillBeSent -> requestPaused -> responseReceived -> loadingFinished / loadingFailed
@@ -420,6 +432,28 @@ export class Network {
     if (!request) return;
 
     request.response = response;
+
+    // DNS-rebinding-safe SSRF gate: block on the IP Chromium actually connected
+    // to (response.remoteIPAddress), before the body is ever buffered/uploaded.
+    // The request-time pre-check only inspects the literal host, so a hostname
+    // that resolves benignly at request time but rebinds to a metadata IP for
+    // the real connection slips past it and is caught here instead. Dropping the
+    // request now means _handleLoadingFinished finds nothing to save, so the
+    // metadata response body is never fetched via Network.getResponseBody.
+    let metadataHost = isMetadataIP(response.remoteIPAddress);
+    if (metadataHost) {
+      let url = originURL(request);
+      logAssetInstrumentation(this.log, 'asset_not_uploaded', 'metadata_endpoint_blocked', {
+        url,
+        hostname: metadataHost,
+        snapshot: this.meta?.snapshot
+      });
+      this.log.warn(`Refusing to capture resource from cloud metadata endpoint: ${metadataHost}`, { ...this.meta, url });
+      this._forgetRequest(request);
+      this.#requestsLifeCycleHandler.get(requestId).resolveResponseReceived();
+      return;
+    }
+
     request.response.buffer = async () => {
       let result = await this.send(session, 'Network.getResponseBody', { requestId });
       return Buffer.from(result.body, result.base64Encoded ? 'base64' : 'utf-8');
@@ -560,6 +594,58 @@ export class Network {
         'its recommended to increase CI resources where this cli is running.');
     }
   }
+
+  // Perform the actual Node-side HTTP fetch for a request, attaching the page's
+  // cookies and (same-origin only) Basic auth. A custom dns `lookup` hook records
+  // the IP(s) the socket is actually resolving/connecting to — this is the same
+  // resolution Node uses for the connection (not an extra DNS round-trip), so the
+  // caller can enforce the SSRF metadata block on the real connected IP and defeat
+  // DNS rebinding on the direct-fetch path. Kept as an instance method so tests
+  // can stub the transport (and the connected IP) without hitting the network.
+  async directFetch(request, session) {
+    let cookies = [];
+    let cookieSession = pickCookieSession(this, session);
+    try {
+      ({ cookies } = await cookieSession.send('Network.getCookies', { urls: [request.url] }));
+    } catch (error) {
+      this.log.debug(`Network.getCookies unavailable for ${request.url}: ${error.message}`);
+    }
+
+    let headers = {
+      // add default browser
+      accept: '*/*',
+      'sec-fetch-site': 'same-origin',
+      'sec-fetch-mode': 'cors',
+      'sec-fetch-dest': 'font',
+      'sec-ch-ua': '"Chromium";v="143", "Google Chrome";v="143", "Not?A_Brand";v="99"',
+      'sec-ch-ua-mobile': '?0',
+      'sec-ch-ua-platform': '"macOS"',
+      'sec-fetch-user': '?1',
+      // add request fetched headers
+      ...request.headers,
+      // add applicable cookies
+      cookie: cookies.map(cookie => `${cookie.name}=${cookie.value}`).join('; ')
+    };
+
+    if (shouldAttachAuth(this.authorization, request.url, this.meta?.snapshotURL)) {
+      let { username, password } = this.authorization;
+      let token = Buffer.from([username, password || ''].join(':')).toString('base64');
+      headers.Authorization = `Basic ${token}`;
+    }
+
+    let remoteAddresses = [];
+    let lookup = (hostname, opts, cb) => dns.lookup(hostname, opts, (err, address, family) => {
+      remoteAddresses.push(...flattenLookupAddresses(address));
+      cb(err, address, family);
+    });
+
+    let { body, status, headers: responseHeaders } = await makeRequest(
+      request.url, { buffer: true, headers, lookup }, (body, res) => ({
+        body, status: res.statusCode, headers: res.headers
+      }));
+
+    return { body, status, headers: responseHeaders, remoteAddresses };
+  }
 }
 
 // Logs asset instrumentation for failed/skipped asset loading
@@ -697,14 +783,21 @@ async function sendResponseResource(network, request, session) {
         responseHeaders: Object.entries(resource.headers || {})
           .map(([k, v]) => ({ name: k.toLowerCase(), value: String(v) }))
       });
-    } else if ((metadataHost = await isMetadataTarget(url)) ||
-      (request.redirectChain.length && (metadataHost = await isMetadataTarget(request.url)))) {
-      // Block SSRF pivots to cloud instance-metadata endpoints before issuing a
-      // real outbound request. Cache hits and root resources are served above
-      // and never reach here, so loopback/RFC1918 snapshotting is unaffected.
-      // We check both the origin URL and, on a redirect hop, the actual target
-      // (request.url) so an open redirect to a metadata endpoint cannot bypass
-      // the block — originURL reports the pre-redirect URL for resource identity.
+    } else if ((metadataHost = isMetadataTarget(url)) ||
+      (request.redirectChain.length && (metadataHost = isMetadataTarget(request.url)))) {
+      // Cheap, synchronous first-line block for SSRF pivots to cloud
+      // instance-metadata endpoints whose target is a literal metadata IP or a
+      // known metadata hostname — refused before issuing a real outbound
+      // request. This is a literal-only pre-check: it does NOT resolve DNS and
+      // therefore does NOT defend against DNS rebinding (a hostname that
+      // resolves benignly here can still connect to a metadata IP). The
+      // rebinding leg is closed at the response stage in _handleResponseReceived,
+      // which gates on response.remoteIPAddress — the IP actually connected to.
+      // Cache hits and root resources are served above and never reach here, so
+      // loopback/RFC1918 snapshotting is unaffected. We check both the origin
+      // URL and, on a redirect hop, the actual target (request.url) so an open
+      // redirect to a metadata endpoint cannot bypass the block — originURL
+      // reports the pre-redirect URL for resource identity.
       logAssetInstrumentation(log, 'asset_not_uploaded', 'metadata_endpoint_blocked', {
         url,
         hostname: metadataHost,
@@ -795,43 +888,38 @@ export function resolveDirectFetchMime(responseHeaders, urlForLookup) {
   return serverMime || mime.lookup(urlForLookup) || 'application/octet-stream';
 }
 
-// Make a new request with Node based on a network request. Cookies are read
-// from the page session because worker/auxiliary sessions have a partial
-// Network domain where Network.getCookies throws "Internal error".
+// Normalize the address argument passed to a dns.lookup callback into a flat
+// array of IP strings. Node's http stack calls lookup with `all: true` (Happy
+// Eyeballs), so `address` is an array of { address, family }; older/other
+// callers may pass a single string. Missing values yield an empty list.
+export function flattenLookupAddresses(address) {
+  if (Array.isArray(address)) return address.map(a => a.address);
+  return address ? [address] : [];
+}
+
+// The single choke point for all Node-side direct fetches (the direct-fetch
+// fallback for worker scripts and the font-mime re-fetch in saveResponseResource).
+// It runs the transport (network.directFetch) then enforces the SSRF metadata
+// block on the IP(s) the socket actually connected to — the DNS-rebinding-safe
+// equivalent of the response-stage remoteIPAddress gate, for requests that never
+// surface a CDP response. On a hit it logs + warns and throws MetadataBlockedError
+// so the caller drops the resource instead of buffering/uploading (or attaching
+// cookies/auth to) a metadata response.
 async function makeDirectRequest(network, request, session) {
-  let cookies = [];
-  let cookieSession = pickCookieSession(network, session);
-  try {
-    ({ cookies } = await cookieSession.send('Network.getCookies', { urls: [request.url] }));
-  } catch (error) {
-    network.log.debug(`Network.getCookies unavailable for ${request.url}: ${error.message}`);
+  let { body, status, headers, remoteAddresses } = await network.directFetch(request, session);
+
+  let metadataHost = remoteAddresses.map(isMetadataIP).find(Boolean);
+  if (metadataHost) {
+    let url = originURL(request);
+    let meta = { ...network.meta, url };
+    logAssetInstrumentation(network.log, 'asset_not_uploaded', 'metadata_endpoint_blocked', {
+      url, hostname: metadataHost, snapshot: meta.snapshot
+    });
+    network.log.warn(`Refusing to save direct-fetched resource from cloud metadata endpoint: ${metadataHost}`, meta);
+    throw new MetadataBlockedError(metadataHost);
   }
 
-  let headers = {
-    // add default browser
-    accept: '*/*',
-    'sec-fetch-site': 'same-origin',
-    'sec-fetch-mode': 'cors',
-    'sec-fetch-dest': 'font',
-    'sec-ch-ua': '"Chromium";v="143", "Google Chrome";v="143", "Not?A_Brand";v="99"',
-    'sec-ch-ua-mobile': '?0',
-    'sec-ch-ua-platform': '"macOS"',
-    'sec-fetch-user': '?1',
-    // add request fetched headers
-    ...request.headers,
-    // add applicable cookies
-    cookie: cookies.map(cookie => `${cookie.name}=${cookie.value}`).join('; ')
-  };
-
-  if (shouldAttachAuth(network.authorization, request.url, network.meta?.snapshotURL)) {
-    let { username, password } = network.authorization;
-    let token = Buffer.from([username, password || ''].join(':')).toString('base64');
-    headers.Authorization = `Basic ${token}`;
-  }
-
-  return makeRequest(request.url, { buffer: true, headers }, (body, res) => ({
-    body, status: res.statusCode, headers: res.headers
-  }));
+  return { body, status, headers };
 }
 
 // Capture a resource via direct HTTP fetch when the browser-side response
@@ -872,6 +960,12 @@ async function captureResourceDirectly(network, request, session) {
     log.debug(`- Saving direct-fetched resource sha=${resource.sha} mimetype=${mimeType}`, meta);
     network.intercept.saveResource(resource);
   } catch (error) {
+    if (error instanceof MetadataBlockedError) {
+      // The connected IP was a cloud metadata endpoint — makeDirectRequest has
+      // already logged + warned. Drop the resource without re-logging it as a
+      // generic network error so the metadata body is never saved/uploaded.
+      return;
+    }
     logAssetInstrumentation(log, 'asset_load_missing', 'network_error', {
       url, snapshot: meta.snapshot, requestType: request.type, error: error.message
     });

@@ -4,8 +4,6 @@ import { camelcase, merge } from '@percy/config/utils';
 import YAML from 'yaml';
 import path from 'path';
 import url from 'url';
-import net from 'net';
-import dns from 'dns';
 import { readFileSync } from 'fs';
 import logger from '@percy/logger';
 import DetectProxy from '@percy/client/detect-proxy';
@@ -109,13 +107,25 @@ function canonicalHost(host) {
   return bare;
 }
 
-// Returns the offending host string when the URL points at a known cloud
-// instance-metadata endpoint, otherwise null. Matches literal metadata IPs
-// (IPv4 and IPv6) and metadata hostnames, and — to defeat DNS rebinding — also
-// resolves hostnames and matches when any resolved address is a metadata IP.
-// DNS resolution failures are intentionally non-fatal (only a positive
-// metadata match blocks) so offline/localhost snapshots are unaffected.
-export async function isMetadataTarget(rawUrl) {
+// The single decision point for the metadata block: returns the given host
+// (hostname or IP literal) when it canonicalizes to a known cloud
+// instance-metadata endpoint, otherwise null. Purely synchronous and DNS-free —
+// every outbound path (the request-time literal pre-check, the response-stage
+// remoteIPAddress gate, and the direct-fetch socket-address gate) funnels
+// through here so the block behaves identically everywhere.
+function matchMetadataHost(host) {
+  if (!host) return null;
+  let canon = canonicalHost(host);
+  return (METADATA_IPS.has(canon) || METADATA_HOSTNAMES.has(canon)) ? host : null;
+}
+
+// Cheap, synchronous first-line pre-check on a URL's literal host: blocks only
+// literal metadata IPs and metadata hostnames. It does NOT resolve DNS and so
+// cannot defend against DNS rebinding on its own — an attacker's hostname can
+// resolve benignly here and then to a metadata IP for the actual connection.
+// The DNS-rebinding leg is closed at the response stage by isMetadataIP, which
+// gates on response.remoteIPAddress — the IP the request actually connected to.
+export function isMetadataTarget(rawUrl) {
   let host;
 
   try {
@@ -125,30 +135,23 @@ export async function isMetadataTarget(rawUrl) {
     return null;
   }
 
-  let canon = canonicalHost(host);
-  if (METADATA_IPS.has(canon) || METADATA_HOSTNAMES.has(canon)) return host;
+  return matchMetadataHost(host);
+}
 
-  // Resolving an IP literal is pointless, and resolving arbitrary hostnames
-  // must stay best-effort, so only look up non-IP hosts.
-  if (net.isIP(canon)) return null;
-
-  try {
-    let addresses = await dns.promises.lookup(canon, { all: true });
-    for (let { address } of addresses) {
-      if (METADATA_IPS.has(canonicalHost(address))) return host;
-    }
-  } catch {
-    // Non-fatal: unresolvable hosts (offline, localhost-only, private DNS) are
-    // left alone. Only a positive metadata match blocks a request.
-  }
-
-  return null;
+// Response/connection-stage gate: given the IP a request actually connected to
+// (response.remoteIPAddress from CDP, or a direct fetch's socket.remoteAddress),
+// returns the offending IP when it is a metadata target, otherwise null. This
+// is the authoritative enforcement point — it inspects the real connected IP,
+// so a hostname that rebinds to a metadata IP after the request-time pre-check
+// is still blocked here. No DNS needed: the input is already an IP literal.
+export function isMetadataIP(remoteIP) {
+  return matchMetadataHost(remoteIP);
 }
 
 // Throws when the URL points at a cloud instance-metadata endpoint. Used to
 // refuse navigating the top-level snapshot URL to such a target.
-export async function assertNotMetadataTarget(rawUrl) {
-  let host = await isMetadataTarget(rawUrl);
+export function assertNotMetadataTarget(rawUrl) {
+  let host = isMetadataTarget(rawUrl);
   if (host) {
     throw new Error(`Refusing to navigate to cloud metadata endpoint: ${host}`);
   }
