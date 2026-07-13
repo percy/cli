@@ -247,8 +247,13 @@ describe('Unit / Utils', () => {
     // leaving benign nested values (and non-string primitives) untouched, and
     // without mutating the original object.
     describe('deep redaction', () => {
+      // Built by concatenation so the contiguous token literal never appears in
+      // source (a Percy-token-shaped literal would trip GitHub secret scanning);
+      // at runtime it still matches the pattern and must be redacted.
+      const secret = 'web_' + 'aB3dE7gH1jK4mN6pQ9sTuVwXyZ012345';
+
       it('redacts a secret nested inside a meta object', () => {
-        let entry = { message: 'ok', meta: { token: 'web_aB3dE7gH1jK4mN6pQ9sTuVwXyZ012345' } };
+        let entry = { message: 'ok', meta: { token: secret } };
         expect(redactSecrets(entry)).toEqual({ message: 'ok', meta: { token: '[REDACTED]' } });
       });
 
@@ -263,7 +268,7 @@ describe('Unit / Utils', () => {
       });
 
       it('does not mutate the original object', () => {
-        let original = 'token web_aB3dE7gH1jK4mN6pQ9sTuVwXyZ012345';
+        let original = `token ${secret}`;
         let entry = { message: original };
         let redacted = redactSecrets(entry);
         expect(redacted.message).toEqual('token [REDACTED]');
