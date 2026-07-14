@@ -182,7 +182,7 @@ export function maybeInjectScreenshotDir(ctx, log) {
 
 export const exec = command('exec', {
   description: 'Start and stop Percy around a supplied command for native apps',
-  usage: '[options] -- <command>',
+  usage: '[options] [--] <command>',
   commands: [start, stop, ping],
 
   flags: ExecPlugin.default.definition

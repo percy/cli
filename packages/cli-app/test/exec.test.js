@@ -1,7 +1,7 @@
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import { setupTest } from '@percy/cli-command/test/helpers';
+import { logger, setupTest } from '@percy/cli-command/test/helpers';
 import * as ExecPlugin from '@percy/cli-exec';
 import {
   exec, start, stop, ping,
@@ -28,19 +28,39 @@ describe('percy app:exec', () => {
   });
 
   it('does not accept asset discovery options', async () => {
-    // with loose parsing, unrecognized exec options are treated as the command
-    await expectAsync(exec(['--allowed-hostname', 'percy.io']))
-      .toBeRejectedWithError('Command not found "--allowed-hostname"');
     await expectAsync(start(['--network-idle-timeout', '500']))
       .toBeRejectedWithError("Unknown option '--network-idle-timeout'");
+  });
+
+  it('degrades unrecognized exec options into the command (loose parsing trade-off)', async () => {
+    // with loose parsing, exec no longer hard-rejects unknown flags with
+    // "Unknown option" — a typo like --allowed-hostname falls through to
+    // command lookup and fails there instead
+    let { default: which } = await import('which');
+    spyOn(which, 'sync').and.returnValue(null);
+
+    await expectAsync(exec(['--allowed-hostname', 'percy.io']))
+      .toBeRejectedWithError('Command not found "--allowed-hostname"');
   });
 
   it('parses loosely when the command separator is missing', async () => {
     // some environments (e.g. npx PowerShell shims) strip the `--` separator;
     // the command should warn and run instead of throwing a parse error
     expect(exec.definition.loose).toEqual(ExecPlugin.default.definition.loose);
-    await expectAsync(exec(['dotnet', 'test'])).not.toBeRejectedWithError(
-      "Unexpected argument 'dotnet'");
+
+    // stub command resolution so no real binary is looked up or spawned; the
+    // "Command not found" rejection proves `dotnet` was parsed as the command
+    // (not rejected as an unexpected argument) before reaching the lookup
+    let { default: which } = await import('which');
+    spyOn(which, 'sync').and.returnValue(null);
+
+    await expectAsync(exec(['dotnet', 'test']))
+      .toBeRejectedWithError('Command not found "dotnet"');
+
+    expect(logger.stderr).toEqual(jasmine.arrayContaining([
+      `[percy] ${ExecPlugin.default.definition.loose}`,
+      '[percy] Error: Command not found "dotnet"'
+    ]));
   });
 
   describe('maybeInjectMaestroServer', () => {
