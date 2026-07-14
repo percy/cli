@@ -65,6 +65,7 @@ function fakeClient({ established = false, failUploads = false } = {}) {
 describe('exec baseline seeding', () => {
   beforeEach(() => {
     delete process.env.PERCY_PARALLEL_TOTAL;
+    delete process.env.PERCY_DROPIN_DISABLE;
   });
 
   describe('maybeSeedBaseline', () => {
@@ -227,6 +228,17 @@ describe('exec baseline seeding', () => {
         expect(await findBaselineProvider({ cwd: bare, log: fakeLog() })).toBeNull();
       } finally {
         fs.rmSync(bare, { recursive: true, force: true });
+      }
+    });
+
+    it('returns null when the drop-in is disabled via PERCY_DROPIN_DISABLE', async () => {
+      process.env.PERCY_DROPIN_DISABLE = 'true';
+      try {
+        let log = fakeLog();
+        expect(await findBaselineProvider({ cwd: tmpDir, log })).toBeNull();
+        expect(log.entries.debug.join('\n')).toContain('PERCY_DROPIN_DISABLE');
+      } finally {
+        delete process.env.PERCY_DROPIN_DISABLE;
       }
     });
 

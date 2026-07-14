@@ -57,8 +57,14 @@ function findPercyPackages(dir) {
 }
 
 // Find the first installed package declaring a baseline provider and import it. Returns null when
-// none is installed (the overwhelmingly common case — one existsSync walk, negligible cost).
+// none is installed (the overwhelmingly common case — one existsSync walk, negligible cost), or
+// when the user opted out of the drop-in entirely (PERCY_DROPIN_DISABLE — the same switch the SDK
+// override honors, so one env var turns off both the matcher and the seeding).
 export async function findBaselineProvider({ cwd = process.cwd(), log } = {}) {
+  if (process.env.PERCY_DROPIN_DISABLE === 'true') {
+    log?.debug('Drop-in disabled via PERCY_DROPIN_DISABLE — skipping baseline provider discovery');
+    return null;
+  }
   for (let pkgPath of findPercyPackages(cwd)) {
     let pkgFile = path.join(pkgPath, 'package.json');
 
