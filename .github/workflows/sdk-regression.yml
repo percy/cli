@@ -153,7 +153,7 @@ jobs:
           # whole matrix (GitHub jobs API max page size is 100).
           per_page: 100
       - name: Output Current Job Log URL
-        run: echo ${{ steps.jobs.outputs.html_url }}
+        run: echo ${{ steps.job-url.outputs.html_url }}
       - uses: actions/github-script@f891eff65186019cbb3f7190c4590bc0a1b76fbc # v4.1.0
         with:
           # Writes a commit status on percy/cli itself (job-level statuses: write),
