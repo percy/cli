@@ -267,12 +267,14 @@ describe('Unit / Utils', () => {
         expect(redactSecrets(undefined)).toBeUndefined();
       });
 
-      it('does not mutate the original object', () => {
-        let original = `token ${secret}`;
-        let entry = { message: original };
+      it('redacts the entry in place and returns the same reference', () => {
+        // memory-mode logger.query returns live entry refs; the CI-log path
+        // reads the entry back after redaction, so redaction must mutate in
+        // place (not return a detached copy) as well as return the value.
+        let entry = { message: `token ${secret}` };
         let redacted = redactSecrets(entry);
-        expect(redacted.message).toEqual('token [REDACTED]');
-        expect(entry.message).toEqual(original);
+        expect(redacted).toBe(entry);
+        expect(entry.message).toEqual('token [REDACTED]');
       });
     });
   });

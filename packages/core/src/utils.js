@@ -642,20 +642,21 @@ export function redactSecrets(data) {
     }
     return data;
   }
-  // Arrays are redacted element-wise into a new array.
+  // Arrays are redacted element-wise, in place.
   if (Array.isArray(data)) {
-    return data.map(item => redactSecrets(item));
+    for (let i = 0; i < data.length; i++) data[i] = redactSecrets(data[i]);
+    return data;
   }
-  // Plain objects (e.g. a log entry and its arbitrary `meta`) are redacted
-  // across every own-enumerable value. We return a fresh copy rather than
-  // mutating in place so the canonical in-memory log entries are never
-  // corrupted by the egress redaction pass.
+  // Plain objects (a log entry and its arbitrary `meta`) are redacted across
+  // every own-enumerable value, in place, and the same reference is returned.
+  // Callers that read the return value (sendBuildLogs egress) and callers that
+  // read the same in-memory logger entry back (memory-mode logger.query) both
+  // then see the redacted result.
   if (typeof data === 'object' && data !== null) {
-    const copy = {};
-    for (const [key, value] of Object.entries(data)) {
-      copy[key] = redactSecrets(value);
+    for (const key of Object.keys(data)) {
+      data[key] = redactSecrets(data[key]);
     }
-    return copy;
+    return data;
   }
   // Any other primitive (number, boolean, null, undefined) passes through.
   return data;
