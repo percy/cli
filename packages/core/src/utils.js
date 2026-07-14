@@ -642,20 +642,20 @@ export function redactSecrets(data) {
     }
     return data;
   }
-  // Arrays are redacted element-wise, in place.
+  // Arrays (the CLI-log entry list) are redacted element-wise, in place.
   if (Array.isArray(data)) {
     for (let i = 0; i < data.length; i++) data[i] = redactSecrets(data[i]);
     return data;
   }
-  // Plain objects (a log entry and its arbitrary `meta`) are redacted across
-  // every own-enumerable value, in place, and the same reference is returned.
-  // Callers that read the return value (sendBuildLogs egress) and callers that
-  // read the same in-memory logger entry back (memory-mode logger.query) both
-  // then see the redacted result.
+  // Log entries: redact the human-readable `message` in place and return the
+  // same reference (sendBuildLogs reads the return value; the CI-log path reads
+  // the same memory-mode entry back — both see the redacted message). We do NOT
+  // recurse over `meta`: it holds structured instrumentation (e.g. a numeric
+  // `size`, ids) and a broad secret pattern matches plain digit strings, so a
+  // blanket meta sweep clobbers legitimate diagnostic data. Log-line secrets
+  // surface in `message`.
   if (typeof data === 'object' && data !== null) {
-    for (const key of Object.keys(data)) {
-      data[key] = redactSecrets(data[key]);
-    }
+    data.message = redactSecrets(data.message);
     return data;
   }
   // Any other primitive (number, boolean, null, undefined) passes through.

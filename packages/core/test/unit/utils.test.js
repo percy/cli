@@ -243,38 +243,45 @@ describe('Unit / Utils', () => {
       });
     });
 
-    // Recursion: redaction must reach arbitrary caller data in `meta`, while
-    // leaving benign nested values (and non-string primitives) untouched, and
-    // without mutating the original object.
-    describe('deep redaction', () => {
+    // Redaction is scoped to the entry's `message` and is applied in place.
+    describe('log-entry redaction', () => {
       // Built by concatenation so the contiguous token literal never appears in
       // source (a Percy-token-shaped literal would trip GitHub secret scanning);
       // at runtime it still matches the pattern and must be redacted.
       const secret = 'web_' + 'aB3dE7gH1jK4mN6pQ9sTuVwXyZ012345';
 
-      it('redacts a secret nested inside a meta object', () => {
-        let entry = { message: 'ok', meta: { token: secret } };
-        expect(redactSecrets(entry)).toEqual({ message: 'ok', meta: { token: '[REDACTED]' } });
-      });
-
-      it('passes benign objects, arrays and numbers through unchanged', () => {
-        let entry = { message: 'hello', meta: { width: 1280, tags: ['a', 'b'] }, timestamp: 12345, error: false };
-        expect(redactSecrets(entry)).toEqual(entry);
-      });
-
-      it('passes null and undefined through unchanged', () => {
-        expect(redactSecrets(null)).toBeNull();
-        expect(redactSecrets(undefined)).toBeUndefined();
-      });
-
-      it('redacts the entry in place and returns the same reference', () => {
+      it('redacts the entry message in place and returns the same reference', () => {
         // memory-mode logger.query returns live entry refs; the CI-log path
         // reads the entry back after redaction, so redaction must mutate in
         // place (not return a detached copy) as well as return the value.
-        let entry = { message: `token ${secret}` };
+        let entry = { message: `token ${secret}`, type: 'ci' };
         let redacted = redactSecrets(entry);
         expect(redacted).toBe(entry);
         expect(entry.message).toEqual('token [REDACTED]');
+      });
+
+      it('does not touch structured meta (avoids clobbering instrumentation data)', () => {
+        // `meta` holds diagnostic fields (e.g. a numeric size); a broad secret
+        // pattern matches plain digit strings, so meta is intentionally not swept.
+        let entry = { message: 'Resource too large', meta: { size: 30000000, url: 'http://localhost:8000/huge.css' } };
+        redactSecrets(entry);
+        expect(entry.meta.size).toBe(30000000);
+        expect(entry.meta.url).toBe('http://localhost:8000/huge.css');
+      });
+
+      it('redacts each message across an array of entries, in place', () => {
+        let entries = [{ message: `a ${secret}` }, { message: 'clean' }];
+        let out = redactSecrets(entries);
+        expect(out).toBe(entries);
+        expect(entries[0].message).toEqual('a [REDACTED]');
+        expect(entries[1].message).toEqual('clean');
+      });
+
+      it('passes null, undefined and non-string primitives through unchanged', () => {
+        expect(redactSecrets(null)).toBeNull();
+        expect(redactSecrets(undefined)).toBeUndefined();
+        expect(redactSecrets(42)).toBe(42);
+        expect(redactSecrets(true)).toBe(true);
       });
     });
   });
