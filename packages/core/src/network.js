@@ -668,6 +668,15 @@ async function sendResponseResource(network, request, session) {
   let meta = { ...network.meta, url };
   let send = (method, params) => network.send(session, method, params);
 
+  // The resource cache is keyed by URL only, and cached bodies are GET responses.
+  // Serving one for an unsafe method (POST/PUT/PATCH/DELETE) would answer a
+  // state-changing request with stale content and stop it from ever reaching the
+  // origin — e.g. an in-page login POST issued from an execute script would be
+  // fulfilled from the cached login page and never authenticate (PER-9766). Only
+  // safe, cacheable methods may be served from cache; anything else (or an absent
+  // method) safely falls through to a real origin request.
+  let cacheableMethod = request.method === 'GET' || request.method === 'HEAD';
+
   try {
     let resource = network.intercept.getResource(url, network.intercept.currentWidth);
     network.log.debug(`Handling request: ${url}`, meta);
@@ -684,7 +693,7 @@ async function sendResponseResource(network, request, session) {
         requestId: request.interceptId,
         errorReason: 'Aborted'
       });
-    } else if (resource && (resource.root || resource.provided || !disableCache)) {
+    } else if (resource && cacheableMethod && (resource.root || resource.provided || !disableCache)) {
       // Don't rename the below log line as it is used in getting network logs in api
       log.debug(resource.root ? '- Serving root resource' : '- Resource cache hit', meta);
 
