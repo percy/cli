@@ -76,10 +76,13 @@ if [ -n "${APPLE_DEV_CERT:-}" ]; then
   mv percy-osx percy
   zip percy-osx.zip percy
 
-  # Read the Apple app-specific password from the environment via notarytool's
-  # `@env:` prefix instead of passing it as a CLI argument, so it is not visible
-  # in the process table / `ps aux` (CWE-214).
-  xcrun notarytool submit --apple-id "$APPLE_ID_USERNAME" --password "@env:APPLE_ID_KEY" --team-id "$APPLE_TEAM_ID" percy-osx.zip --wait
+  # NOTE: `@env:VAR` is altool syntax — notarytool does NOT support it and
+  # treats the string as the literal password, so every submission 401s
+  # (this broke the v1.32.3 release). Pass the expanded value instead; argv
+  # visibility (CWE-214) is a non-issue on an ephemeral single-tenant runner,
+  # and GitHub masks the secret in logs. For stronger hardening later, use an
+  # App Store Connect API key (--key/--key-id/--issuer) or --keychain-profile.
+  xcrun notarytool submit --apple-id "$APPLE_ID_USERNAME" --password "$APPLE_ID_KEY" --team-id "$APPLE_TEAM_ID" percy-osx.zip --wait
 
   cleanup
 else
