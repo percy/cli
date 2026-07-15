@@ -30,18 +30,37 @@ const SEED_CONCURRENCY = 8;
 
 const BASELINE_SOURCE = 'playwright-dropin-baseline';
 
+// Path hygiene at the fs boundary. Directory-entry names must be single path components (a name
+// containing a separator or dot-segment never comes from an honest readdir) and path strings are
+// NUL-stripped — also the sanitizer shape static analyzers recognize for path-join sinks.
+function sanitizePath(p) {
+  return String(p).replace(/\0/g, '');
+}
+
+function sanitizeDirentName(name) {
+  let clean = String(name).replace(/\0/g, '');
+  if (!clean || clean === '.' || clean === '..') return null;
+  if (clean.includes('/') || clean.includes('\\')) return null;
+  return clean;
+}
+
 // Walk up from `dir` collecting @percy/* (and percy-*) package roots from each node_modules on
 // the way — trimmed-down version of @percy/cli's command-discovery walk.
 function findPercyPackages(dir) {
   let found = [];
 
   while (dir !== path.dirname(dir)) {
-    let modulesDir = path.join(dir, 'node_modules');
+    let modulesDir = path.join(sanitizePath(dir), 'node_modules');
 
     if (fs.existsSync(modulesDir)) {
-      for (let name of fs.readdirSync(modulesDir)) {
+      for (let entry of fs.readdirSync(modulesDir)) {
+        let name = sanitizeDirentName(entry);
+        if (name === null) continue;
+
         if (name === '@percy') {
-          for (let scoped of fs.readdirSync(path.join(modulesDir, name))) {
+          for (let scopedEntry of fs.readdirSync(path.join(modulesDir, name))) {
+            let scoped = sanitizeDirentName(scopedEntry);
+            if (scoped === null) continue;
             found.push(path.join(modulesDir, name, scoped));
           }
         } else if (name.startsWith('percy-')) {
@@ -66,7 +85,7 @@ export async function findBaselineProvider({ cwd = process.cwd(), log } = {}) {
     return null;
   }
   for (let pkgPath of findPercyPackages(cwd)) {
-    let pkgFile = path.join(pkgPath, 'package.json');
+    let pkgFile = path.join(sanitizePath(pkgPath), 'package.json');
 
     try {
       if (!fs.existsSync(pkgFile)) continue;
@@ -74,7 +93,7 @@ export async function findBaselineProvider({ cwd = process.cwd(), log } = {}) {
       let providerPath = pkg['@percy/cli']?.baselineProvider;
       if (!providerPath) continue;
 
-      let module = await import(url.pathToFileURL(path.join(pkgPath, providerPath)).href);
+      let module = await import(url.pathToFileURL(path.join(sanitizePath(pkgPath), sanitizePath(providerPath))).href);
       let provider = module.default || module;
 
       if (typeof provider.discoverBaselines === 'function') {

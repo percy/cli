@@ -400,10 +400,12 @@ export function createSnapshotsQueue(percy) {
         let number = data.attributes['build-number'];
         // Server-decided build source (e.g. 'playwright-dropin-baseline' when the API accepted a
         // baseline candidate) — exposed via /percy/healthcheck build info so SDKs can key on it.
+        // Only set when the API returned one: an own `source: undefined` key would survive on the
+        // in-process object but drop out of JSON responses, breaking shape equality for clients.
         let source = data.attributes.source;
         let usageWarning = data.attributes['usage-warning'];
         percy.client.buildType = data.attributes?.type;
-        Object.assign(build, { id: data.id, url, number, source });
+        Object.assign(build, { id: data.id, url, number }, source ? { source } : {});
 
         // Display usage warning if present
         if (usageWarning) {

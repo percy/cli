@@ -123,6 +123,16 @@ describe('exec baseline seeding', () => {
       expect(client.calls.createBuild.length).toBe(0);
     });
 
+    it('tolerates a provider returning nothing at all', async () => {
+      let client = fakeClient();
+      let provider = { discoverBaselines: async () => null };
+
+      let seeded = await maybeSeedBaseline({ client, projectType: 'web' }, provider, { log: fakeLog() });
+
+      expect(seeded).toBe(false);
+      expect(client.calls.createBuild.length).toBe(0);
+    });
+
     it('does nothing when discovery degrades', async () => {
       let client = fakeClient();
       let log = fakeLog();
@@ -173,6 +183,18 @@ describe('exec baseline seeding', () => {
       expect(log.entries.warn[0]).toContain('Skipped baseline snapshot');
     });
 
+    it('clamps missing dimensions to the API defaults on the web path', async () => {
+      let client = fakeClient();
+      let noDims = [{ filepath: BASELINES[0].filepath, name: 'no-dims', browserFamily: 'chromium' }];
+
+      let seeded = await uploadBaselines(client, 'b1', noDims, { log: fakeLog() });
+
+      expect(seeded).toBe(1);
+      let options = client.calls.sendSnapshot[0].options;
+      expect(options.widths).toEqual([1280]);
+      expect(options.minHeight).toBe(1024);
+    });
+
     it('app projects upload through the comparison ingest (tag + tile, no render flow)', async () => {
       let client = fakeClient();
       let log = fakeLog();
@@ -207,6 +229,15 @@ describe('exec baseline seeding', () => {
         '  discoverBaselines: async () => ({ baselines: [] })',
         '};'
       ].join('\n'));
+
+      // Neighbors the walk must tolerate: a scoped package without the provider key, and a
+      // top-level percy-* package (the non-scoped collection branch).
+      let plainScoped = path.join(tmpDir, 'node_modules', '@percy', 'plain-sdk');
+      fs.mkdirSync(plainScoped, { recursive: true });
+      fs.writeFileSync(path.join(plainScoped, 'package.json'), JSON.stringify({ name: '@percy/plain-sdk' }));
+      let topLevel = path.join(tmpDir, 'node_modules', 'percy-plain-tool');
+      fs.mkdirSync(topLevel, { recursive: true });
+      fs.writeFileSync(path.join(topLevel, 'package.json'), JSON.stringify({ name: 'percy-plain-tool' }));
     });
 
     afterEach(() => {
@@ -237,6 +268,8 @@ describe('exec baseline seeding', () => {
         let log = fakeLog();
         expect(await findBaselineProvider({ cwd: tmpDir, log })).toBeNull();
         expect(log.entries.debug.join('\n')).toContain('PERCY_DROPIN_DISABLE');
+        // ...and works without a logger at all
+        expect(await findBaselineProvider({ cwd: tmpDir })).toBeNull();
       } finally {
         delete process.env.PERCY_DROPIN_DISABLE;
       }
@@ -249,6 +282,8 @@ describe('exec baseline seeding', () => {
       let log = fakeLog();
       expect(await findBaselineProvider({ cwd: tmpDir, log })).toBeNull();
       expect(log.entries.debug.join('\n')).toContain('bad module');
+      // ...and without a logger the failure is still non-fatal
+      expect(await findBaselineProvider({ cwd: tmpDir })).toBeNull();
     });
   });
 });
