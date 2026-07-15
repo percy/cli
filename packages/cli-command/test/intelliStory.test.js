@@ -21,28 +21,14 @@ import {
 
 const NODE_MAJOR = parseInt(process.versions.node.split('.')[0], 10);
 
-// The applyIntelliStory happy-path test asserts project-root-relative path matching
-// (normalizeImportPath). On Windows `git rev-parse --show-toplevel` (forward-slash,
-// drive-letter) and process.cwd() (back-slash) don't reconcile through
-// path.relative, so the match is platform-specific. Coverage for that path is
-// enforced on the POSIX (ubuntu) CI; on Windows (which runs `test`, not
-// `test:coverage`) we skip it rather than assert a platform-dependent result.
 const itPosix = path.sep === '/' ? it : xit;
 
-// Run a git command in `cwd`, throwing on non-zero exit. Used to build the
-// throwaway repos the integration tests diff against — applyIntelliStory and
-// getAffectedPackages shell out to real git (spawnSync can't be spied), so the
-// only faithful way to exercise their git-driven paths is a real repo.
 function git(args, cwd) {
   let r = cp.spawnSync('git', args, { cwd, encoding: 'utf8' });
   if (r.status !== 0) throw new Error(`git ${args.join(' ')} failed: ${r.stderr || r.stdout}`);
   return r.stdout;
 }
 
-// Build a throwaway git repo: write+commit `seed` ({ relpath: contents }), then
-// (optionally) write+commit `changed`. Returns { dir, baseSha }. realpathSync so
-// process.cwd() and `git rev-parse --show-toplevel` agree on macOS (/var vs
-// /private/var), keeping path.relative-based normalization byte-stable.
 function makeRepo(seed, changed) {
   let dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'intelliStory-')));
   git(['init', '-q'], dir);
@@ -67,8 +53,6 @@ function makeRepo(seed, changed) {
   return { dir, baseSha };
 }
 
-// Injected logger stub — every extracted function takes its `log` as an
-// argument, so we hand it spies rather than reaching for the global logger.
 function mockLog() {
   return {
     debug: jasmine.createSpy('debug'),
@@ -77,8 +61,6 @@ function mockLog() {
   };
 }
 
-// Assert an async call rejects with a IntelliStoryBailError whose message carries
-// `substr`. Returns the caught error for any further assertions.
 async function expectBail(fn, substr) {
   let err;
   try {
@@ -91,9 +73,6 @@ async function expectBail(fn, substr) {
   return err;
 }
 
-// Identity normalizer: the path-frame translation is exercised end-to-end via
-// applyIntelliStory; here we feed already-normalized importPaths so each unit test
-// stays focused on its own branch.
 const identity = p => p;
 
 describe('intelliStory', () => {
@@ -134,8 +113,7 @@ describe('intelliStory', () => {
     });
 
     it('anchors a traversal-prefixed statsFile inside the build dir via basename', async () => {
-      // `path.basename('../../etc/foo.json')` is `foo.json`, so the read stays
-      // inside the build dir even when the config tries to escape it.
+
       await mockfs({ '/build/foo.json': JSON.stringify({ buildId: 'b', modules: [] }) });
       let res = await validateAndReadStats('/build', '../../etc/foo.json', '/root', log);
       expect(res.buildId).toEqual('b');
@@ -150,15 +128,15 @@ describe('intelliStory', () => {
               id: '/root/src/A.js',
               imports: [
                 { type: 'src', source: '/root/src/B.js', loc: [{ start: 38, end: 38 }, { start: 40, end: 42 }] },
-                { type: 'src', source: '/root/src/B.js' }, // duplicate → reuses the existing index
-                { type: 'src', source: 'lib/rel.js' }, // non-absolute → returned as-is, not indexed
+                { type: 'src', source: '/root/src/B.js' },
+                { type: 'src', source: 'lib/rel.js' },
                 { type: 'module', source: 'react' }
               ],
               passThroughExports: [{ type: 'src', source: '/root/src/C.js', loc: [{ start: 5, end: 5 }] }],
               nonPassThroughExports: [{ type: 'module', source: 'lodash' }]
             },
-            { id: '/root/node_modules/dep/index.js' }, // excluded → string id → dropped
-            {} // no id, no import/export arrays → kept as {}
+            { id: '/root/node_modules/dep/index.js' },
+            {}
           ]
         })
       });
@@ -166,16 +144,15 @@ describe('intelliStory', () => {
       let res = await validateAndReadStats('/build', undefined, '/root', log);
 
       expect(res.buildId).toEqual('b');
-      // Indexed in encounter order; node_modules paths are excluded (not indexed).
-      // `path.relative` uses the platform separator (back-slash on Windows).
+
       expect(res.files).toEqual([path.join('src', 'A.js'), path.join('src', 'B.js'), path.join('src', 'C.js')]);
-      expect(res.modules.length).toEqual(2); // the string-id module is dropped
+      expect(res.modules.length).toEqual(2);
       expect(res.modules[0].id).toEqual(0);
-      expect(res.modules[0].imports[0].source).toEqual(1); // src ref → index
-      expect(res.modules[0].imports[1].source).toEqual(1); // duplicate → same index
-      expect(res.modules[0].imports[2].source).toEqual('lib/rel.js'); // non-absolute → as-is
-      expect(res.modules[0].imports[3].source).toEqual('react'); // module ref → untouched
-      expect(res.modules[0].imports[0].loc).toEqual([[38, 38], [40, 42]]); // {start,end} spans → [start,end] tuples
+      expect(res.modules[0].imports[0].source).toEqual(1);
+      expect(res.modules[0].imports[1].source).toEqual(1);
+      expect(res.modules[0].imports[2].source).toEqual('lib/rel.js');
+      expect(res.modules[0].imports[3].source).toEqual('react');
+      expect(res.modules[0].imports[0].loc).toEqual([[38, 38], [40, 42]]);
       expect(res.modules[0].passThroughExports[0].source).toEqual(2);
       expect(res.modules[0].passThroughExports[0].loc).toEqual([[5, 5]]);
       expect(res.modules[0].nonPassThroughExports).toEqual([{ type: 'module', source: 'lodash' }]);
@@ -183,8 +160,6 @@ describe('intelliStory', () => {
     });
   });
 
-  // These hit real git (spawnSync is a native ESM binding we can't spy), so we
-  // lean on `git diff --name-only HEAD HEAD` being deterministically empty.
   describe('getBaselineAndAffectedNodes()', () => {
     const log = mockLog();
 
@@ -274,8 +249,7 @@ describe('intelliStory', () => {
     });
 
     it('treats an over-long glob as non-matching instead of throwing', () => {
-      // A >500-char glob makes patternToRegex throw; matchesPattern swallows it
-      // and reports no match rather than crashing on a bad config value.
+
       expect(() => assertNoBailOnChanges(['yarn.lock'], ['*'.repeat(600)])).not.toThrow();
     });
   });
@@ -366,7 +340,7 @@ describe('intelliStory', () => {
           getStatus: async () => ({ status: 'done', data })
         }
       };
-      // affectedFileLocations is forwarded verbatim; the client snake_cases it.
+
       let payload = {
         files: ['f'],
         modules: [{ id: 0 }],
@@ -455,10 +429,10 @@ describe('intelliStory', () => {
     it('forces re-snapshot for missing, failed and rejected baselines', () => {
       let log = mockLog();
       let snapshots = [
-        { name: 'A', importPath: 'src/A.stories.js' }, // affected + approved baseline
-        { name: 'B', importPath: 'src/B.stories.js' }, // failed baseline -> forced
-        { name: 'C', importPath: 'src/C.stories.js' }, // missing baseline -> forced
-        { name: 'D', importPath: 'src/D.stories.js' } // approved + not affected -> dropped
+        { name: 'A', importPath: 'src/A.stories.js' },
+        { name: 'B', importPath: 'src/B.stories.js' },
+        { name: 'C', importPath: 'src/C.stories.js' },
+        { name: 'D', importPath: 'src/D.stories.js' }
       ];
       let baselineSnapshots = { A: 'approved', B: 'failed', D: 'approved' };
       let data = { affected_stories: ['src/A.stories.js'] };
@@ -478,7 +452,7 @@ describe('intelliStory', () => {
     it('treats a payload with no affected_stories field as none affected', () => {
       let log = mockLog();
       let snapshots = [{ name: 'A', importPath: 'src/A.stories.js' }];
-      // data.affected_stories is undefined → defaults to an empty set.
+
       expect(selectAffectedSnapshots(snapshots, {}, 'main', null, identity, log)).toEqual([]);
     });
   });
@@ -487,9 +461,6 @@ describe('intelliStory', () => {
     beforeEach(() => jasmine.clock().install());
     afterEach(() => jasmine.clock().uninstall());
 
-    // Drive the async poll loop under fake timers: flush microtasks, then
-    // advance one 5s interval, repeat. Extra rounds after the promise settles
-    // are harmless, so we over-provision past POLL_ATTEMPTS (12).
     async function drainPolls(promise, rounds = 20) {
       for (let i = 0; i < rounds; i++) {
         await Promise.resolve();
@@ -562,12 +533,10 @@ describe('intelliStory', () => {
       }
 
       if (NODE_MAJOR >= 18) {
-        // On Node >=18 snyk loads; whether the diff resolves or surfaces a parse
-        // error is incidental — this branch isn't what the Node-14 CI measures.
+
         expect(res).toBeDefined();
       } else {
-        // On Node 14 diffLockfileDeps throws SNYK_LOCKFILE_PARSER_UNAVAILABLE,
-        // which getAffectedPackages downgrades to a full-set bail.
+
         expect(res).toBeInstanceOf(IntelliStoryBailError);
         expect(res.message).toContain('snyk-nodejs-lockfile-parser is not available');
       }
@@ -581,19 +550,17 @@ describe('intelliStory', () => {
       repos.push(dir);
       process.chdir(dir);
 
-      // yarn.lock is byte-identical at base and HEAD → short-circuits to [].
       expect(await getAffectedPackages(['pkg/package.json'], baseSha, dir, log)).toEqual([]);
     });
 
     it('bails when the lockfile was not tracked at the base ref', async () => {
       let log = mockLog();
       let { dir, baseSha } = makeRepo(
-        { 'pkg/package.json': '{"name":"x"}' }, // base: no lockfile
-        { 'pkg/yarn.lock': 'left-pad@^1.0.0:\n  version "1.2.0"\n' }); // HEAD: lockfile added
+        { 'pkg/package.json': '{"name":"x"}' },
+        { 'pkg/yarn.lock': 'left-pad@^1.0.0:\n  version "1.2.0"\n' });
       repos.push(dir);
       process.chdir(dir);
 
-      // lockfile exists on disk (HEAD) but `git show <base>:pkg/yarn.lock` fails.
       await expectBail(
         () => getAffectedPackages(['pkg/yarn.lock'], baseSha, dir, log),
         'not present at base ref');
@@ -607,7 +574,6 @@ describe('intelliStory', () => {
       repos.push(dir);
       process.chdir(dir);
 
-      // manifestDir resolves to '.', exercising the root-vs-subdir repo-path branches.
       let res;
       try {
         res = await getAffectedPackages(['yarn.lock'], baseSha, dir, log);
@@ -637,38 +603,34 @@ describe('intelliStory', () => {
     it('maps changed line ranges to file index, skipping unindexed and deleted files', () => {
       let { dir, baseSha } = setup(
         {
-          'src/A.js': 'a\nb\nc\nd\ne\n', // indexed; line 3 changed + lines 6-7 appended
-          'src/del.js': 'x\n' // indexed; deleted at HEAD → no new-side lines
+          'src/A.js': 'a\nb\nc\nd\ne\n',
+          'src/del.js': 'x\n'
         },
         {
           'src/A.js': 'a\nb\nC\nd\ne\nf\ng\n',
-          'src/B.js': 'new\n' // NOT in the files index → skipped
+          'src/B.js': 'new\n'
         });
-      // makeRepo's writeAll can't delete; drop del.js in a follow-up commit so the
-      // baseSha→HEAD diff carries its `+++ /dev/null` deletion hunk.
+
       fs.rmSync(path.join(dir, 'src/del.js'));
       git(['add', '-A'], dir);
       git(['commit', '-qm', 'remove del'], dir);
 
-      // files index: A=0, del=1; B.js is absent (not indexed).
       let res = getAffectedFileLocations(baseSha, ['src/A.js', 'src/del.js']);
 
-      // A.js: `@@ -3 +3 @@` → [3,3] and `@@ -5,0 +6,2 @@` → [6,7].
-      // del.js shows `+++ /dev/null` (pure deletion) → no entry. B.js unindexed → no entry.
       expect(res).toEqual({ 0: [[3, 3], [6, 7]] });
     });
 
     it('ignores pure-deletion hunks that add no new lines', () => {
       let { baseSha } = setup(
-        { 'src/A.js': '1\n2\n3\n' }, // line 2 removed, file kept
+        { 'src/A.js': '1\n2\n3\n' },
         { 'src/A.js': '1\n3\n' });
-      // `@@ -2 +1,0 @@` → new-side count 0 → no range contributed.
+
       expect(getAffectedFileLocations(baseSha, ['src/A.js'])).toEqual({});
     });
 
     it('returns an empty map when there is no diff', () => {
       let { baseSha } = setup({ 'src/A.js': 'a\n' });
-      // baseSha === HEAD (no second commit) → `git diff <sha> HEAD` is empty.
+
       expect(getAffectedFileLocations(baseSha, ['src/A.js'])).toEqual({});
     });
 
@@ -696,15 +658,14 @@ describe('intelliStory', () => {
     const STATS = JSON.stringify({ buildId: 'bld-1', modules: [] });
 
     it('bails when no build directory is provided', async () => {
-      // pass an undefined config too, exercising the `intelliStoryConfig || {}` guard.
+
       await expectBail(
         () => applyIntelliStory({ client: {} }, [], undefined, undefined),
         'requires the Storybook build directory');
     });
 
     it('bails when nothing is affected after filtering', async () => {
-      // baseline=HEAD → `git diff HEAD HEAD` is empty, no manifest changes, so
-      // both affectedNodes and packageAffectedNodes are empty.
+
       let { dir } = setup({ 'sb/enriched-stats.json': STATS, 'src/A.stories.jsx': 'v1' });
       await expectBail(
         () => applyIntelliStory({ client: {} }, [{ name: 'A', importPath: 'src/A.stories.jsx' }],
@@ -717,8 +678,6 @@ describe('intelliStory', () => {
         { 'sb/enriched-stats.json': STATS, 'src/A.stories.jsx': 'v1' },
         { 'src/A.stories.jsx': 'v2' });
 
-      // affected_stories arrive already in the project-root frame; normalizeImportPath
-      // produces the platform separator, so match it with path.join (back-slash on Windows).
       let data = { affected_stories: [path.join('src', 'A.stories.jsx'), path.join('src', 'Dot.stories.jsx')] };
       let generate = jasmine.createSpy('generateIntelliStoryGraph');
       let percy = {
@@ -728,10 +687,10 @@ describe('intelliStory', () => {
         }
       };
       let snapshots = [
-        { name: 'A', importPath: 'src/A.stories.jsx' }, // plain → kept
-        { name: 'Dot', importPath: './src/Dot.stories.jsx' }, // ./ prefix stripped → kept
-        { name: 'NoPath' }, // undefined importPath → dropped
-        { name: 'Empty', importPath: '' } // empty importPath → dropped
+        { name: 'A', importPath: 'src/A.stories.jsx' },
+        { name: 'Dot', importPath: './src/Dot.stories.jsx' },
+        { name: 'NoPath' },
+        { name: 'Empty', importPath: '' }
       ];
 
       let result = await applyIntelliStory(percy, snapshots, { baseline: baseSha, trace: false }, path.join(dir, 'sb'));

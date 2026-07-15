@@ -413,32 +413,16 @@ export class PercyClient {
   }
 
   // Retrieves snapshot/comparison data by id. Requires a read access token.
-  // For `intelli_story_graph`, the API blocks (sync=true) until the graph job
-  // finishes and returns the graph payload directly in the response — there
-  // is no separate "data" endpoint to fetch after polling.
   async getStatus(type, ids) {
     if (!['snapshot', 'comparison', 'intelli_story_graph'].includes(type)) throw new Error('Invalid type passed');
     this.log.debug(`Getting ${type} status for ids ${ids}`);
     return this.get(`job_status?sync=true&type=${type}&id=${ids.join()}`);
   }
 
-  // IntelliStory endpoints authenticate against the project attached to the
-  // current Percy token (via the Authorization header). `generate-graph`
-  // takes a `build_id` (sourced from the bundler-emitted stats file) so
-  // multiple concurrent storybook builds for the same project don't share
-  // Redis state. `snapshot-name-to-commit` is project-scoped only.
-  // Graph status is polled through the shared `getStatus()` helper with
-  // type `intelli_story_graph` — the sync response returns the graph payload
-  // directly on completion.
-
   async getIntelliStorySnapshotNameToCommit() {
     this.log.debug('IntelliStory: looking up baselines...');
     const qs = new URLSearchParams();
 
-    // Same git/PR context `createBuild` sends — the API uses these to predict
-    // the base build that *would* be selected if we called createBuild now,
-    // without actually creating one. Any missing field means the API falls
-    // back through the same strategy chain it would on real build creation.
     if (this.env.git?.branch) qs.append('branch', this.env.git.branch);
     if (this.env.target?.branch) qs.append('target_branch', this.env.target.branch);
     if (this.env.git?.sha) qs.append('commit_sha', this.env.git.sha);

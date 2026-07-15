@@ -1,7 +1,5 @@
 import * as cliCommand from '../src/index.js';
 
-// The barrel only re-exports; importing and touching each binding is enough to
-// execute it. Guards against an export being dropped or renamed.
 describe('index (public exports)', () => {
   it('re-exports the command, legacy, intelliStory and common-package surface', () => {
     expect(typeof cliCommand.default).toBe('function');

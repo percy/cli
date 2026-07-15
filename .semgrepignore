@@ -39,15 +39,4 @@ packages/core/src/api.js
 packages/core/test/unit/maestro-hierarchy.test.js
 packages/core/test/unit/maestro-hierarchy.parity.test.js
 
-# Regression guard for the packaged-binary crash (PER-9666): it statically
-# scans the repo's own source tree for the `require = createRequire` footgun.
-# To walk that tree it builds paths with path.join()/path.resolve() inside its
-# findRepoRoot() and collectSourceFiles() helpers, which trips semgrep's
-# javascript.lang.security.audit.path-traversal.path-join-resolve-traversal
-# rule. No user input flows into those joins — every path is derived from
-# process.cwd() and fs.readdir() of the repo's own packages/ directory, with a
-# fixed allowlist of source extensions and a skip-list of build/dep dirs. It is
-# a build-time test, never shipped or exposed to external input. The rule
-# cannot follow that the inputs are filesystem-internal, so it false-positives
-# on every join. Suppress at the file level with this rationale.
 packages/cli-command/test/noRequireBinding.test.js

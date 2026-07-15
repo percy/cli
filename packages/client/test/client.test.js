@@ -922,7 +922,6 @@ describe('PercyClient', () => {
 
       await expectAsync(client.generateIntelliStoryGraph('build-2')).toBeResolvedTo({ status: 'queued' });
 
-      // JSON.stringify drops undefined values, so only build_id should remain in body
       expect(api.requests['/intelli_story/generate-graph'][0].body).toEqual({ build_id: 'build-2' });
     });
 

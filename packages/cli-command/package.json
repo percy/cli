@@ -40,8 +40,7 @@
     "@percy/config": "1.32.4",
     "@percy/core": "1.32.4",
     "@percy/logger": "1.32.4",
-    "glob-to-regexp": "^0.4.1",
-    "stream-json": "^1.8.0"
+    "glob-to-regexp": "^0.4.1"
   },
   "optionalDependencies": {
     "snyk-nodejs-lockfile-parser": "2.7.1"

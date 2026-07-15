@@ -115,23 +115,11 @@
 </div>
 <div id="drawflow"></div>
 <script type="module">
-// ---------------------------------------------------------------------------
-// Payload populated by the CLI before this template is written to disk.
-// Tokens are replaced by graphTrace.js via plain string substitution.
-//   vertices:                         [{ index, name, row, col, kind }, ...]
-//   edges:                            [[srcIndex, tgtIndex], ...]
-//   transitive_closure_matrix_sparse: [[srcIndex, tgtIndex, length], ...]
-// `kind` is one of: 'package' | 'component' | 'story' | 'is_relevant'.
-// ---------------------------------------------------------------------------
 const vertices = __VERTICES_JSON__;
 const edges = __EDGES_JSON__;
 const transitive_closure_matrix_sparse = __TRANSITIVE_CLOSURE_JSON__;
 const n = vertices.length;
 
-// ---------------------------------------------------------------------------
-// Width measurement: each node grows to fit its file path. We need the
-// rendered width (DOM-dependent) to lay out columns without overlap.
-// ---------------------------------------------------------------------------
 function measureWidth(text) {
     const el = document.createElement('div');
     el.className = 'measure-node';
@@ -142,13 +130,9 @@ function measureWidth(text) {
     return w;
 }
 
-// Drawflow adds port circles on each side (~25px) + border; pad generously.
 const PORT_PAD = 60;
 const nodeWidth = vertices.map(v => measureWidth(v.name) + PORT_PAD);
 
-// ---------------------------------------------------------------------------
-// Column X positions (cumulative by max width per column).
-// ---------------------------------------------------------------------------
 const PAD_X = 60, PAD_Y = 60, COL_GAP = 140, ROW_HEIGHT = 70;
 
 const colMaxWidth = {};
@@ -164,9 +148,6 @@ for (const c of sortedCols) {
     cursor += colMaxWidth[c] + COL_GAP;
 }
 
-// ---------------------------------------------------------------------------
-// Boot Drawflow.
-// ---------------------------------------------------------------------------
 const container = document.getElementById('drawflow');
 const editor = new Drawflow(container);
 editor.reroute = false;
@@ -181,17 +162,11 @@ function escapeHtml(s) {
         .replace(/'/g, '&#39;');
 }
 
-// CSS classes per kind. `is_relevant` becomes `is-relevant` so it matches
-// the stylesheet rule.
 function cssClassFor(kind) {
     if (kind === 'is_relevant') return 'is-relevant';
     return kind;
 }
 
-// ---------------------------------------------------------------------------
-// Add nodes. row/col come from the server; pixel positions are computed
-// here using the measured widths so columns never overlap.
-// ---------------------------------------------------------------------------
 const nodeIds = new Array(n);
 for (let i = 0; i < n; i++) {
     const v = vertices[i];
@@ -207,18 +182,12 @@ for (let i = 0; i < n; i++) {
     nodeIds[i] = id;
 }
 
-// ---------------------------------------------------------------------------
-// Connections.
-// ---------------------------------------------------------------------------
 for (const e of edges) {
     editor.addConnection(nodeIds[e[0]], nodeIds[e[1]], 'output_1', 'input_1');
 }
 
 editor.editor_mode = 'fixed';
 
-// ---------------------------------------------------------------------------
-// Arrowheads on connection paths.
-// ---------------------------------------------------------------------------
 const SVG_NS = 'http://www.w3.org/2000/svg';
 function addArrowhead(svg) {
     if (svg.querySelector('marker')) return;
@@ -257,17 +226,6 @@ new MutationObserver((muts) => {
     }
 }).observe(container, { subtree: true, childList: true });
 
-// ---------------------------------------------------------------------------
-// Click-to-select with bidirectional reachability highlight.
-//
-// Reachability comes straight from transitive_closure_matrix_sparse: for a click
-// on vertex `start`, anything appearing as the target of a triple
-// (start, j, _) is reachable from `start`, and anything appearing as the
-// source of a triple (i, start, _) can reach `start`. No adjacency list —
-// we just iterate the triples each time. With small click counts and a
-// sparse matrix this is fast enough and avoids carrying redundant graph
-// state in the page.
-// ---------------------------------------------------------------------------
 const idxByDfId = new Map();
 for (let i = 0; i < n; i++) {
     if (nodeIds[i] !== undefined) idxByDfId.set(nodeIds[i], i);
@@ -338,9 +296,6 @@ container.addEventListener('click', (evt) => {
     }
 });
 
-// ---------------------------------------------------------------------------
-// Toolbar.
-// ---------------------------------------------------------------------------
 document.getElementById('zoom-in').onclick    = () => editor.zoom_in();
 document.getElementById('zoom-out').onclick   = () => editor.zoom_out();
 document.getElementById('zoom-reset').onclick = () => { editor.zoom_reset(); currentSelected = null; clearSelection(); };

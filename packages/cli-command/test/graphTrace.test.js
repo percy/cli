@@ -1,11 +1,7 @@
 import { renderGraphTraceHtml } from '../src/graphTrace.js';
 
-// The trace template embeds each payload as `const <name> = <json>;` on its
-// own line (see graphTraceTemplate.html). Pulling that line back out lets us
-// assert both the computed layout and the escaping that renderGraphTraceHtml
-// applies, without exporting the module-private helpers it delegates to.
 function embeddedJson(html, name) {
-  // test-only helper; name is a hardcoded literal ('vertices'/'edges') from the test, not external input (reviewed, approved by security)
+
   let match = html.match(new RegExp(`const ${name} = (.*);`)); // nosemgrep
   if (!match) throw new Error(`could not find embedded "${name}" payload`);
   return match[1];
@@ -29,8 +25,7 @@ describe('graphTrace', () => {
     });
 
     it('propagates columns along edges so a target sits right of its source', () => {
-      // a(dependency) -> b(component) -> c(component), no closure hints, so the
-      // edge constraint alone drives the columns: 0, 1, 2.
+
       let laidOut = vertices(renderGraphTraceHtml({
         vertices: [
           { kind: 'dependency', file_path: 'pkg-a' },
@@ -104,7 +99,7 @@ describe('graphTrace', () => {
     });
 
     it('assigns unique rows within a shared column', () => {
-      // Two same-column components must not collide on row 0.
+
       let laidOut = vertices(renderGraphTraceHtml({
         vertices: [
           { kind: 'component', file_path: 'A.jsx' },
@@ -119,8 +114,7 @@ describe('graphTrace', () => {
     });
 
     it('keeps a stable order for vertices that tie on rank and name', () => {
-      // Two same-kind vertices with identical names land in the same column
-      // group and hit the comparator's final equal-name branch (returns 0).
+
       let laidOut = vertices(renderGraphTraceHtml({
         vertices: [
           { kind: 'component', file_path: 'Dup.jsx' },
@@ -135,10 +129,7 @@ describe('graphTrace', () => {
     });
 
     it('orders a shared column by kind-rank then name', () => {
-      // All three dependencies are pinned to column 0, but the changed one ranks
-      // as is_relevant (1) vs package (0) for the others — mixed ranks in one
-      // column exercise the rank-differs branch, and the two packages exercise
-      // the name tie-break.
+
       let laidOut = vertices(renderGraphTraceHtml({
         vertices: [
           { kind: 'dependency', file_path: 'z-pkg' },
@@ -150,7 +141,7 @@ describe('graphTrace', () => {
       }));
 
       let col0 = laidOut.filter(v => v.col === 0).sort((a, b) => a.row - b.row);
-      // packages (rank 0) sort by name first, then the changed/is_relevant one.
+
       expect(col0.map(v => v.name)).toEqual(['m-pkg', 'z-pkg', 'a-pkg']);
     });
 
@@ -163,10 +154,10 @@ describe('graphTrace', () => {
         ],
         edges: [],
         transitiveClosureMatrixSparse: [
-          [0, 0, 5], // u === v → skipped
-          [0, 1, 0], // val <= 0 → skipped
-          [0, 2, 3], // sets incomingMax[2] = 3
-          [1, 2, 2] // 2 is not > 3 → incomingMax[2] left unchanged
+          [0, 0, 5],
+          [0, 1, 0],
+          [0, 2, 3],
+          [1, 2, 2]
         ]
       });
 
@@ -182,8 +173,7 @@ describe('graphTrace', () => {
     });
 
     it('tolerates cyclic edges and out-of-range indices', () => {
-      // Cyclic edges would loop forever without the bounded iteration guard;
-      // out-of-range edge/closure indices must be ignored, not throw.
+
       let render = () => renderGraphTraceHtml({
         vertices: [
           { kind: 'component', file_path: 'x' },
@@ -199,8 +189,7 @@ describe('graphTrace', () => {
   });
 
   describe('renderGraphTraceHtml() escaping', () => {
-    // Build a name carrying every sequence safeJson must neutralize so a
-    // malicious file_path can't break out of the surrounding <script> block.
+
     const LS = String.fromCharCode(0x2028);
     const PS = String.fromCharCode(0x2029);
     const hostile = `</script><!--${LS}${PS}-->`;
@@ -234,10 +223,7 @@ describe('graphTrace', () => {
     });
 
     it('escapes only the dangerous sequences, leaving the payload intact', () => {
-      // The output is embedded in a <script> block (JS), where `<\!--` reads as
-      // the literal `<!--`. Reverting just safeJson's extra escapes must yield
-      // parseable JSON that round-trips to the original hostile name — i.e. no
-      // structural characters were collateral-damaged.
+
       let restored = hostileLine()
         .split('<\\!--').join('<!--')
         .split('--\\>').join('-->');
