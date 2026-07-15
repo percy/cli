@@ -109,10 +109,31 @@ export async function findBaselineProvider({ cwd = process.cwd(), log } = {}) {
   return null;
 }
 
+// The seed build keeps processing (renders + auto-approval) after finalize. The head build must
+// not start until it reaches a terminal state — head snapshots select their baseline as they are
+// processed, and an unapproved seed means the whole first run shows as new instead of diffing.
+// The timeout matches the pipeline latency budget (~99% of builds finish under 5 minutes) —
+// a seed of committed screenshots still renders server-side, so first runs can hold for minutes.
+export async function waitForSeedBuild(client, buildId, { log, timeout = 600000, interval = 5000 }) {
+  let deadline = Date.now() + timeout;
+  let state = 'pending';
+  let polls = 0;
+
+  for (;;) {
+    ({ state } = (await client.getBuild(buildId)).data.attributes);
+    if (state !== 'pending' && state !== 'processing') return state;
+    if (Date.now() >= deadline) return state;
+    // A visible heartbeat every ~30s so a multi-minute first-run hold doesn't look like a hang.
+    log[polls++ % 6 === 0 ? 'info' : 'debug'](
+      `Baseline build still ${state} — waiting for it to finish before tests start`);
+    await new Promise(resolve => setTimeout(resolve, interval));
+  }
+}
+
 // Establish the project's baseline from committed screenshots BEFORE the head build starts.
 // Never throws — a seeding problem must not break `percy exec`. Returns true when a baseline
 // build was created and finalized.
-export async function maybeSeedBaseline(percy, provider, { log }) {
+export async function maybeSeedBaseline(percy, provider, { log, waitTimeout, waitInterval }) {
   try {
     // Parallel shards would race each other seeding; the head build dedup doesn't apply to the
     // separate seed build, so leave parallel runs to the explicit setup command.
@@ -156,8 +177,23 @@ export async function maybeSeedBaseline(percy, provider, { log }) {
     });
 
     await percy.client.finalizeBuild(buildId);
-    log.info(`Baseline established from ${seeded}/${baselines.length} committed snapshot(s) ` +
-      'and auto-approved — this run diffs against it.');
+
+    let state;
+    try {
+      state = await waitForSeedBuild(percy.client, buildId, {
+        log, timeout: waitTimeout, interval: waitInterval
+      });
+    } catch (err) {
+      log.debug(`Baseline build wait failed: ${err.message}`);
+    }
+
+    if (state === 'finished') {
+      log.info(`Baseline established from ${seeded}/${baselines.length} committed snapshot(s) ` +
+        'and auto-approved — this run diffs against it.');
+    } else {
+      log.warn(`Baseline build did not finish processing in time (state: ${state}) — ` +
+        'snapshots in this run may show as new instead of diffing against the baseline');
+    }
     return true;
   } catch (err) {
     log.warn('Skipping baseline setup');

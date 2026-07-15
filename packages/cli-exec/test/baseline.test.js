@@ -40,10 +40,16 @@ afterAll(() => {
   fs.rmSync(tmpPngDir, { recursive: true, force: true });
 });
 
-function fakeClient({ established = false, failUploads = false } = {}) {
-  let calls = { createBuild: [], sendSnapshot: [], sendComparison: [], finalizeBuild: [] };
+function fakeClient({ established = false, failUploads = false, buildStates = ['finished'] } = {}) {
+  let calls = { createBuild: [], sendSnapshot: [], sendComparison: [], finalizeBuild: [], getBuild: [] };
+  let states = [...buildStates];
   return {
     calls,
+    async getBuild(buildId) {
+      calls.getBuild.push(buildId);
+      let state = states.length > 1 ? states.shift() : states[0];
+      return { data: { id: buildId, attributes: { state } } };
+    },
     async createBuild(options) {
       calls.createBuild.push(options);
       // Established projects answer with the baseline-skipped sentinel (no data).
@@ -98,6 +104,46 @@ describe('exec baseline seeding', () => {
       expect(client.calls.finalizeBuild).toEqual(['seed-build-1']);
       expect(log.entries.info.join('\n')).toContain('establishing your baseline');
       expect(log.entries.info.join('\n')).toContain('auto-approved');
+    });
+
+    it('waits for the seed build to finish processing before returning', async () => {
+      let client = fakeClient({ buildStates: ['processing', 'processing', 'finished'] });
+      let log = fakeLog();
+      let provider = { discoverBaselines: async () => ({ baselines: BASELINES }) };
+
+      let seeded = await maybeSeedBaseline(
+        { client, projectType: 'web' }, provider, { log, waitInterval: 1 });
+
+      expect(seeded).toBe(true);
+      expect(client.calls.getBuild).toEqual(['seed-build-1', 'seed-build-1', 'seed-build-1']);
+      expect(log.entries.debug.join('\n')).toContain('Baseline build still processing');
+      expect(log.entries.info.join('\n')).toContain('auto-approved');
+    });
+
+    it('warns instead of blocking forever when the seed build stays processing', async () => {
+      let client = fakeClient({ buildStates: ['processing'] });
+      let log = fakeLog();
+      let provider = { discoverBaselines: async () => ({ baselines: BASELINES }) };
+
+      let seeded = await maybeSeedBaseline(
+        { client, projectType: 'web' }, provider, { log, waitTimeout: 0 });
+
+      expect(seeded).toBe(true);
+      expect(log.entries.warn.join('\n')).toContain('did not finish processing in time');
+      expect(log.entries.info.join('\n')).not.toContain('auto-approved');
+    });
+
+    it('degrades to a warning when the seed build status cannot be read', async () => {
+      let client = fakeClient();
+      client.getBuild = async () => { throw new Error('status boom'); };
+      let log = fakeLog();
+      let provider = { discoverBaselines: async () => ({ baselines: BASELINES }) };
+
+      let seeded = await maybeSeedBaseline({ client, projectType: 'web' }, provider, { log });
+
+      expect(seeded).toBe(true);
+      expect(log.entries.debug.join('\n')).toContain('status boom');
+      expect(log.entries.warn.join('\n')).toContain('did not finish processing in time');
     });
 
     it('skips an established project and points at the setup command', async () => {
