@@ -91,6 +91,53 @@ function stripBlockedConfigFields(body, log) {
   return _applyHttpReadOnlyStripping(body, findHttpReadOnlyPaths(body, ROOT_CONFIG_SCHEMA), log);
 }
 
+// Snapshot option keys whose values are executed as JavaScript in the browser:
+// `domTransformation` is passed to window.eval and `execute` (incl. its
+// beforeSnapshot/afterNavigation/before|afterResize hooks) is run via page.eval.
+const REMOTE_SCRIPT_FIELDS = ['execute', 'domTransformation'];
+
+// The local /percy/snapshot endpoint is unauthenticated, so accepting code-
+// bearing fields from a network request body lets any local caller inject
+// arbitrary JavaScript into the (possibly authenticated) page being snapshotted
+// (CWE-94 — PER-8607, PER-8613). Strip those fields from HTTP-sourced snapshots
+// by default; the config-file / CLI path (`percy snapshot`) calls percy.snapshot
+// directly and never passes through this route, so legitimate config-sourced
+// execute/domTransformation are unaffected. Trusted programmatic callers can opt
+// back in with PERCY_ALLOW_REMOTE_SCRIPTS=true.
+export function stripRemoteScriptFields(body, log) {
+  if (process.env.PERCY_ALLOW_REMOTE_SCRIPTS === 'true') return body;
+  if (!body || typeof body !== 'object') return body;
+
+  let stripped = JSON.parse(JSON.stringify(body));
+  let removed = new Set();
+  let walk = node => {
+    if (Array.isArray(node)) return node.forEach(walk);
+    if (node && typeof node === 'object') {
+      for (let key of Object.keys(node)) {
+        if (REMOTE_SCRIPT_FIELDS.includes(key)) {
+          delete node[key];
+          removed.add(key);
+        } else {
+          walk(node[key]);
+        }
+      }
+    }
+  };
+  walk(stripped);
+
+  if (removed.size) {
+    // Report fields in their canonical declaration order, not discovery order,
+    // so the warning is deterministic regardless of body key ordering.
+    let removedList = REMOTE_SCRIPT_FIELDS.filter(f => removed.has(f));
+    log.warn(
+      `Ignoring \`${removedList.join('`, `')}\` from /percy/snapshot request: these run ` +
+      'arbitrary JavaScript and are not accepted over the local API. Set them via the config ' +
+      'file or CLI, or set PERCY_ALLOW_REMOTE_SCRIPTS=true to allow them on this endpoint.'
+    );
+  }
+  return stripped;
+}
+
 // Parse PNG IHDR chunk for the screenshot's actual rendered dimensions.
 // Returns { width, height } when the buffer is a valid PNG with non-zero
 // dimensions, or null otherwise (non-PNG signature, truncated file, zero
@@ -374,10 +421,11 @@ export function createPercyServer(percy, port) {
     .route('post', '/percy/snapshot', async (req, res) => {
       let data;
       const snapshotPromise = {};
-      const snapshot = percy.snapshot(req.body, snapshotPromise);
+      const body = stripRemoteScriptFields(req.body, logger('core:server'));
+      const snapshot = percy.snapshot(body, snapshotPromise);
       if (!req.url.searchParams.has('async')) await snapshot;
 
-      if (percy.syncMode(req.body)) data = await handleSyncJob(snapshotPromise[req.body.name], percy, 'snapshot');
+      if (percy.syncMode(body)) data = await handleSyncJob(snapshotPromise[body.name], percy, 'snapshot');
 
       return res.json(200, { success: true, data: data });
     })
