@@ -38,7 +38,6 @@ describe('lockfileDiff', () => {
     const diff = opts => diffLockfileDeps({ lockfileType: 'package-lock.json', ...opts });
 
     it('flags a top-level dependency whose resolved version changed', async () => {
-
       await expectAsync(diff({
         oldPackageJson: packageJson({ dependencies: { 'left-pad': '^1.0.0' } }),
         packageJson: packageJson({ dependencies: { 'left-pad': '^1.0.0' } }),
@@ -66,7 +65,6 @@ describe('lockfileDiff', () => {
     });
 
     it('flags a range-only bump even when the resolved version is identical', async () => {
-
       await expectAsync(diff({
         oldPackageJson: packageJson({ dependencies: { 'left-pad': '^1.0.0' } }),
         packageJson: packageJson({ dependencies: { 'left-pad': '^1.2.0' } }),
@@ -85,7 +83,6 @@ describe('lockfileDiff', () => {
     });
 
     it('ignores changes to devDependencies', async () => {
-
       await expectAsync(diff({
         oldPackageJson: packageJson({ devDependencies: { 'left-pad': '^1.0.0' } }),
         packageJson: packageJson({ devDependencies: { 'left-pad': '^1.0.0' } }),

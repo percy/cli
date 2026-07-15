@@ -113,7 +113,6 @@ describe('intelliStory', () => {
     });
 
     it('anchors a traversal-prefixed statsFile inside the build dir via basename', async () => {
-
       await mockfs({ '/build/foo.json': JSON.stringify({ buildId: 'b', modules: [] }) });
       let res = await validateAndReadStats('/build', '../../etc/foo.json', '/root', log);
       expect(res.buildId).toEqual('b');
@@ -249,7 +248,6 @@ describe('intelliStory', () => {
     });
 
     it('treats an over-long glob as non-matching instead of throwing', () => {
-
       expect(() => assertNoBailOnChanges(['yarn.lock'], ['*'.repeat(600)])).not.toThrow();
     });
   });
@@ -533,10 +531,8 @@ describe('intelliStory', () => {
       }
 
       if (NODE_MAJOR >= 18) {
-
         expect(res).toBeDefined();
       } else {
-
         expect(res).toBeInstanceOf(IntelliStoryBailError);
         expect(res.message).toContain('snyk-nodejs-lockfile-parser is not available');
       }
@@ -658,14 +654,12 @@ describe('intelliStory', () => {
     const STATS = JSON.stringify({ buildId: 'bld-1', modules: [] });
 
     it('bails when no build directory is provided', async () => {
-
       await expectBail(
         () => applyIntelliStory({ client: {} }, [], undefined, undefined),
         'requires the Storybook build directory');
     });
 
     it('bails when nothing is affected after filtering', async () => {
-
       let { dir } = setup({ 'sb/enriched-stats.json': STATS, 'src/A.stories.jsx': 'v1' });
       await expectBail(
         () => applyIntelliStory({ client: {} }, [{ name: 'A', importPath: 'src/A.stories.jsx' }],

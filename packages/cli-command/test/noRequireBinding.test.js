@@ -44,7 +44,6 @@ describe('source: no `require = createRequire` binding', () => {
   const files = collectSourceFiles(root);
 
   it('scans a non-trivial number of source files', () => {
-
     expect(files.length).toBeGreaterThan(20);
   });
 

@@ -1,7 +1,6 @@
 import { renderGraphTraceHtml } from '../src/graphTrace.js';
 
 function embeddedJson(html, name) {
-
   let match = html.match(new RegExp(`const ${name} = (.*);`)); // nosemgrep
   if (!match) throw new Error(`could not find embedded "${name}" payload`);
   return match[1];
@@ -25,7 +24,6 @@ describe('graphTrace', () => {
     });
 
     it('propagates columns along edges so a target sits right of its source', () => {
-
       let laidOut = vertices(renderGraphTraceHtml({
         vertices: [
           { kind: 'dependency', file_path: 'pkg-a' },
@@ -99,7 +97,6 @@ describe('graphTrace', () => {
     });
 
     it('assigns unique rows within a shared column', () => {
-
       let laidOut = vertices(renderGraphTraceHtml({
         vertices: [
           { kind: 'component', file_path: 'A.jsx' },
@@ -114,7 +111,6 @@ describe('graphTrace', () => {
     });
 
     it('keeps a stable order for vertices that tie on rank and name', () => {
-
       let laidOut = vertices(renderGraphTraceHtml({
         vertices: [
           { kind: 'component', file_path: 'Dup.jsx' },
@@ -129,7 +125,6 @@ describe('graphTrace', () => {
     });
 
     it('orders a shared column by kind-rank then name', () => {
-
       let laidOut = vertices(renderGraphTraceHtml({
         vertices: [
           { kind: 'dependency', file_path: 'z-pkg' },
@@ -173,7 +168,6 @@ describe('graphTrace', () => {
     });
 
     it('tolerates cyclic edges and out-of-range indices', () => {
-
       let render = () => renderGraphTraceHtml({
         vertices: [
           { kind: 'component', file_path: 'x' },
@@ -189,7 +183,6 @@ describe('graphTrace', () => {
   });
 
   describe('renderGraphTraceHtml() escaping', () => {
-
     const LS = String.fromCharCode(0x2028);
     const PS = String.fromCharCode(0x2029);
     const hostile = `</script><!--${LS}${PS}-->`;
@@ -223,7 +216,6 @@ describe('graphTrace', () => {
     });
 
     it('escapes only the dangerous sequences, leaving the payload intact', () => {
-
       let restored = hostileLine()
         .split('<\\!--').join('<!--')
         .split('--\\>').join('-->');
