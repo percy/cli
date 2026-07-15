@@ -33,11 +33,11 @@ const BASELINE_SOURCE = 'playwright-dropin-baseline';
 // Path hygiene at the fs boundary. Directory-entry names must be single path components (a name
 // containing a separator or dot-segment never comes from an honest readdir) and path strings are
 // NUL-stripped — also the sanitizer shape static analyzers recognize for path-join sinks.
-function sanitizePath(p) {
+export function sanitizePath(p) {
   return String(p).replace(/\0/g, '');
 }
 
-function sanitizeDirentName(name) {
+export function sanitizeDirentName(name) {
   let clean = String(name).replace(/\0/g, '');
   if (!clean || clean === '.' || clean === '..') return null;
   if (clean.includes('/') || clean.includes('\\')) return null;
@@ -55,11 +55,13 @@ function findPercyPackages(dir) {
     if (fs.existsSync(modulesDir)) {
       for (let entry of fs.readdirSync(modulesDir)) {
         let name = sanitizeDirentName(entry);
+        // istanbul ignore next: readdir yields single path components — defense-in-depth only
         if (name === null) continue;
 
         if (name === '@percy') {
           for (let scopedEntry of fs.readdirSync(path.join(modulesDir, name))) {
             let scoped = sanitizeDirentName(scopedEntry);
+            // istanbul ignore next: readdir yields single path components — defense-in-depth only
             if (scoped === null) continue;
             found.push(path.join(modulesDir, name, scoped));
           }

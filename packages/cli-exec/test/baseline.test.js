@@ -4,7 +4,9 @@ import os from 'os';
 import {
   findBaselineProvider,
   maybeSeedBaseline,
-  uploadBaselines
+  uploadBaselines,
+  sanitizePath,
+  sanitizeDirentName
 } from '../src/baseline.js';
 
 // Collecting fake logger — baseline.js only needs these four methods.
@@ -211,6 +213,21 @@ describe('exec baseline seeding', () => {
     });
   });
 
+  describe('path hygiene helpers', () => {
+    it('sanitizePath strips NUL bytes', () => {
+      expect(sanitizePath('/repo\0/x')).toBe('/repo/x');
+    });
+
+    it('sanitizeDirentName rejects non-single-component names', () => {
+      expect(sanitizeDirentName('percy-tool')).toBe('percy-tool');
+      expect(sanitizeDirentName('')).toBe(null);
+      expect(sanitizeDirentName('.')).toBe(null);
+      expect(sanitizeDirentName('..')).toBe(null);
+      expect(sanitizeDirentName('a/b')).toBe(null);
+      expect(sanitizeDirentName('a\\b')).toBe(null);
+    });
+  });
+
   describe('findBaselineProvider', () => {
     let tmpDir;
 
@@ -230,8 +247,19 @@ describe('exec baseline seeding', () => {
         '};'
       ].join('\n'));
 
-      // Neighbors the walk must tolerate: a scoped package without the provider key, and a
-      // top-level percy-* package (the non-scoped collection branch).
+      // Neighbors the walk must tolerate, named to sort BEFORE the valid package so every
+      // skip branch executes on the way to it: a bare dir without package.json, a provider
+      // module (ESM, named export only) that lacks discoverBaselines, a scoped package without
+      // the provider key, and a top-level percy-* package (the non-scoped collection branch).
+      let emptyDir = path.join(tmpDir, 'node_modules', '@percy', 'aa-empty-dir');
+      fs.mkdirSync(emptyDir, { recursive: true });
+      let noFn = path.join(tmpDir, 'node_modules', '@percy', 'ab-no-fn-provider');
+      fs.mkdirSync(noFn, { recursive: true });
+      fs.writeFileSync(path.join(noFn, 'package.json'), JSON.stringify({
+        name: '@percy/ab-no-fn-provider',
+        '@percy/cli': { baselineProvider: 'provider.mjs' }
+      }));
+      fs.writeFileSync(path.join(noFn, 'provider.mjs'), 'export const notAProvider = true;\n');
       let plainScoped = path.join(tmpDir, 'node_modules', '@percy', 'plain-sdk');
       fs.mkdirSync(plainScoped, { recursive: true });
       fs.writeFileSync(path.join(plainScoped, 'package.json'), JSON.stringify({ name: '@percy/plain-sdk' }));

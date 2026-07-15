@@ -98,6 +98,14 @@ describe('percy exec', () => {
 
       expect(process.env.PERCY_BUILD_SOURCE).toBe('playwright-dropin-baseline');
     });
+
+    it('skips provider discovery entirely for non web/app tokens', async () => {
+      process.env.PERCY_TOKEN = 'auto_PERCY_TOKEN'; // tokenType() -> automate
+
+      await exec(['--', 'node', '--eval', '']);
+
+      expect(process.env.PERCY_BUILD_SOURCE).toBeUndefined();
+    });
   });
 
   it('logs an error when no command is provided', async () => {
