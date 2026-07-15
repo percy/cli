@@ -413,10 +413,62 @@ export class PercyClient {
   }
 
   // Retrieves snapshot/comparison data by id. Requires a read access token.
+  // For `intelli_story_graph`, the API blocks (sync=true) until the graph job
+  // finishes and returns the graph payload directly in the response — there
+  // is no separate "data" endpoint to fetch after polling.
   async getStatus(type, ids) {
-    if (!['snapshot', 'comparison'].includes(type)) throw new Error('Invalid type passed');
+    if (!['snapshot', 'comparison', 'intelli_story_graph'].includes(type)) throw new Error('Invalid type passed');
     this.log.debug(`Getting ${type} status for ids ${ids}`);
     return this.get(`job_status?sync=true&type=${type}&id=${ids.join()}`);
+  }
+
+  // IntelliStory endpoints authenticate against the project attached to the
+  // current Percy token (via the Authorization header). `generate-graph`
+  // takes a `build_id` (sourced from the bundler-emitted stats file) so
+  // multiple concurrent storybook builds for the same project don't share
+  // Redis state. `snapshot-name-to-commit` is project-scoped only.
+  // Graph status is polled through the shared `getStatus()` helper with
+  // type `intelli_story_graph` — the sync response returns the graph payload
+  // directly on completion.
+
+  async getIntelliStorySnapshotNameToCommit() {
+    this.log.debug('IntelliStory: looking up baselines...');
+    const qs = new URLSearchParams();
+
+    // Same git/PR context `createBuild` sends — the API uses these to predict
+    // the base build that *would* be selected if we called createBuild now,
+    // without actually creating one. Any missing field means the API falls
+    // back through the same strategy chain it would on real build creation.
+    if (this.env.git?.branch) qs.append('branch', this.env.git.branch);
+    if (this.env.target?.branch) qs.append('target_branch', this.env.target.branch);
+    if (this.env.git?.sha) qs.append('commit_sha', this.env.git.sha);
+    if (this.env.target?.commit) qs.append('target_commit_sha', this.env.target.commit);
+    if (this.env.pullRequest != null) qs.append('pull_request_number', String(this.env.pullRequest));
+    if (this.env.partial) qs.append('partial', 'true');
+
+    const query = qs.toString();
+    return this.get(
+      query ? `intelli_story/snapshot-name-to-commit?${query}` : 'intelli_story/snapshot-name-to-commit',
+      { identifier: 'intelli_story.snapshot_name_to_commit' }
+    );
+  }
+
+  async generateIntelliStoryGraph(buildId, {
+    files,
+    modules,
+    storybookPaths,
+    affectedNodes,
+    affectedFileLocations
+  } = {}) {
+    this.log.debug(`IntelliStory: enqueueing graph build for build ${buildId}...`);
+    return this.post('intelli_story/generate-graph', {
+      build_id: buildId,
+      files,
+      modules,
+      storybook_paths: storybookPaths,
+      affected_nodes: affectedNodes,
+      affected_file_locations: affectedFileLocations
+    }, { identifier: 'intelli_story.generate_graph' });
   }
 
   // Returns device details enabled on project associated with given token
