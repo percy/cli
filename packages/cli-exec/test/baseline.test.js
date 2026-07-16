@@ -107,7 +107,7 @@ describe('exec baseline seeding', () => {
     });
 
     it('waits for the seed build to finish processing before returning', async () => {
-      let client = fakeClient({ buildStates: ['processing', 'processing', 'finished'] });
+      let client = fakeClient({ buildStates: ['pending', 'processing', 'finished'] });
       let log = fakeLog();
       let provider = { discoverBaselines: async () => ({ baselines: BASELINES }) };
 
