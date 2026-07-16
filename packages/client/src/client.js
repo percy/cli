@@ -354,6 +354,12 @@ export class PercyClient {
 
     let tagsArr = tagsList(this.labels);
 
+    // PER-9724: internal-only priority request. Set by internal product
+    // orchestration (e.g. Scanner / LCA) via PERCY_PRIORITY; mirrors the
+    // PERCY_ORIGINATED_SOURCE internal signal above. percy-api only honors this
+    // for eligible internal build types, so it is a no-op for customer builds.
+    let priority = process.env.PERCY_PRIORITY === 'true';
+
     return this.post('builds', {
       data: {
         type: 'builds',
@@ -381,7 +387,8 @@ export class PercyClient {
           'testhub-build-run-id': this.env.testhubBuildRunId,
           ...(dropinBaselineCandidate ? { 'dropin-baseline-candidate': true } : {}),
           ...(dropinBaselineSetup ? { 'dropin-baseline-setup': true } : {}),
-          ...(visualConfig ? { 'visual-config': visualConfig } : {})
+          ...(visualConfig ? { 'visual-config': visualConfig } : {}),
+          ...(priority ? { priority: true } : {})
         },
         relationships: {
           resources: {

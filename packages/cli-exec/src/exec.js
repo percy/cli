@@ -9,7 +9,7 @@ import { findBaselineProvider, maybeSeedBaseline } from './baseline.js';
 
 export const exec = command('exec', {
   description: 'Start and stop Percy around a supplied command',
-  usage: '[options] -- <command>',
+  usage: '[options] [--] <command>',
   commands: [start, stop, ping, replay],
 
   flags: [{

@@ -202,6 +202,7 @@ describe('PercyClient', () => {
       delete process.env.PERCY_BUILD_SOURCE;
       delete process.env.PERCY_DROPIN_BASELINE_CANDIDATE;
       delete process.env.PERCY_DROPIN_BASELINE_SETUP;
+      delete process.env.PERCY_PRIORITY;
     });
 
     it('creates a new build', async () => {
@@ -239,6 +240,21 @@ describe('PercyClient', () => {
             tags: []
           }
         }));
+    });
+
+    it('sends priority: true when PERCY_PRIORITY is set (internal signal)', async () => {
+      process.env.PERCY_PRIORITY = 'true';
+
+      await client.createBuild();
+
+      expect(api.requests['/builds'][0].body.data.attributes)
+        .toEqual(jasmine.objectContaining({ priority: true }));
+    });
+
+    it('does not send a priority attribute when PERCY_PRIORITY is unset', async () => {
+      await client.createBuild();
+
+      expect(api.requests['/builds'][0].body.data.attributes.priority).toBeUndefined();
     });
 
     it('creates a new build with projectType passed as null', async () => {

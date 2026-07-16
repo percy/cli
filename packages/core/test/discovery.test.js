@@ -6,6 +6,7 @@ import { RESOURCE_CACHE_KEY, CACHE_STATS_KEY, DISK_SPILL_KEY } from '../src/disc
 import { ByteLRU, DiskSpillStore } from '../src/cache/byte-lru.js';
 import fs from 'fs';
 import Session from '../src/session.js';
+import Network from '../src/network.js';
 import Pako from 'pako';
 import * as CoreConfig from '@percy/core/config';
 import PercyConfig from '@percy/config';
@@ -1107,6 +1108,164 @@ describe('Discovery', () => {
       const emptyLogs = notUploadedLogs.filter(l => l.meta && l.meta.reason === 'empty_response');
       expect(emptyLogs.length).toBeGreaterThan(0, 'No empty_response logs found');
       expect(emptyLogs[0].message).toContain('[ASSET_NOT_UPLOADED]');
+    });
+
+    it('blocks and logs instrumentation for cloud metadata endpoints', async () => {
+      await percy.snapshot({
+        name: 'test snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot: testDOM.replace('img.gif', 'http://169.254.169.254/latest/meta-data/'),
+        discovery: { disableCache: true }
+      });
+
+      await percy.idle();
+
+      const logs = logger.instance.query(log => log.debug === 'core:discovery');
+      expect(logs.length).toBeGreaterThan(0, 'No core:discovery logs found');
+
+      const notUploadedLogs = logs.filter(l => l.meta && l.meta.instrumentationCategory === 'asset_not_uploaded');
+      const metadataLogs = notUploadedLogs.filter(l => l.meta && l.meta.reason === 'metadata_endpoint_blocked');
+      expect(metadataLogs.length).toBeGreaterThan(0, 'No metadata_endpoint_blocked logs found');
+      expect(metadataLogs[0].meta.hostname).toBe('169.254.169.254');
+      expect(metadataLogs[0].message).toContain('[ASSET_NOT_UPLOADED]');
+
+      // the metadata subresource must never be captured/uploaded
+      expect(captured[0]).not.toContain(
+        jasmine.objectContaining({
+          attributes: jasmine.objectContaining({
+            'resource-url': 'http://169.254.169.254/latest/meta-data/'
+          })
+        })
+      );
+    });
+
+    it('blocks a resource that redirects to a cloud metadata endpoint', async () => {
+      // an open redirect on an allowed host must not be able to smuggle a
+      // request through to the metadata endpoint — the redirect hop target
+      // (not just the original URL) has to be checked
+      server.reply('/redirect-meta', () => [301, { Location: 'http://169.254.169.254/latest/meta-data/' }]);
+
+      await percy.snapshot({
+        name: 'test snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot: testDOM.replace('img.gif', 'redirect-meta'),
+        discovery: { disableCache: true }
+      });
+
+      await percy.idle();
+
+      const logs = logger.instance.query(log => log.debug === 'core:discovery');
+      const notUploadedLogs = logs.filter(l => l.meta && l.meta.instrumentationCategory === 'asset_not_uploaded');
+      const metadataLogs = notUploadedLogs.filter(l => l.meta && l.meta.reason === 'metadata_endpoint_blocked');
+      expect(metadataLogs.length).toBeGreaterThan(0, 'No metadata_endpoint_blocked logs found for redirect');
+      expect(metadataLogs[0].meta.hostname).toBe('169.254.169.254');
+
+      // the redirect target must never be captured/uploaded
+      expect(captured[0]).not.toContain(
+        jasmine.objectContaining({
+          attributes: jasmine.objectContaining({
+            'resource-url': 'http://169.254.169.254/latest/meta-data/'
+          })
+        })
+      );
+    });
+
+    it('blocks a subresource whose connection rebinds to a metadata IP (response-stage gate)', async () => {
+      // DNS rebinding: the request-time literal pre-check sees only the benign
+      // host (localhost) and lets the request through, but Chromium's actual
+      // connection is to a cloud metadata IP. We simulate that by rewriting the
+      // connected remoteIPAddress reported on Network.responseReceived for the
+      // subresources — one plain IPv4 metadata IP, one IPv4-mapped IPv6 form.
+      // The response-stage gate must block each resource before its body is ever
+      // buffered/uploaded. This is the leg the literal pre-check cannot cover.
+      spyOn(percy.browser, '_handleMessage').and.callFake(function(data) {
+        let parsed; try { parsed = JSON.parse(data); } catch { /* binary frame */ }
+        let url = parsed?.method === 'Network.responseReceived' && parsed.params?.response?.url;
+        if (url && url.endsWith('/img.gif')) {
+          parsed.params.response.remoteIPAddress = '169.254.169.254';
+          return this._handleMessage.and.originalFn.call(this, JSON.stringify(parsed));
+        }
+        if (url && url.endsWith('/style.css')) {
+          parsed.params.response.remoteIPAddress = '::ffff:169.254.169.254';
+          return this._handleMessage.and.originalFn.call(this, JSON.stringify(parsed));
+        }
+        this._handleMessage.and.originalFn.call(this, data);
+      });
+
+      await percy.snapshot({
+        name: 'rebind snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot: testDOM,
+        discovery: { disableCache: true }
+      });
+
+      await percy.idle();
+
+      const logs = logger.instance.query(log => log.debug === 'core:discovery');
+      const notUploadedLogs = logs.filter(l => l.meta && l.meta.instrumentationCategory === 'asset_not_uploaded');
+      const metadataLogs = notUploadedLogs.filter(l => l.meta && l.meta.reason === 'metadata_endpoint_blocked');
+      const blockedHosts = metadataLogs.map(l => l.meta.hostname);
+
+      expect(blockedHosts).toContain('169.254.169.254');
+      expect(blockedHosts).toContain('::ffff:169.254.169.254');
+
+      // neither rebound resource body may be captured/uploaded
+      expect(captured[0]).not.toContain(jasmine.objectContaining({
+        attributes: jasmine.objectContaining({ 'resource-url': 'http://localhost:8000/img.gif' })
+      }));
+      expect(captured[0]).not.toContain(jasmine.objectContaining({
+        attributes: jasmine.objectContaining({ 'resource-url': 'http://localhost:8000/style.css' })
+      }));
+    });
+
+    it('blocks a direct-fetched resource whose connection is a metadata IP', async () => {
+      percy.loglevel('debug');
+
+      // The direct-fetch fallback is a Node-side path that also attaches
+      // cookies/auth and never goes through the request-time continue path. Force
+      // it by dropping the resource's CDP response (so loadingFinished falls back
+      // to captureResourceDirectly, mirroring the PlzDedicatedWorker case), then
+      // stub the transport's reported connected IP to a cloud metadata address.
+      // The direct-fetch choke point (makeDirectRequest → isMetadataIP) must block
+      // it and never save the body.
+      spyOn(percy.browser, '_handleMessage').and.callFake(function(data) {
+        let parsed; try { parsed = JSON.parse(data); } catch { /* binary frame */ }
+        if (parsed?.method === 'Network.responseReceived' &&
+            parsed.params?.response?.url?.endsWith('/direct-meta.css')) {
+          return; // drop → responseReceived times out → captureResourceDirectly
+        }
+        this._handleMessage.and.originalFn.call(this, data);
+      });
+
+      let origDirectFetch = Network.prototype.directFetch;
+      spyOn(Network.prototype, 'directFetch').and.callFake(async function(request, session) {
+        let result = await origDirectFetch.call(this, request, session);
+        if (request.url.endsWith('/direct-meta.css')) {
+          return { ...result, remoteAddresses: ['169.254.169.254'] };
+        }
+        return result;
+      });
+
+      server.reply('/direct-meta.css', () => [200, 'text/css', 'p{}']);
+
+      let dom = '<html><head><link href="direct-meta.css" rel="stylesheet"/></head><body>x</body></html>';
+      await percy.snapshot({
+        name: 'direct-fetch metadata snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot: dom
+      });
+
+      await percy.idle();
+
+      const logs = logger.instance.query(log => log.debug === 'core:discovery');
+      const notUploadedLogs = logs.filter(l => l.meta && l.meta.instrumentationCategory === 'asset_not_uploaded');
+      const metadataLogs = notUploadedLogs.filter(l => l.meta && l.meta.reason === 'metadata_endpoint_blocked');
+      expect(metadataLogs.map(l => l.meta.hostname)).toContain('169.254.169.254');
+
+      // the direct-fetched resource must never be captured/uploaded
+      expect(captured[0]).not.toContain(jasmine.objectContaining({
+        attributes: jasmine.objectContaining({ 'resource-url': 'http://localhost:8000/direct-meta.css' })
+      }));
     });
 
     it('logs instrumentation for network errors', async () => {
