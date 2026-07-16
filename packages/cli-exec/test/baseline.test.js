@@ -344,6 +344,8 @@ describe('exec baseline seeding', () => {
         expect(log.entries.debug.join('\n')).toContain('PERCY_DROPIN_DISABLE');
         // ...and works without a logger at all
         expect(await findBaselineProvider({ cwd: tmpDir })).toBeNull();
+        // ...and with no options at all (cwd defaults; disable short-circuits before any walk)
+        expect(await findBaselineProvider()).toBeNull();
       } finally {
         delete process.env.PERCY_DROPIN_DISABLE;
       }
