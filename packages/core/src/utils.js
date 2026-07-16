@@ -57,6 +57,106 @@ export function isHttpOrHttpsUrl(urlString) {
   }
 }
 
+// Cloud instance-metadata endpoints. These are never legitimate snapshot
+// targets, but they hand out short-lived cloud credentials to anything that
+// can reach them — so a page (or a subresource it requests) that navigates
+// Chromium to one of these can exfiltrate credentials via SSRF. We block
+// these specific targets only; loopback and general RFC1918 hosts stay
+// allowed so that snapshotting http://localhost:3000 and internal staging
+// hosts keeps working.
+const METADATA_IPS = new Set([
+  '169.254.169.254', // AWS/Azure/GCP IMDS
+  '169.254.170.2', // AWS ECS task metadata
+  '100.100.100.200', // Alibaba Cloud
+  'fd00:ec2::254' // AWS IMDS over IPv6
+].map(canonicalHost));
+
+const METADATA_HOSTNAMES = new Set([
+  'metadata.google.internal',
+  'metadata.goog'
+]);
+
+// Canonicalizes a host for comparison: lowercases, strips a trailing dot and
+// IPv6 brackets, normalizes IPv6 addresses to their compressed form (so e.g.
+// fd00:ec2:0:0:0:0:0:254 and fd00:ec2::254 compare equal), and unwraps
+// IPv4-mapped IPv6 addresses to their dotted-quad form (so e.g.
+// ::ffff:169.254.169.254 compares equal to the literal 169.254.169.254 — the
+// OS routes it to the IPv4 service, so it must not slip past the IP set).
+function canonicalHost(host) {
+  if (!host) return host;
+  let h = String(host).toLowerCase().replace(/\.$/, '');
+  let bare = h.replace(/^\[/, '').replace(/\]$/, '');
+
+  if (bare.includes(':')) {
+    try {
+      let canon = new URL(`http://[${bare}]/`).hostname.replace(/^\[/, '').replace(/\]$/, '');
+      // The URL parser renders IPv4-mapped IPv6 as ::ffff:wwww:xxxx (hex);
+      // fold those 32 bits back into dotted-quad so mapped metadata IPs match.
+      let mapped = /^::ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/.exec(canon);
+      if (mapped) {
+        let hi = parseInt(mapped[1], 16);
+        let lo = parseInt(mapped[2], 16);
+        return `${hi >> 8}.${hi & 0xff}.${lo >> 8}.${lo & 0xff}`;
+      }
+      return canon;
+    } catch {
+      return bare;
+    }
+  }
+
+  return bare;
+}
+
+// The single decision point for the metadata block: returns the given host
+// (hostname or IP literal) when it canonicalizes to a known cloud
+// instance-metadata endpoint, otherwise null. Purely synchronous and DNS-free —
+// every outbound path (the request-time literal pre-check, the response-stage
+// remoteIPAddress gate, and the direct-fetch socket-address gate) funnels
+// through here so the block behaves identically everywhere.
+function matchMetadataHost(host) {
+  if (!host) return null;
+  let canon = canonicalHost(host);
+  return (METADATA_IPS.has(canon) || METADATA_HOSTNAMES.has(canon)) ? host : null;
+}
+
+// Cheap, synchronous first-line pre-check on a URL's literal host: blocks only
+// literal metadata IPs and metadata hostnames. It does NOT resolve DNS and so
+// cannot defend against DNS rebinding on its own — an attacker's hostname can
+// resolve benignly here and then to a metadata IP for the actual connection.
+// The DNS-rebinding leg is closed at the response stage by isMetadataIP, which
+// gates on response.remoteIPAddress — the IP the request actually connected to.
+export function isMetadataTarget(rawUrl) {
+  let host;
+
+  try {
+    host = new URL(rawUrl).hostname;
+  } catch {
+    // Unparseable URLs are handled elsewhere; they are not our concern here.
+    return null;
+  }
+
+  return matchMetadataHost(host);
+}
+
+// Response/connection-stage gate: given the IP a request actually connected to
+// (response.remoteIPAddress from CDP, or a direct fetch's socket.remoteAddress),
+// returns the offending IP when it is a metadata target, otherwise null. This
+// is the authoritative enforcement point — it inspects the real connected IP,
+// so a hostname that rebinds to a metadata IP after the request-time pre-check
+// is still blocked here. No DNS needed: the input is already an IP literal.
+export function isMetadataIP(remoteIP) {
+  return matchMetadataHost(remoteIP);
+}
+
+// Throws when the URL points at a cloud instance-metadata endpoint. Used to
+// refuse navigating the top-level snapshot URL to such a target.
+export function assertNotMetadataTarget(rawUrl) {
+  let host = isMetadataTarget(rawUrl);
+  if (host) {
+    throw new Error(`Refusing to navigate to cloud metadata endpoint: ${host}`);
+  }
+}
+
 // Rewrites localhost/127.0.0.1 origins to Percy's internal render host so
 // serialized resources resolve consistently during rendering. Mirrors the
 // rewrite applied to serialized DOM resources in @percy/dom (serialize-cssom).

@@ -18,12 +18,16 @@ export const start = command('start', {
 
 export const exec = command('exec', {
   description: 'Start and stop Percy around a supplied command for native apps',
-  usage: '[options] -- <command>',
+  usage: '[options] [--] <command>',
   commands: [start, stop, ping],
 
   flags: ExecPlugin.default.definition
   // grouped flags are built-in flags
     .flags.filter(f => !f.group),
+
+  // some environments (e.g. npx PowerShell shims) strip the `--` separator;
+  // fall back to loose parsing like `percy exec` instead of hard failing
+  loose: ExecPlugin.default.definition.loose,
 
   percy: {
     server: true,

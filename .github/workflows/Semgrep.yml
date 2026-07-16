@@ -31,7 +31,7 @@ jobs:
       # has a bug where `semgrep ci --sarif` counts nosemgrep-suppressed findings as
       # blocking and exits non-zero (fixed in 1.164.0), so inline `// nosemgrep`
       # suppressions were ignored. See https://semgrep.dev/docs CHANGELOG v1.164.0.
-      image: semgrep/semgrep:1.164.0
+      image: semgrep/semgrep@sha256:207983631beecdbe7fa29196c7f4a7a5f29033933cdb76c687ce4a672e07618d # 1.164.0
 
     # Skip any PR created by dependabot to avoid permission issues, and skip the
     # automated release PR (opened by github-actions[bot], same repo, release/*

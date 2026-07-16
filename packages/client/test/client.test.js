@@ -199,6 +199,7 @@ describe('PercyClient', () => {
       delete process.env.PERCY_AUTO_ENABLED_GROUP_BUILD;
       delete process.env.PERCY_ORIGINATED_SOURCE;
       delete process.env.PERCY_VISUAL_CONFIG;
+      delete process.env.PERCY_PRIORITY;
     });
 
     it('creates a new build', async () => {
@@ -236,6 +237,21 @@ describe('PercyClient', () => {
             tags: []
           }
         }));
+    });
+
+    it('sends priority: true when PERCY_PRIORITY is set (internal signal)', async () => {
+      process.env.PERCY_PRIORITY = 'true';
+
+      await client.createBuild();
+
+      expect(api.requests['/builds'][0].body.data.attributes)
+        .toEqual(jasmine.objectContaining({ priority: true }));
+    });
+
+    it('does not send a priority attribute when PERCY_PRIORITY is unset', async () => {
+      await client.createBuild();
+
+      expect(api.requests['/builds'][0].body.data.attributes.priority).toBeUndefined();
     });
 
     it('creates a new build with projectType passed as null', async () => {
