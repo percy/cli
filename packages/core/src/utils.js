@@ -83,6 +83,10 @@ const METADATA_HOSTNAMES = new Set([
 // ::ffff:169.254.169.254 compares equal to the literal 169.254.169.254 — the
 // OS routes it to the IPv4 service, so it must not slip past the IP set).
 function canonicalHost(host) {
+  /* istanbul ignore next -- @preserve: defensive guard; the sole caller
+     matchMetadataHost already returns on a falsy host before calling this,
+     so this branch is unreachable via the public API and cannot be exercised
+     without widening the export surface. */
   if (!host) return host;
   let h = String(host).toLowerCase().replace(/\.$/, '');
   let bare = h.replace(/^\[/, '').replace(/\]$/, '');
