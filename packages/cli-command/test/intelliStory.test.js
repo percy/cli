@@ -318,7 +318,7 @@ describe('intelliStory', () => {
   });
 
   describe('runGraphGeneration()', () => {
-    it('starts the job and returns the graph payload on done', async () => {
+    it('starts the job and resolves once the graph is done', async () => {
       let log = mockLog();
       let generate = jasmine.createSpy('generateIntelliStoryGraph');
       let data = { affected_stories: ['src/A.stories.js'] };
@@ -337,9 +337,10 @@ describe('intelliStory', () => {
         affectedFileLocations: { 0: [[3, 3], [6, 7]] }
       };
 
-      let res = await runGraphGeneration(percy, 'bld-1', payload, log);
+      // selection is server-side now, so nothing is returned — it just
+      // enqueues generation and resolves once the job reaches `done`.
+      await runGraphGeneration(percy, 'bld-1', payload, log);
 
-      expect(res).toBe(data);
       expect(generate).toHaveBeenCalledWith('bld-1', payload);
     });
 
@@ -429,7 +430,7 @@ describe('intelliStory', () => {
       };
 
       let p = runGraphGeneration(percy, 'bld-1', { files: [], modules: [], storybookPaths: [], affectedNodes: [] }, log);
-      await expectAsync(drainPolls(p)).toBeResolvedTo(data);
+      await expectAsync(drainPolls(p)).toBeResolved();
     });
 
     it('bails after the poll loop times out without reaching done', async () => {
