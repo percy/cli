@@ -255,7 +255,9 @@ export async function uploadBaselines(client, buildId, baselines, { log, project
     if (projectType === 'app') {
       await client.sendComparison(buildId, {
         name: b.name,
-        tag: { name: b.browserFamily, width: b.width, height: b.height },
+        // Mirror the drop-in SDK's tag shape exactly (incl. browserName) — comparison pairing
+        // matches on the canonical tag row, so any attribute difference orphans the baseline.
+        tag: { name: b.browserFamily, browserName: b.browserFamily, width: b.width, height: b.height },
         tiles: [{ filepath: b.filepath }]
       });
     } else {

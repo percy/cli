@@ -253,7 +253,7 @@ describe('exec baseline seeding', () => {
       expect(client.calls.sendSnapshot.length).toBe(0);
       expect(client.calls.sendComparison.length).toBe(2);
       let home = client.calls.sendComparison.find(c => c.options.name === 'home').options;
-      expect(home.tag).toEqual({ name: 'chromium', width: 1280, height: 720 });
+      expect(home.tag).toEqual({ name: 'chromium', browserName: 'chromium', width: 1280, height: 720 });
       expect(home.tiles.length).toBe(1);
       expect(home.tiles[0].filepath.endsWith('a.png')).toBe(true);
     });
