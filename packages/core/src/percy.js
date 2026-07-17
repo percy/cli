@@ -863,7 +863,10 @@ export class Percy {
     if (!process.env.PERCY_TOKEN) return;
     try {
       const logsObject = {
-        clilogs: logger.query(log => !['ci'].includes(log.debug))
+        // Redact secrets from CLI logs before egress to the Percy API — these
+        // can contain tokens or URLs with embedded credentials (CWE-532). The
+        // cilogs below were already redacted; clilogs were not.
+        clilogs: redactSecrets(logger.query(log => !['ci'].includes(log.debug)))
       };
 
       // Only add CI logs if not disabled voluntarily.
