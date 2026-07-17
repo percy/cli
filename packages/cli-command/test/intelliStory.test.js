@@ -15,7 +15,8 @@ import {
   extractStorybookPaths,
   runGraphGeneration,
   maybeWriteTrace,
-  applyIntelliStory
+  applyIntelliStory,
+  writeIntelliStoryTrace
 } from '../src/intelliStory.js';
 
 const NODE_MAJOR = parseInt(process.versions.node.split('.')[0], 10);
@@ -398,6 +399,67 @@ describe('intelliStory', () => {
       spyOn(fs, 'writeFileSync').and.throwError('disk full');
       expect(() => maybeWriteTrace(true, fullData, log)).not.toThrow();
       expect(log.warn).toHaveBeenCalled();
+    });
+  });
+
+  describe('writeIntelliStoryTrace()', () => {
+    beforeEach(() => jasmine.clock().install());
+    afterEach(() => jasmine.clock().uninstall());
+
+    const fullData = {
+      affected_stories: [],
+      vertices: [{ kind: 'component', file_path: 'A.jsx' }],
+      edges: [],
+      transitive_closure_matrix_sparse: []
+    };
+
+    // Flush microtasks between clock ticks so the poll loop advances.
+    async function drainPolls(promise, rounds = 20) {
+      for (let i = 0; i < rounds; i++) {
+        await Promise.resolve();
+        await Promise.resolve();
+        jasmine.clock().tick(5000);
+      }
+      return promise;
+    }
+
+    it('is a no-op when trace is disabled (defaults its logger and config)', async () => {
+      let getStatus = jasmine.createSpy('getStatus');
+      // no config and no log arg — exercises `intelliStoryConfig || {}` and the default logger param
+      await writeIntelliStoryTrace({ build: { id: '1' }, client: { getStatus } });
+      expect(getStatus).not.toHaveBeenCalled();
+    });
+
+    it('is a no-op when the Percy build was never created', async () => {
+      let log = mockLog();
+      let getStatus = jasmine.createSpy('getStatus');
+      await writeIntelliStoryTrace({ client: { getStatus } }, { trace: true }, log);
+      expect(getStatus).not.toHaveBeenCalled();
+    });
+
+    it('skips the trace when the graph reports failed', async () => {
+      let log = mockLog();
+      let write = spyOn(fs, 'writeFileSync');
+      let percy = { build: { id: '1' }, client: { getStatus: async () => ({ status: 'failed' }) } };
+      await writeIntelliStoryTrace(percy, { trace: true }, log);
+      expect(write).not.toHaveBeenCalled();
+      expect(log.debug).toHaveBeenCalled();
+    });
+
+    it('skips the trace when polling times out', async () => {
+      let log = mockLog();
+      let write = spyOn(fs, 'writeFileSync');
+      let percy = { build: { id: '1' }, client: { getStatus: async () => ({ status: 'in_progress' }) } };
+      await drainPolls(writeIntelliStoryTrace(percy, { trace: true }, log));
+      expect(write).not.toHaveBeenCalled();
+    });
+
+    it('fetches the finalized graph data and writes the trace when done', async () => {
+      let log = mockLog();
+      let write = spyOn(fs, 'writeFileSync');
+      let percy = { build: { id: '1' }, client: { getStatus: async () => ({ status: 'done', data: fullData }) } };
+      await writeIntelliStoryTrace(percy, { trace: true }, log);
+      expect(write).toHaveBeenCalledTimes(1);
     });
   });
 
