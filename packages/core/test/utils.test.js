@@ -923,6 +923,13 @@ describe('utils', () => {
       expect(isMetadataIP('')).toBeNull();
       expect(isMetadataIP(undefined)).toBeNull();
     });
+
+    it('falls back to the raw value for a malformed IPv6 connected address', () => {
+      // A colon-bearing address that is not a valid IPv6 literal makes the
+      // URL-based canonicalization throw; canonicalHost catches and returns the
+      // input unchanged, and a non-metadata value is then allowed through.
+      expect(isMetadataIP('gg::1')).toBeNull();
+    });
   });
 
   describe('assertNotMetadataTarget', () => {
