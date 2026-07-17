@@ -146,7 +146,7 @@ export function chromium({
   // default chromium revision by platform (see chromium.revisions)
   revision = selectByPlatform(chromium.revisions)
 } = {}) {
-  let extract = (i, o) => import('extract-zip').then(ex => ex.default(i, { dir: o }));
+  let extract = (i, o) => import('./unzip.js').then(ex => ex.default(i, { dir: o }));
 
   let url = (process.env.PERCY_CHROMIUM_BASE_URL || 'https://storage.googleapis.com/chromium-browser-snapshots/') +
     selectByPlatform({

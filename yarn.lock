@@ -2451,7 +2451,7 @@
   resolved "https://registry.npmjs.org/@types/minimist/-/minimist-1.2.1.tgz"
   integrity sha512-fZQQafSREFyuZcdWFAExYjBiCL7AUCdgsk80iO0q4yihYYdcIiH28CcuPTGFgLOCC8RlW49GSQxdHwZP+I7CNg==
 
-"@types/node@*", "@types/node@>= 8":
+"@types/node@>= 8":
   version "14.14.22"
   resolved "https://registry.npmjs.org/@types/node/-/node-14.14.22.tgz"
   integrity sha512-g+f/qj/cNcqKkc3tFqlXOYjrmZA+jNBiDzbP3kH+B+otKFqAdPgVTGP1IeKRdMml/aE69as5S4FqtxAbl+LaMw==
@@ -2482,13 +2482,6 @@
   version "1.20.2"
   resolved "https://registry.npmjs.org/@types/resolve/-/resolve-1.20.2.tgz"
   integrity sha512-60BCwRFOZCQhDncwQdxxeOEEkbc5dIMccYLwbxsS4TUNeVECQ/pBJ0j09mrHOl/JJvpRPGwO9SvE4nR2Nb/a4Q==
-
-"@types/yauzl@^2.9.1":
-  version "2.9.1"
-  resolved "https://registry.npmjs.org/@types/yauzl/-/yauzl-2.9.1.tgz"
-  integrity sha512-A1b8SU4D10uoPjwb0lnHmmu8wZhR9d+9o2PKBQT2jU5YPTKsxac6M2qGAdY7VcL+dHHhARVUDmeg0rOrcd9EjA==
-  dependencies:
-    "@types/node" "*"
 
 "@yarnpkg/lockfile@^1.1.0":
   version "1.1.0"
@@ -2986,11 +2979,6 @@ browserslist@^4.23.3, browserslist@^4.24.0:
     electron-to-chromium "^1.5.28"
     node-releases "^2.0.18"
     update-browserslist-db "^1.1.0"
-
-buffer-crc32@~0.2.3:
-  version "0.2.13"
-  resolved "https://registry.npmjs.org/buffer-crc32/-/buffer-crc32-0.2.13.tgz"
-  integrity sha1-DTM+PwDqxQqhRUq9MO+MKl2ackI=
 
 buffer-from@^1.0.0:
   version "1.1.1"
@@ -3840,7 +3828,7 @@ encoding@^0.1.13:
   dependencies:
     iconv-lite "^0.6.2"
 
-end-of-stream@^1.1.0, end-of-stream@^1.4.1:
+end-of-stream@^1.4.1:
   version "1.4.4"
   resolved "https://registry.npmjs.org/end-of-stream/-/end-of-stream-1.4.4.tgz"
   integrity sha512-+uw1inIHVPQoaVuHzRyXd21icM+cnt4CzD5rW+NC1wjOUSTOs+Te7FOv7AhN7vS9x/oIyhLP5PR1H+phQAHu5Q==
@@ -4327,17 +4315,6 @@ external-editor@^3.0.3:
     iconv-lite "^0.4.24"
     tmp "^0.0.33"
 
-extract-zip@^2.0.1:
-  version "2.0.1"
-  resolved "https://registry.npmjs.org/extract-zip/-/extract-zip-2.0.1.tgz"
-  integrity sha512-GDhU9ntwuKyGXdZBUgTIe+vXnWj0fppUEtMDL0+idd5Sta8TGpHssn/eusA9mrPr9qNDym6SxAYZjNvCn/9RBg==
-  dependencies:
-    debug "^4.1.1"
-    get-stream "^5.1.0"
-    yauzl "^2.10.0"
-  optionalDependencies:
-    "@types/yauzl" "^2.9.1"
-
 fast-deep-equal@^3.1.1, fast-deep-equal@^3.1.3:
   version "3.1.3"
   resolved "https://registry.npmjs.org/fast-deep-equal/-/fast-deep-equal-3.1.3.tgz"
@@ -4393,13 +4370,6 @@ fastq@^1.6.0:
   integrity sha512-YpkpUnK8od0o1hmeSc7UUs/eB/vIPWJYjKck2QKIzAf71Vm1AAQ3EbuZB3g2JIy+pg+ERD0vqI79KyZiB2e2Nw==
   dependencies:
     reusify "^1.0.4"
-
-fd-slicer@~1.1.0:
-  version "1.1.0"
-  resolved "https://registry.npmjs.org/fd-slicer/-/fd-slicer-1.1.0.tgz"
-  integrity sha1-JcfInLH5B3+IkbvmHY85Dq4lbx4=
-  dependencies:
-    pend "~1.2.0"
 
 figures@3.2.0, figures@^3.0.0:
   version "3.2.0"
@@ -4718,13 +4688,6 @@ get-proto@^1.0.1:
   dependencies:
     dunder-proto "^1.0.1"
     es-object-atoms "^1.0.0"
-
-get-stream@^5.1.0:
-  version "5.2.0"
-  resolved "https://registry.npmjs.org/get-stream/-/get-stream-5.2.0.tgz"
-  integrity sha512-nBF+F1rAZVCu/p7rjzgA+Yb4lfYXrpl7a6VmJrU8wF9I1CKvP/QwPNZHnOlwbTkY6dvtFIzFMSyQXbLoTQPRpA==
-  dependencies:
-    pump "^3.0.0"
 
 get-stream@^6.0.0:
   version "6.0.0"
@@ -6758,7 +6721,7 @@ on-finished@~2.3.0:
   dependencies:
     ee-first "1.1.1"
 
-once@^1.3.0, once@^1.3.1, once@^1.4.0:
+once@^1.3.0, once@^1.4.0:
   version "1.4.0"
   resolved "https://registry.npmjs.org/once/-/once-1.4.0.tgz"
   integrity sha1-WDsap3WWHUsROsF9nFC6753Xa9E=
@@ -7257,14 +7220,6 @@ proxy-from-env@^1.1.0:
   version "1.1.0"
   resolved "https://registry.npmjs.org/proxy-from-env/-/proxy-from-env-1.1.0.tgz"
   integrity sha512-D+zkORCbA9f1tdWRK0RaCR3GPv50cMxcrz4X8k5LTSUD1Dkw47mKJEZQNunItRTkWwgtaUSo1RVFRIG9ZXiFYg==
-
-pump@^3.0.0:
-  version "3.0.0"
-  resolved "https://registry.npmjs.org/pump/-/pump-3.0.0.tgz"
-  integrity sha512-LwZy+p3SFs1Pytd/jYct4wpv49HiYCqd9Rlc5ZVdk0V+8Yzv6jR5Blk3TRmPL1ft69TxP0IMZGJ+WPFU2BFhww==
-  dependencies:
-    end-of-stream "^1.1.0"
-    once "^1.3.1"
 
 punycode@^2.1.0:
   version "2.1.1"
@@ -8837,10 +8792,9 @@ yargs@^17.7.2:
     y18n "^5.0.5"
     yargs-parser "^21.1.1"
 
-yauzl@^2.10.0:
-  version "2.10.0"
-  resolved "https://registry.npmjs.org/yauzl/-/yauzl-2.10.0.tgz"
-  integrity sha1-x+sXyT4RLLEIb6bY5R+wZnt5pfk=
+yauzl@^3.4.0:
+  version "3.4.0"
+  resolved "https://registry.yarnpkg.com/yauzl/-/yauzl-3.4.0.tgz#88b2a21455f37ca7dccf2eeb33bacb4392322719"
+  integrity sha512-jIH9yLR9wqr0wOS0TpBvo/g/2UgZH5qePVbjgRliiF0BYvOZyaBknKsF+x9Iht0O6sqgnB93rCICdOZFecJuDw==
   dependencies:
-    buffer-crc32 "~0.2.3"
-    fd-slicer "~1.1.0"
+    pend "~1.2.0"
