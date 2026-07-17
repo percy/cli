@@ -55,7 +55,6 @@
     "busboy": "^1.6.0",
     "content-disposition": "^0.5.4",
     "cross-spawn": "^7.0.3",
-    "extract-zip": "^2.0.1",
     "fast-glob": "^3.2.11",
     "fast-xml-parser": "^4.4.1",
     "micromatch": "^4.0.8",
@@ -64,7 +63,8 @@
     "path-to-regexp": "^6.3.0",
     "rimraf": "^3.0.2",
     "ws": "^8.17.1",
-    "yaml": "^2.4.1"
+    "yaml": "^2.4.1",
+    "yauzl": "^3.4.0"
   },
   "optionalDependencies": {
     "@percy/cli-doctor": "1.32.4"
