@@ -107,8 +107,8 @@ export async function findBaselineProvider({ cwd = process.cwd(), log } = {}) {
 
       // Confine the provider module to the declaring package — a package.json pointing outside
       // its own root (../../x.js) is malformed at best and gets skipped.
-      let resolved = path.resolve(pkgPath, sanitizePath(providerPath));
-      if (!resolved.startsWith(path.resolve(pkgPath) + path.sep)) {
+      let resolved = path.resolve(sanitizePath(pkgPath), sanitizePath(providerPath));
+      if (!resolved.startsWith(path.resolve(sanitizePath(pkgPath)) + path.sep)) {
         log?.debug(`Skipping baseline provider from ${pkgPath}: provider path escapes the package`);
         continue;
       }
