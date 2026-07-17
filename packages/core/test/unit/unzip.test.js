@@ -18,18 +18,25 @@ function crc32(buf) {
   return ~crc >>> 0;
 }
 
-// builds a zip buffer from entry descriptors: { name, data, mode, deflate }
+// builds a zip buffer from entry descriptors:
+// { name, data, mode, deflate, attrs, madeBy, corrupt }
 function makeZip(entries) {
   let locals = [];
   let centrals = [];
   let offset = 0;
 
-  for (let { name, data = '', mode = 0o644, deflate = false } of entries) {
+  for (let {
+    name, data = '', mode = 0o644, deflate = false,
+    attrs = null, madeBy = (3 << 8) | 20, corrupt = false
+  } of entries) {
     let nameBuf = Buffer.from(name);
     let contents = Buffer.from(data);
     let crc = crc32(contents);
     let stored = deflate ? zlib.deflateRawSync(contents) : contents;
     let method = deflate ? 8 : 0;
+
+    // corrupt the stored bytes after sizes and crc were computed
+    if (corrupt) stored = Buffer.from(stored.map(byte => byte ^ 0xFF));
 
     let local = Buffer.alloc(30);
     local.writeUInt32LE(0x04034b50, 0);
@@ -43,14 +50,14 @@ function makeZip(entries) {
 
     let central = Buffer.alloc(46);
     central.writeUInt32LE(0x02014b50, 0);
-    central.writeUInt16LE((3 << 8) | 20, 4); // version made by unix
+    central.writeUInt16LE(madeBy, 4); // version made by
     central.writeUInt16LE(20, 6); // version needed
     central.writeUInt16LE(method, 10);
     central.writeUInt32LE(crc, 16);
     central.writeUInt32LE(stored.length, 20);
     central.writeUInt32LE(contents.length, 24);
     central.writeUInt16LE(nameBuf.length, 28);
-    central.writeUInt32LE((mode << 16) >>> 0, 38); // external attributes
+    central.writeUInt32LE(attrs !== null ? attrs : (mode << 16) >>> 0, 38); // external attributes
     central.writeUInt32LE(offset, 42);
     centrals.push(central, nameBuf);
 
@@ -128,6 +135,41 @@ describe('Unit / Unzip', () => {
       .toBeRejectedWithError(/invalid relative path|Out of bound path/);
 
     expect(fs.existsSync(path.join(tmp, 'evil.txt'))).toBe(false);
+  });
+
+  it('applies default modes when the archive provides none', async () => {
+    fs.writeFileSync(archive, makeZip([
+      { name: 'defaults/', attrs: 0 },
+      { name: 'defaults/file.txt', data: 'contents', attrs: 0 }
+    ]));
+
+    await unzip(archive, { dir: path.join(tmp, 'out') });
+
+    expect(fs.readFileSync(path.join(tmp, 'out/defaults/file.txt'), 'utf8')).toBe('contents');
+
+    if (process.platform !== 'win32') {
+      expect(fs.statSync(path.join(tmp, 'out/defaults')).mode & 0o777).toBe(0o755);
+      expect(fs.statSync(path.join(tmp, 'out/defaults/file.txt')).mode & 0o777).toBe(0o644);
+    }
+  });
+
+  it('treats windows-style directory attributes as directories', async () => {
+    fs.writeFileSync(archive, makeZip([
+      { name: 'windir', attrs: 16, madeBy: 20 }
+    ]));
+
+    await unzip(archive, { dir: path.join(tmp, 'out') });
+
+    expect(fs.statSync(path.join(tmp, 'out/windir')).isDirectory()).toBe(true);
+  });
+
+  it('rejects entries with corrupted compressed data', async () => {
+    fs.writeFileSync(archive, makeZip([
+      { name: 'corrupt.txt', data: 'percy'.repeat(1000), deflate: true, corrupt: true }
+    ]));
+
+    await expectAsync(unzip(archive, { dir: path.join(tmp, 'out') }))
+      .toBeRejectedWithError(/invalid|corrupt|crc/i);
   });
 
   it('rejects relative target directories', async () => {

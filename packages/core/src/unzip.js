@@ -44,6 +44,8 @@ export default async function unzip(archive, { dir }) {
     await new Promise((resolve, reject) => {
       let done = false;
       let finish = err => {
+        /* istanbul ignore if: defensive guard for stray zipfile events
+           after the promise has already settled */
         if (done) return;
         done = true;
         if (err) reject(err); else resolve();
@@ -67,6 +69,8 @@ export default async function unzip(archive, { dir }) {
           let dest = path.join(dir, fileName);
 
           // guard against zip-slip for any remaining traversal
+          /* istanbul ignore if: yauzl rejects traversal entry names at parse
+             time (validateFileName); kept as defense-in-depth */
           if (path.relative(dir, dest).split(path.sep).includes('..')) {
             throw new Error(`Out of bound path "${dest}" found while processing file ${entry.fileName}`);
           }
