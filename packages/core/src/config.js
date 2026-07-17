@@ -557,6 +557,11 @@ export const snapshotSchema = {
         testCase: { $ref: '/config/snapshot#/properties/testCase' },
         labels: { $ref: '/config/snapshot#/properties/labels' },
         thTestCaseExecutionId: { $ref: '/config/snapshot#/properties/thTestCaseExecutionId' },
+        // IntelliStory: injected per-snapshot by @percy/storybook so the API can
+        // do affected-story selection server-side. `storybookPath` is the
+        // project-relative path of the story's source module.
+        intelliStory: { type: 'boolean' },
+        storybookPath: { type: 'string' },
         browsers: { $ref: '/config/snapshot#/properties/browsers' },
         reshuffleInvalidTags: { $ref: '/config/snapshot#/properties/reshuffleInvalidTags' },
         regions: { $ref: '/config/snapshot#/properties/regions' },

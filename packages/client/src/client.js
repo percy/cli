@@ -617,6 +617,8 @@ export class PercyClient {
     regions,
     algorithm,
     algorithmConfiguration,
+    intelliStory,
+    storybookPath,
     resources = [],
     meta
   } = {}) {
@@ -655,7 +657,11 @@ export class PercyClient {
           'enable-javascript': enableJavaScript || null,
           'enable-layout': enableLayout || false,
           'th-test-case-execution-id': thTestCaseExecutionId || null,
-          browsers: normalizeBrowsers(browsers) || null
+          browsers: normalizeBrowsers(browsers) || null,
+          // IntelliStory: when enabled, the API selects affected snapshots
+          // server-side using the story's source path.
+          'intelli-story': intelliStory || null,
+          'storybook-path': storybookPath || null
         },
         relationships: {
           resources: {
@@ -687,6 +693,32 @@ export class PercyClient {
   async sendSnapshot(buildId, options) {
     let { meta = {} } = options;
     let snapshot = await this.createSnapshot(buildId, options);
+
+    // Response code tells us the IntelliStory outcome: a kept snapshot returns
+    // `201 Created` with the snapshot object; a snapshot skipped by server-side
+    // selection returns `204 No Content` (header only, no snapshot id). Tally
+    // the outcome so the storybook flow can print an IntelliStory summary.
+    let created = !!snapshot?.data?.id;
+    if (typeof options.intelliStory === 'boolean') {
+      this.intelliStoryStats ??= { graphKept: 0, forcedKept: 0, skipped: 0 };
+      if (!options.intelliStory) {
+        // IntelliStory disabled for this snapshot (missing/failed/rejected
+        // baseline) — always captured server-side.
+        this.intelliStoryStats.forcedKept += 1;
+      } else if (created) {
+        this.intelliStoryStats.graphKept += 1;
+      } else {
+        this.intelliStoryStats.skipped += 1;
+      }
+    }
+
+    // With IntelliStory, snapshot selection happens server-side: the API may
+    // accept the request without creating a snapshot (204 No Content). There is
+    // nothing to upload or finalize in that case.
+    if (!created) {
+      this.log.debug(`Snapshot not created server-side, skipping upload: ${options.name}...`, meta);
+      return snapshot;
+    }
     meta.snapshotId = snapshot.data.id;
 
     let missing = snapshot.data.relationships?.['missing-resources']?.data;

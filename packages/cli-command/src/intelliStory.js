@@ -189,13 +189,12 @@ export async function validateAndReadStats(buildDir, statsFile, projectRoot, log
   }
 
   log.debug(`IntelliStory: parsing stats file ${resolvedStatsPath}`);
-  const { files, modules, buildId } = await readStats(resolvedStatsPath, projectRoot);
+  // The graph is now keyed by the Percy build id, not the stats-file `buildId`,
+  // so a missing `buildId` in the stats file is no longer fatal. We only need
+  // the module graph (`files`/`modules`) from here.
+  const { files, modules } = await readStats(resolvedStatsPath, projectRoot);
 
-  if (typeof buildId !== 'string' || !buildId) {
-    throw new IntelliStoryBailError(`IntelliStory: stats file at ${resolvedStatsPath} is missing a top-level "buildId" — running full snapshot set`);
-  }
-
-  return { files, modules, buildId };
+  return { files, modules };
 }
 
 export async function getBaselineAndAffectedNodes(percy, baseline, log) {
@@ -326,13 +325,10 @@ export async function runGraphGeneration(percy, buildId, payload, log) {
     files, modules, storybookPaths, affectedNodes, affectedFileLocations
   });
 
-  const { status, data } = await pollGraphStatus(percy, buildId, log);
+  const { status } = await pollGraphStatus(percy, buildId, log);
   if (status !== 'done') {
     throw new IntelliStoryBailError(`IntelliStory: graph generation did not complete (status: ${status ?? 'timed out'}); running full snapshot set`);
   }
-
-  log.debug(`IntelliStory: affected stories result ${JSON.stringify(data?.affected_stories)}`);
-  return data;
 }
 
 export function maybeWriteTrace(trace, data, log) {
@@ -352,45 +348,30 @@ export function maybeWriteTrace(trace, data, log) {
   }
 }
 
-export function selectAffectedSnapshots(snapshots, data, baseline, baselineSnapshots, normalizeImportPath, log) {
-  const affected = new Set(data?.affected_stories || []);
-
-  const FORCE_RESNAPSHOT_STATES = new Set(['failed', 'rejected']);
-  const needsBaselineRefresh = name => {
-    if (baseline) return false;
-    const state = baselineSnapshots[name];
-    return state === undefined || FORCE_RESNAPSHOT_STATES.has(state);
-  };
-
-  let forced = 0;
-  let affectedKept = 0;
-  const filtered = snapshots.filter(s => {
-    if (needsBaselineRefresh(s.name)) {
-      forced += 1;
-      return true;
-    }
-    const p = normalizeImportPath(s.importPath);
-    if (p && affected.has(p)) {
-      affectedKept += 1;
-      return true;
-    }
-    return false;
-  });
-  log.info(`IntelliStory: ${filtered.length} of ${snapshots.length} snapshots kept (${affectedKept} via affected-graph, ${forced} via missing/failed/rejected baseline)`);
-  return filtered;
-}
+// Baseline states that must always be re-snapshotted: a snapshot with no
+// baseline yet, or whose baseline failed/was rejected, cannot be safely skipped
+// by server-side selection.
+const FORCE_RESNAPSHOT_STATES = new Set(['failed', 'rejected']);
 
 export async function applyIntelliStory(percy, snapshots, intelliStoryConfig, buildDir) {
   const log = logger('storybook:intelliStory');
-  const { baseline, untraced, trace, bailOnChanges, statsFile } = intelliStoryConfig || {};
+  const { baseline, untraced, bailOnChanges, statsFile } = intelliStoryConfig || {};
 
   if (!buildDir) {
     throw new IntelliStoryBailError('IntelliStory requires the Storybook build directory (e.g. `percy storybook ./storybook-static`); URL and `start` modes are not supported. Running full snapshot set');
   }
 
+  // The graph is keyed by the real Percy build id. The build is created up
+  // front for IntelliStory runs (see @percy/storybook); if it is not present
+  // (e.g. a dry run, or build creation failed) there is nothing to key on.
+  const buildId = percy.build?.id;
+  if (!buildId) {
+    throw new IntelliStoryBailError('IntelliStory: Percy build was not created (dry run or build creation failed); running full snapshot set');
+  }
+
   const projectRoot = gitProjectRoot();
 
-  const { files, modules, buildId } = await validateAndReadStats(buildDir, statsFile, projectRoot, log);
+  const { files, modules } = await validateAndReadStats(buildDir, statsFile, projectRoot, log);
 
   let { baseRef, affectedNodes, baselineSnapshots } = await getBaselineAndAffectedNodes(percy, baseline, log);
 
@@ -428,9 +409,46 @@ export async function applyIntelliStory(percy, snapshots, intelliStoryConfig, bu
 
   const affectedFileLocations = getAffectedFileLocations(baseRef, files);
 
-  const data = await runGraphGeneration(percy, buildId, { files, modules, storybookPaths, affectedNodes, affectedFileLocations }, log);
+  // Enqueue the affected-story graph against the Percy build. Snapshot
+  // selection now happens server-side (when snapshots are posted), so we no
+  // longer read affected_stories back here or write the trace — we only kick
+  // off generation and surface a failure by bailing to the full set.
+  await runGraphGeneration(percy, buildId, { files, modules, storybookPaths, affectedNodes, affectedFileLocations }, log);
+
+  // A snapshot that must be force re-snapshotted (no baseline yet, or a
+  // failed/rejected baseline, when no explicit baseline is set) has IntelliStory
+  // disabled so the API never selects it out — it is always captured.
+  const needsBaselineRefresh = name => {
+    if (baseline) return false;
+    const state = baselineSnapshots?.[name];
+    return state === undefined || FORCE_RESNAPSHOT_STATES.has(state);
+  };
+
+  // Tag every snapshot with `intelliStory` and its normalized `storybookPath`
+  // so the API can perform affected-story selection when each is posted.
+  return snapshots.map(s => ({
+    ...s,
+    intelliStory: !needsBaselineRefresh(s.name),
+    storybookPath: normalizeImportPath(s.importPath)
+  }));
+}
+
+// Called after the build has been finalized. At that point the graph job's
+// data (vertices/edges/transitive closure) is available from job status, so we
+// fetch it once more and write the trace when `trace` is enabled.
+export async function writeIntelliStoryTrace(percy, intelliStoryConfig, log = logger('storybook:intelliStory')) {
+  const { trace } = intelliStoryConfig || {};
+  if (!trace) return;
+
+  const buildId = percy.build?.id;
+  if (!buildId) return;
+
+  log.debug(`IntelliStory: fetching finalized graph data for build ${buildId} to write trace`);
+  const { status, data } = await pollGraphStatus(percy, buildId, log);
+  if (status !== 'done') {
+    log.debug(`IntelliStory: graph status "${status ?? 'timed out'}" after finalize; skipping trace`);
+    return;
+  }
 
   maybeWriteTrace(trace, data, log);
-
-  return selectAffectedSnapshots(snapshots, data, baseline, baselineSnapshots, normalizeImportPath, log);
 }

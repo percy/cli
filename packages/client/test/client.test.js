@@ -1331,7 +1331,9 @@ describe('PercyClient', () => {
             'enable-javascript': true,
             'enable-layout': true,
             'th-test-case-execution-id': 'random-uuid',
-            browsers: null
+            browsers: null,
+            'intelli-story': null,
+            'storybook-path': null
           },
           relationships: {
             resources: {
@@ -1423,7 +1425,9 @@ describe('PercyClient', () => {
               'enable-javascript': true,
               'enable-layout': true,
               'th-test-case-execution-id': 'random-uuid',
-              browsers: ['chrome', 'firefox', 'safari_on_iphone']
+              browsers: ['chrome', 'firefox', 'safari_on_iphone'],
+              'intelli-story': null,
+              'storybook-path': null
             },
             relationships: {
               resources: {
@@ -1474,7 +1478,9 @@ describe('PercyClient', () => {
             'enable-layout': false,
             regions: null,
             'th-test-case-execution-id': null,
-            browsers: null
+            browsers: null,
+            'intelli-story': null,
+            'storybook-path': null
           },
           relationships: {
             resources: {
@@ -1547,7 +1553,9 @@ describe('PercyClient', () => {
             regions: null,
             'enable-layout': false,
             'th-test-case-execution-id': null,
-            browsers: null
+            browsers: null,
+            'intelli-story': null,
+            'storybook-path': null
           },
           relationships: {
             resources: {
@@ -2325,7 +2333,9 @@ describe('PercyClient', () => {
               regions: null,
               'enable-layout': false,
               'th-test-case-execution-id': null,
-              browsers: null
+              browsers: null,
+              'intelli-story': null,
+              'storybook-path': null
             },
             relationships: {
               resources: {

@@ -493,8 +493,10 @@ export function createSnapshotsQueue(percy) {
       if (percy.deferUploads) percy.log.info(`Snapshot uploaded: ${name}`, meta);
 
       // Pushing to syncQueue, that will check for
-      // snapshot processing status, and will resolve once done
-      if (snapshot.sync) {
+      // snapshot processing status, and will resolve once done.
+      // With IntelliStory the API may accept the request without creating a
+      // snapshot (server-side selection), so there is no id to wait on.
+      if (snapshot.sync && response?.data?.id) {
         percy.log.info(`Waiting for snapshot '${name}' to be completed`, meta);
         const data = new JobData(response.data.id, null, snapshot.resolve, snapshot.reject);
         percy.syncQueue.push(data);

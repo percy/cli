@@ -156,7 +156,7 @@ export class Percy {
     };
 
     // generator methods are wrapped to autorun and return promises
-    for (let m of ['start', 'stop', 'flush', 'idle', 'snapshot', 'upload', 'replaySnapshot']) {
+    for (let m of ['start', 'stop', 'flush', 'idle', 'snapshot', 'upload', 'replaySnapshot', 'startBuild']) {
       // the original generator can be referenced with percy.yield.<method>
       let method = (this.yield ||= {})[m] = this[m].bind(this);
       this[m] = (...args) => generatePromise(method(...args));
@@ -352,6 +352,19 @@ export class Percy {
     }
     releaseLockSync(this._lockHandle);
     this._lockHandle = null;
+  }
+
+  // Forces the snapshots queue to start, which creates the Percy build up
+  // front and populates `percy.build.id`. Normally, when uploads are delayed
+  // or deferred, the build is created lazily on the first flush. IntelliStory
+  // needs the real build id before any snapshots are taken so it can enqueue
+  // the affected-story graph against it. Safe to call more than once — the
+  // queue memoizes its start task, so the build is only created once.
+  async *startBuild() {
+    if (!this.readyState) return this.build;
+    if (this.build?.id || this.build?.error) return this.build;
+    yield this.#snapshots.start();
+    return this.build;
   }
 
   // Resolves once snapshot and upload queues are idle

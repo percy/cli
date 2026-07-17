@@ -15,7 +15,6 @@ import {
   extractStorybookPaths,
   runGraphGeneration,
   maybeWriteTrace,
-  selectAffectedSnapshots,
   applyIntelliStory
 } from '../src/intelliStory.js';
 
@@ -99,23 +98,16 @@ describe('intelliStory', () => {
         'is not a regular file');
     });
 
-    it('bails when the stats file has no top-level buildId', async () => {
+    it('reads files and modules from a valid stats file (buildId no longer required)', async () => {
       await mockfs({ '/build/enriched-stats.json': JSON.stringify({ modules: [] }) });
-      await expectBail(
-        () => validateAndReadStats('/build', undefined, '/root', log),
-        'missing a top-level "buildId"');
-    });
-
-    it('reads files, modules and buildId from a valid stats file', async () => {
-      await mockfs({ '/build/enriched-stats.json': JSON.stringify({ buildId: 'bld-1', modules: [] }) });
       let res = await validateAndReadStats('/build', undefined, '/root', log);
-      expect(res).toEqual({ files: [], modules: [], buildId: 'bld-1' });
+      expect(res).toEqual({ files: [], modules: [] });
     });
 
     it('anchors a traversal-prefixed statsFile inside the build dir via basename', async () => {
-      await mockfs({ '/build/foo.json': JSON.stringify({ buildId: 'b', modules: [] }) });
+      await mockfs({ '/build/foo.json': JSON.stringify({ modules: [] }) });
       let res = await validateAndReadStats('/build', '../../etc/foo.json', '/root', log);
-      expect(res.buildId).toEqual('b');
+      expect(res).toEqual({ files: [], modules: [] });
     });
 
     it('streams modules: indexes src refs, leaves module refs, drops node_modules/string-id and id-less entries', async () => {
@@ -141,8 +133,6 @@ describe('intelliStory', () => {
       });
 
       let res = await validateAndReadStats('/build', undefined, '/root', log);
-
-      expect(res.buildId).toEqual('b');
 
       expect(res.files).toEqual([path.join('src', 'A.js'), path.join('src', 'B.js'), path.join('src', 'C.js')]);
       expect(res.modules.length).toEqual(2);
@@ -410,51 +400,6 @@ describe('intelliStory', () => {
     });
   });
 
-  describe('selectAffectedSnapshots()', () => {
-    it('keeps only affected snapshots when an explicit baseline is set', () => {
-      let log = mockLog();
-      let snapshots = [
-        { name: 'A', importPath: 'src/A.stories.js' },
-        { name: 'B', importPath: 'src/B.stories.js' }
-      ];
-      let data = { affected_stories: ['src/A.stories.js'] };
-
-      let filtered = selectAffectedSnapshots(snapshots, data, 'main', null, identity, log);
-
-      expect(filtered.map(s => s.name)).toEqual(['A']);
-    });
-
-    it('forces re-snapshot for missing, failed and rejected baselines', () => {
-      let log = mockLog();
-      let snapshots = [
-        { name: 'A', importPath: 'src/A.stories.js' },
-        { name: 'B', importPath: 'src/B.stories.js' },
-        { name: 'C', importPath: 'src/C.stories.js' },
-        { name: 'D', importPath: 'src/D.stories.js' }
-      ];
-      let baselineSnapshots = { A: 'approved', B: 'failed', D: 'approved' };
-      let data = { affected_stories: ['src/A.stories.js'] };
-
-      let filtered = selectAffectedSnapshots(snapshots, data, undefined, baselineSnapshots, identity, log);
-
-      expect(filtered.map(s => s.name)).toEqual(['A', 'B', 'C']);
-    });
-
-    it('keeps nothing when the graph reports no affected stories and a baseline is set', () => {
-      let log = mockLog();
-      let snapshots = [{ name: 'A', importPath: 'src/A.stories.js' }];
-      let filtered = selectAffectedSnapshots(snapshots, { affected_stories: [] }, 'main', null, identity, log);
-      expect(filtered).toEqual([]);
-    });
-
-    it('treats a payload with no affected_stories field as none affected', () => {
-      let log = mockLog();
-      let snapshots = [{ name: 'A', importPath: 'src/A.stories.js' }];
-
-      expect(selectAffectedSnapshots(snapshots, {}, 'main', null, identity, log)).toEqual([]);
-    });
-  });
-
   describe('runGraphGeneration() polling', () => {
     beforeEach(() => jasmine.clock().install());
     afterEach(() => jasmine.clock().uninstall());
@@ -659,25 +604,34 @@ describe('intelliStory', () => {
         'requires the Storybook build directory');
     });
 
-    it('bails when nothing is affected after filtering', async () => {
+    it('bails when the Percy build has not been created', async () => {
       let { dir } = setup({ 'sb/enriched-stats.json': STATS, 'src/A.stories.jsx': 'v1' });
       await expectBail(
         () => applyIntelliStory({ client: {} }, [{ name: 'A', importPath: 'src/A.stories.jsx' }],
           { baseline: 'HEAD' }, path.join(dir, 'sb')),
+        'Percy build was not created');
+    });
+
+    it('bails when nothing is affected after filtering', async () => {
+      let { dir } = setup({ 'sb/enriched-stats.json': STATS, 'src/A.stories.jsx': 'v1' });
+      await expectBail(
+        () => applyIntelliStory({ client: {}, build: { id: '123' } }, [{ name: 'A', importPath: 'src/A.stories.jsx' }],
+          { baseline: 'HEAD' }, path.join(dir, 'sb')),
         'no affected files or packages detected');
     });
 
-    itPosix('keeps only the snapshots the affected-graph reports', async () => {
+    itPosix('tags every snapshot for server-side selection and enqueues graph generation against the Percy build id', async () => {
       let { dir, baseSha } = setup(
         { 'sb/enriched-stats.json': STATS, 'src/A.stories.jsx': 'v1' },
         { 'src/A.stories.jsx': 'v2' });
 
-      let data = { affected_stories: [path.join('src', 'A.stories.jsx'), path.join('src', 'Dot.stories.jsx')] };
       let generate = jasmine.createSpy('generateIntelliStoryGraph');
       let percy = {
+        build: { id: '456' },
         client: {
           generateIntelliStoryGraph: generate,
-          getStatus: async () => ({ status: 'done', data })
+          // job status no longer returns affected_stories during the run
+          getStatus: async () => ({ status: 'done', data: {} })
         }
       };
       let snapshots = [
@@ -689,8 +643,49 @@ describe('intelliStory', () => {
 
       let result = await applyIntelliStory(percy, snapshots, { baseline: baseSha, trace: false }, path.join(dir, 'sb'));
 
-      expect(result.map(s => s.name).sort()).toEqual(['A', 'Dot']);
-      expect(generate).toHaveBeenCalled();
+      // all snapshots are returned (the API performs selection when they post)
+      expect(result.map(s => s.name).sort()).toEqual(['A', 'Dot', 'Empty', 'NoPath']);
+      // each is tagged for IntelliStory with its normalized storybook path
+      expect(result.every(s => s.intelliStory === true)).toBe(true);
+      expect(result.find(s => s.name === 'A').storybookPath).toEqual(path.join('src', 'A.stories.jsx'));
+      expect(result.find(s => s.name === 'Dot').storybookPath).toEqual(path.join('src', 'Dot.stories.jsx'));
+      // the graph is enqueued against the real Percy build id, not the stats UUID
+      expect(generate).toHaveBeenCalledWith('456', jasmine.any(Object));
+    });
+
+    itPosix('disables IntelliStory for snapshots with a missing/failed/rejected baseline so they are always captured', async () => {
+      let { dir, baseSha } = setup(
+        { 'sb/enriched-stats.json': STATS, 'src/A.stories.jsx': 'v1' },
+        { 'src/A.stories.jsx': 'v2' });
+
+      let percy = {
+        build: { id: '789' },
+        client: {
+          generateIntelliStoryGraph: jasmine.createSpy('generateIntelliStoryGraph'),
+          getStatus: async () => ({ status: 'done', data: {} }),
+          // no explicit baseline: base commit + per-snapshot states come from the API
+          getIntelliStorySnapshotNameToCommit: async () => ({
+            base_build_commit_sha: baseSha,
+            snapshots: { Approved: 'approved', Failed: 'failed', Rejected: 'rejected' }
+          })
+        }
+      };
+      let snapshots = [
+        { name: 'Approved', importPath: 'src/A.stories.jsx' },
+        { name: 'Failed', importPath: 'src/A.stories.jsx' },
+        { name: 'Rejected', importPath: 'src/A.stories.jsx' },
+        { name: 'Missing', importPath: 'src/A.stories.jsx' }
+      ];
+
+      let result = await applyIntelliStory(percy, snapshots, { trace: false }, path.join(dir, 'sb'));
+      let byName = Object.fromEntries(result.map(s => [s.name, s.intelliStory]));
+
+      // approved baseline => IntelliStory selection applies
+      expect(byName.Approved).toBe(true);
+      // failed / rejected / missing baselines => always captured
+      expect(byName.Failed).toBe(false);
+      expect(byName.Rejected).toBe(false);
+      expect(byName.Missing).toBe(false);
     });
   });
 });
