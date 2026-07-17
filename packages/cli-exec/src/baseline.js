@@ -1,4 +1,5 @@
 import fs from 'fs';
+import os from 'os';
 import path from 'path';
 import url from 'url';
 import { createResource, createRootResource } from '@percy/cli-command/utils';
@@ -44,37 +45,46 @@ export function sanitizeDirentName(name) {
   return clean;
 }
 
-// Walk up from `dir` collecting @percy/* (and percy-*) package roots from each node_modules on
-// the way — trimmed-down version of @percy/cli's command-discovery walk.
-function findPercyPackages(dir) {
-  let found = [];
+// Collect @percy/* (and percy-*) package roots from the nearest node_modules — the same
+// semantics as @percy/cli's command-discovery walk (findModulePackages): stop at the FIRST
+// node_modules at or above `dir`, never cross the home directory, and degrade to [] on any
+// filesystem error so discovery can never break `percy exec`.
+function findPercyPackages(dir, log) {
+  try {
+    dir = sanitizePath(dir);
 
-  while (dir !== path.dirname(dir)) {
-    let modulesDir = path.join(sanitizePath(dir), 'node_modules');
+    // not given node_modules or a directory that contains node_modules, look up
+    if (path.basename(dir) !== 'node_modules') {
+      let modulesDir = path.join(dir, 'node_modules');
+      let next = fs.existsSync(modulesDir) ? modulesDir : path.dirname(dir);
+      if (next === dir || next === os.homedir()) return [];
+      return findPercyPackages(next, log);
+    }
 
-    if (fs.existsSync(modulesDir)) {
-      for (let entry of fs.readdirSync(modulesDir)) {
-        let name = sanitizeDirentName(entry);
-        // istanbul ignore next: readdir yields single path components — defense-in-depth only
-        if (name === null) continue;
+    let found = [];
 
-        if (name === '@percy') {
-          for (let scopedEntry of fs.readdirSync(path.join(modulesDir, name))) {
-            let scoped = sanitizeDirentName(scopedEntry);
-            // istanbul ignore next: readdir yields single path components — defense-in-depth only
-            if (scoped === null) continue;
-            found.push(path.join(modulesDir, name, scoped));
-          }
-        } else if (name.startsWith('percy-')) {
-          found.push(path.join(modulesDir, name));
+    for (let entry of fs.readdirSync(dir)) {
+      let name = sanitizeDirentName(entry);
+      // istanbul ignore next: readdir yields single path components — defense-in-depth only
+      if (name === null) continue;
+
+      if (name === '@percy') {
+        for (let scopedEntry of fs.readdirSync(path.join(dir, name))) {
+          let scoped = sanitizeDirentName(scopedEntry);
+          // istanbul ignore next: readdir yields single path components — defense-in-depth only
+          if (scoped === null) continue;
+          found.push(path.join(dir, name, scoped));
         }
+      } else if (name.startsWith('percy-')) {
+        found.push(path.join(dir, name));
       }
     }
 
-    dir = path.dirname(dir);
+    return found;
+  } catch (err) {
+    log?.debug(`Baseline provider discovery walk failed: ${err.message}`);
+    return [];
   }
-
-  return found;
 }
 
 // Find the first installed package declaring a baseline provider and import it. Returns null when
@@ -86,7 +96,7 @@ export async function findBaselineProvider({ cwd = process.cwd(), log } = {}) {
     log?.debug('Drop-in disabled via PERCY_DROPIN_DISABLE — skipping baseline provider discovery');
     return null;
   }
-  for (let pkgPath of findPercyPackages(cwd)) {
+  for (let pkgPath of findPercyPackages(cwd, log)) {
     let pkgFile = path.join(sanitizePath(pkgPath), 'package.json');
 
     try {
@@ -95,7 +105,15 @@ export async function findBaselineProvider({ cwd = process.cwd(), log } = {}) {
       let providerPath = pkg['@percy/cli']?.baselineProvider;
       if (!providerPath) continue;
 
-      let module = await import(url.pathToFileURL(path.join(sanitizePath(pkgPath), sanitizePath(providerPath))).href);
+      // Confine the provider module to the declaring package — a package.json pointing outside
+      // its own root (../../x.js) is malformed at best and gets skipped.
+      let resolved = path.resolve(pkgPath, sanitizePath(providerPath));
+      if (!resolved.startsWith(path.resolve(pkgPath) + path.sep)) {
+        log?.debug(`Skipping baseline provider from ${pkgPath}: provider path escapes the package`);
+        continue;
+      }
+
+      let module = await import(url.pathToFileURL(resolved).href);
       let provider = module.default || module;
 
       if (typeof provider.discoverBaselines === 'function') {
@@ -149,6 +167,8 @@ export async function maybeSeedBaseline(percy, provider, { log, waitTimeout, wai
       log.debug(`Baseline discovery degraded (${reason}) — nothing seeded`);
       return false;
     }
+    // A provider yielding sparse/null entries must not wedge the upload workers.
+    baselines = baselines.filter(Boolean);
     if (!baselines.length) return false;
 
     // Ask the server. An explicit baseline source on an ESTABLISHED project returns the
@@ -160,7 +180,12 @@ export async function maybeSeedBaseline(percy, provider, { log, waitTimeout, wai
       dropinBaselineCandidate: true
     });
 
-    if (!res?.data?.id) {
+    // The API decides first-ness: on an established project it answers with the baseline-skipped
+    // sentinel (no data). Belt-and-braces for an API that predates the candidate attribute (it
+    // would ignore it and hand back a NORMAL build): only ever seed build #1 — anything else
+    // means this project is established, so abandon the build unused and point at the explicit
+    // setup command instead of polluting history with stray "baseline" builds.
+    if (!res?.data?.id || res.data.attributes?.['build-number'] !== 1) {
       log.info(`Found ${baselines.length} committed baseline snapshot(s), but this project ` +
         'already has builds — skipping baseline setup.');
       log.info('To (re)establish the baseline from your committed snapshots, run: ' +

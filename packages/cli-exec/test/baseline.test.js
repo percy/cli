@@ -40,7 +40,7 @@ afterAll(() => {
   fs.rmSync(tmpPngDir, { recursive: true, force: true });
 });
 
-function fakeClient({ established = false, failUploads = false, buildStates = ['finished'] } = {}) {
+function fakeClient({ established = false, failUploads = false, buildStates = ['finished'], buildNumber = 1 } = {}) {
   let calls = { createBuild: [], sendSnapshot: [], sendComparison: [], finalizeBuild: [], getBuild: [] };
   let states = [...buildStates];
   return {
@@ -54,7 +54,7 @@ function fakeClient({ established = false, failUploads = false, buildStates = ['
       calls.createBuild.push(options);
       // Established projects answer with the baseline-skipped sentinel (no data).
       if (established) return { 'baseline-skipped': true, 'already-established': true };
-      return { data: { id: 'seed-build-1', attributes: { 'build-number': 1 } } };
+      return { data: { id: 'seed-build-1', attributes: { 'build-number': buildNumber } } };
     },
     async sendSnapshot(buildId, options) {
       calls.sendSnapshot.push({ buildId, options });
@@ -144,6 +144,30 @@ describe('exec baseline seeding', () => {
       expect(seeded).toBe(true);
       expect(log.entries.debug.join('\n')).toContain('status boom');
       expect(log.entries.warn.join('\n')).toContain('did not finish processing in time');
+    });
+
+    it('abandons the seed when the API hands back a non-first build (pre-candidate API)', async () => {
+      let client = fakeClient({ buildNumber: 3 });
+      let log = fakeLog();
+      let provider = { discoverBaselines: async () => ({ baselines: BASELINES }) };
+
+      let seeded = await maybeSeedBaseline({ client, projectType: 'web' }, provider, { log });
+
+      expect(seeded).toBe(false);
+      expect(client.calls.sendSnapshot.length).toBe(0);
+      expect(client.calls.finalizeBuild.length).toBe(0);
+      expect(log.entries.info.join('\n')).toContain('already has builds');
+    });
+
+    it('filters out falsy baseline entries from the provider', async () => {
+      let client = fakeClient();
+      let log = fakeLog();
+      let provider = { discoverBaselines: async () => ({ baselines: [null, ...BASELINES, undefined] }) };
+
+      let seeded = await maybeSeedBaseline({ client, projectType: 'web' }, provider, { log });
+
+      expect(seeded).toBe(true);
+      expect(client.calls.sendSnapshot.length).toBe(BASELINES.length);
     });
 
     it('skips an established project and points at the setup command', async () => {
@@ -360,6 +384,40 @@ describe('exec baseline seeding', () => {
       expect(log.entries.debug.join('\n')).toContain('bad module');
       // ...and without a logger the failure is still non-fatal
       expect(await findBaselineProvider({ cwd: tmpDir })).toBeNull();
+    });
+
+    it('skips a package whose provider path escapes the package root', async () => {
+      let pkgDir = path.join(tmpDir, 'node_modules', '@percy', 'fake-sdk');
+      fs.writeFileSync(path.join(pkgDir, 'package.json'), JSON.stringify({
+        name: '@percy/fake-sdk',
+        '@percy/cli': { baselineProvider: '../../../outside.cjs' }
+      }));
+      fs.writeFileSync(path.join(tmpDir, 'outside.cjs'), 'module.exports = { discoverBaselines: async () => ({}) };');
+
+      let log = fakeLog();
+      expect(await findBaselineProvider({ cwd: tmpDir, log })).toBeNull();
+      expect(log.entries.debug.join('\n')).toContain('escapes the package');
+    });
+
+    it('degrades to no provider when the walk hits an unreadable node_modules', async () => {
+      let broken = fs.mkdtempSync(path.join(os.tmpdir(), 'percy-broken-'));
+      try {
+        // node_modules as a FILE: existsSync passes, readdirSync throws ENOTDIR.
+        fs.writeFileSync(path.join(broken, 'node_modules'), 'not a directory');
+
+        let log = fakeLog();
+        expect(await findBaselineProvider({ cwd: broken, log })).toBeNull();
+        expect(log.entries.debug.join('\n')).toContain('discovery walk failed');
+      } finally {
+        fs.rmSync(broken, { recursive: true, force: true });
+      }
+    });
+
+    it('never walks past the home directory', async () => {
+      // A nonexistent path under the real home: the walk ascends and must stop AT home
+      // without reading anything above (or inside) it.
+      let cwd = path.join(os.homedir(), 'percy-nonexistent-zz', 'a', 'b');
+      expect(await findBaselineProvider({ cwd, log: fakeLog() })).toBeNull();
     });
   });
 });
