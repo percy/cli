@@ -38,7 +38,7 @@ export default async function unzip(archive, { dir }) {
     let dest = path.join(dir, entry.entryName);
 
     // guard against zip-slip
-    if (path.relative(dir, dest).split(path.sep).includes('..')) {
+    if (path.relative(dir, dest).startsWith('..')) {
       throw new Error(`Out of bound path "${dest}" found while processing file ${entry.entryName}`);
     }
 
