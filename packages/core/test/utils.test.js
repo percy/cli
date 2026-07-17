@@ -923,6 +923,11 @@ describe('utils', () => {
       expect(isMetadataIP('')).toBeNull();
       expect(isMetadataIP(undefined)).toBeNull();
     });
+
+    it('returns null for a colon-containing host that is not valid IPv6', () => {
+      // exercises the URL-parse failure fallback in canonicalHost
+      expect(isMetadataIP('abc:def')).toBeNull();
+    });
   });
 
   describe('assertNotMetadataTarget', () => {
