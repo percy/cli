@@ -45,21 +45,31 @@ function validateAndFixSnapshotUrl(snapshot) {
 // used to deserialize regular expression strings
 const RE_REGEXP = /^\/(.+)\/(\w+)?$/;
 
+// Upper bound on the snapshot name length we will run user-controllable
+// regex/glob matching against. A crafted, very long snapshot name reaching this
+// matcher (e.g. via the local API) combined with a backtracking-prone pattern
+// could otherwise trigger catastrophic backtracking / ReDoS (CWE-1333). Real
+// snapshot names are short; an over-long name simply does not match patterns.
+const MAX_MATCH_INPUT_LENGTH = 2048;
+
 // Returns true or false if a snapshot matches the provided include and exclude predicates. A
 // predicate can be an array of predicates, a regular expression, a glob pattern, or a function.
 function snapshotMatches(snapshot, include, exclude) {
   // support an options object as the second argument
   if (include?.include || include?.exclude) ({ include, exclude } = include);
 
+  // guard pattern matching against pathologically long inputs (ReDoS)
+  let patternSafe = typeof snapshot.name === 'string' && snapshot.name.length <= MAX_MATCH_INPUT_LENGTH;
+
   // recursive predicate test function
   let test = (predicate, fallback) => {
     if (predicate && typeof predicate === 'string') {
-      // snapshot name matches exactly or matches a glob
+      // exact match is always safe; glob matching is only run on bounded input
       let result = snapshot.name === predicate ||
-        micromatch.isMatch(snapshot.name, predicate);
+        (patternSafe && micromatch.isMatch(snapshot.name, predicate));
 
-      // snapshot might match a string-based regexp pattern
-      if (!result) {
+      // snapshot might match a string-based regexp pattern (bounded input only)
+      if (!result && patternSafe) {
         try {
           let [, parsed, flags] = RE_REGEXP.exec(predicate) || [];
           result = !!parsed && new RegExp(parsed, flags).test(snapshot.name);
@@ -68,8 +78,8 @@ function snapshotMatches(snapshot, include, exclude) {
 
       return result;
     } else if (predicate instanceof RegExp) {
-      // snapshot matches a regular expression
-      return predicate.test(snapshot.name);
+      // snapshot matches a regular expression (bounded input only)
+      return patternSafe && predicate.test(snapshot.name);
     } else if (typeof predicate === 'function') {
       // advanced matching
       return predicate(snapshot);

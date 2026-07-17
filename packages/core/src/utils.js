@@ -83,9 +83,10 @@ const METADATA_HOSTNAMES = new Set([
 // ::ffff:169.254.169.254 compares equal to the literal 169.254.169.254 — the
 // OS routes it to the IPv4 service, so it must not slip past the IP set).
 function canonicalHost(host) {
-  /* istanbul ignore next: every caller guards against falsy hosts
-     (matchMetadataHost early-returns; METADATA_IPS maps literals) —
-     kept as a defensive no-op for direct use */
+  /* istanbul ignore next -- @preserve: defensive guard; the sole caller
+     matchMetadataHost already returns on a falsy host before calling this,
+     so this branch is unreachable via the public API and cannot be exercised
+     without widening the export surface. */
   if (!host) return host;
   let h = String(host).toLowerCase().replace(/\.$/, '');
   let bare = h.replace(/^\[/, '').replace(/\]$/, '');
@@ -186,6 +187,13 @@ export function buildSyntheticFrameResourceUrl(rootUrl, percyElementId) {
     /* istanbul ignore next: base is always a valid absolute URL, kept as a defensive guard */
     return rewriteLocalhostURL(`https://render.percy.local${path}`);
   }
+}
+
+// Returns a URL encoded string of nested query params
+export function encodeURLSearchParams(subj, prefix) {
+  return typeof subj === 'object' ? Object.entries(subj).map(([key, value]) => (
+    encodeURLSearchParams(value, prefix ? `${prefix}[${key}]` : key)
+  )).join('&') : `${prefix}=${encodeURIComponent(subj)}`;
 }
 
 // Process CORS iframes in a single domSnapshot object. `rootUrl` is the page
@@ -718,22 +726,50 @@ export async function withRetries(fn, { count, onRetry, signal, throwOn }) {
   }
 }
 
-export function redactSecrets(data) {
-  const filepath = path.resolve(url.fileURLToPath(import.meta.url), '../secretPatterns.yml');
-  const secretPatterns = YAML.parse(readFileSync(filepath, 'utf-8'));
+// Lazily load and compile the secret patterns once. The pattern file holds
+// ~1.7k regexes; parsing the YAML and compiling every RegExp on each call made
+// redactSecrets O(patterns) per string and re-read the file for every recursive
+// call. Since redactSecrets now runs over the full CLI log array on egress
+// (sendBuildLogs), that per-call cost is paid hundreds of times and could blow
+// past test/runtime timeouts. Compile once and reuse.
+let _compiledSecretPatterns;
+function getSecretPatterns() {
+  if (!_compiledSecretPatterns) {
+    const filepath = path.resolve(url.fileURLToPath(import.meta.url), '../secretPatterns.yml');
+    const secretPatterns = YAML.parse(readFileSync(filepath, 'utf-8'));
+    // Regex sources come from the first-party, bundled secretPatterns.yml that
+    // ships in this package - never from remote or attacker-controlled input.
+    // nosemgrep: javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp
+    _compiledSecretPatterns = secretPatterns.patterns.map(p => new RegExp(p.pattern.regex, 'g'));
+  }
+  return _compiledSecretPatterns;
+}
 
-  if (Array.isArray(data)) {
-    // Process each item in the array
-    return data.map(item => redactSecrets(item));
-  } else if (typeof data === 'object' && data !== null) {
-    // Process each key-value pair in the object
-    data.message = redactSecrets(data.message);
-  }
+export function redactSecrets(data) {
+  // Strings are redacted against every compiled secret pattern.
   if (typeof data === 'string') {
-    for (const pattern of secretPatterns.patterns) {
-      data = data.replace(new RegExp(pattern.pattern.regex, 'g'), '[REDACTED]');
+    for (const pattern of getSecretPatterns()) {
+      data = data.replace(pattern, '[REDACTED]');
     }
+    return data;
   }
+  // Arrays (the CLI-log entry list) are redacted element-wise, in place.
+  if (Array.isArray(data)) {
+    for (let i = 0; i < data.length; i++) data[i] = redactSecrets(data[i]);
+    return data;
+  }
+  // Log entries: redact the human-readable `message` in place and return the
+  // same reference (sendBuildLogs reads the return value; the CI-log path reads
+  // the same memory-mode entry back — both see the redacted message). We do NOT
+  // recurse over `meta`: it holds structured instrumentation (e.g. a numeric
+  // `size`, ids) and a broad secret pattern matches plain digit strings, so a
+  // blanket meta sweep clobbers legitimate diagnostic data. Log-line secrets
+  // surface in `message`.
+  if (typeof data === 'object' && data !== null) {
+    data.message = redactSecrets(data.message);
+    return data;
+  }
+  // Any other primitive (number, boolean, null, undefined) passes through.
   return data;
 }
 
