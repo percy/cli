@@ -59,9 +59,14 @@ export default async function unzip(archive, { dir }) {
             return zipfile.readEntry();
           }
 
-          let dest = path.join(dir, entry.fileName);
+          // strip any leading traversal segments before joining (zip-slip)
+          let fileName = entry.fileName.replace(/^(\.\.(\/|\\|$))+/, '');
+          // `dir` is the trusted install target from install.js, not user input,
+          // and `fileName` is sanitized above with the traversal guard below
+          // nosemgrep: javascript.lang.security.audit.path-traversal.path-join-resolve-traversal.path-join-resolve-traversal
+          let dest = path.join(dir, fileName);
 
-          // guard against zip-slip
+          // guard against zip-slip for any remaining traversal
           if (path.relative(dir, dest).split(path.sep).includes('..')) {
             throw new Error(`Out of bound path "${dest}" found while processing file ${entry.fileName}`);
           }
