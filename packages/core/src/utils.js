@@ -57,6 +57,110 @@ export function isHttpOrHttpsUrl(urlString) {
   }
 }
 
+// Cloud instance-metadata endpoints. These are never legitimate snapshot
+// targets, but they hand out short-lived cloud credentials to anything that
+// can reach them — so a page (or a subresource it requests) that navigates
+// Chromium to one of these can exfiltrate credentials via SSRF. We block
+// these specific targets only; loopback and general RFC1918 hosts stay
+// allowed so that snapshotting http://localhost:3000 and internal staging
+// hosts keeps working.
+const METADATA_IPS = new Set([
+  '169.254.169.254', // AWS/Azure/GCP IMDS
+  '169.254.170.2', // AWS ECS task metadata
+  '100.100.100.200', // Alibaba Cloud
+  'fd00:ec2::254' // AWS IMDS over IPv6
+].map(canonicalHost));
+
+const METADATA_HOSTNAMES = new Set([
+  'metadata.google.internal',
+  'metadata.goog'
+]);
+
+// Canonicalizes a host for comparison: lowercases, strips a trailing dot and
+// IPv6 brackets, normalizes IPv6 addresses to their compressed form (so e.g.
+// fd00:ec2:0:0:0:0:0:254 and fd00:ec2::254 compare equal), and unwraps
+// IPv4-mapped IPv6 addresses to their dotted-quad form (so e.g.
+// ::ffff:169.254.169.254 compares equal to the literal 169.254.169.254 — the
+// OS routes it to the IPv4 service, so it must not slip past the IP set).
+function canonicalHost(host) {
+  /* istanbul ignore next -- @preserve: defensive guard; the sole caller
+     matchMetadataHost already returns on a falsy host before calling this,
+     so this branch is unreachable via the public API and cannot be exercised
+     without widening the export surface. */
+  if (!host) return host;
+  let h = String(host).toLowerCase().replace(/\.$/, '');
+  let bare = h.replace(/^\[/, '').replace(/\]$/, '');
+
+  if (bare.includes(':')) {
+    try {
+      let canon = new URL(`http://[${bare}]/`).hostname.replace(/^\[/, '').replace(/\]$/, '');
+      // The URL parser renders IPv4-mapped IPv6 as ::ffff:wwww:xxxx (hex);
+      // fold those 32 bits back into dotted-quad so mapped metadata IPs match.
+      let mapped = /^::ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/.exec(canon);
+      if (mapped) {
+        let hi = parseInt(mapped[1], 16);
+        let lo = parseInt(mapped[2], 16);
+        return `${hi >> 8}.${hi & 0xff}.${lo >> 8}.${lo & 0xff}`;
+      }
+      return canon;
+    } catch {
+      return bare;
+    }
+  }
+
+  return bare;
+}
+
+// The single decision point for the metadata block: returns the given host
+// (hostname or IP literal) when it canonicalizes to a known cloud
+// instance-metadata endpoint, otherwise null. Purely synchronous and DNS-free —
+// every outbound path (the request-time literal pre-check, the response-stage
+// remoteIPAddress gate, and the direct-fetch socket-address gate) funnels
+// through here so the block behaves identically everywhere.
+function matchMetadataHost(host) {
+  if (!host) return null;
+  let canon = canonicalHost(host);
+  return (METADATA_IPS.has(canon) || METADATA_HOSTNAMES.has(canon)) ? host : null;
+}
+
+// Cheap, synchronous first-line pre-check on a URL's literal host: blocks only
+// literal metadata IPs and metadata hostnames. It does NOT resolve DNS and so
+// cannot defend against DNS rebinding on its own — an attacker's hostname can
+// resolve benignly here and then to a metadata IP for the actual connection.
+// The DNS-rebinding leg is closed at the response stage by isMetadataIP, which
+// gates on response.remoteIPAddress — the IP the request actually connected to.
+export function isMetadataTarget(rawUrl) {
+  let host;
+
+  try {
+    host = new URL(rawUrl).hostname;
+  } catch {
+    // Unparseable URLs are handled elsewhere; they are not our concern here.
+    return null;
+  }
+
+  return matchMetadataHost(host);
+}
+
+// Response/connection-stage gate: given the IP a request actually connected to
+// (response.remoteIPAddress from CDP, or a direct fetch's socket.remoteAddress),
+// returns the offending IP when it is a metadata target, otherwise null. This
+// is the authoritative enforcement point — it inspects the real connected IP,
+// so a hostname that rebinds to a metadata IP after the request-time pre-check
+// is still blocked here. No DNS needed: the input is already an IP literal.
+export function isMetadataIP(remoteIP) {
+  return matchMetadataHost(remoteIP);
+}
+
+// Throws when the URL points at a cloud instance-metadata endpoint. Used to
+// refuse navigating the top-level snapshot URL to such a target.
+export function assertNotMetadataTarget(rawUrl) {
+  let host = isMetadataTarget(rawUrl);
+  if (host) {
+    throw new Error(`Refusing to navigate to cloud metadata endpoint: ${host}`);
+  }
+}
+
 // Rewrites localhost/127.0.0.1 origins to Percy's internal render host so
 // serialized resources resolve consistently during rendering. Mirrors the
 // rewrite applied to serialized DOM resources in @percy/dom (serialize-cssom).
@@ -83,6 +187,13 @@ export function buildSyntheticFrameResourceUrl(rootUrl, percyElementId) {
     /* istanbul ignore next: base is always a valid absolute URL, kept as a defensive guard */
     return rewriteLocalhostURL(`https://render.percy.local${path}`);
   }
+}
+
+// Returns a URL encoded string of nested query params
+export function encodeURLSearchParams(subj, prefix) {
+  return typeof subj === 'object' ? Object.entries(subj).map(([key, value]) => (
+    encodeURLSearchParams(value, prefix ? `${prefix}[${key}]` : key)
+  )).join('&') : `${prefix}=${encodeURIComponent(subj)}`;
 }
 
 // Process CORS iframes in a single domSnapshot object. `rootUrl` is the page
@@ -615,22 +726,50 @@ export async function withRetries(fn, { count, onRetry, signal, throwOn }) {
   }
 }
 
-export function redactSecrets(data) {
-  const filepath = path.resolve(url.fileURLToPath(import.meta.url), '../secretPatterns.yml');
-  const secretPatterns = YAML.parse(readFileSync(filepath, 'utf-8'));
+// Lazily load and compile the secret patterns once. The pattern file holds
+// ~1.7k regexes; parsing the YAML and compiling every RegExp on each call made
+// redactSecrets O(patterns) per string and re-read the file for every recursive
+// call. Since redactSecrets now runs over the full CLI log array on egress
+// (sendBuildLogs), that per-call cost is paid hundreds of times and could blow
+// past test/runtime timeouts. Compile once and reuse.
+let _compiledSecretPatterns;
+function getSecretPatterns() {
+  if (!_compiledSecretPatterns) {
+    const filepath = path.resolve(url.fileURLToPath(import.meta.url), '../secretPatterns.yml');
+    const secretPatterns = YAML.parse(readFileSync(filepath, 'utf-8'));
+    // Regex sources come from the first-party, bundled secretPatterns.yml that
+    // ships in this package - never from remote or attacker-controlled input.
+    // nosemgrep: javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp
+    _compiledSecretPatterns = secretPatterns.patterns.map(p => new RegExp(p.pattern.regex, 'g'));
+  }
+  return _compiledSecretPatterns;
+}
 
-  if (Array.isArray(data)) {
-    // Process each item in the array
-    return data.map(item => redactSecrets(item));
-  } else if (typeof data === 'object' && data !== null) {
-    // Process each key-value pair in the object
-    data.message = redactSecrets(data.message);
-  }
+export function redactSecrets(data) {
+  // Strings are redacted against every compiled secret pattern.
   if (typeof data === 'string') {
-    for (const pattern of secretPatterns.patterns) {
-      data = data.replace(new RegExp(pattern.pattern.regex, 'g'), '[REDACTED]');
+    for (const pattern of getSecretPatterns()) {
+      data = data.replace(pattern, '[REDACTED]');
     }
+    return data;
   }
+  // Arrays (the CLI-log entry list) are redacted element-wise, in place.
+  if (Array.isArray(data)) {
+    for (let i = 0; i < data.length; i++) data[i] = redactSecrets(data[i]);
+    return data;
+  }
+  // Log entries: redact the human-readable `message` in place and return the
+  // same reference (sendBuildLogs reads the return value; the CI-log path reads
+  // the same memory-mode entry back — both see the redacted message). We do NOT
+  // recurse over `meta`: it holds structured instrumentation (e.g. a numeric
+  // `size`, ids) and a broad secret pattern matches plain digit strings, so a
+  // blanket meta sweep clobbers legitimate diagnostic data. Log-line secrets
+  // surface in `message`.
+  if (typeof data === 'object' && data !== null) {
+    data.message = redactSecrets(data.message);
+    return data;
+  }
+  // Any other primitive (number, boolean, null, undefined) passes through.
   return data;
 }
 

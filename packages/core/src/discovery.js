@@ -8,13 +8,15 @@ import {
   createRootResource,
   createPercyCSSResource,
   createLogResource,
+  redactSecrets,
   yieldAll,
   snapshotLogName,
   waitForTimeout,
   withRetries,
   waitForSelectorInsideBrowser,
   isGzipped,
-  maybeScrollToBottom
+  maybeScrollToBottom,
+  assertNotMetadataTarget
 } from './utils.js';
 import { ByteLRU, entrySize, DiskSpillStore, createSpillDir } from './cache/byte-lru.js';
 import {
@@ -218,8 +220,10 @@ function processSnapshotResources({ domSnapshot, resources, ...snapshot }) {
   // For multi dom root resources are stored as array
   resources = resources.flat();
 
-  // include associated snapshot logs matched by meta information
-  resources.push(createLogResource(logger.snapshotLogs(snapshot.meta.snapshot)));
+  // include associated snapshot logs matched by meta information. Redact
+  // secrets before egress — this per-snapshot log resource is a parallel
+  // egress path to sendBuildLogs and must scrub tokens/credentials too (CWE-532).
+  resources.push(createLogResource(redactSecrets(logger.snapshotLogs(snapshot.meta.snapshot))));
   logger.evictSnapshot(snapshot.meta.snapshot);
 
   if (process.env.PERCY_GZIP) {
@@ -315,6 +319,8 @@ async function* captureSnapshotResources(page, snapshot, options) {
 
   // navigate to the url
   yield resizePage(snapshot.widths[0]);
+  // refuse to navigate the top-level snapshot URL to a cloud metadata endpoint
+  assertNotMetadataTarget(snapshot.url);
   yield page.goto(snapshot.url, { cookies, forceReload: discovery.captureResponsiveAssetsEnabled });
 
   // wait for any specified timeout

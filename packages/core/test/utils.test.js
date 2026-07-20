@@ -1,4 +1,4 @@
-import { decodeAndEncodeURLWithLogging, waitForSelectorInsideBrowser, compareObjectTypes, isGzipped, checkSDKVersion, percyAutomateRequestHandler, detectFontMimeType, handleIncorrectFontMimeType, computeResponsiveWidths, appendUrlSearchParam, processCorsIframesInDomSnapshot, processCorsIframes, isHttpOrHttpsUrl, rewriteLocalhostURL, buildSyntheticFrameResourceUrl } from '../src/utils.js';
+import { decodeAndEncodeURLWithLogging, waitForSelectorInsideBrowser, compareObjectTypes, isGzipped, checkSDKVersion, percyAutomateRequestHandler, detectFontMimeType, handleIncorrectFontMimeType, computeResponsiveWidths, appendUrlSearchParam, processCorsIframesInDomSnapshot, processCorsIframes, isHttpOrHttpsUrl, rewriteLocalhostURL, buildSyntheticFrameResourceUrl, isMetadataTarget, isMetadataIP, assertNotMetadataTarget } from '../src/utils.js';
 import { logger, setupTest, mockRequests } from './helpers/index.js';
 import percyLogger from '@percy/logger';
 import Percy from '@percy/core';
@@ -825,6 +825,121 @@ describe('utils', () => {
       expect(isHttpOrHttpsUrl('not a url')).toBe(false);
       expect(isHttpOrHttpsUrl('')).toBe(false);
       expect(isHttpOrHttpsUrl(undefined)).toBe(false);
+    });
+  });
+
+  describe('isMetadataTarget', () => {
+    it('blocks literal cloud metadata IPs', () => {
+      expect(isMetadataTarget('http://169.254.169.254/latest/meta-data/')).toBe('169.254.169.254');
+      expect(isMetadataTarget('http://169.254.170.2/v2/credentials')).toBe('169.254.170.2');
+      expect(isMetadataTarget('http://100.100.100.200/latest/meta-data/')).toBe('100.100.100.200');
+    });
+
+    it('blocks the AWS IMDS IPv6 endpoint regardless of formatting', () => {
+      // compressed and fully-expanded IPv6 forms must both be blocked; assert the
+      // decision rather than the exact canonical rendering (see the dedicated
+      // canonicalization test below for the one place we pin the format)
+      expect(isMetadataTarget('http://[fd00:ec2::254]/latest/meta-data/')).toBeTruthy();
+      expect(isMetadataTarget('http://[fd00:ec2:0:0:0:0:0:254]/')).toBeTruthy();
+    });
+
+    it('blocks IPv4-mapped IPv6 forms of metadata IPs across equivalent inputs', () => {
+      // ::ffff:a.b.c.d maps to the IPv4 service at the socket layer, so every
+      // equivalent spelling must be blocked. Assert the decision (truthy host
+      // returned), not the exact canonical string, so a WHATWG-URL normalization
+      // change can't fail this without a real behavior regression.
+      expect(isMetadataTarget('http://[::ffff:169.254.169.254]/latest/meta-data/')).toBeTruthy();
+      expect(isMetadataTarget('http://[::ffff:169.254.170.2]/')).toBeTruthy();
+      expect(isMetadataTarget('http://[0:0:0:0:0:ffff:100.100.100.200]/')).toBeTruthy();
+    });
+
+    it('pins the canonical form of an IPv4-mapped IPv6 metadata host', () => {
+      // The single test that locks the exact canonicalization output, so an
+      // accidental change to canonicalHost's rendering is caught deliberately.
+      expect(isMetadataTarget('http://[::ffff:169.254.169.254]/latest/meta-data/')).toBe('[::ffff:a9fe:a9fe]');
+    });
+
+    it('allows a non-metadata IPv4-mapped IPv6 host', () => {
+      expect(isMetadataTarget('http://[::ffff:93.184.216.34]/')).toBeNull();
+    });
+
+    it('blocks known metadata hostnames case-insensitively and with a trailing dot', () => {
+      expect(isMetadataTarget('http://metadata.google.internal/computeMetadata/v1/')).toBe('metadata.google.internal');
+      // the URL parser lowercases and preserves the trailing dot in the returned hostname
+      expect(isMetadataTarget('http://Metadata.Google.Internal./')).toBe('metadata.google.internal.');
+      expect(isMetadataTarget('http://metadata.goog/')).toBe('metadata.goog');
+    });
+
+    it('does NOT resolve DNS — a benign-looking hostname passes the literal pre-check', () => {
+      // The request-time pre-check is literal-only by design; a hostname that
+      // could rebind to a metadata IP is intentionally NOT blocked here (it is
+      // caught at the response stage via isMetadataIP on the connected IP).
+      expect(isMetadataTarget('http://rebind.attacker.example/')).toBeNull();
+    });
+
+    it('allows loopback hosts', () => {
+      expect(isMetadataTarget('http://localhost:3000/')).toBeNull();
+      expect(isMetadataTarget('http://127.0.0.1:8080/')).toBeNull();
+      expect(isMetadataTarget('http://[::1]/')).toBeNull();
+    });
+
+    it('allows RFC1918 private hosts and normal public hosts', () => {
+      expect(isMetadataTarget('http://192.168.1.10:3000/')).toBeNull();
+      expect(isMetadataTarget('http://10.0.0.5/')).toBeNull();
+      expect(isMetadataTarget('https://example.com/index.html')).toBeNull();
+    });
+
+    it('returns null for unparseable URLs', () => {
+      expect(isMetadataTarget('not a url')).toBeNull();
+    });
+  });
+
+  describe('isMetadataIP', () => {
+    it('blocks the literal connected metadata IPs (no DNS needed)', () => {
+      // This is the authoritative response/connection-stage gate: it inspects the
+      // IP actually connected to, so it closes the DNS-rebinding leg that the
+      // literal pre-check cannot.
+      expect(isMetadataIP('169.254.169.254')).toBe('169.254.169.254');
+      expect(isMetadataIP('169.254.170.2')).toBe('169.254.170.2');
+      expect(isMetadataIP('100.100.100.200')).toBe('100.100.100.200');
+      expect(isMetadataIP('fd00:ec2::254')).toBeTruthy();
+    });
+
+    it('blocks an IPv4-mapped IPv6 connected address for a metadata IP', () => {
+      // Chromium/Node can report the connected IP in IPv4-mapped IPv6 form; it
+      // routes to the IPv4 metadata service and must still be blocked.
+      expect(isMetadataIP('::ffff:169.254.169.254')).toBeTruthy();
+    });
+
+    it('allows loopback, RFC1918 and public connected IPs', () => {
+      expect(isMetadataIP('127.0.0.1')).toBeNull();
+      expect(isMetadataIP('::1')).toBeNull();
+      expect(isMetadataIP('10.0.0.5')).toBeNull();
+      expect(isMetadataIP('192.168.1.10')).toBeNull();
+      expect(isMetadataIP('93.184.216.34')).toBeNull();
+    });
+
+    it('returns null for an empty/absent connected address', () => {
+      expect(isMetadataIP('')).toBeNull();
+      expect(isMetadataIP(undefined)).toBeNull();
+    });
+
+    it('falls back to the raw value for a malformed IPv6 connected address', () => {
+      // A colon-bearing address that is not a valid IPv6 literal makes the
+      // URL-based canonicalization throw; canonicalHost catches and returns the
+      // input unchanged, and a non-metadata value is then allowed through.
+      expect(isMetadataIP('gg::1')).toBeNull();
+    });
+  });
+
+  describe('assertNotMetadataTarget', () => {
+    it('throws a clear error for a metadata endpoint', () => {
+      expect(() => assertNotMetadataTarget('http://169.254.169.254/'))
+        .toThrowError('Refusing to navigate to cloud metadata endpoint: 169.254.169.254');
+    });
+
+    it('does not throw for a normal host', () => {
+      expect(() => assertNotMetadataTarget('https://example.com/')).not.toThrow();
     });
   });
 

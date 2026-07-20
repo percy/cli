@@ -169,6 +169,76 @@ describe('API Server', () => {
     ]));
   });
 
+  it('rejects /config POST carrying a cross-origin Origin header (PER-8601)', async () => {
+    await percy.start();
+    let before = percy.config;
+
+    await expectAsync(request('/percy/config', {
+      method: 'POST',
+      body: { snapshot: { widths: [1234] } },
+      headers: { Origin: 'https://evil.example' }
+    })).toBeRejected();
+
+    // live config was not mutated by the cross-origin request
+    expect(percy.config).toEqual(before);
+  });
+
+  it('allows /config POST from a loopback origin', async () => {
+    await percy.start();
+
+    await expectAsync(request('/percy/config', {
+      method: 'POST',
+      body: { snapshot: { widths: [1000] } },
+      headers: { Origin: 'http://localhost:6006' }
+    })).toBeResolved();
+
+    expect(percy.config.snapshot.widths).toEqual([1000]);
+  });
+
+  it('rejects /stop carrying a cross-origin Origin header (PER-8600)', async () => {
+    await percy.start();
+    let stopSpy = spyOn(percy, 'stop').and.resolveTo();
+
+    await expectAsync(request('/percy/stop', {
+      method: 'POST',
+      headers: { Origin: 'https://evil.example' }
+    })).toBeRejected();
+
+    expect(stopSpy).not.toHaveBeenCalled();
+  });
+
+  it('does not stop Percy on a GET to /stop (no-Origin CSRF vector, PER-8600)', async () => {
+    await percy.start();
+    let stopSpy = spyOn(percy, 'stop').and.resolveTo();
+
+    // A browser can issue a cross-origin GET (e.g. via <img>) with no Origin
+    // header; the endpoint is POST-only so this must not reach the handler.
+    await expectAsync(request('/percy/stop', 'GET')).toBeRejected();
+
+    expect(stopSpy).not.toHaveBeenCalled();
+  });
+
+  it('blocks cross-origin POSTs to every state-changing endpoint at the middleware choke point (PER-8600/8601)', async () => {
+    await percy.start();
+
+    // CORS-safelisted content types reach these handlers with no preflight, but
+    // a cross-origin request always carries an Origin, so the general-middleware
+    // choke point must reject all of them before any side effect runs.
+    let endpoints = [
+      '/percy/snapshot', '/percy/comparison', '/percy/comparison/upload',
+      '/percy/maestro-screenshot', '/percy/flush', '/percy/automateScreenshot',
+      '/percy/events', '/percy/log'
+    ];
+
+    for (let path of endpoints) {
+      await expectAsync(request(path, {
+        method: 'POST',
+        body: { name: 'x' },
+        headers: { Origin: 'https://evil.example' }
+      })).toBeRejectedWithError(/Cross-origin requests are not allowed/);
+    }
+  });
+
   it('has an /idle endpoint that calls #idle()', async () => {
     spyOn(percy, 'idle').and.resolveTo();
     await percy.start();
@@ -1228,6 +1298,12 @@ describe('API Server', () => {
       fs.writeFileSync(path.join(ANDROID_FILEPATH_DIR, `${FILEPATH_NAME}.png`), 'PNGBYTES-FILEPATH-ANDROID');
       fs.mkdirSync(IOS_FILEPATH_DIR, { recursive: true });
       fs.writeFileSync(path.join(IOS_FILEPATH_DIR, `${FILEPATH_NAME}.png`), 'PNGBYTES-FILEPATH-IOS');
+
+      // Short-circuit device system-bar inset derivation in the unit env (no
+      // real device/adb): seeding the per-session cache makes the relay skip
+      // deriveDeviceInsets and fall back to the request's statusBarHeight/
+      // navBarHeight. Tests that assert derived behavior override this seed.
+      percy.maestroInsetCache.set(SID, null);
     });
 
     async function postMaestro(body) {
@@ -2062,6 +2138,82 @@ describe('API Server', () => {
         // Newer fixture's dimensions reach the payload.
         expect(payload.tag.width).toBe(1080);
         expect(payload.tag.height).toBe(2400);
+      });
+    });
+
+    describe('device system-bar inset derivation (relay wiring)', () => {
+      it('CLI-derived insets are authoritative over the SDK-sent defaults (Android)', async () => {
+        // Override the beforeEach null seed with a derived result.
+        percy.maestroInsetCache.set(SID, { statusBarHeight: 141, navBarHeight: 168 });
+        spyOn(percy, 'upload').and.resolveTo();
+        await percy.start();
+
+        await expectAsync(postMaestro({
+          name: SS_NAME,
+          sessionId: SID,
+          platform: 'android',
+          statusBarHeight: 50,
+          navBarHeight: 48
+        })).toBeResolvedTo(jasmine.objectContaining({ success: true }));
+
+        let [payload] = percy.upload.calls.mostRecent().args;
+        expect(payload.tiles[0]).toEqual(jasmine.objectContaining({ statusBarHeight: 141, navBarHeight: 168 }));
+      });
+
+      it('falls back to the SDK-sent values when derivation yields null (Android)', async () => {
+        percy.maestroInsetCache.set(SID, null);
+        spyOn(percy, 'upload').and.resolveTo();
+        await percy.start();
+
+        await expectAsync(postMaestro({
+          name: SS_NAME,
+          sessionId: SID,
+          platform: 'android',
+          statusBarHeight: 50,
+          navBarHeight: 48
+        })).toBeResolvedTo(jasmine.objectContaining({ success: true }));
+
+        let [payload] = percy.upload.calls.mostRecent().args;
+        expect(payload.tiles[0]).toEqual(jasmine.objectContaining({ statusBarHeight: 50, navBarHeight: 48 }));
+      });
+
+      it('iOS navBarHeight is always 0, even when the SDK sends a value', async () => {
+        percy.maestroInsetCache.set(SID, { statusBarHeight: 141, navBarHeight: 0 });
+        spyOn(percy, 'upload').and.resolveTo();
+        await percy.start();
+
+        await expectAsync(postMaestro({
+          name: SS_NAME,
+          sessionId: SID,
+          platform: 'ios',
+          statusBarHeight: 47,
+          navBarHeight: 80
+        })).toBeResolvedTo(jasmine.objectContaining({ success: true }));
+
+        let [payload] = percy.upload.calls.mostRecent().args;
+        expect(payload.tiles[0].statusBarHeight).toBe(141);
+        expect(payload.tiles[0].navBarHeight).toBe(0);
+      });
+
+      it('derives once and caches the outcome (incl. null) per session', async () => {
+        // Cache miss → derive. iOS with no PERCY_IOS_DRIVER_HOST_PORT env yields
+        // null deterministically (no transport spawn). Outcome is cached.
+        percy.maestroInsetCache.delete(SID);
+        spyOn(percy, 'upload').and.resolveTo();
+        await percy.start();
+
+        await expectAsync(postMaestro({
+          name: SS_NAME,
+          sessionId: SID,
+          platform: 'ios',
+          statusBarHeight: 47
+        })).toBeResolvedTo(jasmine.objectContaining({ success: true }));
+
+        // Null outcome cached, and the tile fell back to the SDK-sent value.
+        expect(percy.maestroInsetCache.has(SID)).toBe(true);
+        expect(percy.maestroInsetCache.get(SID)).toBeNull();
+        let [payload] = percy.upload.calls.mostRecent().args;
+        expect(payload.tiles[0].statusBarHeight).toBe(47);
       });
     });
   });
