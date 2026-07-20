@@ -836,7 +836,24 @@ export class PercyClient {
     }
     let snapshot = await this.createSnapshot(buildId, options);
     let comparison = await this.createComparison(snapshot.data.id, options);
-    await this.uploadComparisonTiles(comparison.data.id, options.tiles);
+    try {
+      await this.uploadComparisonTiles(comparison.data.id, options.tiles);
+    } catch (error) {
+      // A tile failed to upload/verify after all retries (see #verify). Finalize
+      // the comparison anyway so the server resolves it deterministically and
+      // marks this snapshot failed — an unfinalized comparison is otherwise swept
+      // by the build-cleanup retry loop and surfaces as a misleading render_timeout.
+      // Re-throw afterwards so the snapshot is reported as failed to the caller.
+      this.log.error(`Failed to upload tiles for comparison: ${comparison.data.id} ${options.tag.name}`, meta);
+      try {
+        await this.finalizeComparison(comparison.data.id);
+      } catch (finalizeError) {
+        // String-coerce the rejection so a non-Error value (null/undefined/string)
+        // can't throw here and mask the original tile-upload error we re-throw below.
+        this.log.debug(`Failed to finalize failed comparison ${comparison.data.id}: ${finalizeError}`, meta);
+      }
+      throw error;
+    }
     this.log.debug(`Created comparison: ${comparison.data.id} ${options.tag.name}`, meta);
     await this.finalizeComparison(comparison.data.id);
     this.log.debug(`Finalized comparison: ${comparison.data.id} ${options.tag.name}`, meta);
