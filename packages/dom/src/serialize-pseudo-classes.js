@@ -2,11 +2,22 @@
 
 // Serializes pseudo-class state into Percy's clone via two paths:
 //
-//   1. Auto-detect path (every snapshot). For :focus / :focus-within /
-//      :checked / :disabled we stamp the live DOM with the corresponding
-//      data-percy-* attribute and rewrite matching CSS rules to use those
-//      attribute selectors. :focus-within stamps the focused element's
-//      ancestor chain across shadow boundaries.
+//   1. Auto-detect path (every snapshot). For :focus / :focus-within we
+//      stamp the live DOM with the corresponding data-percy-* attribute
+//      and rewrite matching CSS rules to use those attribute selectors.
+//      :focus-within stamps the focused element's ancestor chain across
+//      shadow boundaries.
+//
+//      :checked and :disabled are intentionally NOT handled here — those
+//      states serialize natively (`disabled` is a reflected content
+//      attribute, and serialize-inputs syncs checked/selected properties
+//      to attributes on the clone), so their pseudo-classes match in the
+//      renderer without any rewriting. Copying their rules is not just
+//      redundant, it is harmful: the copies land at the end of <head>,
+//      which flips cascade ties (same specificity/importance, later
+//      source order wins) against equal-specificity rules that were not
+//      copied. Angular Material's pervasive `:not(:disabled)` rules made
+//      this rewrite recolor buttons page-wide (PER-10077).
 //
 //   2. Configured-element path (`pseudoClassEnabledElements` config). User
 //      opts in elements by id/className/xpath/selector. We snapshot all
@@ -31,18 +42,14 @@ const PSEUDO_ELEMENT_MARKER_ATTR = 'data-percy-pseudo-element-id';
 const POPOVER_OPEN_ATTR = 'data-percy-popover-open';
 const FOCUS_ATTR = 'data-percy-focus';
 const FOCUS_WITHIN_ATTR = 'data-percy-focus-within';
-const CHECKED_ATTR = 'data-percy-checked';
-const DISABLED_ATTR = 'data-percy-disabled';
 const HOVER_ATTR = 'data-percy-hover';
 const ACTIVE_ATTR = 'data-percy-active';
 
-const ALL_INTERACTIVE_PSEUDO = [':focus', ':focus-within', ':checked', ':disabled', ':hover', ':active'];
+const ALL_INTERACTIVE_PSEUDO = [':focus', ':focus-within', ':hover', ':active'];
 
 const PSEUDO_TO_ATTR = {
   ':focus': '[data-percy-focus]',
   ':focus-within': '[data-percy-focus-within]',
-  ':checked': '[data-percy-checked]',
-  ':disabled': '[data-percy-disabled]',
   ':hover': '[data-percy-hover]',
   ':active': '[data-percy-active]'
 };
@@ -53,8 +60,6 @@ const PSEUDO_TO_ATTR = {
 const PSEUDO_RES = [
   [':focus-within', /:focus-within(?![-\w])/g],
   [':focus', /:focus(?![-\w])/g],
-  [':checked', /:checked(?![-\w])/g],
-  [':disabled', /:disabled(?![-\w])/g],
   [':hover', /:hover(?![-\w])/g],
   [':active', /:active(?![-\w])/g]
 ];
@@ -120,30 +125,6 @@ function markInteractiveStates(ctx) {
     stampOnce(ctx, focused, FOCUS_ATTR, 'true');
     markFocusWithinAncestors(ctx, focused);
   }
-
-  // Single walk of ctx.dom + shadow roots collecting BOTH :checked and
-  // :disabled in one pass. Previously two separate queryShadowAll calls
-  // each walked the tree and re-traversed every [data-percy-shadow-host]
-  // — on pages with many shadow hosts this doubled the per-snapshot
-  // walk cost. Also tracks which states were observed so the CSS rule
-  // extractor can skip work for selectors that have no matched elements.
-  ctx._stampedInteractive = ctx._stampedInteractive || new Set();
-  // walkShadowDOM only invokes the visitor with Document/Element/ShadowRoot
-  // scopes — each has querySelectorAll, so no defensive guard is needed here.
-  walkShadowDOM(ctx.dom, scope => {
-    try {
-      for (const el of scope.querySelectorAll(':checked')) {
-        stampOnce(ctx, el, CHECKED_ATTR, 'true');
-        ctx._stampedInteractive.add('checked');
-      }
-    } catch (e) { /* selector unsupported in this scope */ }
-    try {
-      for (const el of scope.querySelectorAll(':disabled')) {
-        stampOnce(ctx, el, DISABLED_ATTR, 'true');
-        ctx._stampedInteractive.add('disabled');
-      }
-    } catch (e) { /* selector unsupported in this scope */ }
-  });
 }
 
 // Walk the LIVE document and every shadow root (open, or closed via the CDP
@@ -161,8 +142,8 @@ function eachScopeIncludingShadow(root, visit) {
 }
 
 // Auto-detect open native popovers page-wide, INCLUDING inside shadow roots.
-// `:popover-open` is an unambiguous serialize-time state (like :checked /
-// :disabled), so it is stamped automatically rather than only on
+// `:popover-open` is an unambiguous serialize-time state, so it is
+// stamped automatically rather than only on
 // pseudoClassEnabledElements. The renderer's popover-element-helper already
 // re-opens any [popover][data-percy-popover-open] across shadow boundaries;
 // without this stamp a popover open at snapshot time renders hidden via the
@@ -212,8 +193,8 @@ function stampPseudoElementId(ctx, element) {
 }
 
 // Configured elements get :hover/:active stamped unconditionally — opting in
-// IS the request to capture those forced states. :focus/:checked/:disabled
-// are already covered by the page-wide markInteractiveStates pass.
+// IS the request to capture those forced states. :focus is already
+// covered by the page-wide markInteractiveStates pass.
 function markElementInteractiveStates(ctx, element) {
   stampOnce(ctx, element, HOVER_ATTR, 'true');
   stampOnce(ctx, element, ACTIVE_ATTR, 'true');
@@ -419,23 +400,6 @@ function extractPseudoClassRules(ctx) {
   const sheetEntries = collectStyleSheets(ctx.dom);
   const rulesByOwner = new Map();
 
-  // Short-circuit per pseudo: when markInteractiveStates ran first (the
-  // production path via markPseudoClassElements), `ctx._stampedInteractive`
-  // records which interactive states were actually observed. Rules for
-  // `:checked` / `:disabled` selectors that found no live elements can't
-  // match anything in the clone after rewriting, so we drop them from the
-  // filter and avoid the rewrite cost. When the marker is absent (unit
-  // tests that call serializePseudoClasses directly), fall back to the
-  // full pseudo list to preserve prior behavior. `:focus`, `:focus-within`,
-  // `:hover`, `:active` are kept regardless either way.
-  const activePseudos = ctx._stampedInteractive
-    ? ALL_INTERACTIVE_PSEUDO.filter(p => {
-      if (p === ':checked') return ctx._stampedInteractive.has('checked');
-      if (p === ':disabled') return ctx._stampedInteractive.has('disabled');
-      return true;
-    })
-    : ALL_INTERACTIVE_PSEUDO;
-
   for (const { sheet, owner } of sheetEntries) {
     let rules;
     try {
@@ -451,7 +415,7 @@ function extractPseudoClassRules(ctx) {
       // interactive pseudo. Skips most rules on most stylesheets without
       // touching the regex bank.
       if (!rule.selectorText.includes(':')) continue;
-      if (!selectorContainsPseudo(rule.selectorText, activePseudos)) continue;
+      if (!selectorContainsPseudo(rule.selectorText, ALL_INTERACTIVE_PSEUDO)) continue;
 
       const rewrittenSelector = rewritePseudoSelector(rule.selectorText);
 
@@ -497,7 +461,7 @@ function extractPseudoClassRules(ctx) {
 }
 
 export function serializePseudoClasses(ctx) {
-  // Auto-detect path runs unconditionally so `:focus`/`:checked`/`:disabled`
+  // Auto-detect path runs unconditionally so `:focus`/`:focus-within`
   // rules are rewritten regardless of whether the user configured a
   // pseudoClassEnabledElements list (and regardless of whether that list
   // matched anything on this page).

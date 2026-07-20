@@ -748,40 +748,43 @@ describe('serializeDOM', () => {
   });
 
   describe('interactive state CSS capture', () => {
-    it('marks checked inputs with data-percy-checked', () => {
+    // :checked and :disabled serialize natively — `disabled` is a reflected
+    // content attribute and serialize-inputs syncs checked/selected to
+    // attributes on the clone. They are neither stamped nor rewritten;
+    // copying their rules to the end of <head> flipped !important cascade
+    // ties against equal-specificity rules from later stylesheets (PER-10077).
+    it('does not mark checked inputs with data-percy-checked', () => {
       withExample('<input type="checkbox" id="cb" checked>', { withShadow: false });
       let result = serializeDOM();
-      expect(result.html).toContain('data-percy-checked="true"');
+      expect(result.html).not.toContain('data-percy-checked');
     });
 
-    it('marks disabled inputs with data-percy-disabled', () => {
+    it('does not mark disabled inputs with data-percy-disabled', () => {
       withExample('<input type="text" id="dis" disabled>', { withShadow: false });
       let result = serializeDOM();
-      expect(result.html).toContain('data-percy-disabled="true"');
+      expect(result.html).not.toContain('data-percy-disabled');
     });
 
-    it('extracts :checked CSS rules and injects as attribute selectors', () => {
+    it('does not copy or rewrite :checked CSS rules', () => {
       withExample('<label><input type="checkbox" checked><span>text</span></label>', { withShadow: false });
-      // Add a CSS rule with :checked
       let style = document.createElement('style');
       style.textContent = 'input:checked + span { color: green; }';
       document.head.appendChild(style);
 
       let result = serializeDOM();
-      expect(result.html).toContain('data-percy-interactive-states');
-      expect(result.html).toContain('[data-percy-checked]');
+      expect(result.html).not.toContain('[data-percy-checked]');
 
       style.remove();
     });
 
-    it('extracts :disabled CSS rules', () => {
+    it('does not copy or rewrite :disabled CSS rules (PER-10077)', () => {
       withExample('<input type="text" disabled>', { withShadow: false });
       let style = document.createElement('style');
       style.textContent = 'input:disabled { opacity: 0.5; }';
       document.head.appendChild(style);
 
       let result = serializeDOM();
-      expect(result.html).toContain('[data-percy-disabled]');
+      expect(result.html).not.toContain('[data-percy-disabled]');
 
       style.remove();
     });

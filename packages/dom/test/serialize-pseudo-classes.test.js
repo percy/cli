@@ -752,7 +752,7 @@ describe('serialize-pseudo-classes', () => {
   describe('extractPseudoClassRules clone.createElement fallback and head fallback (lines 399-406)', () => {
     it('uses ctx.dom.createElement when ctx.clone.createElement is falsy (line 401)', () => {
       withExample(
-        '<style>.fc-test:checked { color: red; }</style>' +
+        '<style>.fc-test:hover { color: red; }</style>' +
         '<input type="checkbox" class="fc-test" id="fc-input" checked />',
         { withShadow: false }
       );
@@ -782,7 +782,7 @@ describe('serialize-pseudo-classes', () => {
 
     it('uses ctx.clone.querySelector(head) when ctx.clone.head is falsy (line 405)', () => {
       withExample(
-        '<style>.head-test:checked { color: blue; }</style>' +
+        '<style>.head-test:hover { color: blue; }</style>' +
         '<input type="checkbox" class="head-test" id="head-input" checked />',
         { withShadow: false }
       );
@@ -967,7 +967,7 @@ describe('serialize-pseudo-classes', () => {
 
   describe('extractPseudoClassRules no head fallback (line 406)', () => {
     it('does not inject styles when clone has no head at all', () => {
-      withExample('<style>.nohead:checked { color: red; }</style><input type="checkbox" class="nohead" checked />', { withShadow: false });
+      withExample('<style>.nohead:hover { color: red; }</style><input type="checkbox" class="nohead" checked />', { withShadow: false });
 
       ctx = {
         dom: document,
@@ -1012,9 +1012,10 @@ describe('serialize-pseudo-classes', () => {
       // unfocused should NOT have data-percy-focus
       let el = document.getElementById('unfocused');
       expect(el.hasAttribute('data-percy-focus')).toBe(false);
-      // but :checked should still be detected on chk2
+      // :checked is never stamped — the state serializes natively via the
+      // `checked` attribute (serialize-inputs), so no marker is needed
       let chk = document.getElementById('chk2');
-      expect(chk.hasAttribute('data-percy-checked')).toBe(true);
+      expect(chk.hasAttribute('data-percy-checked')).toBe(false);
     });
   });
 
@@ -1031,66 +1032,29 @@ describe('serialize-pseudo-classes', () => {
     });
   });
 
-  describe('markInteractiveStates disabled already marked branch', () => {
-    it('does not re-mark already disabled element', () => {
-      withExample('<input id="dis-pre" type="text" disabled />', { withShadow: false });
-      let el = document.getElementById('dis-pre');
-      el.setAttribute('data-percy-disabled', 'true');
+  describe('markInteractiveStates does not stamp natively-serializable states', () => {
+    it('leaves :checked and :disabled elements unstamped (PER-10077)', () => {
+      // `disabled` is a reflected content attribute and serialize-inputs
+      // syncs `checked` to an attribute on the clone — both pseudo-classes
+      // match natively in the renderer, so no marker attribute is stamped
+      // and no CSS rules are rewritten for them.
+      withExample('<input id="dis-nat" type="text" disabled /><input id="chk-nat" type="checkbox" checked />', { withShadow: false });
       ctx = {
         dom: document,
         warnings: new Set()
       };
-      markPseudoClassElements(ctx, { id: ['dis-pre'] });
-      // Should still have the attribute (not removed)
-      expect(el.getAttribute('data-percy-disabled')).toBe('true');
-    });
-  });
-
-  describe('queryShadowAll catch branch (line 253)', () => {
-    it('returns empty array when querySelectorAll throws', () => {
-      withExample('<div data-percy-shadow-host id="throw-host">host</div>', { withShadow: false });
-      let host = document.getElementById('throw-host');
-      let shadow = host.attachShadow({ mode: 'open' });
-      shadow.innerHTML = '<input type="checkbox" checked />';
-
-      // Override querySelectorAll on the shadow root to throw
-      let origQSA = shadow.querySelectorAll.bind(shadow);
-      shadow.querySelectorAll = function(sel) {
-        if (sel === ':checked') throw new Error('simulated querySelectorAll failure');
-        return origQSA(sel);
-      };
-
-      ctx = { dom: document, warnings: new Set() };
-      // This will traverse into shadow and call queryShadowAll(shadow, ':checked') which throws
-      expect(() => markPseudoClassElements(ctx, { id: ['throw-host'] })).not.toThrow();
-    });
-  });
-
-  describe('queryShadowAll with shadow hosts (line 254)', () => {
-    it('traverses shadow hosts with data-percy-shadow-host attribute', () => {
-      withExample('<div id="sh" data-percy-shadow-host>host</div>', { withShadow: false });
-      let host = document.getElementById('sh');
-      let shadow = host.attachShadow({ mode: 'open' });
-      shadow.innerHTML = '<input type="checkbox" checked id="shadow-chk" />';
-
-      ctx = {
-        dom: document,
-        warnings: new Set()
-      };
-      markPseudoClassElements(ctx, { id: ['sh'] });
-      // The checkbox inside shadow should be found and marked
-      let chk = shadow.getElementById('shadow-chk');
-      if (chk) {
-        expect(chk.hasAttribute('data-percy-checked')).toBe(true);
-      }
+      markPseudoClassElements(ctx, null);
+      expect(document.getElementById('dis-nat').hasAttribute('data-percy-disabled')).toBe(false);
+      expect(document.getElementById('chk-nat').hasAttribute('data-percy-checked')).toBe(false);
     });
   });
 
   describe('walkCSSRules nested @media (line 273)', () => {
     it('walks CSS rules inside @media blocks', () => {
-      // Use :checked inside @media — works cross-browser without .focus()
+      // Use :hover inside @media — hover rules are always extracted,
+      // no element stamping or .focus() needed cross-browser
       withExample(
-        '<style>@media all { .media-chk:checked { outline: 2px solid red; } }</style>' +
+        '<style>@media all { .media-chk:hover { outline: 2px solid red; } }</style>' +
         '<input type="checkbox" class="media-chk" id="media-input" checked />',
         { withShadow: false }
       );
@@ -1122,7 +1086,7 @@ describe('serialize-pseudo-classes', () => {
       serializePseudoClasses(ctx);
       let interactiveStyle = ctx.clone.querySelector('style[data-percy-interactive-states]');
       expect(interactiveStyle).not.toBeNull();
-      expect(interactiveStyle.textContent).toContain('[data-percy-checked]');
+      expect(interactiveStyle.textContent).toContain('[data-percy-hover]');
     });
   });
 
@@ -1565,13 +1529,10 @@ describe('serialize-pseudo-classes', () => {
     it('appends rules from each stylesheet under the same owner key', () => {
       // Two <style> elements at the document level — both produce auto-detect
       // rules, exercising the rulesByOwner.has(owner) === true branch on the
-      // second sheet. The input is `checked` so markInteractiveStates stamps
-      // a live `:checked` element — without this, the per-pseudo short-circuit
-      // in extractPseudoClassRules would (correctly) drop the `:checked` rule
-      // and the assertion below would fail.
+      // second sheet.
       withExample(
         '<style>.ms-btn:focus { color: red }</style>' +
-        '<style>.ms-btn:checked { color: blue }</style>' +
+        '<style>.ms-btn:hover { color: blue }</style>' +
         '<input type="checkbox" class="ms-btn" checked />'
       );
       ctx = {
@@ -1592,7 +1553,45 @@ describe('serialize-pseudo-classes', () => {
       const interactiveStyle = ctx.clone.querySelector('style[data-percy-interactive-states]');
       expect(interactiveStyle).not.toBeNull();
       expect(interactiveStyle.textContent).toContain('[data-percy-focus]');
-      expect(interactiveStyle.textContent).toContain('[data-percy-checked]');
+      expect(interactiveStyle.textContent).toContain('[data-percy-hover]');
+    });
+  });
+
+  describe('cascade safety for :checked / :disabled rules (PER-10077)', () => {
+    it('does not copy or rewrite rules whose only interactive pseudo is :checked/:disabled', () => {
+      // Regression for PER-10077: copying a `:not(:disabled)` rule to the end
+      // of <head> flipped an !important cascade tie against an equal-specificity
+      // rule from a later stylesheet, recoloring Angular Material buttons.
+      // :checked/:disabled serialize natively, so their rules must be left alone.
+      withExample(
+        '<style>.mat-btn:not(:disabled) { background-color: white !important }</style>' +
+        '<style>.mat-btn.mat-primary { background-color: blue !important }</style>' +
+        '<button class="mat-btn mat-primary">go</button>' +
+        '<button class="mat-btn" disabled>stop</button>' +
+        '<input type="checkbox" class="chk" checked />' +
+        '<style>.chk:checked { outline: 1px solid green }</style>'
+      );
+      ctx = {
+        dom: document,
+        clone: document.implementation.createHTMLDocument('Clone'),
+        warnings: new Set(),
+        cache: new Map(),
+        resources: new Set(),
+        hints: new Set(),
+        shadowRootElements: []
+      };
+      // nosemgrep: javascript.browser.security.insecure-document-method.insecure-document-method
+      ctx.clone.body.innerHTML = document.body.innerHTML;
+      markPseudoClassElements(ctx, null);
+      // nosemgrep: javascript.browser.security.insecure-document-method.insecure-document-method
+      ctx.clone.body.innerHTML = ctx.dom.body.innerHTML;
+      serializePseudoClasses(ctx);
+      const interactiveStyle = ctx.clone.querySelector('style[data-percy-interactive-states]');
+      const injected = interactiveStyle ? interactiveStyle.textContent : '';
+      expect(injected).not.toContain('data-percy-disabled');
+      expect(injected).not.toContain('data-percy-checked');
+      expect(injected).not.toContain(':not(:disabled)');
+      expect(injected).not.toContain(':checked');
     });
   });
 
@@ -1707,14 +1706,16 @@ describe('serialize-pseudo-classes', () => {
         .toBe('.x[data-percy-focus-within], .y:focus-visible');
     });
 
-    it('rewrites :not(:checked) correctly', () => {
+    it('does not rewrite :checked or :disabled — they serialize natively (PER-10077)', () => {
       expect(rewritePseudoSelector(':not(:checked)'))
-        .toBe(':not([data-percy-checked])');
+        .toBe(':not(:checked)');
+      expect(rewritePseudoSelector('.mat-mdc-raised-button:not(:disabled)'))
+        .toBe('.mat-mdc-raised-button:not(:disabled)');
     });
 
-    it('rewrites multiple pseudo-classes in a single selector', () => {
+    it('rewrites only focus-family pseudos in mixed selectors', () => {
       expect(rewritePseudoSelector('.a:focus.b:checked.c:disabled'))
-        .toBe('.a[data-percy-focus].b[data-percy-checked].c[data-percy-disabled]');
+        .toBe('.a[data-percy-focus].b:checked.c:disabled');
     });
 
     it('returns selector unchanged when no pseudo-class is present', () => {
