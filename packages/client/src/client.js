@@ -426,10 +426,11 @@ export class PercyClient {
     return this.get(`job_status?sync=true&type=${type}&id=${ids.join()}`);
   }
 
-  async getIntelliStorySnapshotNameToCommit() {
+  async getIntelliStorySnapshotNameToCommit(buildId) {
     this.log.debug('IntelliStory: looking up baselines...');
     const qs = new URLSearchParams();
 
+    if (buildId) qs.append('build_id', buildId);
     if (this.env.git?.branch) qs.append('branch', this.env.git.branch);
     if (this.env.target?.branch) qs.append('target_branch', this.env.target.branch);
     if (this.env.git?.sha) qs.append('commit_sha', this.env.git.sha);

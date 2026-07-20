@@ -203,7 +203,7 @@ export async function getBaselineAndAffectedNodes(percy, baseline, log) {
 
   // Always look up the base build: its `browser_upgrade` flag forces a full
   // snapshot run regardless of whether an explicit baseline was configured.
-  const baseLookup = await percy.client.getIntelliStorySnapshotNameToCommit();
+  const baseLookup = await percy.client.getIntelliStorySnapshotNameToCommit(percy.build?.id);
   log.debug(`IntelliStory: base lookup ${JSON.stringify(baseLookup)}`);
 
   if (baseLookup?.browser_upgrade) {
