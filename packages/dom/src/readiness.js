@@ -452,7 +452,12 @@ export function createAbortHandle() {
   };
 }
 
-async function runAllChecks(config, result, aborted) {
+// Returns a Promise rather than using `async`/`await`. The shipped
+// @percy/dom bundle is injected into the browser verbatim by SDKs, and some
+// evaluators — notably TestCafe's `t.eval` — statically reject ANY async/await
+// or generator syntax in the evaluated source. Keeping this file async-free
+// preserves the pre-1.31.14 bundle contract those SDKs depend on (PER-10121).
+function runAllChecks(config, result, aborted) {
   let checks = [];
   let expected = [];
   // dom_stability: false is an explicit kill switch for the MutationObserver
@@ -476,7 +481,7 @@ async function runAllChecks(config, result, aborted) {
   if (config.ready_selectors?.length) { expected.push('ready_selectors'); checks.push(checkReadySelectors(config.ready_selectors, aborted).then(r => { result.checks.ready_selectors = r; })); }
   if (config.not_present_selectors?.length) { expected.push('not_present_selectors'); checks.push(checkNotPresentSelectors(config.not_present_selectors, aborted).then(r => { result.checks.not_present_selectors = r; })); }
   result._expectedChecks = expected;
-  await Promise.all(checks);
+  return Promise.all(checks);
 }
 
 // Normalize camelCase config keys (from .percy.yml / SDK options) to the
@@ -499,9 +504,11 @@ export function normalizeOptions(options = {}) {
   };
 }
 
-export async function waitForReady(options = {}) {
+// Async-free by design — see the note on `runAllChecks` (PER-10121). Returns
+// a Promise resolving to the readiness result.
+export function waitForReady(options = {}) {
   let presetName = options.preset || 'balanced';
-  if (presetName === 'disabled') return { passed: true, timed_out: false, skipped: true, checks: {} };
+  if (presetName === 'disabled') return Promise.resolve({ passed: true, timed_out: false, skipped: true, checks: {} });
 
   let preset = PRESETS[presetName] || PRESETS.balanced;
   // Normalize user options to snake_case, then merge. Only overrides
@@ -518,39 +525,37 @@ export async function waitForReady(options = {}) {
   let settled = false;
   let aborted = createAbortHandle();
 
-  try {
-    await Promise.race([
-      runAllChecks(config, result, aborted).then(() => { settled = true; }),
-      new Promise(resolve => setTimeout(() => {
-        if (!settled) {
-          result.timed_out = true;
-          // Abort all running checks — clears intervals, disconnects observers
-          aborted.abort();
-        }
-        resolve();
-      }, effectiveTimeout))
-    ]);
-  } catch (error) {
+  return Promise.race([
+    runAllChecks(config, result, aborted).then(() => { settled = true; }),
+    new Promise(resolve => setTimeout(() => {
+      if (!settled) {
+        result.timed_out = true;
+        // Abort all running checks — clears intervals, disconnects observers
+        aborted.abort();
+      }
+      resolve();
+    }, effectiveTimeout))
+  ]).catch(error => {
     /* istanbul ignore next: safety net for unexpected errors in readiness checks */
     result.error = error.message || String(error);
-  }
-
-  // Mark any checks that didn't complete before timeout as failed.
-  // `_expectedChecks` is always set by runAllChecks, but coverage here
-  // depends on whether any expected check was skipped due to timeout.
-  /* istanbul ignore next: only falsy when the catch block above fires before runAllChecks sets _expectedChecks */
-  if (result._expectedChecks) {
-    for (let name of result._expectedChecks) {
-      if (!result.checks[name]) {
-        result.checks[name] = { passed: false, timed_out: true };
+  }).then(() => {
+    // Mark any checks that didn't complete before timeout as failed.
+    // `_expectedChecks` is always set by runAllChecks, but coverage here
+    // depends on whether any expected check was skipped due to timeout.
+    /* istanbul ignore next: only falsy when the catch block above fires before runAllChecks sets _expectedChecks */
+    if (result._expectedChecks) {
+      for (let name of result._expectedChecks) {
+        if (!result.checks[name]) {
+          result.checks[name] = { passed: false, timed_out: true };
+        }
       }
+      delete result._expectedChecks;
     }
-    delete result._expectedChecks;
-  }
 
-  result.total_duration_ms = Math.round(performance.now() - startTime);
-  result.passed = !result.timed_out && !result.error && Object.values(result.checks).every(c => c.passed);
-  return result;
+    result.total_duration_ms = Math.round(performance.now() - startTime);
+    result.passed = !result.timed_out && !result.error && Object.values(result.checks).every(c => c.passed);
+    return result;
+  });
 }
 
 export { PRESETS };
