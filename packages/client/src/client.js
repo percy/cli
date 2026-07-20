@@ -701,29 +701,18 @@ export class PercyClient {
     let { meta = {} } = options;
     let snapshot = await this.createSnapshot(buildId, options);
 
-    // Response code tells us the IntelliStory outcome: a kept snapshot returns
-    // `201 Created` with the snapshot object; a snapshot skipped by server-side
-    // selection returns `204 No Content` (header only, no snapshot id). Tally
-    // the outcome so the storybook flow can print an IntelliStory summary.
-    let created = !!snapshot?.data?.id;
+    // The API always creates the snapshot record now; when server-side SmartSnap
+    // selection skips it, the response carries `skipped-via-smartsnap: true` and
+    // there is nothing to upload or finalize. Tally kept vs skipped so the
+    // storybook flow can print an IntelliStory summary.
+    let skipped = !!snapshot?.data?.attributes?.['skipped-via-smartsnap'];
     if (typeof options.intelliStory === 'boolean') {
-      this.intelliStoryStats ??= { graphKept: 0, forcedKept: 0, skipped: 0 };
-      if (!options.intelliStory) {
-        // IntelliStory disabled for this snapshot (missing/failed/rejected
-        // baseline) — always captured server-side.
-        this.intelliStoryStats.forcedKept += 1;
-      } else if (created) {
-        this.intelliStoryStats.graphKept += 1;
-      } else {
-        this.intelliStoryStats.skipped += 1;
-      }
+      this.intelliStoryStats ??= { kept: 0, skipped: 0 };
+      this.intelliStoryStats[skipped ? 'skipped' : 'kept'] += 1;
     }
 
-    // With IntelliStory, snapshot selection happens server-side: the API may
-    // accept the request without creating a snapshot (204 No Content). There is
-    // nothing to upload or finalize in that case.
-    if (!created) {
-      this.log.debug(`Snapshot not created server-side, skipping upload: ${options.name}...`, meta);
+    if (skipped) {
+      this.log.debug(`Snapshot skipped via SmartSnap, skipping upload: ${options.name}...`, meta);
       return snapshot;
     }
     meta.snapshotId = snapshot.data.id;

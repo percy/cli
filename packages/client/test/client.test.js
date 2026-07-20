@@ -1619,6 +1619,37 @@ describe('PercyClient', () => {
       await expectAsync(client.sendSnapshot(123, { name: 'test snapshot name' })).toBeResolved();
       expect(api.requests['/snapshots/4567/finalize']).toBeDefined();
     });
+
+    it('tallies IntelliStory kept snapshots and still finalizes them', async () => {
+      await expectAsync(
+        client.sendSnapshot(123, { name: 'kept one', intelliStory: true })
+      ).toBeResolved();
+      await expectAsync(
+        client.sendSnapshot(123, { name: 'kept two', intelliStory: false })
+      ).toBeResolved();
+
+      expect(api.requests['/snapshots/4567/finalize']).toBeDefined();
+      expect(client.intelliStoryStats).toEqual({ kept: 2, skipped: 0 });
+    });
+
+    it('tallies IntelliStory skipped snapshots and does not upload or finalize', async () => {
+      api.reply('/builds/123/snapshots', () => [201, {
+        data: { id: '4567', attributes: { 'skipped-via-smartsnap': true } }
+      }]);
+
+      await expectAsync(
+        client.sendSnapshot(123, { name: 'skipped one', intelliStory: true })
+      ).toBeResolved();
+
+      expect(api.requests['/builds/123/resources']).toBeUndefined();
+      expect(api.requests['/snapshots/4567/finalize']).toBeUndefined();
+      expect(client.intelliStoryStats).toEqual({ kept: 0, skipped: 1 });
+    });
+
+    it('does not tally when intelliStory is not set', async () => {
+      await expectAsync(client.sendSnapshot(123, { name: 'plain' })).toBeResolved();
+      expect(client.intelliStoryStats).toBeUndefined();
+    });
   });
 
   describe('#createComparison()', () => {
