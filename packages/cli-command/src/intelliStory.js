@@ -201,13 +201,20 @@ export async function getBaselineAndAffectedNodes(percy, baseline, log) {
   let baseRef;
   let baselineSnapshots;
 
+  // Always look up the base build: its `browser_upgrade` flag forces a full
+  // snapshot run regardless of whether an explicit baseline was configured.
+  const baseLookup = await percy.client.getIntelliStorySnapshotNameToCommit();
+  log.debug(`IntelliStory: base lookup ${JSON.stringify(baseLookup)}`);
+
+  if (baseLookup?.browser_upgrade) {
+    throw new IntelliStoryBailError('IntelliStory: This build has to take all snapshots by fallback because this build corresponds to a browser upgrade');
+  }
+
   if (baseline) {
     log.debug(`IntelliStory: diffing against explicit baseline "${baseline}"`);
     baseRef = baseline;
     baselineSnapshots = null;
   } else {
-    const baseLookup = await percy.client.getIntelliStorySnapshotNameToCommit();
-    log.debug(`IntelliStory: base lookup ${JSON.stringify(baseLookup)}`);
     if (!baseLookup?.base_build_commit_sha) {
       throw new IntelliStoryBailError('IntelliStory: API could not predict a base build commit and no explicit baseline was set; running full snapshot set');
     }

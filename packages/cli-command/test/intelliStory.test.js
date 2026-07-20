@@ -153,8 +153,9 @@ describe('intelliStory', () => {
   describe('getBaselineAndAffectedNodes()', () => {
     const log = mockLog();
 
-    it('uses an explicit baseline and skips the API base lookup', async () => {
-      let lookup = jasmine.createSpy('getIntelliStorySnapshotNameToCommit');
+    it('uses an explicit baseline but still calls the API to check for a browser upgrade', async () => {
+      let lookup = jasmine.createSpy('getIntelliStorySnapshotNameToCommit')
+        .and.resolveTo({ browser_upgrade: false });
       let percy = { client: { getIntelliStorySnapshotNameToCommit: lookup } };
 
       let res = await getBaselineAndAffectedNodes(percy, 'HEAD', log);
@@ -162,7 +163,30 @@ describe('intelliStory', () => {
       expect(res.baseRef).toEqual('HEAD');
       expect(res.baselineSnapshots).toBeNull();
       expect(res.affectedNodes).toEqual([]);
-      expect(lookup).not.toHaveBeenCalled();
+      expect(lookup).toHaveBeenCalled();
+    });
+
+    it('tolerates the API returning no base lookup when an explicit baseline is set', async () => {
+      let percy = { client: { getIntelliStorySnapshotNameToCommit: async () => undefined } };
+
+      let res = await getBaselineAndAffectedNodes(percy, 'HEAD', log);
+
+      expect(res.baseRef).toEqual('HEAD');
+      expect(res.baselineSnapshots).toBeNull();
+    });
+
+    it('bails when the base lookup reports a browser upgrade, even with an explicit baseline', async () => {
+      let percy = {
+        client: {
+          getIntelliStorySnapshotNameToCommit: async () => ({
+            browser_upgrade: true,
+            base_build_commit_sha: 'HEAD'
+          })
+        }
+      };
+      await expectBail(
+        () => getBaselineAndAffectedNodes(percy, 'HEAD', log),
+        'this build corresponds to a browser upgrade');
     });
 
     it('falls back to the predicted base build commit when no baseline is set', async () => {
@@ -197,7 +221,7 @@ describe('intelliStory', () => {
     });
 
     it('bails on an unsafe baseline ref before shelling out to git', async () => {
-      let percy = { client: {} };
+      let percy = { client: { getIntelliStorySnapshotNameToCommit: async () => ({}) } };
       await expectBail(
         () => getBaselineAndAffectedNodes(percy, '--upload-pack=evil', log),
         'unsafe baseline ref');
@@ -678,7 +702,9 @@ describe('intelliStory', () => {
     it('bails when nothing is affected after filtering', async () => {
       let { dir } = setup({ 'sb/enriched-stats.json': STATS, 'src/A.stories.jsx': 'v1' });
       await expectBail(
-        () => applyIntelliStory({ client: {}, build: { id: '123' } }, [{ name: 'A', importPath: 'src/A.stories.jsx' }],
+        () => applyIntelliStory(
+          { client: { getIntelliStorySnapshotNameToCommit: async () => ({}) }, build: { id: '123' } },
+          [{ name: 'A', importPath: 'src/A.stories.jsx' }],
           { baseline: 'HEAD' }, path.join(dir, 'sb')),
         'no affected files or packages detected');
     });
@@ -694,7 +720,10 @@ describe('intelliStory', () => {
         client: {
           generateIntelliStoryGraph: generate,
           // job status no longer returns affected_stories during the run
-          getStatus: async () => ({ status: 'done', data: {} })
+          getStatus: async () => ({ status: 'done', data: {} }),
+          // an explicit baseline is set, but the base lookup is always called
+          // now (to surface browser_upgrade)
+          getIntelliStorySnapshotNameToCommit: async () => ({})
         }
       };
       let snapshots = [
