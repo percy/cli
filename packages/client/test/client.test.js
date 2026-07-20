@@ -907,6 +907,18 @@ describe('PercyClient', () => {
 
       expect(api.requests[expectedPath]).toBeDefined();
     });
+
+    it('includes the build_id when provided', async () => {
+      const expectedPath = '/intelli_story/snapshot-name-to-commit?build_id=bld-123';
+      api.reply(expectedPath, () => [200, { data: { b: 'sha-b' } }]);
+
+      await expectAsync(
+        client.getIntelliStorySnapshotNameToCommit('bld-123')
+      ).toBeResolvedTo({ data: { b: 'sha-b' } });
+
+      expect(api.requests[expectedPath]).toBeDefined();
+      expect(api.requests[expectedPath][0].method).toBe('GET');
+    });
   });
 
   describe('#generateIntelliStoryGraph()', () => {
