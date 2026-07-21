@@ -95,6 +95,63 @@ describe('serialize-pseudo-classes', () => {
         expect(style.textContent).toContain('color: rgb(255, 0, 0) !important');
       });
 
+      // PER-9836: baking layout/box-model props at the capture viewport froze
+      // a CTA's width and overrode the page's responsive rules at other Percy
+      // render widths. Only the paint delta of the forced state should be baked.
+      it('bakes paint properties but excludes layout/box-model/transition properties', () => {
+        const foo = ctx.dom.getElementById('foo');
+        foo.style.width = '234px';
+        foo.style.padding = '11px';
+        foo.style.margin = '7px';
+        foo.style.transition = 'all 0.3s ease';
+        // nosemgrep: javascript.browser.security.insecure-document-method.insecure-document-method
+        ctx.clone.head.innerHTML = '';
+        serializePseudoClasses(ctx);
+        const css = ctx.clone.head.querySelector('style[data-percy-pseudo-class-styles="true"]').textContent;
+
+        // paint/state props are still baked
+        expect(css).toContain('color: rgb(255, 0, 0) !important');
+
+        // layout / box-model / positioning / transition props are NOT baked
+        // (boundary `{ ` or `; ` before the property avoids matching longhands
+        // like `border-top-width`)
+        expect(css).not.toMatch(/(?:\{ |; )width:/);
+        expect(css).not.toMatch(/(?:\{ |; )height:/);
+        expect(css).not.toMatch(/(?:\{ |; )padding(?:-\w+)?:/);
+        expect(css).not.toMatch(/(?:\{ |; )margin(?:-\w+)?:/);
+        expect(css).not.toMatch(/(?:\{ |; )position:/);
+        expect(css).not.toMatch(/(?:\{ |; )display:/);
+        expect(css).not.toMatch(/(?:\{ |; )flex(?:-\w+)?:/);
+        expect(css).not.toMatch(/(?:\{ |; )transition(?:-\w+)?:/);
+      });
+
+      // PER-9836 Fix B: the SDK forces :hover then serializes immediately, which
+      // can catch a running CSS transition partway. We disable transitions while
+      // reading computed style (so the settled forced-state value is baked) and
+      // restore the element's inline transition afterward.
+      it('disables transitions while reading computed style and restores them after', () => {
+        const foo = ctx.dom.getElementById('foo');
+        foo.style.setProperty('transition', 'all 1s ease');
+        let transitionDuringRead = 'NOT_CALLED';
+        const origGCS = window.getComputedStyle;
+        window.getComputedStyle = (el) => {
+          if (el === foo) transitionDuringRead = foo.style.getPropertyValue('transition');
+          return { length: 1, 0: 'color', getPropertyValue: () => 'red' };
+        };
+        try {
+          // nosemgrep: javascript.browser.security.insecure-document-method.insecure-document-method
+          ctx.clone.head.innerHTML = '';
+          serializePseudoClasses(ctx);
+        } finally {
+          window.getComputedStyle = origGCS;
+        }
+        // transitions were OFF during the computed-style read...
+        expect(transitionDuringRead).toBe('none');
+        // ...and the element's original inline transition is restored afterward
+        expect(foo.style.getPropertyValue('transition')).toContain('1s');
+        expect(foo.style.getPropertyValue('transition')).not.toBe('none');
+      });
+
       it('adds attributes in cloned dom as well', () => {
         let orginalBody = ctx.dom.body.innerHTML;
         let originalClonedBody = ctx.clone.body.innerHTML;
