@@ -841,6 +841,55 @@ describe('Percy', () => {
     });
   });
 
+  describe('#startBuild()', () => {
+    it('returns the current build without creating one when percy has not started', async () => {
+      // readyState is null before start()
+      let result = await generatePromise(percy.yield.startBuild());
+      expect(result).toBe(percy.build);
+      expect(api.requests['/builds']).toBeUndefined();
+    });
+
+    it('returns the existing build without re-creating it when one already exists', async () => {
+      spyOn(percy.browser, 'launch');
+      await percy.start();
+      expect(percy.build.id).toBeDefined();
+      let buildCount = api.requests['/builds'].length;
+
+      let result = await generatePromise(percy.yield.startBuild());
+
+      expect(result).toBe(percy.build);
+      // the memoized queue start means no additional build is created
+      expect(api.requests['/builds'].length).toEqual(buildCount);
+    });
+
+    it('returns the build without re-creating it when a prior creation errored', async () => {
+      percy.readyState = 1;
+      percy.build = { error: 'build creation failed' };
+
+      let result = await generatePromise(percy.yield.startBuild());
+
+      expect(result).toEqual({ error: 'build creation failed' });
+      expect(api.requests['/builds']).toBeUndefined();
+
+      // neutralize afterEach stop() for this hand-set state
+      percy.readyState = null;
+    });
+
+    it('creates the build up front when uploads are deferred', async () => {
+      percy = new Percy({ token: 'PERCY_TOKEN', snapshot: { widths: [1000] }, deferUploads: true });
+      spyOn(percy.browser, 'launch');
+      await percy.start();
+      // deferred: the build is not created during start()
+      expect(percy.build?.id).toBeUndefined();
+
+      let result = await generatePromise(percy.yield.startBuild());
+
+      expect(percy.build.id).toBeDefined();
+      expect(result).toBe(percy.build);
+      expect(api.requests['/builds']).toBeDefined();
+    });
+  });
+
   describe('#stop()', () => {
     // stop the previously started instance and clear requests
     async function reset(options) {
