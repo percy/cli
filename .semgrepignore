@@ -46,3 +46,18 @@ packages/core/src/api.js
 # in the file-load helper anyway. No user input flows here.
 packages/core/test/unit/maestro-hierarchy.test.js
 packages/core/test/unit/maestro-hierarchy.parity.test.js
+
+# intelliStory.js joins/resolves paths for the affected-story graph from
+# trusted, locally-derived sources: buildDir/manifestDir come from the CLI
+# config, projectRoot from `git rev-parse --show-toplevel`, and the stats
+# filename is validated to a bare `.json` basename (/^[\w.-]+\.json$/) before
+# any join. No external request input reaches these paths. semgrep's
+# path-join-resolve-traversal rule cannot follow those validations, and inline
+# `// nosemgrep` is not honored by the CI semgrep version — suppress at the
+# file level with this rationale.
+packages/cli-command/src/intelliStory.js
+
+# noRequireBinding.test.js walks repo source files by hardcoded relative paths
+# to assert no `require()` bindings leak in; the traversal roots are static
+# literals, no user input flows here. semgrep flags the path.join() anyway.
+packages/cli-command/test/noRequireBinding.test.js

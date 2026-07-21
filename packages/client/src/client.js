@@ -421,9 +421,46 @@ export class PercyClient {
 
   // Retrieves snapshot/comparison data by id. Requires a read access token.
   async getStatus(type, ids) {
-    if (!['snapshot', 'comparison'].includes(type)) throw new Error('Invalid type passed');
+    if (!['snapshot', 'comparison', 'intelli_story_graph'].includes(type)) throw new Error('Invalid type passed');
     this.log.debug(`Getting ${type} status for ids ${ids}`);
     return this.get(`job_status?sync=true&type=${type}&id=${ids.join()}`);
+  }
+
+  async getIntelliStorySnapshotNameToCommit(buildId) {
+    this.log.debug('IntelliStory: looking up baselines...');
+    const qs = new URLSearchParams();
+
+    if (buildId) qs.append('build_id', buildId);
+    if (this.env.git?.branch) qs.append('branch', this.env.git.branch);
+    if (this.env.target?.branch) qs.append('target_branch', this.env.target.branch);
+    if (this.env.git?.sha) qs.append('commit_sha', this.env.git.sha);
+    if (this.env.target?.commit) qs.append('target_commit_sha', this.env.target.commit);
+    if (this.env.pullRequest != null) qs.append('pull_request_number', String(this.env.pullRequest));
+    if (this.env.partial) qs.append('partial', 'true');
+
+    const query = qs.toString();
+    return this.get(
+      query ? `intelli_story/snapshot-name-to-commit?${query}` : 'intelli_story/snapshot-name-to-commit',
+      { identifier: 'intelli_story.snapshot_name_to_commit' }
+    );
+  }
+
+  async generateIntelliStoryGraph(buildId, {
+    files,
+    modules,
+    storybookPaths,
+    affectedNodes,
+    affectedFileLocations
+  } = {}) {
+    this.log.debug(`IntelliStory: enqueueing graph build for build ${buildId}...`);
+    return this.post('intelli_story/generate-graph', {
+      build_id: buildId,
+      files,
+      modules,
+      storybook_paths: storybookPaths,
+      affected_nodes: affectedNodes,
+      affected_file_locations: affectedFileLocations
+    }, { identifier: 'intelli_story.generate_graph' });
   }
 
   // Returns device details enabled on project associated with given token
@@ -588,6 +625,8 @@ export class PercyClient {
     regions,
     algorithm,
     algorithmConfiguration,
+    intelliStory,
+    storybookPath,
     resources = [],
     meta
   } = {}) {
@@ -626,7 +665,11 @@ export class PercyClient {
           'enable-javascript': enableJavaScript || null,
           'enable-layout': enableLayout || false,
           'th-test-case-execution-id': thTestCaseExecutionId || null,
-          browsers: normalizeBrowsers(browsers) || null
+          browsers: normalizeBrowsers(browsers) || null,
+          // IntelliStory: when enabled, the API selects affected snapshots
+          // server-side using the story's source path.
+          'intelli-story': intelliStory || null,
+          'storybook-path': storybookPath || null
         },
         relationships: {
           resources: {
@@ -658,6 +701,21 @@ export class PercyClient {
   async sendSnapshot(buildId, options) {
     let { meta = {} } = options;
     let snapshot = await this.createSnapshot(buildId, options);
+
+    // The API always creates the snapshot record now; when server-side SmartSnap
+    // selection skips it, the response carries `skipped-via-smartsnap: true` and
+    // there is nothing to upload or finalize. Tally kept vs skipped so the
+    // storybook flow can print an IntelliStory summary.
+    let skipped = !!snapshot?.data?.attributes?.['skipped-via-smartsnap'];
+    if (typeof options.intelliStory === 'boolean') {
+      this.intelliStoryStats ??= { kept: 0, skipped: 0 };
+      this.intelliStoryStats[skipped ? 'skipped' : 'kept'] += 1;
+    }
+
+    if (skipped) {
+      this.log.debug(`Snapshot skipped via SmartSnap, skipping upload: ${options.name}...`, meta);
+      return snapshot;
+    }
     meta.snapshotId = snapshot.data.id;
 
     let missing = snapshot.data.relationships?.['missing-resources']?.data;
