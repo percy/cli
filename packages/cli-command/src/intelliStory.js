@@ -65,7 +65,7 @@ function assertSafeRef(ref) {
 
 function gitDiffNames(ref) {
   assertSafeRef(ref);
-  return git(['diff', '--name-only', ref, 'HEAD', '--']).split('\n').filter(Boolean);
+  return git(['-c', 'core.quotepath=false', 'diff', '--name-only', ref, 'HEAD', '--']).split('\n').filter(Boolean);
 }
 
 function gitProjectRoot() {
@@ -74,7 +74,7 @@ function gitProjectRoot() {
 
 export function getAffectedFileLocations(baseRef, files) {
   assertSafeRef(baseRef);
-  const diff = git(['diff', '--unified=0', '--no-color', '--no-renames', baseRef, 'HEAD', '--']);
+  const diff = git(['-c', 'core.quotepath=false', 'diff', '--unified=0', '--no-color', '--no-renames', baseRef, 'HEAD', '--']);
 
   const toPosix = p => p.split(path.sep).join('/');
   const indexByPath = new Map(files.map((f, i) => [toPosix(f), i]));
@@ -143,16 +143,24 @@ function transformModule(m, fileIndex, projectRoot) {
   return out;
 }
 
-function readStats(statsFile, projectRoot) {
+function readStats(statsFile, projectRoot, log) {
   const fileIndex = new Map();
   const modules = [];
-  const stats = JSON.parse(fs.readFileSync(statsFile, 'utf8'));
+  let stats;
+  try {
+    stats = JSON.parse(fs.readFileSync(statsFile, 'utf8'));
+  } catch (e) {
+    throw new IntelliStoryBailError(`IntelliStory: failed to parse stats file ${statsFile}: ${e.message}; running full snapshot set`);
+  }
   /* istanbul ignore next */
   const rawModules = stats.modules || [];
+  let droppedModules = 0;
   for (const m of rawModules) {
     const t = transformModule(m, fileIndex, projectRoot);
     if (t) modules.push(t);
+    else droppedModules++;
   }
+  if (droppedModules) log?.debug(`IntelliStory: dropped ${droppedModules} module(s) with unresolved (non-absolute) ids`);
 
   const files = [...fileIndex.entries()]
     .sort((a, b) => a[1] - b[1])
@@ -192,7 +200,7 @@ export async function validateAndReadStats(buildDir, statsFile, projectRoot, log
   // The graph is now keyed by the Percy build id, not the stats-file `buildId`,
   // so a missing `buildId` in the stats file is no longer fatal. We only need
   // the module graph (`files`/`modules`) from here.
-  const { files, modules } = await readStats(resolvedStatsPath, projectRoot);
+  const { files, modules } = await readStats(resolvedStatsPath, projectRoot, log);
 
   return { files, modules };
 }
@@ -252,6 +260,7 @@ export function enforceUntraced(affectedNodes, untraced) {
 }
 
 export async function getAffectedPackages(affectedNodes, baseRef, projectRoot, log) {
+  assertSafeRef(baseRef);
   const MANIFEST_PATHS = new Set(['package.json', 'package-lock.json', 'yarn.lock', 'pnpm-lock.yaml']);
   const manifestHits = affectedNodes.filter(p => MANIFEST_PATHS.has(path.basename(p)));
 
@@ -282,11 +291,21 @@ export async function getAffectedPackages(affectedNodes, baseRef, projectRoot, l
     throw new IntelliStoryBailError(`IntelliStory: lockfile "${lockfileRepoPath}" not present at base ref ${baseRef}; running full snapshot set`);
   }
 
-  const newLockfile = fs.readFileSync(path.join(absManifestDir, lockfileName), 'utf8'); // nosemgrep
+  let newLockfile;
+  try {
+    newLockfile = fs.readFileSync(path.join(absManifestDir, lockfileName), 'utf8'); // nosemgrep
+  } catch {
+    throw new IntelliStoryBailError(`IntelliStory: failed to read lockfile "${lockfileName}" in "${manifestDir}"; running full snapshot set`);
+  }
 
   if (oldLockfile === newLockfile) return [];
 
-  const packageJson = fs.readFileSync(path.join(absManifestDir, 'package.json'), 'utf8'); // nosemgrep
+  let packageJson;
+  try {
+    packageJson = fs.readFileSync(path.join(absManifestDir, 'package.json'), 'utf8'); // nosemgrep
+  } catch {
+    throw new IntelliStoryBailError(`IntelliStory: failed to read "package.json" in "${manifestDir}"; running full snapshot set`);
+  }
   const packageJsonRepoPath = manifestDir === '.' ? 'package.json' : `${manifestDir}/package.json`;
   const oldPackageJson = git(['show', `${baseRef}:${packageJsonRepoPath}`]);
   try {
