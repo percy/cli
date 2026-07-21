@@ -124,9 +124,9 @@ describe('Unit / Install', () => {
     beforeEach(async () => {
       dl = await mockRequests('https://storage.googleapis.com');
 
-      // stub extract-zip using esm loader mocks
+      // stub the unzip module using esm loader mocks
       extractZip = jasmine.createSpy('exports').and.resolveTo();
-      global.__MOCK_IMPORTS__.set('extract-zip', { default: extractZip });
+      global.__MOCK_IMPORTS__.set('./unzip.js', { default: extractZip });
 
       // make getters for jasmine property spy
       let { platform, arch } = process;
@@ -210,9 +210,9 @@ describe('Unit / Install', () => {
       process.env.PERCY_CHROMIUM_BASE_URL = baseUrl;
       dl = await mockRequests('https://storage.test.com');
 
-      // stub extract-zip using esm loader mocks
+      // stub the unzip module using esm loader mocks
       extractZip = jasmine.createSpy('exports').and.resolveTo();
-      global.__MOCK_IMPORTS__.set('extract-zip', { default: extractZip });
+      global.__MOCK_IMPORTS__.set('./unzip.js', { default: extractZip });
 
       // make getters for jasmine property spy
       let { platform, arch } = process;
@@ -415,9 +415,9 @@ describe('Unit / Install in executable', () => {
     beforeEach(async () => {
       dl = await mockRequests('https://storage.googleapis.com');
 
-      // stub extract-zip using esm loader mocks
+      // stub the unzip module using esm loader mocks
       extractZip = jasmine.createSpy('exports').and.resolveTo();
-      global.__MOCK_IMPORTS__.set('extract-zip', { default: extractZip });
+      global.__MOCK_IMPORTS__.set('./unzip.js', { default: extractZip });
 
       // make getters for jasmine property spy
       let { platform, arch } = process;

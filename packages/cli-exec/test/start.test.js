@@ -12,6 +12,21 @@ describe('percy exec:start', () => {
     return promise;
   }
 
+  // `start(...)` resolves on process exit, not on listen, so poll the
+  // healthcheck endpoint until the server is reachable. A fixed sleep proved
+  // flaky on slow Windows CI runners where startup can exceed a second and
+  // `request` only retries ECONNREFUSED 5 times at 50ms intervals.
+  async function waitForHealthcheck(port = 5338, deadline = Date.now() + 15000) {
+    while (true) {
+      try {
+        return await request(`http://localhost:${port}/percy/healthcheck`, { retries: 0, noProxy: true });
+      } catch (err) {
+        if (Date.now() >= deadline) throw err;
+        await new Promise(r => setTimeout(r, 100));
+      }
+    }
+  }
+
   beforeEach(async () => {
     process.env.PERCY_TOKEN = '<<PERCY_TOKEN>>';
 
@@ -22,8 +37,8 @@ describe('percy exec:start', () => {
 
     started = start(['--quiet']);
     started.then(() => (started = null));
-    // wait until the process starts
-    await new Promise(r => setTimeout(r, 1000));
+    // wait until the server is reachable
+    await waitForHealthcheck();
     await ping();
   });
 
@@ -71,13 +86,7 @@ describe('percy exec:start', () => {
 
   it('can start on an alternate port', async () => {
     start(['--quiet', '--port=4567']);
-    // `start(...)` resolves on process exit, not on listen. Mirror the
-    // beforeEach's proven pattern — give the server a moment to bind, then
-    // let `ping` confirm reachability. This closes the race that caused
-    // ECONNREFUSED on Windows and, on dual-stack Node 18+ runners, an
-    // AggregateError from Happy-Eyeballs that `request` does not retry
-    // (the wrapping error has no `.code`).
-    await new Promise(r => setTimeout(r, 1000));
+    await waitForHealthcheck(4567);
     await ping(['--port=4567']);
     let response = await request('http://localhost:4567/percy/healthcheck');
     expect(response).toHaveProperty('success', true);
