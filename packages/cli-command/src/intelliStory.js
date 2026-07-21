@@ -16,12 +16,19 @@ const POLL_ATTEMPTS = 12;
 const GLOB_CHARS = /[*?]/;
 const MAX_PATTERN_LENGTH = 500;
 
+const regexCache = new Map();
+
 function patternToRegex(pattern) {
   /* istanbul ignore next */
   if (typeof pattern !== 'string' || pattern.length > MAX_PATTERN_LENGTH) {
     throw new Error('Invalid pattern: must be a string with max length of 500 characters');
   }
-  return globToRegExp(pattern, { extended: true, globstar: true });
+  let regex = regexCache.get(pattern);
+  if (!regex) {
+    regex = globToRegExp(pattern, { extended: true, globstar: true });
+    regexCache.set(pattern, regex);
+  }
+  return regex;
 }
 
 function matchesPattern(str, pattern) {
@@ -185,7 +192,7 @@ export async function validateAndReadStats(buildDir, statsFile, projectRoot, log
   if (!/^[\w.-]+\.json$/i.test(statsName)) {
     throw new IntelliStoryBailError(`IntelliStory: invalid statsFile "${statsName}" — must be a .json filename; running full snapshot set`);
   }
-  const resolvedStatsPath = path.join(path.resolve(buildDir), statsName); // nosemgrep
+  const resolvedStatsPath = path.join(path.resolve(buildDir), statsName);
   let statsStat;
   try {
     statsStat = fs.statSync(resolvedStatsPath);
@@ -271,10 +278,10 @@ export async function getAffectedPackages(affectedNodes, baseRef, projectRoot, l
     throw new IntelliStoryBailError(`IntelliStory: manifest changes span multiple directories (${uniqueDirs.join(', ')}); running full snapshot set`);
   }
   const manifestDir = uniqueDirs[0];
-  const absManifestDir = path.resolve(projectRoot, manifestDir); // nosemgrep
+  const absManifestDir = path.resolve(projectRoot, manifestDir);
 
   const LOCKFILE_NAMES = ['package-lock.json', 'yarn.lock', 'pnpm-lock.yaml'];
-  const presentLockfiles = LOCKFILE_NAMES.filter(n => fs.existsSync(path.join(absManifestDir, n))); // nosemgrep
+  const presentLockfiles = LOCKFILE_NAMES.filter(n => fs.existsSync(path.join(absManifestDir, n)));
   if (presentLockfiles.length === 0) {
     throw new IntelliStoryBailError(`IntelliStory: manifest changed in "${manifestDir}" but no lockfile present there; running full snapshot set`);
   }
@@ -293,7 +300,7 @@ export async function getAffectedPackages(affectedNodes, baseRef, projectRoot, l
 
   let newLockfile;
   try {
-    newLockfile = fs.readFileSync(path.join(absManifestDir, lockfileName), 'utf8'); // nosemgrep
+    newLockfile = fs.readFileSync(path.join(absManifestDir, lockfileName), 'utf8');
   } catch {
     throw new IntelliStoryBailError(`IntelliStory: failed to read lockfile "${lockfileName}" in "${manifestDir}"; running full snapshot set`);
   }
@@ -302,7 +309,7 @@ export async function getAffectedPackages(affectedNodes, baseRef, projectRoot, l
 
   let packageJson;
   try {
-    packageJson = fs.readFileSync(path.join(absManifestDir, 'package.json'), 'utf8'); // nosemgrep
+    packageJson = fs.readFileSync(path.join(absManifestDir, 'package.json'), 'utf8');
   } catch {
     throw new IntelliStoryBailError(`IntelliStory: failed to read "package.json" in "${manifestDir}"; running full snapshot set`);
   }
@@ -420,7 +427,7 @@ export async function applyIntelliStory(percy, snapshots, intelliStoryConfig, bu
     /* istanbul ignore next */
     if (rel.startsWith(dotPlatform)) rel = rel.slice(dotPlatform.length);
     else if (rel.startsWith(dotPosix)) rel = rel.slice(dotPosix.length);
-    const abs = path.resolve(invocationDir, rel); // nosemgrep
+    const abs = path.resolve(invocationDir, rel);
     const projRel = path.relative(projectRoot, abs);
     /* istanbul ignore next */
     return projRel || rel;
