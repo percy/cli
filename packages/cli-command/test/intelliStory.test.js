@@ -105,6 +105,13 @@ describe('intelliStory', () => {
       expect(res).toEqual({ files: [], modules: [] });
     });
 
+    it('bails when the stats file contains malformed JSON', async () => {
+      await mockfs({ '/build/enriched-stats.json': '{ not valid json' });
+      await expectBail(
+        () => validateAndReadStats('/build', undefined, '/root', log),
+        'failed to parse stats file');
+    });
+
     it('anchors a traversal-prefixed statsFile inside the build dir via basename', async () => {
       await mockfs({ '/build/foo.json': JSON.stringify({ modules: [] }) });
       let res = await validateAndReadStats('/build', '../../etc/foo.json', '/root', log);
@@ -610,6 +617,38 @@ describe('intelliStory', () => {
       }
       if (NODE_MAJOR >= 18) expect(res).toBeDefined();
       else expect(res).toBeInstanceOf(IntelliStoryBailError);
+    });
+
+    it('bails when the current lockfile cannot be read', async () => {
+      let log = mockLog();
+      let { dir, baseSha } = makeRepo(
+        { 'pkg/package.json': '{"name":"x"}', 'pkg/yarn.lock': 'a:\n  version "1.0.0"\n' },
+        { 'pkg/yarn.lock': 'a:\n  version "2.0.0"\n' });
+      repos.push(dir);
+      process.chdir(dir);
+
+      spyOn(fs, 'readFileSync').and.throwError('EIO');
+      await expectBail(
+        () => getAffectedPackages(['pkg/yarn.lock'], baseSha, dir, log),
+        'failed to read lockfile');
+    });
+
+    it('bails when package.json cannot be read', async () => {
+      let log = mockLog();
+      let { dir, baseSha } = makeRepo(
+        { 'pkg/package.json': '{"name":"x"}', 'pkg/yarn.lock': 'a:\n  version "1.0.0"\n' },
+        { 'pkg/yarn.lock': 'a:\n  version "2.0.0"\n' });
+      repos.push(dir);
+      process.chdir(dir);
+
+      let realRead = fs.readFileSync;
+      spyOn(fs, 'readFileSync').and.callFake((p, ...rest) => {
+        if (String(p).endsWith('package.json')) throw new Error('EIO');
+        return realRead(p, ...rest);
+      });
+      await expectBail(
+        () => getAffectedPackages(['pkg/yarn.lock'], baseSha, dir, log),
+        'failed to read "package.json"');
     });
   });
 
