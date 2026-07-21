@@ -265,6 +265,16 @@ describe('intelliStory', () => {
       expect(() => assertNoBailOnChanges(['config/settings.js'], ['config/settings.js'])).toThrow();
     });
 
+    it('bails when a changed file matches a brace-expansion glob', () => {
+      expect(() => assertNoBailOnChanges(['src/b.js'], ['src/{a,b}.js']))
+        .toThrowMatching(e => e instanceof IntelliStoryBailError && e.message.includes('src/b.js'));
+    });
+
+    it('bails when a changed file matches a bracket-set glob', () => {
+      expect(() => assertNoBailOnChanges(['src/a.ts'], ['src/a.[jt]s']))
+        .toThrowMatching(e => e instanceof IntelliStoryBailError && e.message.includes('src/a.ts'));
+    });
+
     it('does not bail when nothing matches', () => {
       expect(() => assertNoBailOnChanges(['src/index.js'], ['*.css'])).not.toThrow();
     });
@@ -289,6 +299,16 @@ describe('intelliStory', () => {
     it('keeps paths that do not match', () => {
       let nodes = ['src/a.snap', 'src/a.js'];
       expect(enforceUntraced(nodes, ['*.snap'])).toEqual(['src/a.snap', 'src/a.js']);
+    });
+
+    it('drops paths matching a brace-expansion glob', () => {
+      let nodes = ['src/a.js', 'src/b.js', 'src/c.js'];
+      expect(enforceUntraced(nodes, ['src/{a,b}.js'])).toEqual(['src/c.js']);
+    });
+
+    it('drops paths matching a bracket-set glob', () => {
+      let nodes = ['docs/a.md', 'docs/b.md', 'src/a.js'];
+      expect(enforceUntraced(nodes, ['docs/[ab].md'])).toEqual(['src/a.js']);
     });
   });
 

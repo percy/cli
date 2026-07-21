@@ -13,7 +13,7 @@ const stripNull = s => (typeof s === 'string' ? s.split(NULL_CHAR).join('') : s)
 const POLL_INTERVAL_MS = 5000;
 const POLL_ATTEMPTS = 12;
 
-const GLOB_CHARS = /[*?]/;
+const GLOB_CHARS = /[*?{}[\]]/;
 const MAX_PATTERN_LENGTH = 500;
 
 const regexCache = new Map();
