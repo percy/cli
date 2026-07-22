@@ -101,6 +101,30 @@ describe('Unit / Install', () => {
       .toBeRejectedWithError('Download failed: 404 - https://fake-download.org/archive.zip');
   });
 
+  it('retries the download when an attempt fails', async () => {
+    // first attempt fails, second succeeds
+    dl.and.returnValues([500], [200, 'contents']);
+
+    await install.download(options);
+
+    expect(dl).toHaveBeenCalledTimes(2);
+    expect(logger.stderr).toEqual(jasmine.arrayContaining([
+      jasmine.stringMatching('Failed to download Archive v0.*Retrying \\(1/3\\)')
+    ]));
+  });
+
+  it('gives up after exhausting download retries', async () => {
+    process.env.PERCY_CHROMIUM_DOWNLOAD_RETRIES = '2';
+    dl.and.returnValue([500]);
+
+    await expectAsync(install.download(options))
+      .toBeRejectedWithError('Download failed: 500 - https://fake-download.org/archive.zip');
+    // initial attempt + 2 retries
+    expect(dl).toHaveBeenCalledTimes(3);
+
+    delete process.env.PERCY_CHROMIUM_DOWNLOAD_RETRIES;
+  });
+
   it('logs the file size in a readable format', async () => {
     dl.and.returnValue([200, '1'.repeat(20_000_000)]);
 
