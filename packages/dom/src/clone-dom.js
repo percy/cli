@@ -162,6 +162,13 @@ export function getOuterHTML(docElement, { shadowRootElements, forceShadowAsLigh
   if (forceShadowAsLightDOM) {
     return docElement.outerHTML;
   }
+  // With no shadow roots to embed, the getHTML()+textContent=''+outerHTML
+  // .replace() reassembly below just reproduces `docElement.outerHTML` while
+  // allocating a full-size intermediate string + replace copy. Skip it to cut
+  // this step's transient footprint (GC pressure) on heavy pages.
+  if (!shadowRootElements || shadowRootElements.length === 0) {
+    return docElement.outerHTML;
+  }
   /* istanbul ignore else if: Only triggered in chrome <= 128 and tests runs on latest */
   if (docElement.getHTML) {
     // All major browsers in latest versions supports getHTML API to get serialized DOM

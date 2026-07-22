@@ -24,13 +24,19 @@ function doctype(dom) {
   return `<!DOCTYPE ${name}${deprecated}>`;
 }
 
+// Un-mangle both serialization markers in one pass instead of two:
+//   <data-percy-custom-element-x>          -> <x>
+//   ` data-percy-serialized-attribute-y=`  -> ` y=`
+// Serialized HTML can reach tens of MB and each .replace() copies the whole
+// string, so folding two passes into one halves the large-string churn (GC
+// pressure) per snapshot. Groups: g1 = `<`/`</` (tag); g2/g3 = space + attr.
+const PERCY_MARKER_RE = /(<\/?)data-percy-custom-element-|( )data-percy-serialized-attribute-(\w+?)=/gi;
+
 // Serializes and returns the cloned DOM as an HTML string
 function serializeHTML(ctx) {
   let html = getOuterHTML(ctx.clone.documentElement, { shadowRootElements: ctx.shadowRootElements, forceShadowAsLightDOM: ctx.forceShadowAsLightDOM });
-  // this is replacing serialized data tag with real tag
-  html = html.replace(/(<\/?)data-percy-custom-element-/g, '$1');
-  // replace serialized data attributes with real attributes
-  html = html.replace(/ data-percy-serialized-attribute-(\w+?)=/ig, ' $1=');
+  html = html.replace(PERCY_MARKER_RE, (_match, tagPrefix, attrSpace, attrName) =>
+    tagPrefix !== undefined ? tagPrefix : `${attrSpace}${attrName}=`);
   // include the doctype with the html string
   return doctype(ctx.dom) + html;
 }
