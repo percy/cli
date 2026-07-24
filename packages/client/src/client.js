@@ -23,9 +23,9 @@ const { PERCY_CLIENT_API_URL = 'https://percy.io/api/v1' } = process.env;
 let pkg = getPackageJSON(import.meta.url);
 // minimum polling interval milliseconds
 const MIN_POLLING_INTERVAL = 1_000;
-// Allow-listed build sources for the toHaveScreenshot drop-in (@percy/playwright). The API keys
-// drop-in behavior (baseline auto-approval, telemetry) on these; anything else stays the computed
-// default so a stray env var can't inject an arbitrary source.
+// Allow-listed drop-in build sources. The API keys drop-in behavior (baseline auto-approval,
+// telemetry) on these; anything else keeps the computed default so a stray env var can't
+// inject an arbitrary source.
 export const DROPIN_BUILD_SOURCES = ['playwright-dropin', 'playwright-dropin-baseline'];
 const INVALID_TOKEN_ERROR_MESSAGE = 'Unable to retrieve snapshot details with write access token. Kindly use a full access token for retrieving snapshot details with Synchronous CLI.';
 
@@ -341,8 +341,6 @@ export class PercyClient {
     } else if (process.env.PERCY_AUTO_ENABLED_GROUP_BUILD === 'true') {
       source = 'auto_enabled_group';
     } else if (DROPIN_BUILD_SOURCES.includes(process.env.PERCY_BUILD_SOURCE)) {
-      // A drop-in SDK (e.g. @percy/playwright's toHaveScreenshot drop-in) tags its builds so the
-      // API can key drop-in behavior (baseline auto-approval, telemetry) on the source.
       source = process.env.PERCY_BUILD_SOURCE;
     }
 

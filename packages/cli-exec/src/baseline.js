@@ -4,10 +4,10 @@ import path from 'path';
 import url from 'url';
 import { createResource, createRootResource } from '@percy/cli-command/utils';
 
-// Playwright drop-in baseline seeding — the `percy exec` side.
+// Drop-in baseline seeding — the `percy exec` side.
 //
-// Generic provider contract (framework knowledge stays in the SDK package, never in the CLI —
-// the same reason command discovery works the way it does): any installed Percy SDK can declare
+// Provider contract (framework knowledge stays in the SDK package, as with command discovery):
+// any installed Percy SDK can declare
 //
 //   "@percy/cli": { "baselineProvider": "./path/to/module.js" }
 //
@@ -19,11 +19,9 @@ import { createResource, createRootResource } from '@percy/cli-command/utils';
 //       // -> { baselines: [{ filepath, name, browserFamily, width, height }], degraded?, reason? }
 //   }
 //
-// When the user runs a plain `percy exec -- <cmd>` in a project with committed baseline
-// screenshots and an EMPTY Percy project, the CLI establishes the baseline first (build #1,
-// uploaded directly from the committed files — the user's test suite never runs for it) and only
-// then starts the head build (#2) that runs the real command. The API auto-approves build #1
-// server-side. On an established project nothing is seeded; the user is pointed at the explicit
+// On an empty Percy project, `percy exec` uploads committed baseline screenshots as build #1
+// (auto-approved server-side, the user's suite never runs for it) before starting the head
+// build. On an established project nothing is seeded; the user is pointed at the explicit
 // `percy playwright:setup-baseline` command instead.
 
 // Parallel seed-upload cap: fast on large baseline sets without stampeding the API.
@@ -31,9 +29,9 @@ const SEED_CONCURRENCY = 8;
 
 const BASELINE_SOURCE = 'playwright-dropin-baseline';
 
-// Path hygiene at the fs boundary. Directory-entry names must be single path components (a name
-// containing a separator or dot-segment never comes from an honest readdir) and path strings are
-// NUL-stripped — also the sanitizer shape static analyzers recognize for path-join sinks.
+// Path hygiene at the fs boundary: directory-entry names must be single path components (a name
+// containing a separator or dot-segment never comes from an honest readdir) and path strings
+// are NUL-stripped.
 export function sanitizePath(p) {
   return String(p).replace(/\0/g, '');
 }
@@ -87,10 +85,9 @@ function findPercyPackages(dir, log) {
   }
 }
 
-// Find the first installed package declaring a baseline provider and import it. Returns null when
-// none is installed (the overwhelmingly common case — one existsSync walk, negligible cost), or
-// when the user opted out of the drop-in entirely (PERCY_DROPIN_DISABLE — the same switch the SDK
-// override honors, so one env var turns off both the matcher and the seeding).
+// Find the first installed package declaring a baseline provider and import it. Returns null
+// when none is installed or when the drop-in is disabled (PERCY_DROPIN_DISABLE is the same
+// switch the SDK override honors, so one env var turns off both the matcher and the seeding).
 export async function findBaselineProvider({ cwd = process.cwd(), log } = {}) {
   if (process.env.PERCY_DROPIN_DISABLE === 'true') {
     log?.debug('Drop-in disabled via PERCY_DROPIN_DISABLE — skipping baseline provider discovery');
@@ -171,20 +168,19 @@ export async function maybeSeedBaseline(percy, provider, { log, waitTimeout, wai
     baselines = baselines.filter(Boolean);
     if (!baselines.length) return false;
 
-    // Ask the server. An explicit baseline source on an ESTABLISHED project returns the
-    // baseline-skipped sentinel (no build persisted); on an empty project it creates build #1 as
-    // the baseline. First-ness is decided by the API from the project token — never locally.
+    // First-ness is decided by the API, never locally: on an established project it answers
+    // with the baseline-skipped sentinel (no build persisted), on an empty project it creates
+    // build #1 as the baseline.
     let res = await percy.client.createBuild({
       projectType: percy.projectType,
       source: BASELINE_SOURCE,
       dropinBaselineCandidate: true
     });
 
-    // The API decides first-ness: on an established project it answers with the baseline-skipped
-    // sentinel (no data). Belt-and-braces for an API that predates the candidate attribute (it
-    // would ignore it and hand back a NORMAL build): only ever seed build #1 — anything else
-    // means this project is established, so abandon the build unused and point at the explicit
-    // setup command instead of polluting history with stray "baseline" builds.
+    // Only ever seed build #1. An API that predates the candidate attribute ignores it and
+    // hands back a NORMAL build — anything past #1 means the project is established, so abandon
+    // the build unused and point at the explicit setup command instead of polluting history
+    // with stray "baseline" builds.
     if (!res?.data?.id || res.data.attributes?.['build-number'] !== 1) {
       log.info(`Found ${baselines.length} committed baseline snapshot(s), but this project ` +
         'already has builds — skipping baseline setup.');

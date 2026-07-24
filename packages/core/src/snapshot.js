@@ -408,10 +408,9 @@ export function createSnapshotsQueue(percy) {
         let { data } = await percy.client.createBuild({ projectType: percy.projectType, cliStartTime: percy.cliStartTime });
         let url = data.attributes['web-url'];
         let number = data.attributes['build-number'];
-        // Server-decided build source (e.g. 'playwright-dropin-baseline' when the API accepted a
-        // baseline candidate) — exposed via /percy/healthcheck build info so SDKs can key on it.
-        // Only set when the API returned one: an own `source: undefined` key would survive on the
-        // in-process object but drop out of JSON responses, breaking shape equality for clients.
+        // Server-decided build source, exposed via /percy/healthcheck so SDKs can key on it.
+        // Only assigned when the API returned one — a `source: undefined` key would drop out
+        // of JSON responses, breaking shape equality for clients.
         let source = data.attributes.source;
         let usageWarning = data.attributes['usage-warning'];
         percy.client.buildType = data.attributes?.type;
