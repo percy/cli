@@ -23,6 +23,10 @@ const { PERCY_CLIENT_API_URL = 'https://percy.io/api/v1' } = process.env;
 let pkg = getPackageJSON(import.meta.url);
 // minimum polling interval milliseconds
 const MIN_POLLING_INTERVAL = 1_000;
+// Allow-listed drop-in build sources. The API keys drop-in behavior (baseline auto-approval,
+// telemetry) on these; anything else keeps the computed default so a stray env var can't
+// inject an arbitrary source.
+export const DROPIN_BUILD_SOURCES = ['playwright-dropin', 'playwright-dropin-baseline'];
 const INVALID_TOKEN_ERROR_MESSAGE = 'Unable to retrieve snapshot details with write access token. Kindly use a full access token for retrieving snapshot details with Synchronous CLI.';
 
 // Validate ID arguments
@@ -313,7 +317,21 @@ export class PercyClient {
   // Creates a build with optional build resources. Only one build can be
   // created at a time per instance so snapshots and build finalization can be
   // done more seamlessly without manually tracking build ids
-  async createBuild({ resources = [], projectType, cliStartTime = null } = {}) {
+  //
+  // Drop-in baseline options (Playwright drop-in):
+  //   source — override the build source with an allow-listed drop-in value.
+  //   dropinBaselineCandidate — ask the API to treat the build as the project's baseline IF it is
+  //     the project's first build (the server decides; a no-op on established projects).
+  //   dropinBaselineSetup — explicit `percy playwright:setup-baseline`: the build IS the baseline
+  //     regardless of build number (deliberate user-triggered re-baseline).
+  async createBuild({
+    resources = [],
+    projectType,
+    cliStartTime = null,
+    source: sourceOverride,
+    dropinBaselineCandidate,
+    dropinBaselineSetup
+  } = {}) {
     this.log.debug('Creating a new build...');
     let visualConfig = parseVisualConfigFromEnv(this.log);
     let source = 'user_created';
@@ -322,7 +340,15 @@ export class PercyClient {
       source = 'bstack_sdk_created';
     } else if (process.env.PERCY_AUTO_ENABLED_GROUP_BUILD === 'true') {
       source = 'auto_enabled_group';
+    } else if (DROPIN_BUILD_SOURCES.includes(process.env.PERCY_BUILD_SOURCE)) {
+      source = process.env.PERCY_BUILD_SOURCE;
     }
+
+    // Allow-listed explicit override (used by the baseline seeding flows).
+    if (DROPIN_BUILD_SOURCES.includes(sourceOverride)) source = sourceOverride;
+
+    dropinBaselineCandidate ??= process.env.PERCY_DROPIN_BASELINE_CANDIDATE === 'true';
+    dropinBaselineSetup ??= process.env.PERCY_DROPIN_BASELINE_SETUP === 'true';
 
     let tagsArr = tagsList(this.labels);
 
@@ -357,6 +383,8 @@ export class PercyClient {
           'skip-base-build': this.config.percy?.skipBaseBuild,
           'testhub-build-uuid': this.env.testhubBuildUuid,
           'testhub-build-run-id': this.env.testhubBuildRunId,
+          ...(dropinBaselineCandidate ? { 'dropin-baseline-candidate': true } : {}),
+          ...(dropinBaselineSetup ? { 'dropin-baseline-setup': true } : {}),
           ...(visualConfig ? { 'visual-config': visualConfig } : {}),
           ...(priority ? { priority: true } : {})
         },

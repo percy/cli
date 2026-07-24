@@ -1,7 +1,7 @@
 import os from 'os';
 import path from 'path';
 import PercyConfig from '@percy/config';
-import { logger, setupTest, fs } from './helpers/index.js';
+import { logger, api, setupTest, fs } from './helpers/index.js';
 import Percy from '@percy/core';
 import WebdriverUtils from '@percy/webdriver-utils';
 import { getPercyDomPath, _applyHttpReadOnlyStripping } from '../src/api.js';
@@ -77,6 +77,29 @@ describe('API Server', () => {
         url: 'https://percy.io/test/test/123'
       },
       type: percy.client.tokenType()
+    });
+  });
+
+  it('includes the server-decided build source in /healthcheck when present', async () => {
+    api.reply('/builds', () => [201, {
+      data: {
+        id: '123',
+        attributes: {
+          'build-number': 1,
+          'web-url': 'https://percy.io/test/test/123',
+          source: 'playwright-dropin-baseline'
+        }
+      }
+    }]);
+
+    await percy.start();
+
+    let [data] = await request('/percy/healthcheck', true);
+    expect(data.build).toEqual({
+      id: '123',
+      number: 1,
+      url: 'https://percy.io/test/test/123',
+      source: 'playwright-dropin-baseline'
     });
   });
 
