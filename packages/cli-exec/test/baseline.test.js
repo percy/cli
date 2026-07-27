@@ -346,9 +346,9 @@ describe('exec baseline seeding', () => {
       let plainScoped = path.join(tmpDir, 'node_modules', '@percy', 'plain-sdk');
       fs.mkdirSync(plainScoped, { recursive: true });
       fs.writeFileSync(path.join(plainScoped, 'package.json'), JSON.stringify({ name: '@percy/plain-sdk' }));
-      let topLevel = path.join(tmpDir, 'node_modules', 'percy-plain-tool');
+      let topLevel = path.join(tmpDir, 'node_modules', 'percy-cli-plain-tool');
       fs.mkdirSync(topLevel, { recursive: true });
-      fs.writeFileSync(path.join(topLevel, 'package.json'), JSON.stringify({ name: 'percy-plain-tool' }));
+      fs.writeFileSync(path.join(topLevel, 'package.json'), JSON.stringify({ name: 'percy-cli-plain-tool' }));
     });
 
     afterEach(() => {

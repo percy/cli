@@ -43,7 +43,7 @@ export function sanitizeDirentName(name) {
   return clean;
 }
 
-// Collect @percy/* (and percy-*) package roots from the nearest node_modules — the same
+// Collect @percy/* (and percy-cli-*) package roots from the nearest node_modules — the same
 // semantics as @percy/cli's command-discovery walk (findModulePackages): stop at the FIRST
 // node_modules at or above `dir`, never cross the home directory, and degrade to [] on any
 // filesystem error so discovery can never break `percy exec`.
@@ -73,7 +73,7 @@ function findPercyPackages(dir, log) {
           if (scoped === null) continue;
           found.push(path.join(dir, name, scoped));
         }
-      } else if (name.startsWith('percy-')) {
+      } else if (name.startsWith('percy-cli-')) {
         found.push(path.join(dir, name));
       }
     }
@@ -177,10 +177,10 @@ export async function maybeSeedBaseline(percy, provider, { log, waitTimeout, wai
       dropinBaselineCandidate: true
     });
 
-    // Only ever seed build #1. An API that predates the candidate attribute ignores it and
-    // hands back a NORMAL build — anything past #1 means the project is established, so abandon
-    // the build unused and point at the explicit setup command instead of polluting history
-    // with stray "baseline" builds.
+    // Compat guard for APIs that predate the candidate attribute (which decide first-ness
+    // server-side): only ever seed build #1 — an old API ignores the attribute and hands back
+    // a NORMAL build, so anything past #1 abandons the build unused and points at the explicit
+    // setup command (which works at any build number) instead of polluting history.
     if (!res?.data?.id || res.data.attributes?.['build-number'] !== 1) {
       log.info(`Found ${baselines.length} committed baseline snapshot(s), but this project ` +
         'already has builds — to (re)establish the baseline from them, run: ' +
@@ -201,7 +201,7 @@ export async function maybeSeedBaseline(percy, provider, { log, waitTimeout, wai
     // permanently disable the auto-seed path. The unfinalized build expires server-side.
     if (seeded === 0) {
       log.warn(`Could not upload any of the ${baselines.length} committed baseline snapshot(s) — ` +
-        'baseline not established. Re-run once connectivity recovers, or run: ' +
+        'baseline not established. Once connectivity recovers, run: ' +
         'npx percy playwright:setup-baseline');
       return false;
     }

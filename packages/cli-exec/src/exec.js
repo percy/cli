@@ -5,6 +5,7 @@ import stop from './stop.js';
 import ping from './ping.js';
 import replay from './replay.js';
 import { waitForTimeout } from '@percy/client/utils';
+import { yieldTo } from '@percy/cli-command/utils';
 import { findBaselineProvider, maybeSeedBaseline } from './baseline.js';
 
 export const exec = command('exec', {
@@ -89,7 +90,9 @@ export const exec = command('exec', {
           if (provider.buildSource && !process.env.PERCY_BUILD_SOURCE) {
             process.env.PERCY_BUILD_SOURCE = provider.buildSource;
           }
-          yield maybeSeedBaseline(percy, provider, { log });
+          // yieldTo keeps the runner tick-responsive — a bare yield would make the up-to-10min
+          // seed wait the one place Ctrl-C can't unwind until the promise settles.
+          yield* yieldTo(maybeSeedBaseline(percy, provider, { log }));
         }
       }
 

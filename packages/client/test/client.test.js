@@ -651,6 +651,14 @@ describe('PercyClient', () => {
         .toEqual(true);
     });
 
+    it('sends the drop-in baseline setup attribute from the env', async () => {
+      process.env.PERCY_DROPIN_BASELINE_SETUP = 'true';
+      await expectAsync(client.createBuild({ projectType: 'web' })).toBeResolved();
+
+      expect(api.requests['/builds'][0].body.data.attributes['dropin-baseline-setup'])
+        .toEqual(true);
+    });
+
     it('accepts explicit drop-in baseline options (used by the seeding flows)', async () => {
       await expectAsync(client.createBuild({
         projectType: 'web',
