@@ -4,7 +4,7 @@ import { normalize } from '@percy/config/utils';
 import { ServerError } from './server.js';
 import { encodeURLSearchParams } from './utils.js';
 import { handleSyncJob } from './snapshot.js';
-import { locateScreenshot } from './maestro-screenshot-file.js';
+import { locateScreenshot, appAutomateTmpDir } from './maestro-screenshot-file.js';
 import { validateRegionInputs, resolveRegions } from './maestro-regions.js';
 import { deriveDeviceInsets } from './maestro-hierarchy.js';
 
@@ -90,7 +90,8 @@ export async function handleMaestroScreenshot(req, res, percy) {
   }
 
   // Resolve the file-find scope root. On BrowserStack (sessionId present), the
-  // root is the BS host's /tmp/{sessionId}{_test_suite} convention. Self-hosted
+  // root is the BS host's {appAutomateTmpDir()}/{sessionId}{_test_suite}
+  // convention (PERCY_APP_AUTOMATE_TMP_DIR, defaulting to /tmp). Self-hosted
   // (sessionId absent) requires PERCY_MAESTRO_SCREENSHOT_DIR (read from
   // process.env, never the request body) to be an absolute, existing directory
   // — typically the customer's `maestro test --test-output-dir <DIR>` path. The
@@ -125,8 +126,8 @@ export async function handleMaestroScreenshot(req, res, percy) {
     scopeRoot = dir;
   } else {
     scopeRoot = platform === 'ios'
-      ? `/tmp/${sessionId}`
-      : `/tmp/${sessionId}_test_suite`;
+      ? `${appAutomateTmpDir()}/${sessionId}`
+      : `${appAutomateTmpDir()}/${sessionId}_test_suite`;
   }
 
   // Validate regions input shape early (before file I/O and ADB work) so
