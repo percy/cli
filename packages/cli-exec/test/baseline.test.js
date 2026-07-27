@@ -170,6 +170,19 @@ describe('exec baseline seeding', () => {
       expect(client.calls.sendSnapshot.length).toBe(BASELINES.length);
     });
 
+    it('never finalizes a zero-upload seed (a blank baseline would burn the auto-seed path)', async () => {
+      let client = fakeClient({ failUploads: true });
+      let log = fakeLog();
+      let provider = { discoverBaselines: async () => ({ baselines: BASELINES }) };
+
+      let seeded = await maybeSeedBaseline({ client, projectType: 'web' }, provider, { log });
+
+      expect(seeded).toBe(false);
+      expect(client.calls.finalizeBuild.length).toBe(0);
+      expect(log.entries.warn.join('\n')).toContain('baseline not established');
+      expect(log.entries.warn.join('\n')).toContain('percy playwright:setup-baseline');
+    });
+
     it('skips an established project and points at the setup command', async () => {
       let client = fakeClient({ established: true });
       let log = fakeLog();

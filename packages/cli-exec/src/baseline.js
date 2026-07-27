@@ -183,8 +183,7 @@ export async function maybeSeedBaseline(percy, provider, { log, waitTimeout, wai
     // with stray "baseline" builds.
     if (!res?.data?.id || res.data.attributes?.['build-number'] !== 1) {
       log.info(`Found ${baselines.length} committed baseline snapshot(s), but this project ` +
-        'already has builds — skipping baseline setup.');
-      log.info('To (re)establish the baseline from your committed snapshots, run: ' +
+        'already has builds — to (re)establish the baseline from them, run: ' +
         'npx percy playwright:setup-baseline');
       return false;
     }
@@ -196,6 +195,16 @@ export async function maybeSeedBaseline(percy, provider, { log, waitTimeout, wai
     let seeded = await uploadBaselines(percy.client, buildId, baselines, {
       log, projectType: percy.projectType
     });
+
+    // Nothing uploaded (e.g. a transient network failure across the board): do NOT finalize —
+    // an empty auto-approved build #1 would establish the project with a blank baseline and
+    // permanently disable the auto-seed path. The unfinalized build expires server-side.
+    if (seeded === 0) {
+      log.warn(`Could not upload any of the ${baselines.length} committed baseline snapshot(s) — ` +
+        'baseline not established. Re-run once connectivity recovers, or run: ' +
+        'npx percy playwright:setup-baseline');
+      return false;
+    }
 
     await percy.client.finalizeBuild(buildId);
 
@@ -212,7 +221,7 @@ export async function maybeSeedBaseline(percy, provider, { log, waitTimeout, wai
       log.info(`Baseline established from ${seeded}/${baselines.length} committed snapshot(s) ` +
         'and auto-approved — this run diffs against it.');
     } else {
-      log.warn(`Baseline build did not finish processing in time (state: ${state}) — ` +
+      log.warn(`Baseline build did not finish processing in time (state: ${state || 'unknown'}) — ` +
         'snapshots in this run may show as new instead of diffing against the baseline');
     }
     return true;
