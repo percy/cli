@@ -2,6 +2,19 @@ import fs from 'fs';
 import path from 'path';
 import { ServerError } from './server.js';
 
+// Root under which BrowserStack App Automate hosts write Maestro session
+// artifacts (screenshots + debug output). Historically /tmp; hosts that
+// relocate it inject PERCY_APP_AUTOMATE_TMP_DIR with the new root, so the
+// location is never hardcoded here and can move again without a CLI release.
+// Trailing separators are trimmed so glob patterns and the realpath prefix
+// check compose cleanly; a non-absolute value falls back to /tmp rather than
+// producing a cwd-relative glob. BrowserStack-mode only — self-hosted scoping
+// stays on PERCY_MAESTRO_SCREENSHOT_DIR.
+export function appAutomateTmpDir() {
+  let dir = (process.env.PERCY_APP_AUTOMATE_TMP_DIR || '/tmp').replace(/[/\\]+$/, '');
+  return path.isAbsolute(dir) ? dir : '/tmp';
+}
+
 /* istanbul ignore next — defensive manual directory walker invoked only when
    fast-glob import fails (broken install / FS corruption). Unit tests
    exercise the primary glob path; integration tests on BS hosts exercise
@@ -12,7 +25,7 @@ async function manualScreenshotWalk(platform, sessionId, name) {
   const files = [];
   try {
     if (platform === 'ios') {
-      const sessionDir = `/tmp/${sessionId}`;
+      const sessionDir = `${appAutomateTmpDir()}/${sessionId}`;
       const walk = async (dir, depth) => {
         if (depth > 15) return; // sanity cap
         let entries;
@@ -28,7 +41,7 @@ async function manualScreenshotWalk(platform, sessionId, name) {
       };
       await walk(sessionDir, 0);
     } else {
-      const baseDir = `/tmp/${sessionId}_test_suite/logs`;
+      const baseDir = `${appAutomateTmpDir()}/${sessionId}_test_suite/logs`;
       const logDirs = await fs.promises.readdir(baseDir);
       for (const dir of logDirs) {
         const screenshotPath = path.join(baseDir, dir, 'screenshots', `${name}.png`);
@@ -58,9 +71,9 @@ export async function locateScreenshot({ platform, sessionId, name, filePath, sc
   if (filePath) {
     chosenFile = filePath;
   } else {
-    // Glob pattern depends on deployment shape:
-    //   BrowserStack Android: /tmp/{sid}_test_suite/logs/*/screenshots/{name}.png
-    //   BrowserStack iOS:     /tmp/{sid}/<maestro_debug_dir>/**/{name}.png
+    // Glob pattern depends on deployment shape (TMP = appAutomateTmpDir()):
+    //   BrowserStack Android: {TMP}/{sid}_test_suite/logs/*/screenshots/{name}.png
+    //   BrowserStack iOS:     {TMP}/{sid}/<maestro_debug_dir>/**/{name}.png
     //     (realmobile builds a deeply nested {device}_maestro_debug_ tree; `**`
     //     handles any depth, exact {name}.png filters Maestro's emoji-prefixed
     //     debug frames, e.g. `screenshot-❌-<timestamp>-(flow).png`).
@@ -75,9 +88,12 @@ export async function locateScreenshot({ platform, sessionId, name, filePath, sc
       const globRoot = scopeRoot.replace(/\\/g, '/');
       searchPattern = `${globRoot}/**/${name}.png`;
     } else {
+      // Same forward-slash normalization as the self-hosted branch — the env
+      // override could carry backslashes when exercised on Windows CI.
+      const tmpRoot = appAutomateTmpDir().replace(/\\/g, '/');
       searchPattern = platform === 'ios'
-        ? `/tmp/${sessionId}/*_maestro_debug_*/**/${name}.png`
-        : `/tmp/${sessionId}_test_suite/logs/*/screenshots/${name}.png`;
+        ? `${tmpRoot}/${sessionId}/*_maestro_debug_*/**/${name}.png`
+        : `${tmpRoot}/${sessionId}_test_suite/logs/*/screenshots/${name}.png`;
     }
 
     let files;
@@ -122,7 +138,8 @@ export async function locateScreenshot({ platform, sessionId, name, filePath, sc
 
   // Canonicalize and confirm the resolved path still lives under scopeRoot.
   // Defeats symlink swaps where the root points elsewhere. Both ends are
-  // realpath'd because /tmp is a symlink on macOS (where iOS hosts run). The
+  // realpath'd because the tmp root can resolve through a symlink (as /tmp
+  // does on macOS, where iOS hosts run). The
   // trailing `/` on the prefix is load-bearing — it prevents sibling-prefix
   // bypass (e.g. /x/.maestro vs /x/.maestro-secrets). Both sides are
   // normalized to forward-slashes so the check works on Windows (real-fs

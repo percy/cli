@@ -5,6 +5,7 @@ import { logger, setupTest, fs } from './helpers/index.js';
 import Percy from '@percy/core';
 import WebdriverUtils from '@percy/webdriver-utils';
 import { getPercyDomPath, _applyHttpReadOnlyStripping } from '../src/api.js';
+import { appAutomateTmpDir } from '../src/maestro-screenshot-file.js';
 
 describe('API Server', () => {
   let percy;
@@ -24,7 +25,7 @@ describe('API Server', () => {
     // suite (works in isolation; returns [] mid-suite), so route the
     // self-hosted root to the REAL filesystem — this also tests the true
     // production glob path. Only paths under this unique root are affected.
-    await setupTest({ filesystem: { $bypass: [p => typeof p === 'string' && p.includes('percy-self-hosted-real')] } });
+    await setupTest({ filesystem: { $bypass: [p => typeof p === 'string' && (p.includes('percy-self-hosted-real') || p.includes('percy-bs-tmp-real'))] } });
 
     percy = new Percy({
       token: 'PERCY_TOKEN',
@@ -1269,11 +1270,14 @@ describe('API Server', () => {
   describe('/percy/maestro-screenshot', () => {
     const SID = 'testsession';
     const SS_NAME = 'HomeScreen';
-    const ANDROID_DIR = `/tmp/${SID}_test_suite/logs/run1/screenshots`;
-    const IOS_DIR = `/tmp/${SID}/emu_maestro_debug_abc/flow_x`;
-    // New SDK convention (filePath path): /tmp/<sid>{_test_suite}/percy/<name>.png
-    const ANDROID_FILEPATH_DIR = `/tmp/${SID}_test_suite/percy`;
-    const IOS_FILEPATH_DIR = `/tmp/${SID}/percy`;
+    // Default BS App Automate tmp root when PERCY_APP_AUTOMATE_TMP_DIR is
+    // unset (the legacy /tmp convention)
+    const TMP_ROOT = '/tmp';
+    const ANDROID_DIR = `${TMP_ROOT}/${SID}_test_suite/logs/run1/screenshots`;
+    const IOS_DIR = `${TMP_ROOT}/${SID}/emu_maestro_debug_abc/flow_x`;
+    // New SDK convention (filePath path): {TMP_ROOT}/<sid>{_test_suite}/percy/<name>.png
+    const ANDROID_FILEPATH_DIR = `${TMP_ROOT}/${SID}_test_suite/percy`;
+    const IOS_FILEPATH_DIR = `${TMP_ROOT}/${SID}/percy`;
     const FILEPATH_NAME = 'FromFilePath';
 
     beforeEach(async () => {
@@ -1786,19 +1790,20 @@ describe('API Server', () => {
     });
 
     it('returns 404 when filePath resolves outside the session root', async () => {
-      // File exists, but lives at /tmp/<other>.png — not under /tmp/<sid>_test_suite/.
-      fs.writeFileSync('/tmp/percy-outside.png', 'OUTSIDE');
+      // File exists, but lives at the tmp root — not under {TMP_ROOT}/<sid>_test_suite/.
+      fs.mkdirSync(TMP_ROOT, { recursive: true });
+      fs.writeFileSync(`${TMP_ROOT}/percy-outside.png`, 'OUTSIDE');
       await percy.start();
       await expectAsync(postMaestro({
         name: SS_NAME,
         sessionId: SID,
         platform: 'android',
-        filePath: '/tmp/percy-outside.png'
+        filePath: `${TMP_ROOT}/percy-outside.png`
       })).toBeRejectedWithError(/Screenshot not found/);
     });
 
     it('returns 404 when filePath is in a different sessionId\'s subtree', async () => {
-      const otherDir = '/tmp/othersession_test_suite/percy';
+      const otherDir = `${TMP_ROOT}/othersession_test_suite/percy`;
       fs.mkdirSync(otherDir, { recursive: true });
       fs.writeFileSync(`${otherDir}/Foo.png`, 'OTHER-SID');
       await percy.start();
@@ -1824,6 +1829,90 @@ describe('API Server', () => {
       let [payload] = percy.upload.calls.mostRecent().args;
       // Glob found the legacy fixture, not the filePath fixture
       expect(payload.tiles[0].content).toBe(Buffer.from('PNGBYTES-ANDROID').toString('base64'));
+    });
+
+    // PERCY_APP_AUTOMATE_TMP_DIR override — BS hosts that relocate the
+    // session tmp root away from /tmp inject the new root via this env var,
+    // so the location is never hardcoded in the CLI.
+    // Real-fs root (matched by the top-level $bypass) — fast-glob caches its
+    // fs bindings on first import, so a memfs-only root created in a later
+    // test is invisible to it; real-fs fixtures sidestep the staleness.
+    describe('PERCY_APP_AUTOMATE_TMP_DIR override', () => {
+      const CUSTOM_ROOT = path.join(os.tmpdir(), 'percy-bs-tmp-real-root');
+      let priorEnv;
+
+      beforeEach(() => {
+        priorEnv = process.env.PERCY_APP_AUTOMATE_TMP_DIR;
+        process.env.PERCY_APP_AUTOMATE_TMP_DIR = CUSTOM_ROOT;
+        fs.rmSync(CUSTOM_ROOT, { recursive: true, force: true });
+        const customAndroidDir = path.join(CUSTOM_ROOT, `${SID}_test_suite`, 'logs', 'run1', 'screenshots');
+        fs.mkdirSync(customAndroidDir, { recursive: true });
+        fs.writeFileSync(path.join(customAndroidDir, `${SS_NAME}.png`), 'PNGBYTES-CUSTOM-ROOT');
+      });
+
+      afterEach(() => {
+        if (priorEnv === undefined) delete process.env.PERCY_APP_AUTOMATE_TMP_DIR;
+        else process.env.PERCY_APP_AUTOMATE_TMP_DIR = priorEnv;
+        fs.rmSync(CUSTOM_ROOT, { recursive: true, force: true });
+      });
+
+      it('globs under the overridden tmp root instead of the default', async () => {
+        spyOn(percy, 'upload').and.resolveTo();
+        await percy.start();
+
+        await expectAsync(postMaestro({ name: SS_NAME, sessionId: SID, platform: 'android' }))
+          .toBeResolvedTo(jasmine.objectContaining({ success: true }));
+
+        let [payload] = percy.upload.calls.mostRecent().args;
+        expect(payload.tiles[0].content).toBe(Buffer.from('PNGBYTES-CUSTOM-ROOT').toString('base64'));
+      });
+
+      it('tolerates a trailing slash on the override', async () => {
+        process.env.PERCY_APP_AUTOMATE_TMP_DIR = `${CUSTOM_ROOT}/`;
+        spyOn(percy, 'upload').and.resolveTo();
+        await percy.start();
+
+        await expectAsync(postMaestro({ name: SS_NAME, sessionId: SID, platform: 'android' }))
+          .toBeResolvedTo(jasmine.objectContaining({ success: true }));
+
+        let [payload] = percy.upload.calls.mostRecent().args;
+        expect(payload.tiles[0].content).toBe(Buffer.from('PNGBYTES-CUSTOM-ROOT').toString('base64'));
+      });
+
+      it('falls back to /tmp when the override is not an absolute path', async () => {
+        process.env.PERCY_APP_AUTOMATE_TMP_DIR = 'relative/path';
+        spyOn(percy, 'upload').and.resolveTo();
+        await percy.start();
+
+        await expectAsync(postMaestro({ name: SS_NAME, sessionId: SID, platform: 'android' }))
+          .toBeResolvedTo(jasmine.objectContaining({ success: true }));
+
+        let [payload] = percy.upload.calls.mostRecent().args;
+        // Found the fixture under the default /tmp root, not a cwd-relative glob
+        expect(payload.tiles[0].content).toBe(Buffer.from('PNGBYTES-ANDROID').toString('base64'));
+      });
+
+      it('pins the trim + fallback semantics of the exported helper', () => {
+        process.env.PERCY_APP_AUTOMATE_TMP_DIR = `${CUSTOM_ROOT}///`;
+        expect(appAutomateTmpDir()).toBe(CUSTOM_ROOT);
+        process.env.PERCY_APP_AUTOMATE_TMP_DIR = '/';
+        expect(appAutomateTmpDir()).toBe('/tmp');
+        delete process.env.PERCY_APP_AUTOMATE_TMP_DIR;
+        expect(appAutomateTmpDir()).toBe('/tmp');
+      });
+
+      it('scopes filePath containment to the overridden root — default-root files 404', async () => {
+        // Fixture exists under the DEFAULT root (created by the outer
+        // beforeEach), but with the override active the session scopeRoot
+        // moved — the default-root file now resolves outside it.
+        await percy.start();
+        await expectAsync(postMaestro({
+          name: FILEPATH_NAME,
+          sessionId: SID,
+          platform: 'android',
+          filePath: `${ANDROID_FILEPATH_DIR}/${FILEPATH_NAME}.png`
+        })).toBeRejectedWithError(/Screenshot not found/);
+      });
     });
 
     // PNG-header fill: relay reads IHDR from the screenshot and populates
