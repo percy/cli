@@ -1526,10 +1526,11 @@ describe('serialize-pseudo-classes', () => {
   });
 
   describe('extractPseudoClassRules with multiple stylesheets', () => {
-    it('appends rules from each stylesheet under the same owner key', () => {
-      // Two <style> elements at the document level — both produce auto-detect
-      // rules, exercising the rulesByOwner.has(owner) === true branch on the
-      // second sheet.
+    it('injects one interactive-states style per source sheet', () => {
+      // Two <style> elements at the document level — each contributing an
+      // interactive-pseudo rule now yields its OWN <style data-percy-
+      // interactive-states> (per-sheet injection) rather than a single merged
+      // one, so each copy can be anchored back at its sheet's cascade position.
       withExample(
         '<style>.ms-btn:focus { color: red }</style>' +
         '<style>.ms-btn:hover { color: blue }</style>' +
@@ -1550,10 +1551,73 @@ describe('serialize-pseudo-classes', () => {
       // nosemgrep: javascript.browser.security.insecure-document-method.insecure-document-method
       ctx.clone.body.innerHTML = ctx.dom.body.innerHTML;
       expect(() => serializePseudoClasses(ctx)).not.toThrow();
-      const interactiveStyle = ctx.clone.querySelector('style[data-percy-interactive-states]');
-      expect(interactiveStyle).not.toBeNull();
-      expect(interactiveStyle.textContent).toContain('[data-percy-focus]');
-      expect(interactiveStyle.textContent).toContain('[data-percy-hover]');
+      const interactiveStyles = ctx.clone.querySelectorAll('style[data-percy-interactive-states]');
+      expect(interactiveStyles.length).toBe(2);
+      const combined = Array.from(interactiveStyles).map(s => s.textContent).join('\n');
+      expect(combined).toContain('[data-percy-focus]');
+      expect(combined).toContain('[data-percy-hover]');
+    });
+  });
+
+  describe('cascade position of injected rules (PER-10077)', () => {
+    it('inserts a sheet’s rewritten rules immediately after that sheet, not at end of head', () => {
+      // The root cause of PER-10077: copies were appended at the end of <head>,
+      // so they jumped past later stylesheets and won equal-specificity
+      // !important ties they should lose. Anchored after the source sheet, the
+      // copy keeps its rank and the later sheet still wins.
+      withExample(
+        // sheet 1 carries TWO interactive rules so both are grouped into a
+        // single injected <style> for that sheet.
+        '<style data-percy-element-id="_pcpos_s1">.pos-btn:hover { color: red } .pos-btn:focus { color: green }</style>' +
+        '<style data-percy-element-id="_pcpos_s2">.pos-btn.later { color: blue }</style>' +
+        '<button class="pos-btn later">go</button>'
+      );
+      ctx = {
+        dom: document,
+        clone: document.implementation.createHTMLDocument('Clone'),
+        warnings: new Set(),
+        cache: new Map(),
+        resources: new Set(),
+        hints: new Set(),
+        shadowRootElements: []
+      };
+      // nosemgrep: javascript.browser.security.insecure-document-method.insecure-document-method
+      ctx.clone.body.innerHTML = ctx.dom.body.innerHTML;
+      markPseudoClassElements(ctx, null);
+      serializePseudoClasses(ctx);
+
+      const injected = ctx.clone.querySelectorAll('style[data-percy-interactive-states]');
+      expect(injected.length).toBe(1);
+      expect(injected[0].textContent).toContain('.pos-btn[data-percy-hover]');
+
+      const sheet1 = ctx.clone.querySelector('[data-percy-element-id="_pcpos_s1"]');
+      const sheet2 = ctx.clone.querySelector('[data-percy-element-id="_pcpos_s2"]');
+      // Final order is: sheet1, injected copy, sheet2 — so the copy keeps
+      // sheet1's rank and sheet2 still wins the equal-specificity tie.
+      expect(sheet1.nextElementSibling).toBe(injected[0]);
+      expect(injected[0].nextElementSibling).toBe(sheet2);
+    });
+
+    it('falls back to end of head when a stamped sheet has no clone anchor', () => {
+      // ownerNode carries an id but the clone does not contain that element
+      // (e.g. the sheet node was dropped) — the copy still lands in <head>.
+      withExample('<style data-percy-element-id="_pcpos_missing">.orphan:hover { color: red }</style>');
+      ctx = {
+        dom: document,
+        clone: document.implementation.createHTMLDocument('Clone'),
+        warnings: new Set(),
+        cache: new Map(),
+        resources: new Set(),
+        hints: new Set(),
+        shadowRootElements: []
+      };
+      // Clone intentionally does NOT mirror the source <style>, so no anchor.
+      markPseudoClassElements(ctx, null);
+      serializePseudoClasses(ctx);
+
+      const injected = ctx.clone.querySelector('style[data-percy-interactive-states]');
+      expect(injected).not.toBeNull();
+      expect(injected.parentNode).toBe(ctx.clone.head);
     });
   });
 

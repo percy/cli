@@ -788,6 +788,43 @@ describe('serializeDOM', () => {
 
       style.remove();
     });
+
+    it('injects a rewritten :hover copy after its source sheet, not at end of head (PER-10077)', () => {
+      // The copy must keep its source sheet's cascade rank: it sits AFTER the
+      // sheet it came from but BEFORE any later sheet, so a later equal-
+      // specificity rule still wins the tie exactly as in the live browser.
+      withExample(
+        '<style>.cbtn:hover { color: red }</style>' +
+        '<style>.cbtn.later { color: blue }</style>' +
+        '<button class="cbtn later">go</button>',
+        { withShadow: false }
+      );
+      let html = serializeDOM().html;
+      let sourceIdx = html.indexOf('.cbtn:hover');
+      let copyIdx = html.indexOf('[data-percy-hover]');
+      let laterIdx = html.indexOf('.cbtn.later');
+      expect(copyIdx).toBeGreaterThan(-1);
+      expect(copyIdx).toBeGreaterThan(sourceIdx); // after its own sheet
+      expect(copyIdx).toBeLessThan(laterIdx); // before the later sheet
+    });
+  });
+
+  describe('stylesheet <link> stamping (PER-10077 cascade anchoring)', () => {
+    it('stamps only stylesheet <link>s with a percy element id', () => {
+      // The pseudo-class serializer anchors its rewritten rules after a sheet's
+      // clone element, found via data-percy-element-id — so stylesheet links
+      // need one. Non-stylesheet links (preload, icon, …) do not.
+      withExample(
+        '<link rel="stylesheet" href="data:text/css,.lx{color:red}">' +
+        '<link rel="preload" as="style" href="data:text/css,.ly{color:red}">' +
+        '<link href="data:text/css,.lz{color:red}">',
+        { withShadow: false }
+      );
+      let $ = parseDOM(serializeDOM().html, 'plain');
+      expect($('link[rel="stylesheet"]')[0].getAttribute('data-percy-element-id')).toBeTruthy();
+      expect($('link[rel="preload"]')[0].getAttribute('data-percy-element-id')).toBeNull();
+      expect($('link:not([rel])')[0].getAttribute('data-percy-element-id')).toBeNull();
+    });
   });
 
   describe(':state() CSS rewriting', () => {

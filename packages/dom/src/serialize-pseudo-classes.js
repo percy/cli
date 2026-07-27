@@ -8,16 +8,23 @@
 //      :focus-within stamps the focused element's ancestor chain across
 //      shadow boundaries.
 //
+//      Each rewritten rule is injected into a <style> placed immediately
+//      AFTER its source stylesheet's clone element, so the copy keeps the
+//      sheet's original cascade rank. Appending every copy at the end of
+//      <head> (the pre-PER-10077 behavior) flipped cascade ties — same
+//      specificity/importance, later source order wins — against equal-
+//      specificity rules from later sheets that were not copied. Angular
+//      Material's pervasive `:not(:disabled)` rules recolored buttons
+//      page-wide that way; anchoring the copy at the sheet's position keeps
+//      later sheets winning their ties exactly as the live page does.
+//
 //      :checked and :disabled are intentionally NOT handled here — those
 //      states serialize natively (`disabled` is a reflected content
-//      attribute, and serialize-inputs syncs checked/selected properties
+//      attribute the renderer recomputes, including `<fieldset disabled>`
+//      descendants, and serialize-inputs syncs checked/selected properties
 //      to attributes on the clone), so their pseudo-classes match in the
-//      renderer without any rewriting. Copying their rules is not just
-//      redundant, it is harmful: the copies land at the end of <head>,
-//      which flips cascade ties (same specificity/importance, later
-//      source order wins) against equal-specificity rules that were not
-//      copied. Angular Material's pervasive `:not(:disabled)` rules made
-//      this rewrite recolor buttons page-wide (PER-10077).
+//      renderer without any rewriting. Copying their rules would be pure
+//      redundancy, so they stay off the rewrite path entirely.
 //
 //   2. Configured-element path (`pseudoClassEnabledElements` config). User
 //      opts in elements by id/className/xpath/selector. We snapshot all
@@ -398,8 +405,11 @@ function collectStyleSheets(doc) {
 
 function extractPseudoClassRules(ctx) {
   const sheetEntries = collectStyleSheets(ctx.dom);
-  const rulesByOwner = new Map();
 
+  // Collect rewritten rules PER SOURCE SHEET (not merged per owner scope) so
+  // each sheet's copies can be anchored back at that sheet's cascade position.
+  // Discovery order is document order, which is also the order we inject in.
+  const perSheet = [];
   for (const { sheet, owner } of sheetEntries) {
     let rules;
     try {
@@ -410,6 +420,7 @@ function extractPseudoClassRules(ctx) {
     }
     if (!rules) continue;
 
+    let rewrittenRules = null;
     for (const rule of walkCSSRules(rules)) {
       // Cheapest possible filter: a selector with no `:` can't contain any
       // interactive pseudo. Skips most rules on most stylesheets without
@@ -421,15 +432,17 @@ function extractPseudoClassRules(ctx) {
 
       const cssText = `${rewrittenSelector} { ${rule.style.cssText} }`;
       const wrapped = rule.wrapper ? `${rule.wrapper} { ${cssText} }` : cssText;
-      if (!rulesByOwner.has(owner)) rulesByOwner.set(owner, []);
-      rulesByOwner.get(owner).push(wrapped);
+      (rewrittenRules ||= []).push(wrapped);
     }
+    if (rewrittenRules) perSheet.push({ sheet, owner, rewrittenRules });
   }
 
-  // Build a percyId → cloneEl index once for shadow-host injection — only
-  // when there is at least one non-null owner in the collected rules.
+  if (!perSheet.length) return;
+
+  // Build a percyId → cloneEl index once for shadow-host injection — only when
+  // at least one collected sheet lives inside a shadow root.
   let cloneByPercyId = null;
-  for (const owner of rulesByOwner.keys()) {
+  for (const { owner } of perSheet) {
     if (owner !== null) {
       cloneByPercyId = new Map();
       for (const el of ctx.clone.querySelectorAll('[data-percy-element-id]')) {
@@ -439,7 +452,7 @@ function extractPseudoClassRules(ctx) {
     }
   }
 
-  for (const [owner, rewrittenRules] of rulesByOwner) {
+  for (const { sheet, owner, rewrittenRules } of perSheet) {
     const styleElement = ctx.clone.createElement
       ? ctx.clone.createElement('style')
       : ctx.dom.createElement('style');
@@ -448,15 +461,31 @@ function extractPseudoClassRules(ctx) {
     styleElement.textContent = rewrittenRules.join('\n');
 
     if (owner === null) {
-      const head = ctx.clone.head || ctx.clone.querySelector('head');
-      if (head) head.appendChild(styleElement);
+      injectAtSheetPosition(ctx.clone, sheet, styleElement, ctx.clone.head || ctx.clone.querySelector('head'));
     } else {
-      const percyId = owner.getAttribute('data-percy-element-id');
-      const cloneHost = cloneByPercyId.get(percyId);
+      const cloneHost = cloneByPercyId.get(owner.getAttribute('data-percy-element-id'));
       if (cloneHost && cloneHost.shadowRoot) {
-        cloneHost.shadowRoot.appendChild(styleElement);
+        injectAtSheetPosition(cloneHost.shadowRoot, sheet, styleElement, cloneHost.shadowRoot);
       }
     }
+  }
+}
+
+// Insert an interactive-states <style> immediately AFTER its source sheet's
+// clone element so the copy keeps the sheet's original source-order rank —
+// later stylesheets still win equal-specificity ties, exactly as on the live
+// page (PER-10077). The sheet's ownerNode (<style> / <link rel=stylesheet>) is
+// stamped with a data-percy-element-id, which serialize-cssom preserves on any
+// node it rebuilds in place. Falls back to appending at the scope's end when
+// the sheet has no locatable clone anchor.
+function injectAtSheetPosition(scopeRoot, sheet, styleElement, fallbackTarget) {
+  const anchorId = sheet.ownerNode.getAttribute('data-percy-element-id');
+  const anchor = anchorId ? scopeRoot.querySelector(`[data-percy-element-id="${anchorId}"]`) : null;
+  const anchorParent = anchor ? anchor.parentNode : null;
+  if (anchorParent) {
+    anchorParent.insertBefore(styleElement, anchor.nextSibling);
+  } else if (fallbackTarget) {
+    fallbackTarget.appendChild(styleElement);
   }
 }
 
