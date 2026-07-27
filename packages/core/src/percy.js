@@ -145,6 +145,15 @@ export class Percy {
     this.grpcClientCache = new Map();
     this.grpcClientCache.shutdownInProgress = false;
 
+    // Per-Percy cache of derived device system-bar insets, keyed by sessionId.
+    // Insets are device-constant within a session, so the Maestro relay derives
+    // them once (one /viewHierarchy or `dumpsys` call) and reuses the result —
+    // including a null "derivation failed, use SDK default" outcome — for every
+    // subsequent snapshot in that session. Per-instance (not module-scoped) so
+    // concurrent Percy instances don't share session state; holds plain data
+    // (no sockets), so stop() just clears it.
+    this.maestroInsetCache = new Map();
+
     // Domain validation state for auto domain allow-listing
     this.domainValidation = {
       autoConfiguredHosts: new Set(), // Domains from project config
@@ -450,6 +459,9 @@ export class Percy {
       // triggering the fallback chain on a tearing-down process (R-7).
       this.grpcClientCache.shutdownInProgress = true;
       closeGrpcClientCache(this.grpcClientCache);
+
+      // Drop the per-session device-inset cache (plain data, no sockets).
+      this.maestroInsetCache.clear();
 
       // mark instance as stopped
       this.readyState = 3;
@@ -863,7 +875,10 @@ export class Percy {
     if (!process.env.PERCY_TOKEN) return;
     try {
       const logsObject = {
-        clilogs: logger.query(log => !['ci'].includes(log.debug))
+        // Redact secrets from CLI logs before egress to the Percy API — these
+        // can contain tokens or URLs with embedded credentials (CWE-532). The
+        // cilogs below were already redacted; clilogs were not.
+        clilogs: redactSecrets(logger.query(log => !['ci'].includes(log.debug)))
       };
 
       // Only add CI logs if not disabled voluntarily.

@@ -8,6 +8,7 @@ import {
   createRootResource,
   createPercyCSSResource,
   createLogResource,
+  redactSecrets,
   yieldAll,
   snapshotLogName,
   waitForTimeout,
@@ -219,8 +220,10 @@ function processSnapshotResources({ domSnapshot, resources, ...snapshot }) {
   // For multi dom root resources are stored as array
   resources = resources.flat();
 
-  // include associated snapshot logs matched by meta information
-  resources.push(createLogResource(logger.snapshotLogs(snapshot.meta.snapshot)));
+  // include associated snapshot logs matched by meta information. Redact
+  // secrets before egress — this per-snapshot log resource is a parallel
+  // egress path to sendBuildLogs and must scrub tokens/credentials too (CWE-532).
+  resources.push(createLogResource(redactSecrets(logger.snapshotLogs(snapshot.meta.snapshot))));
   logger.evictSnapshot(snapshot.meta.snapshot);
 
   if (process.env.PERCY_GZIP) {

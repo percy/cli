@@ -885,6 +885,12 @@ describe('Percy', () => {
       expect(percy.browser.isConnected()).toBe(false);
     });
 
+    it('clears the per-session device-inset cache', async () => {
+      percy.maestroInsetCache.set('some-session', { statusBarHeight: 141, navBarHeight: 0 });
+      await expectAsync(percy.stop()).toBeResolved();
+      expect(percy.maestroInsetCache.size).toBe(0);
+    });
+
     it('clears pending tasks and logs when force stopping', async () => {
       await reset({ deferUploads: true });
       await expectAsync(percy.stop(true)).toBeResolved();

@@ -114,6 +114,25 @@ const IOS_HTTP_CIRCUIT_BREAKER_MS = 5000;
 // HTTP response cap before parse — sized for WebView-heavy iOS apps.
 const IOS_HTTP_RESPONSE_MAX_BYTES = 20 * 1024 * 1024;
 
+// Device system-bar inset derivation tunables.
+//
+// iOS: the `/viewHierarchy` AXElement tree exposes the status bar as a node
+// with `elementType === 26` (XCUIElementTypeStatusBar — a stable XCUITest
+// enum constant). Its `frame.Height` is in logical POINTS; the comparison
+// tile expects PIXELS, so we scale by the device scale factor derived
+// empirically as PNG-pixel-height ÷ AUT-root-point-height (avoids the
+// Plus-class `nativeScale ≠ scale` foot-gun). Apple scale factors are 1/2/3;
+// we snap the ratio to the nearest integer and reject anything implausible
+// (a wrong root-frame height would otherwise yield a bogus inset).
+const IOS_STATUS_BAR_ELEMENT_TYPE = 26;
+const DEVICE_SCALE_MIN = 1;
+const DEVICE_SCALE_MAX = 3;
+// Max distance the raw PNG/point ratio may sit from an integer before we treat
+// the root-frame height as unreliable and fall back (e.g. a non-full-screen
+// AUT frame). 0.15 comfortably admits real rounding (2532/844 = 3.000) while
+// rejecting a half-screen root (e.g. 2532/667 = 3.79 → 0.21 off).
+const DEVICE_SCALE_TOLERANCE = 0.15;
+
 // Android gRPC transport tunables. Symmetric with iOS HTTP (D11): same
 // healthy-deadline + circuit-breaker pair. gRPC's `deadline` option is
 // client-library-enforced, not kernel-enforced — the outer Promise.race is
@@ -959,6 +978,33 @@ function findAxAutRoot(axElement) {
   return null;
 }
 
+// Walk the FULL AXElement tree (not just the AUT subtree) for the status-bar
+// element (`elementType === IOS_STATUS_BAR_ELEMENT_TYPE`) and return its
+// `frame.Height` in points, or null when absent. The status bar is a sibling
+// of the AUT app node (cli-2.0.7 wraps as `[appHierarchy, statusBarsContainer]`),
+// so callers must pass the raw `axElement` root, not `findAxAutRoot(...)`.
+function findStatusBarFrameHeight(node) {
+  /* istanbul ignore if — defensive guard; deriveIosInsets passes a parsed
+     object and recursion only descends into well-formed array children. A
+     malformed child instead surfaces via deriveDeviceInsets' catch → null. */
+  if (!node || typeof node !== 'object') return null;
+  if (node.elementType === IOS_STATUS_BAR_ELEMENT_TYPE) {
+    // `|| null` collapses a missing/zero/non-numeric height to null so the
+    // caller's single `== null` check covers every malformed-frame case.
+    /* istanbul ignore next — frame optional-chain guards a malformed status-bar
+       frame; real /viewHierarchy responses always carry a positive frame.Height. */
+    return node.frame?.Height || null;
+  }
+  const children = node.children;
+  if (Array.isArray(children)) {
+    for (const child of children) {
+      const found = findStatusBarFrameHeight(child);
+      if (found != null) return found;
+    }
+  }
+  return null;
+}
+
 // Adapter: walk an AXElement subtree (HTTP /viewHierarchy path) and emit nodes
 // in the canonical shape that firstMatch consumes for Android. Specifically:
 //   { 'resource-id': identifier, id: identifier, bounds: '[X,Y][X+W,Y+H]' }
@@ -1156,6 +1202,89 @@ async function runIosHttpDump({ port, sessionId, httpRequest }) {
   return { kind: 'hierarchy', nodes };
 }
 
+// Derive the iOS status-bar inset (in pixels) from a fresh `/viewHierarchy`
+// fetch. Returns `{ statusBarHeight, navBarHeight: 0 }` on success, or null on
+// any failure (transport error, non-JSON/missing root, no AUT root, no status
+// bar element, implausible scale). navBarHeight is always 0 on iOS — the home
+// indicator is static and unmeasured, matching the rest of the Percy SDK fleet.
+//
+// This is a separate, lighter parse than runIosHttpDump: that path flattens the
+// AUT subtree for element-region matching and DISCARDS the status-bar sibling,
+// so the status-bar frame is not reachable through dump(). Here we retain the
+// raw response, read the AUT root frame height (points) for the scale factor,
+// and the status-bar element frame height (points), then convert to pixels.
+async function deriveIosInsets({ port, pngDims, httpRequest, sessionId }) {
+  /* istanbul ignore next — production-only default; unit suite injects a stub. */
+  httpRequest = httpRequest || defaultHttpRequest;
+  // Need PNG pixel height to derive the points→pixels scale. parsePngDimensions
+  // only ever yields null or a fully-valid {width>0, height>0}, so a single
+  // truthiness check suffices; a degenerate height is additionally caught by
+  // the scale sanity bounds below.
+  if (!pngDims) return null;
+
+  const requestBody = JSON.stringify({ appIds: [], excludeKeyboardElements: false });
+  let response;
+  try {
+    // Best-effort, cached, fallback-safe: a single request with the transport's
+    // own timeout is sufficient (no outer circuit-breaker race needed — that's
+    // defense-in-depth the resolver cascade owns).
+    response = await httpRequest({
+      host: '127.0.0.1',
+      port,
+      method: 'POST',
+      path: '/viewHierarchy',
+      headers: {
+        'content-type': 'application/json',
+        'content-length': Buffer.byteLength(requestBody)
+      },
+      body: requestBody,
+      timeoutMs: IOS_HTTP_HEALTHY_DEADLINE_MS
+    });
+  } catch {
+    // Transport failure — caller falls back to the SDK default.
+    return null;
+  }
+
+  /* istanbul ignore if — defensive; httpRequest resolves to a response object
+     or the race rejects (caught above). */
+  if (!response) return null;
+  if (response.statusCode !== 200) return null;
+
+  let parsed;
+  try {
+    parsed = JSON.parse(response.body);
+  } catch {
+    // Non-JSON body, or a non-string body that JSON.parse rejects.
+    return null;
+  }
+
+  // Root point-height for scale = the AUT app frame (full-screen on iOS; the
+  // app draws under the status bar). SpringBoard-only / malformed responses →
+  // no AUT → null. (findAxAutRoot guards a null/undefined argument.)
+  const aut = findAxAutRoot(parsed && parsed.axElement);
+  /* istanbul ignore next — frame optional-chain guards a malformed AUT frame;
+     real AUT nodes always carry a positive frame.Height. */
+  const rootPointHeight = aut?.frame?.Height;
+  if (!rootPointHeight) return null;
+
+  // Empirical scale: PNG pixel height ÷ AUT root point height, snapped to an
+  // integer and sanity-checked. Guards the Plus-class nativeScale≠scale gap and
+  // a non-full-screen root frame.
+  const ratio = pngDims.height / rootPointHeight;
+  const scale = Math.round(ratio);
+  if (scale < DEVICE_SCALE_MIN || scale > DEVICE_SCALE_MAX) return null;
+  if (Math.abs(ratio - scale) > DEVICE_SCALE_TOLERANCE) return null;
+
+  const statusBarPoints = findStatusBarFrameHeight(parsed.axElement);
+  if (statusBarPoints == null) return null;
+
+  /* istanbul ignore next — sid log tag ternary; relay always passes a sessionId. */
+  const sidTag = sessionId ? `sid=${String(sessionId).slice(0, 8)}…` : 'sid=none';
+  const statusBarHeight = Math.round(statusBarPoints * scale);
+  log.debug(`deriveIosInsets ok ${sidTag} statusBar=${statusBarHeight}px (${statusBarPoints}pt × ${scale})`);
+  return { statusBarHeight, navBarHeight: 0 };
+}
+
 // iOS maestro-CLI fallback path. Spawns
 // `maestro --udid <udid> --driver-host-port <port> hierarchy` and parses
 // stdout (Maestro's normalized TreeNode shape, identical to Android).
@@ -1248,6 +1377,78 @@ async function runAdbFallback(serial, execAdb) {
     result = await runDump(['-s', serial, 'exec-out', 'cat', '/sdcard/window_dump.xml'], execAdb);
   }
   return result;
+}
+
+// Parse the first `mStableInsets=Rect(left, top - right, bottom)` from
+// `dumpsys window` output. Android's Rect.toString() prints
+// `Rect(L, T - R, B)`, so top = status-bar inset, bottom = navigation-bar
+// inset (both in pixels — same space as the screenshot). Returns
+// `{ statusBarHeight, navBarHeight }` or null when the line is absent.
+// Validated against real-device `dumpsys window` output during BS validation;
+// gesture-nav and 3-button-nav both surface here, differing only in the
+// bottom value.
+function parseStableInsets(stdout) {
+  // execAdb always yields a string stdout (''); the regex returns null on no
+  // match, so empty input needs no separate guard.
+  const m = /mStableInsets=Rect\(\s*\d+,\s*(\d+)\s*-\s*\d+,\s*(\d+)\s*\)/.exec(stdout);
+  if (!m) return null;
+  const statusBarHeight = Number(m[1]);
+  const navBarHeight = Number(m[2]);
+  /* istanbul ignore if — defensive NaN guard; the regex only matches digit
+     runs, so Number() always parses. */
+  if (!Number.isFinite(statusBarHeight) || !Number.isFinite(navBarHeight)) return null;
+  return { statusBarHeight, navBarHeight };
+}
+
+// Derive Android status + navigation bar insets (in pixels) via adb. System
+// bars are not present in the uiautomator hierarchy dump, so this is a distinct
+// `dumpsys window` read. Reuses the resolver's serial-resolution + execAdb
+// path (ANDROID_SERIAL on BS multi-device hosts, else `adb devices`). Returns
+// `{ statusBarHeight, navBarHeight }` or null on any failure (no/ambiguous
+// device, adb error, unparseable output) — caller falls back to SDK defaults.
+async function deriveAndroidInsets({ execAdb, getEnv }) {
+  /* istanbul ignore next — production-only defaults; unit suite injects stubs. */
+  execAdb = execAdb || defaultExecAdb;
+  /* istanbul ignore next */
+  getEnv = getEnv || defaultGetEnv;
+
+  const { serial, classification } = await resolveSerial({ execAdb, getEnv });
+  if (classification) return null;
+
+  const result = await execAdb(['-s', serial, 'shell', 'dumpsys', 'window']);
+  if (classifyAdbFailure(result)) return null;
+  /* istanbul ignore next — `?? 1` fallback branch; spawn helpers always set an
+     exitCode. Non-zero exit with no recognized failure → treat as unparseable. */
+  if ((result.exitCode ?? 1) !== 0) return null;
+
+  return parseStableInsets(result.stdout);
+}
+
+// Derive exact device system-bar insets for the comparison tile, dispatching by
+// platform. Returns `{ statusBarHeight, navBarHeight }` (pixels) or null on any
+// failure. Never throws — the relay treats null as "use the SDK default". iOS
+// navBarHeight is always 0 (static home indicator, fleet-consistent); the iOS
+// path additionally needs the PNG pixel height for the points→pixels scale.
+export async function deriveDeviceInsets(options) {
+  /* istanbul ignore next — options-omitted default; callers always pass an object. */
+  options = options || {};
+  let { platform, sessionId, pngDims, execAdb, httpRequest, getEnv } = options;
+  /* istanbul ignore next — defaults applied only when caller omits them; tests
+     inject every dependency, production binds them at runtime. */
+  getEnv = getEnv || defaultGetEnv;
+
+  try {
+    if (platform === 'ios') {
+      const driverHostPort = parseIosDriverHostPort(getEnv('PERCY_IOS_DRIVER_HOST_PORT'));
+      if (driverHostPort === null) return null;
+      return await deriveIosInsets({ port: driverHostPort, pngDims, httpRequest, sessionId });
+    }
+    return await deriveAndroidInsets({ execAdb, getEnv });
+  } catch {
+    // Defensive: derive paths return null on their own failures; this only
+    // fires if a transport (e.g. getEnv) throws unexpectedly.
+    return null;
+  }
 }
 
 export async function dump(options) {
