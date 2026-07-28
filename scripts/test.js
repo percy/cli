@@ -75,14 +75,15 @@ async function main({
   let testBrowsers = browsers != null ? browsers : (!node && pkg.browser);
 
   if (coverage) {
-    // $ rimraf <cwd>/{.nyc_output,coverage} || true &&
+    // $ rm -rf <cwd>/{.nyc_output,coverage} || true &&
     //   nyc --silent --no-clean node <root>/test.js ... &&
     //   nyc report --reporter <reporter>
     let flags = flagify({ node, browsers });
     let nycbin = path.resolve(filename, '../../node_modules/.bin/nyc');
-    let { default: rimraf } = await import('rimraf');
 
-    await new Promise(r => rimraf(path.join(cwd, '{.nyc_output,coverage}'), r));
+    for (let dir of ['.nyc_output', 'coverage']) {
+      await fs.promises.rm(path.join(cwd, dir), { recursive: true, force: true });
+    }
     await child('spawn', nycbin, ['--silent', '--no-clean', 'node', filename, ...flags]);
     await child('spawn', nycbin, ['report', '--check-coverage', ...flagify({ reporter })]);
   } else if (!process.send) {

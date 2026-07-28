@@ -3,7 +3,6 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 import vm from 'vm';
-import { minimatch } from 'minimatch';
 
 // Test URL used when evaluating PAC scripts
 const PAC_TEST_URL = 'https://percy.io/';
@@ -319,6 +318,47 @@ export function findInObject(obj, key, depth = 0) {
 }
 
 /**
+ * PAC `shExpMatch` shell-expression match.
+ *
+ * The PAC spec defines exactly two wildcards — `*` (any sequence) and `?`
+ * (exactly one character); every other character is a literal. We match them
+ * directly rather than delegating to a general glob library: brace expansion,
+ * character classes and extglobs are not part of shExpMatch, and expanding
+ * them on PAC content — which is untrusted, attacker-influenced input — is a
+ * memory-exhaustion vector (see GHSA-mh99-v99m-4gvg in brace-expansion). The
+ * `vm` timeout below cannot save us there, since it does not interrupt native
+ * allocation inside a host library.
+ *
+ * Greedy single-star backtracking, so worst case is O(str * shexp) with no
+ * regex construction and no catastrophic backtracking.
+ */
+export function shExpMatch(str, shexp) {
+  let s = 0;
+  let p = 0;
+  let star = -1;
+  let resume = 0;
+
+  while (s < str.length) {
+    if (p < shexp.length && (shexp[p] === '?' || shexp[p] === str[s])) {
+      s++; p++;
+    } else if (p < shexp.length && shexp[p] === '*') {
+      star = p++;
+      resume = s;
+    } else if (star !== -1) {
+      // Backtrack: let the last `*` consume one more character.
+      p = star + 1;
+      s = ++resume;
+    } else {
+      return false;
+    }
+  }
+
+  // Trailing `*`s may match the empty string.
+  while (p < shexp.length && shexp[p] === '*') p++;
+  return p === shexp.length;
+}
+
+/**
  * Evaluate a PAC script using Node's built-in `vm` module.
  * Provides minimal shims for the standard PAC helper functions.
  * Returns the string result of FindProxyForURL(url, host).
@@ -356,8 +396,7 @@ export function runPacScript(script, url, host) {
       value: (str, shexp) => {
         if (typeof str !== 'string' || typeof shexp !== 'string') return false;
         if (shexp.length > 256) return false;
-        // minimatch handles * and ? exactly as PAC shExpMatch requires.
-        return minimatch(str, shexp, { dot: true, nocase: false });
+        return shExpMatch(str, shexp);
       },
       enumerable: true
     },
