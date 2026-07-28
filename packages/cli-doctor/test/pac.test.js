@@ -6,7 +6,7 @@
  * full fetch → evaluate → classify pipeline without system config access.
  */
 
-import { runPacScript, findInObject, PACDetector } from '../src/checks/pac.js';
+import { runPacScript, findInObject, PACDetector, shExpMatch } from '../src/checks/pac.js';
 import { createPacServer, createHttpServer, withEnv, buildPacScript } from './helpers.js';
 import childProcess from 'child_process';
 import fsMod from 'fs';
@@ -78,6 +78,68 @@ describe('runPacScript — argument passing', () => {
     `;
     expect(runPacScript(script, 'https://percy.io/', 'percy.io')).toBe('PROXY percy-proxy:8080');
     expect(runPacScript(script, 'https://example.com/', 'example.com')).toBe('DIRECT');
+  });
+});
+
+// ─── shExpMatch — PAC shell-expression semantics ──────────────────────────────
+
+describe('shExpMatch', () => {
+  it('treats * as any sequence and ? as exactly one character', () => {
+    expect(shExpMatch('dev.percy.io', '*.percy.io')).toBe(true);
+    expect(shExpMatch('percy.io', '*.percy.io')).toBe(false);
+    expect(shExpMatch('percy.io', 'percy.i?')).toBe(true);
+    expect(shExpMatch('percy.ioo', 'percy.i?')).toBe(false);
+    expect(shExpMatch('percy.io', 'percy.io')).toBe(true);
+  });
+
+  it('matches the empty string against * and the empty pattern', () => {
+    expect(shExpMatch('', '*')).toBe(true);
+    expect(shExpMatch('', '')).toBe(true);
+    expect(shExpMatch('percy.io', '')).toBe(false);
+    expect(shExpMatch('percy.io', '***')).toBe(true);
+  });
+
+  it('is case-sensitive, per PAC semantics', () => {
+    expect(shExpMatch('Percy.IO', 'percy.io')).toBe(false);
+  });
+
+  // The PAC spec defines only * and ?. Brace expansion, character classes and
+  // extglobs are NOT shExpMatch syntax, so they must match literally rather
+  // than being expanded — expanding attacker-supplied patterns is the
+  // brace-expansion OOM vector (GHSA-mh99-v99m-4gvg).
+  it('treats brace, bracket and extglob syntax as literal characters', () => {
+    expect(shExpMatch('{a,b}', '{a,b}')).toBe(true);
+    expect(shExpMatch('a', '{a,b}')).toBe(false);
+    expect(shExpMatch('b', '{a,b}')).toBe(false);
+    expect(shExpMatch('[abc]', '[abc]')).toBe(true);
+    expect(shExpMatch('a', '[abc]')).toBe(false);
+    expect(shExpMatch('percy.io', '!(percy.io)')).toBe(false);
+    expect(shExpMatch('a+(b)', 'a+(b)')).toBe(true);
+  });
+
+  it('treats regex metacharacters as literals', () => {
+    expect(shExpMatch('a.c', 'a.c')).toBe(true);
+    expect(shExpMatch('abc', 'a.c')).toBe(false);
+    expect(shExpMatch('a$^(b)', 'a$^(b)')).toBe(true);
+  });
+
+  it('returns promptly for brace-bomb and backtracking-heavy patterns', () => {
+    // Nested braces well under the 256-char sandbox cap: expanding these would
+    // exhaust memory, and `vm`'s timeout cannot interrupt native allocation.
+    const target = 'a'.repeat(200);
+    const braceBomb = '{a,b}'.repeat(40);
+    const starBomb = '*a'.repeat(100);
+    const start = process.hrtime.bigint();
+
+    // Literal braces, so no expansion and no match.
+    expect(shExpMatch(target, braceBomb)).toBe(false);
+    // 100 stars still resolve correctly, both matching and — the worst case for
+    // backtracking — failing only at the very last pattern character.
+    expect(shExpMatch(target, starBomb)).toBe(true);
+    expect(shExpMatch(target, starBomb + 'b')).toBe(false);
+
+    const elapsedMs = Number(process.hrtime.bigint() - start) / 1e6;
+    expect(elapsedMs).toBeLessThan(1000);
   });
 });
 
