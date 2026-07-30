@@ -5,7 +5,7 @@ import { logger, setupTest, fs } from './helpers/index.js';
 import Percy from '@percy/core';
 import WebdriverUtils from '@percy/webdriver-utils';
 import { getPercyDomPath, _applyHttpReadOnlyStripping } from '../src/api.js';
-import { appAutomateTmpDir } from '../src/maestro-screenshot-file.js';
+import { appAutomateTmpDir, bsScopeRootOverride } from '../src/maestro-screenshot-file.js';
 
 describe('API Server', () => {
   let percy;
@@ -25,7 +25,7 @@ describe('API Server', () => {
     // suite (works in isolation; returns [] mid-suite), so route the
     // self-hosted root to the REAL filesystem — this also tests the true
     // production glob path. Only paths under this unique root are affected.
-    await setupTest({ filesystem: { $bypass: [p => typeof p === 'string' && (p.includes('percy-self-hosted-real') || p.includes('percy-bs-tmp-real'))] } });
+    await setupTest({ filesystem: { $bypass: [p => typeof p === 'string' && (p.includes('percy-self-hosted-real') || p.includes('percy-bs-tmp-real') || p.includes('percy-bs-scope-'))] } });
 
     percy = new Percy({
       token: 'PERCY_TOKEN',
@@ -1912,6 +1912,142 @@ describe('API Server', () => {
           platform: 'android',
           filePath: `${ANDROID_FILEPATH_DIR}/${FILEPATH_NAME}.png`
         })).toBeRejectedWithError(/Screenshot not found/);
+      });
+    });
+
+    // PERCY_MAESTRO_BS_SCOPE_ROOT override — for BS layouts the
+    // {tmpRoot}/{sessionId}{_test_suite} convention can no longer express at
+    // all. realmobile's AAP-18965 relocation is the motivating case: iOS
+    // Maestro debug output moved to <aa-tmp>/<device>/logs/maestro_debug_*,
+    // which has no sessionId segment and no <device>_ prefix, so relocating
+    // the tmp root alone can't compose either the scope root or the glob.
+    // Real-fs root for the same fast-glob binding-staleness reason as above.
+    describe('PERCY_MAESTRO_BS_SCOPE_ROOT override', () => {
+      // Mirrors the realmobile shape: the host points at the per-session dir
+      // directly, and the debug dir underneath matches no CLI convention.
+      const SCOPE_ROOT = path.join(os.tmpdir(), 'percy-bs-scope-real-root');
+      const REALMOBILE_DIR = path.join(SCOPE_ROOT, 'maestro_debug_LoginFlow_LoginFlow_0');
+      let priorScope, priorTmp;
+
+      beforeEach(() => {
+        priorScope = process.env.PERCY_MAESTRO_BS_SCOPE_ROOT;
+        priorTmp = process.env.PERCY_APP_AUTOMATE_TMP_DIR;
+        process.env.PERCY_MAESTRO_BS_SCOPE_ROOT = SCOPE_ROOT;
+        fs.rmSync(SCOPE_ROOT, { recursive: true, force: true });
+        fs.mkdirSync(REALMOBILE_DIR, { recursive: true });
+        fs.writeFileSync(path.join(REALMOBILE_DIR, `${SS_NAME}.png`), 'PNGBYTES-SCOPE-ROOT');
+      });
+
+      afterEach(() => {
+        if (priorScope === undefined) delete process.env.PERCY_MAESTRO_BS_SCOPE_ROOT;
+        else process.env.PERCY_MAESTRO_BS_SCOPE_ROOT = priorScope;
+        if (priorTmp === undefined) delete process.env.PERCY_APP_AUTOMATE_TMP_DIR;
+        else process.env.PERCY_APP_AUTOMATE_TMP_DIR = priorTmp;
+        fs.rmSync(SCOPE_ROOT, { recursive: true, force: true });
+      });
+
+      it('finds a screenshot the platform convention cannot reach', async () => {
+        spyOn(percy, 'upload').and.resolveTo();
+        await percy.start();
+
+        await expectAsync(postMaestro({ name: SS_NAME, sessionId: SID, platform: 'ios' }))
+          .toBeResolvedTo(jasmine.objectContaining({ success: true }));
+
+        let [payload] = percy.upload.calls.mostRecent().args;
+        expect(payload.tiles[0].content).toBe(Buffer.from('PNGBYTES-SCOPE-ROOT').toString('base64'));
+      });
+
+      it('applies to android too — the root is the whole convention', async () => {
+        spyOn(percy, 'upload').and.resolveTo();
+        await percy.start();
+
+        await expectAsync(postMaestro({ name: SS_NAME, sessionId: SID, platform: 'android' }))
+          .toBeResolvedTo(jasmine.objectContaining({ success: true }));
+
+        let [payload] = percy.upload.calls.mostRecent().args;
+        expect(payload.tiles[0].content).toBe(Buffer.from('PNGBYTES-SCOPE-ROOT').toString('base64'));
+      });
+
+      it('wins over PERCY_APP_AUTOMATE_TMP_DIR when both are set', async () => {
+        process.env.PERCY_APP_AUTOMATE_TMP_DIR = '/tmp';
+        spyOn(percy, 'upload').and.resolveTo();
+        await percy.start();
+
+        await expectAsync(postMaestro({ name: SS_NAME, sessionId: SID, platform: 'ios' }))
+          .toBeResolvedTo(jasmine.objectContaining({ success: true }));
+
+        let [payload] = percy.upload.calls.mostRecent().args;
+        // Not the /tmp IOS_DIR fixture the composed convention would have hit
+        expect(payload.tiles[0].content).toBe(Buffer.from('PNGBYTES-SCOPE-ROOT').toString('base64'));
+      });
+
+      it('tolerates a trailing slash on the override', async () => {
+        process.env.PERCY_MAESTRO_BS_SCOPE_ROOT = `${SCOPE_ROOT}/`;
+        spyOn(percy, 'upload').and.resolveTo();
+        await percy.start();
+
+        await expectAsync(postMaestro({ name: SS_NAME, sessionId: SID, platform: 'ios' }))
+          .toBeResolvedTo(jasmine.objectContaining({ success: true }));
+
+        let [payload] = percy.upload.calls.mostRecent().args;
+        expect(payload.tiles[0].content).toBe(Buffer.from('PNGBYTES-SCOPE-ROOT').toString('base64'));
+      });
+
+      it('ignores a non-absolute override and keeps the composed convention', async () => {
+        process.env.PERCY_MAESTRO_BS_SCOPE_ROOT = 'relative/path';
+        spyOn(percy, 'upload').and.resolveTo();
+        await percy.start();
+
+        await expectAsync(postMaestro({ name: SS_NAME, sessionId: SID, platform: 'android' }))
+          .toBeResolvedTo(jasmine.objectContaining({ success: true }));
+
+        let [payload] = percy.upload.calls.mostRecent().args;
+        // Fell through to the default /tmp glob, not a cwd-relative root
+        expect(payload.tiles[0].content).toBe(Buffer.from('PNGBYTES-ANDROID').toString('base64'));
+      });
+
+      it('re-anchors filePath containment on the overridden root', async () => {
+        // Same-root filePath resolves; a file outside it does not — the
+        // boundary moved with the root rather than being removed.
+        fs.writeFileSync(path.join(REALMOBILE_DIR, `${FILEPATH_NAME}.png`), 'PNGBYTES-SCOPE-FILEPATH');
+        spyOn(percy, 'upload').and.resolveTo();
+        await percy.start();
+
+        await expectAsync(postMaestro({
+          name: FILEPATH_NAME,
+          sessionId: SID,
+          platform: 'ios',
+          filePath: path.join(REALMOBILE_DIR, `${FILEPATH_NAME}.png`)
+        })).toBeResolvedTo(jasmine.objectContaining({ success: true }));
+
+        let [payload] = percy.upload.calls.mostRecent().args;
+        expect(payload.tiles[0].content).toBe(Buffer.from('PNGBYTES-SCOPE-FILEPATH').toString('base64'));
+
+        await expectAsync(postMaestro({
+          name: FILEPATH_NAME,
+          sessionId: SID,
+          platform: 'ios',
+          filePath: `${IOS_FILEPATH_DIR}/${FILEPATH_NAME}.png`
+        })).toBeRejectedWithError(/Screenshot not found/);
+      });
+
+      it('404s when the overridden root does not exist', async () => {
+        process.env.PERCY_MAESTRO_BS_SCOPE_ROOT = path.join(os.tmpdir(), 'percy-bs-scope-missing');
+        await percy.start();
+
+        await expectAsync(postMaestro({ name: SS_NAME, sessionId: SID, platform: 'ios' }))
+          .toBeRejectedWithError(/Screenshot not found/);
+      });
+
+      it('pins the trim + null semantics of the exported helper', () => {
+        process.env.PERCY_MAESTRO_BS_SCOPE_ROOT = `${SCOPE_ROOT}///`;
+        expect(bsScopeRootOverride()).toBe(SCOPE_ROOT);
+        process.env.PERCY_MAESTRO_BS_SCOPE_ROOT = '/';
+        expect(bsScopeRootOverride()).toBeNull();
+        process.env.PERCY_MAESTRO_BS_SCOPE_ROOT = '';
+        expect(bsScopeRootOverride()).toBeNull();
+        delete process.env.PERCY_MAESTRO_BS_SCOPE_ROOT;
+        expect(bsScopeRootOverride()).toBeNull();
       });
     });
 

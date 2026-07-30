@@ -15,31 +15,64 @@ export function appAutomateTmpDir() {
   return path.isAbsolute(dir) ? dir : '/tmp';
 }
 
+// Complete session scope root, injected by hosts whose layout no longer fits
+// the {appAutomateTmpDir()}/{sessionId}{_test_suite} convention at all — where
+// relocating the root alone can't express the new shape.
+//
+// realmobile's AAP-18965 relocation is the motivating case: iOS Maestro debug
+// output moved to <aa-tmp>/<device>/logs/maestro_debug_*, which drops the
+// sessionId path segment entirely (the CLI appends it, so no tmp-root value can
+// absorb <device>/logs) and drops the <device>_ prefix the *_maestro_debug_*
+// glob keys on. Android kept its shape under the relocation and stays on
+// PERCY_APP_AUTOMATE_TMP_DIR.
+//
+// When set, this value IS the scope root: the relay globs {root}/**/{name}.png
+// with no layout assumption, and the realpath containment check anchors on it —
+// so the security boundary is relocated, never widened. Non-absolute values are
+// ignored (falling through to the composed convention) rather than producing a
+// cwd-relative root; trailing separators are trimmed for the same
+// prefix-composition reason as appAutomateTmpDir(). BrowserStack-mode only —
+// self-hosted scoping stays on PERCY_MAESTRO_SCREENSHOT_DIR.
+export function bsScopeRootOverride() {
+  let raw = process.env.PERCY_MAESTRO_BS_SCOPE_ROOT;
+  if (!raw) return null;
+  let dir = raw.replace(/[/\\]+$/, '');
+  return path.isAbsolute(dir) ? dir : null;
+}
+
 /* istanbul ignore next — defensive manual directory walker invoked only when
    fast-glob import fails (broken install / FS corruption). Unit tests
    exercise the primary glob path; integration tests on BS hosts exercise
    the walker against real session layouts. Path-traversal sinks inside this
    function are suppressed at file level in .semgrepignore with the same
    rationale (upstream SAFE_ID validation, depth cap, exact filename match). */
-async function manualScreenshotWalk(platform, sessionId, name) {
+async function manualScreenshotWalk(platform, sessionId, name, scopeRoot) {
   const files = [];
-  try {
-    if (platform === 'ios') {
-      const sessionDir = `${appAutomateTmpDir()}/${sessionId}`;
-      const walk = async (dir, depth) => {
-        if (depth > 15) return; // sanity cap
-        let entries;
-        try { entries = await fs.promises.readdir(dir, { withFileTypes: true }); } catch { return; }
-        for (const entry of entries) {
-          const full = path.join(dir, entry.name);
-          if (entry.isDirectory()) {
-            await walk(full, depth + 1);
-          } else if (entry.isFile() && entry.name === `${name}.png` && full.includes('_maestro_debug_')) {
-            files.push(full);
-          }
+  // Shared recursive walker for both root-relative layouts. `accept` gates
+  // which matching files count, so the iOS convention can keep its
+  // `_maestro_debug_` guard while an explicit scope root — where the host has
+  // already narrowed the tree to one session — takes any depth.
+  const walkFrom = async (root, accept) => {
+    const walk = async (dir, depth) => {
+      if (depth > 15) return; // sanity cap
+      let entries;
+      try { entries = await fs.promises.readdir(dir, { withFileTypes: true }); } catch { return; }
+      for (const entry of entries) {
+        const full = path.join(dir, entry.name);
+        if (entry.isDirectory()) {
+          await walk(full, depth + 1);
+        } else if (entry.isFile() && entry.name === `${name}.png` && accept(full)) {
+          files.push(full);
         }
-      };
-      await walk(sessionDir, 0);
+      }
+    };
+    await walk(root, 0);
+  };
+  try {
+    if (scopeRoot) {
+      await walkFrom(scopeRoot, () => true);
+    } else if (platform === 'ios') {
+      await walkFrom(`${appAutomateTmpDir()}/${sessionId}`, full => full.includes('_maestro_debug_'));
     } else {
       const baseDir = `${appAutomateTmpDir()}/${sessionId}_test_suite/logs`;
       const logDirs = await fs.promises.readdir(baseDir);
@@ -60,13 +93,19 @@ async function manualScreenshotWalk(platform, sessionId, name) {
 //   1. `filePath` supplied (BrowserStack new SDK — absolute path under the BS
 //      session root; rejected upstream in self-hosted mode).
 //   2. BrowserStack glob (the BS-infra SCREENSHOTS_DIR layout).
-//   3. Self-hosted recursive glob under scopeRoot (PERCY_MAESTRO_SCREENSHOT_DIR).
+//   3. Recursive glob under scopeRoot — self-hosted
+//      (PERCY_MAESTRO_SCREENSHOT_DIR) or a BS host that injected an explicit
+//      scope root (PERCY_MAESTRO_BS_SCOPE_ROOT); `recursiveScope` selects it.
 // Either way, the shared realpath + scopeRoot prefix check below enforces the
 // security invariant. Returns the canonicalized absolute path, or throws
 // ServerError(404) when the file is missing or resolves outside scopeRoot.
 // Callers pass `filePath` already shape-validated, plus the resolved `scopeRoot`
 // and `selfHosted` flag.
-export async function locateScreenshot({ platform, sessionId, name, filePath, scopeRoot, selfHosted }) {
+export async function locateScreenshot({ platform, sessionId, name, filePath, scopeRoot, selfHosted, recursiveScope }) {
+  // Self-hosted always scopes recursively under its root; BS does so only when
+  // the host injected an explicit scope root. Derived here rather than trusted
+  // from the caller so `selfHosted` alone keeps its existing meaning.
+  let scopedGlob = selfHosted || !!recursiveScope;
   let chosenFile;
   if (filePath) {
     chosenFile = filePath;
@@ -80,8 +119,11 @@ export async function locateScreenshot({ platform, sessionId, name, filePath, sc
     //   Self-hosted: recursive glob under the customer's --test-output-dir
     //     (scopeRoot = PERCY_MAESTRO_SCREENSHOT_DIR). `name` is SAFE_ID-validated
     //     by the caller, so it cannot contain separators or traversal chars.
+    //   BS explicit scope root (PERCY_MAESTRO_BS_SCOPE_ROOT): same recursive
+    //     glob — the host already narrowed scopeRoot to this session's dir, so
+    //     there is no convention left to key on.
     let searchPattern;
-    if (selfHosted) {
+    if (scopedGlob) {
       // fast-glob requires forward-slashes in patterns on every platform; on
       // Windows scopeRoot contains backslashes, so normalize before embedding.
       // Production-code Windows portability — verified by the CI Windows runner.
@@ -108,10 +150,14 @@ export async function locateScreenshot({ platform, sessionId, name, filePath, sc
       // Fast-glob import / glob call failed — fall back to manual walker (BS
       // only; self-hosted has no fixed-layout convention, so empty → 404 with
       // the actionable PERCY_MAESTRO_SCREENSHOT_DIR guidance from the caller).
+      // On BS the walker mirrors the glob: an explicit scope root recurses that
+      // root, otherwise it follows the platform convention.
       // See manualScreenshotWalk() at file top + the file-level .semgrepignore.
       /* istanbul ignore next — only fires when fast-glob import throws
          (broken install / FS corruption); integration-test territory. */
-      files = selfHosted ? [] : await manualScreenshotWalk(platform, sessionId, name);
+      files = selfHosted
+        ? []
+        : await manualScreenshotWalk(platform, sessionId, name, recursiveScope ? scopeRoot : null);
     }
 
     if (!files || files.length === 0) {

@@ -4,7 +4,7 @@ import { normalize } from '@percy/config/utils';
 import { ServerError } from './server.js';
 import { encodeURLSearchParams } from './utils.js';
 import { handleSyncJob } from './snapshot.js';
-import { locateScreenshot, appAutomateTmpDir } from './maestro-screenshot-file.js';
+import { locateScreenshot, appAutomateTmpDir, bsScopeRootOverride } from './maestro-screenshot-file.js';
 import { validateRegionInputs, resolveRegions } from './maestro-regions.js';
 import { deriveDeviceInsets } from './maestro-hierarchy.js';
 
@@ -91,13 +91,18 @@ export async function handleMaestroScreenshot(req, res, percy) {
 
   // Resolve the file-find scope root. On BrowserStack (sessionId present), the
   // root is the BS host's {appAutomateTmpDir()}/{sessionId}{_test_suite}
-  // convention (PERCY_APP_AUTOMATE_TMP_DIR, defaulting to /tmp). Self-hosted
+  // convention (PERCY_APP_AUTOMATE_TMP_DIR, defaulting to /tmp), unless the
+  // host injected a complete scope root via PERCY_MAESTRO_BS_SCOPE_ROOT — for
+  // layouts that convention can no longer express. Self-hosted
   // (sessionId absent) requires PERCY_MAESTRO_SCREENSHOT_DIR (read from
   // process.env, never the request body) to be an absolute, existing directory
   // — typically the customer's `maestro test --test-output-dir <DIR>` path. The
   // realpath + prefix check inside locateScreenshot enforces the security
   // invariant at whichever root applies; the boundary is relocated, not removed.
   let scopeRoot;
+  // Recursive-glob mode: no layout convention to key on, so the relay searches
+  // the whole scope root. True for self-hosted and for a BS explicit root.
+  let recursiveScope = false;
   if (selfHosted) {
     // Reject filePath outright in self-hosted mode. The SDK never emits it (it
     // sends a relative SCREENSHOT_NAME); honoring an absolute filePath against
@@ -124,10 +129,22 @@ export async function handleMaestroScreenshot(req, res, percy) {
       throw new ServerError(400, `PERCY_MAESTRO_SCREENSHOT_DIR is not an existing directory: ${dir}`);
     }
     scopeRoot = dir;
+    recursiveScope = true;
   } else {
-    scopeRoot = platform === 'ios'
-      ? `${appAutomateTmpDir()}/${sessionId}`
-      : `${appAutomateTmpDir()}/${sessionId}_test_suite`;
+    // Host-injected complete scope root wins over the composed convention. No
+    // existence pre-check here (unlike self-hosted): this is host config, not
+    // customer config, so a stale/missing root should surface as the same 404
+    // the containment check emits rather than a 400 aimed at the customer.
+    let overrideRoot = bsScopeRootOverride();
+    if (overrideRoot) {
+      scopeRoot = overrideRoot;
+      recursiveScope = true;
+      percy.log.debug(`maestro screenshot scope root overridden: ${scopeRoot}`);
+    } else {
+      scopeRoot = platform === 'ios'
+        ? `${appAutomateTmpDir()}/${sessionId}`
+        : `${appAutomateTmpDir()}/${sessionId}_test_suite`;
+    }
   }
 
   // Validate regions input shape early (before file I/O and ADB work) so
@@ -137,7 +154,7 @@ export async function handleMaestroScreenshot(req, res, percy) {
   // Locate the screenshot on disk (supplied filePath, BS session glob, or
   // self-hosted PERCY_MAESTRO_SCREENSHOT_DIR recursive glob) and confirm it
   // resolves under scopeRoot. Throws ServerError(404) when missing/out-of-root.
-  let realPath = await locateScreenshot({ platform, sessionId, name, filePath: suppliedFilePath, scopeRoot, selfHosted });
+  let realPath = await locateScreenshot({ platform, sessionId, name, filePath: suppliedFilePath, scopeRoot, selfHosted, recursiveScope });
 
   // Read and base64-encode the screenshot
   let fileContent = await fs.promises.readFile(realPath);
