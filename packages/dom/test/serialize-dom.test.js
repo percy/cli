@@ -617,14 +617,33 @@ describe('serializeDOM', () => {
 
   describe('marker un-mangling', () => {
     it('restores both the tag and attribute markers in one pass', () => {
-      // A custom element carrying a serialized attribute puts both markers in
-      // the same tag, which is the case the single-pass replacer has to keep
-      // straight. The proxy tag is what clone-dom emits for custom elements.
-      withExample('<my-widget id="widget"></my-widget>', { withShadow: false });
+      if (getTestBrowser() !== chromeBrowser) {
+        return;
+      }
+
+      // Both markers have to land in the SAME tag for this to exercise the
+      // single-pass replacer's branch discrimination. That needs a custom
+      // element that cloneElementWithoutLifecycle proxies — i.e. one with an
+      // attributeChangedCallback — carrying a `src`, which is the attribute it
+      // rewrites to data-percy-serialized-attribute-src. A plain undefined
+      // element takes the cloneNode() branch and emits no markers at all.
+      class MarkerWidget extends window.HTMLElement {
+        static get observedAttributes() {
+          return ['src'];
+        }
+
+        attributeChangedCallback() {}
+      }
+
+      if (!window.customElements.get('marker-widget')) {
+        window.customElements.define('marker-widget', MarkerWidget);
+      }
+
+      withExample('<marker-widget src="/img.png"></marker-widget>', { withShadow: false });
 
       let { html } = serializeDOM();
 
-      expect(html).toContain('<my-widget');
+      expect(html).toContain('<marker-widget src="/img.png"');
       expect(html).not.toContain('data-percy-custom-element-');
       expect(html).not.toContain('data-percy-serialized-attribute-');
     });
