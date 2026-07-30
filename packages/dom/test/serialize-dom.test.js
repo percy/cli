@@ -596,6 +596,51 @@ describe('serializeDOM', () => {
 
       expect(warnings).toEqual(['Could not transform the dom: test error']);
     });
+
+    // A domTransformation runs after serializeElements() has already collected
+    // ctx.shadowRootElements, so a shadow root attached here is invisible to
+    // that array. getOuterHTML must not take its no-shadow-roots fast path for
+    // these snapshots, or the shadow content is silently dropped.
+    it('serializes a shadow root attached during the transformation', () => {
+      let { html } = serializeDOM({
+        domTransformation(dom) {
+          let host = dom.querySelector('.delete-me');
+          let shadow = host.attachShadow({ mode: 'open', serializable: true });
+          shadow.innerHTML = '<p>shadow added by transformation</p>';
+        }
+      });
+
+      expect(html).toContain('shadow added by transformation');
+      expect(html).toContain('<template shadowrootmode="open"');
+    });
+  });
+
+  describe('marker un-mangling', () => {
+    it('restores both the tag and attribute markers in one pass', () => {
+      // A custom element carrying a serialized attribute puts both markers in
+      // the same tag, which is the case the single-pass replacer has to keep
+      // straight. The proxy tag is what clone-dom emits for custom elements.
+      withExample('<my-widget id="widget"></my-widget>', { withShadow: false });
+
+      let { html } = serializeDOM();
+
+      expect(html).toContain('<my-widget');
+      expect(html).not.toContain('data-percy-custom-element-');
+      expect(html).not.toContain('data-percy-serialized-attribute-');
+    });
+
+    it('restores the attribute marker written by canvas serialization', () => {
+      // serialize-canvas sets data-percy-serialized-attribute-src; if the
+      // attribute branch of the merged regex regressed, the marker would ship.
+      withExample('<canvas id="canvas" width="10" height="10"></canvas>', { withShadow: false });
+      let ctx = document.getElementById('canvas').getContext('2d');
+      ctx.fillRect(0, 0, 10, 10);
+
+      let { html } = serializeDOM();
+
+      expect(html).not.toContain('data-percy-serialized-attribute-');
+      expect(html).toMatch(/<img[^>]+src="[^"]+"/);
+    });
   });
 
   describe('with `reshuffleInvalidTags`', () => {

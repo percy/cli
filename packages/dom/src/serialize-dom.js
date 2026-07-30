@@ -27,14 +27,31 @@ function doctype(dom) {
 // Un-mangle both serialization markers in one pass instead of two:
 //   <data-percy-custom-element-x>          -> <x>
 //   ` data-percy-serialized-attribute-y=`  -> ` y=`
-// Serialized HTML can reach tens of MB and each .replace() copies the whole
-// string, so folding two passes into one halves the large-string churn (GC
-// pressure) per snapshot. Groups: g1 = `<`/`</` (tag); g2/g3 = space + attr.
+// Serialized HTML can reach tens of MB. A non-matching global .replace() is
+// free (V8 hands back the same string), so this saves nothing on a page with
+// no markers — but pages that inline resources hit the attribute marker on
+// every rewritten stylesheet/image, and there one pass copies the large string
+// once instead of twice. Groups: g1 = `<`/`</` (tag); g2/g3 = space + attr.
+//
+// The `i` flag is inherited from the old attribute-marker regex and now also
+// covers the tag branch, which used to be case-sensitive. That widening is
+// intentional: markers are always emitted lowercase in HTML documents (both
+// createElement and setAttribute lowercase there), and in XHTML — where
+// createElement does NOT lowercase — the tag branch previously failed to
+// un-mangle its own output. Practical exposure of the widening is customer
+// content that literally contains an uppercase marker inside <script>/<style>
+// or a comment, where the serializer emits it verbatim.
 const PERCY_MARKER_RE = /(<\/?)data-percy-custom-element-|( )data-percy-serialized-attribute-(\w+?)=/gi;
 
 // Serializes and returns the cloned DOM as an HTML string
 function serializeHTML(ctx) {
-  let html = getOuterHTML(ctx.clone.documentElement, { shadowRootElements: ctx.shadowRootElements, forceShadowAsLightDOM: ctx.forceShadowAsLightDOM });
+  let html = getOuterHTML(ctx.clone.documentElement, {
+    shadowRootElements: ctx.shadowRootElements,
+    forceShadowAsLightDOM: ctx.forceShadowAsLightDOM,
+    // A domTransformation can attach shadow roots to the clone after
+    // serializeElements() finished collecting them — see getOuterHTML.
+    cloneMayHaveUncountedShadowRoots: !!ctx.domTransformation
+  });
   html = html.replace(PERCY_MARKER_RE, (_match, tagPrefix, attrSpace, attrName) =>
     tagPrefix !== undefined ? tagPrefix : `${attrSpace}${attrName}=`);
   // include the doctype with the html string
@@ -116,6 +133,9 @@ export function serializeDOM(options) {
     hints: new Set(),
     cache: new Map(),
     shadowRootElements: [],
+    // Recorded only so serializeHTML knows a caller-supplied transformation may
+    // have mutated the clone after shadowRootElements was collected.
+    domTransformation,
     enableJavaScript,
     disableShadowDOM,
     ignoreCanvasSerializationErrors,
