@@ -1,0 +1,16 @@
+# The @percy/dom bundle is injected into the browser verbatim by SDKs. Some
+# evaluators — notably TestCafe's `t.eval` — statically reject ANY async/await
+# or generator syntax in the evaluated source, so the shipped bundle must stay
+# async-free. Enforce that at authoring time here (this config cascades onto
+# every file in src/); use explicit Promise chains instead (PER-10121).
+rules:
+  no-restricted-syntax:
+    - error
+    - selector: ':function[async=true]'
+      message: 'async functions are forbidden in @percy/dom src — the bundle is injected via TestCafe t.eval, which rejects async/await. Use explicit Promise chains (PER-10121).'
+    - selector: AwaitExpression
+      message: 'await is forbidden in @percy/dom src — the bundle is injected via TestCafe t.eval, which rejects async/await. Use explicit Promise chains (PER-10121).'
+    - selector: ':function[generator=true]'
+      message: 'generator functions are forbidden in @percy/dom src — the bundle is injected via TestCafe t.eval, which rejects generators (PER-10121).'
+    - selector: YieldExpression
+      message: 'yield is forbidden in @percy/dom src — the bundle is injected via TestCafe t.eval, which rejects generators (PER-10121).'
