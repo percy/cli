@@ -244,6 +244,22 @@ describe('exec baseline seeding', () => {
       expect(client.calls.createBuild.length).toBe(0);
     });
 
+    it('skips automate projects without touching discovery (remote captures cannot pair with local files)', async () => {
+      let client = fakeClient();
+      let log = fakeLog();
+      let discovered = false;
+      let provider = {
+        discoverBaselines: async () => { discovered = true; return { baselines: BASELINES }; }
+      };
+
+      let seeded = await maybeSeedBaseline({ client, projectType: 'automate' }, provider, { log });
+
+      expect(seeded).toBe(false);
+      expect(discovered).toBe(false);
+      expect(client.calls.createBuild.length).toBe(0);
+      expect(log.entries.debug.join('\n')).toContain('baseline seeding does not apply');
+    });
+
     it('never throws — a seeding error degrades to a warning', async () => {
       let log = fakeLog();
       let provider = { discoverBaselines: async () => { throw new Error('boom'); } };

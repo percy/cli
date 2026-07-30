@@ -81,8 +81,10 @@ export const exec = command('exec', {
 
       // Drop-in baseline seeding: when an installed SDK declares a baseline provider and the
       // Percy project is empty, committed baseline screenshots are uploaded as an auto-approved
-      // build #1 before the head build starts. Never throws.
-      if (percy.projectType === 'web' || percy.projectType === 'app') {
+      // build #1 before the head build starts. Never throws. Automate projects get the head-build
+      // source tag only — their captures happen on the remote BrowserStack browser, so committed
+      // local screenshots can never pair with them and the baseline comes from the first run.
+      if (['web', 'app', 'automate'].includes(percy.projectType)) {
         let provider = await findBaselineProvider({ log });
 
         if (provider) {

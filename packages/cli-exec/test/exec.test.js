@@ -99,8 +99,29 @@ describe('percy exec', () => {
       expect(process.env.PERCY_BUILD_SOURCE).toBe('playwright-dropin-baseline');
     });
 
-    it('skips provider discovery entirely for non web/app tokens', async () => {
+    it('tags the head build source for an automate token but never seeds', async () => {
       process.env.PERCY_TOKEN = 'auto_PERCY_TOKEN'; // tokenType() -> automate
+      let prevLevel = logger.loglevel();
+      logger.loglevel('debug');
+      process.env.PERCY_LOGLEVEL = 'debug';
+
+      try {
+        await exec(['--', 'node', '--eval', '']);
+      } finally {
+        logger.loglevel(prevLevel);
+        delete process.env.PERCY_LOGLEVEL;
+      }
+
+      // Automate drop-in head builds still carry the source tag (API telemetry keys on it)...
+      expect(process.env.PERCY_BUILD_SOURCE).toBe('playwright-dropin');
+      // ...but nothing is seeded — remote captures can never pair with committed local files.
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
+        jasmine.stringMatching(/baseline seeding does not apply/)
+      ]));
+    });
+
+    it('skips provider discovery entirely for unsupported token types', async () => {
+      process.env.PERCY_TOKEN = 'ss_PERCY_TOKEN'; // tokenType() -> generic
 
       await exec(['--', 'node', '--eval', '']);
 

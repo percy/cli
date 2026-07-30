@@ -150,6 +150,14 @@ export async function waitForSeedBuild(client, buildId, { log, timeout = 600000,
 // build was created and finalized.
 export async function maybeSeedBaseline(percy, provider, { log, waitTimeout, waitInterval }) {
   try {
+    // Percy on Automate captures happen on the remote BrowserStack browser — committed local
+    // screenshots can never pair with those comparisons, so there is nothing to seed; the
+    // project's baseline is established by its first run instead.
+    if (percy.projectType === 'automate') {
+      log.debug('Automate project — baseline seeding does not apply (the first run establishes the baseline)');
+      return false;
+    }
+
     // Parallel shards would race each other seeding; the head build dedup doesn't apply to the
     // separate seed build, so leave parallel runs to the explicit setup command.
     if (process.env.PERCY_PARALLEL_TOTAL) {
