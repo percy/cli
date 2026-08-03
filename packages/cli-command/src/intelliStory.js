@@ -214,33 +214,30 @@ export async function validateAndReadStats(buildDir, statsFile, projectRoot, log
 
 export async function getBaselineAndAffectedNodes(percy, baseline, log) {
   let baseRef;
-  let baselineSnapshots;
 
-  // Always look up the base build: its `browser_upgrade` flag forces a full
-  // snapshot run regardless of whether an explicit baseline was configured.
+  // Always look up the base build: its `browsers_changed_from_base` flag forces
+  // a full snapshot run regardless of whether an explicit baseline was configured.
   const baseLookup = await percy.client.getIntelliStorySnapshotNameToCommit(percy.build?.id);
   log.debug(`IntelliStory: base lookup ${JSON.stringify(baseLookup)}`);
 
-  if (baseLookup?.browser_upgrade) {
+  if (baseLookup?.browsers_changed_from_base) {
     throw new IntelliStoryBailError('IntelliStory: This build has to take all snapshots by fallback because this build corresponds to a browser upgrade');
   }
 
   if (baseline) {
     log.debug(`IntelliStory: diffing against explicit baseline "${baseline}"`);
     baseRef = baseline;
-    baselineSnapshots = null;
   } else {
     if (!baseLookup?.base_build_commit_sha) {
       throw new IntelliStoryBailError('IntelliStory: API could not predict a base build commit and no explicit baseline was set; running full snapshot set');
     }
     log.debug(`IntelliStory: diffing against predicted base build commit "${baseLookup.base_build_commit_sha}"`);
     baseRef = baseLookup.base_build_commit_sha;
-    baselineSnapshots = baseLookup.snapshots || {};
   }
 
   assertSafeRef(baseRef);
   const affectedNodes = gitDiffNames(baseRef);
-  return { baseRef, affectedNodes, baselineSnapshots };
+  return { baseRef, affectedNodes };
 }
 
 export function assertNoDotStorybookChange(affectedNodes) {
@@ -381,11 +378,6 @@ export function maybeWriteTrace(trace, data, log) {
   }
 }
 
-// Baseline states that must always be re-snapshotted: a snapshot with no
-// baseline yet, or whose baseline failed/was rejected, cannot be safely skipped
-// by server-side selection.
-const FORCE_RESNAPSHOT_STATES = new Set(['failed', 'rejected']);
-
 export async function applyIntelliStory(percy, snapshots, intelliStoryConfig, buildDir) {
   const log = logger('storybook:intelliStory');
   const { baseline, untraced, bailOnChanges, statsFile } = intelliStoryConfig || {};
@@ -406,7 +398,7 @@ export async function applyIntelliStory(percy, snapshots, intelliStoryConfig, bu
 
   const { files, modules } = await validateAndReadStats(buildDir, statsFile, projectRoot, log);
 
-  let { baseRef, affectedNodes, baselineSnapshots } = await getBaselineAndAffectedNodes(percy, baseline, log);
+  let { baseRef, affectedNodes } = await getBaselineAndAffectedNodes(percy, baseline, log);
 
   assertNoDotStorybookChange(affectedNodes);
   assertNoBailOnChanges(affectedNodes, bailOnChanges);
@@ -448,22 +440,18 @@ export async function applyIntelliStory(percy, snapshots, intelliStoryConfig, bu
   // off generation and surface a failure by bailing to the full set.
   await runGraphGeneration(percy, buildId, { files, modules, storybookPaths, affectedNodes, affectedFileLocations }, log);
 
-  // A snapshot that must be force re-snapshotted (no baseline yet, or a
-  // failed/rejected baseline, when no explicit baseline is set) has IntelliStory
-  // disabled so the API never selects it out — it is always captured.
-  const needsBaselineRefresh = name => {
-    if (baseline) return false;
-    const state = baselineSnapshots?.[name];
-    return state === undefined || FORCE_RESNAPSHOT_STATES.has(state);
-  };
-
   // Tag every snapshot with `intelliStory` and its normalized `storybookPath`
-  // so the API can perform affected-story selection when each is posted.
-  return snapshots.map(s => ({
-    ...s,
-    intelliStory: !needsBaselineRefresh(s.name),
-    storybookPath: normalizeImportPath(s.importPath)
-  }));
+  // so the API can perform affected-story selection when each is posted. The
+  // API is the sole arbiter of what can be skipped — including whether a
+  // snapshot has a usable baseline to carry forward.
+  //
+  // The one exception is a story with no resolvable source path: selection is
+  // keyed by that path, so the API rejects `intelli-story` without it (400).
+  // Leave those untagged and they are simply captured as normal.
+  return snapshots.map(s => {
+    const storybookPath = normalizeImportPath(s.importPath);
+    return { ...s, intelliStory: !!storybookPath, storybookPath };
+  });
 }
 
 // Called after the build has been finalized. At that point the graph job's

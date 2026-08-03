@@ -1644,17 +1644,36 @@ describe('PercyClient', () => {
       expect(client.intelliStoryStats).toEqual({ kept: 2, skipped: 0 });
     });
 
-    it('tallies IntelliStory skipped snapshots and does not upload or finalize', async () => {
-      api.reply('/builds/123/snapshots', () => [201, {
-        data: { id: '4567', attributes: { 'skipped-via-smartsnap': true } }
+    it('tallies IntelliStory skipped snapshots and skips the resource upload', async () => {
+      // the API reports the resources as missing, but the skip flag wins:
+      // there is nothing to capture, so nothing is uploaded.
+      api.reply('/builds/123/snapshots', ({ body }) => [201, {
+        data: {
+          id: '4567',
+          attributes: { 'skipped-via-smartsnap': true },
+          relationships: {
+            'missing-resources': {
+              data: body.data.relationships.resources.data.map(({ id }) => ({ id }))
+            }
+          }
+        }
       }]);
 
       await expectAsync(
-        client.sendSnapshot(123, { name: 'skipped one', intelliStory: true })
+        client.sendSnapshot(123, {
+          name: 'skipped one',
+          intelliStory: true,
+          resources: [{
+            sha: sha256hash(testDOM),
+            mimetype: 'text/html',
+            content: testDOM,
+            root: true
+          }]
+        })
       ).toBeResolved();
 
       expect(api.requests['/builds/123/resources']).toBeUndefined();
-      expect(api.requests['/snapshots/4567/finalize']).toBeUndefined();
+      expect(api.requests['/snapshots/4567/finalize']).toBeDefined();
       expect(client.intelliStoryStats).toEqual({ kept: 0, skipped: 1 });
     });
 

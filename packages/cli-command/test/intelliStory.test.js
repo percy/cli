@@ -162,13 +162,12 @@ describe('intelliStory', () => {
 
     it('uses an explicit baseline but still calls the API to check for a browser upgrade', async () => {
       let lookup = jasmine.createSpy('getIntelliStorySnapshotNameToCommit')
-        .and.resolveTo({ browser_upgrade: false });
+        .and.resolveTo({ browsers_changed_from_base: false });
       let percy = { client: { getIntelliStorySnapshotNameToCommit: lookup } };
 
       let res = await getBaselineAndAffectedNodes(percy, 'HEAD', log);
 
       expect(res.baseRef).toEqual('HEAD');
-      expect(res.baselineSnapshots).toBeNull();
       expect(res.affectedNodes).toEqual([]);
       expect(lookup).toHaveBeenCalled();
     });
@@ -179,14 +178,13 @@ describe('intelliStory', () => {
       let res = await getBaselineAndAffectedNodes(percy, 'HEAD', log);
 
       expect(res.baseRef).toEqual('HEAD');
-      expect(res.baselineSnapshots).toBeNull();
     });
 
     it('bails when the base lookup reports a browser upgrade, even with an explicit baseline', async () => {
       let percy = {
         client: {
           getIntelliStorySnapshotNameToCommit: async () => ({
-            browser_upgrade: true,
+            browsers_changed_from_base: true,
             base_build_commit_sha: 'HEAD'
           })
         }
@@ -199,10 +197,7 @@ describe('intelliStory', () => {
     it('falls back to the predicted base build commit when no baseline is set', async () => {
       let percy = {
         client: {
-          getIntelliStorySnapshotNameToCommit: async () => ({
-            base_build_commit_sha: 'HEAD',
-            snapshots: { 'Button: primary': 'approved' }
-          })
+          getIntelliStorySnapshotNameToCommit: async () => ({ base_build_commit_sha: 'HEAD' })
         }
       };
 
@@ -210,14 +205,6 @@ describe('intelliStory', () => {
 
       expect(res.baseRef).toEqual('HEAD');
       expect(res.affectedNodes).toEqual([]);
-      expect(res.baselineSnapshots).toEqual({ 'Button: primary': 'approved' });
-    });
-
-    it('defaults baselineSnapshots to {} when the API omits the snapshot map', async () => {
-      let percy = { client: { getIntelliStorySnapshotNameToCommit: async () => ({ base_build_commit_sha: 'HEAD' }) } };
-      let res = await getBaselineAndAffectedNodes(percy, undefined, log);
-      expect(res.baseRef).toEqual('HEAD');
-      expect(res.baselineSnapshots).toEqual({});
     });
 
     it('bails when the API predicts no base commit and no baseline is set', async () => {
@@ -781,7 +768,7 @@ describe('intelliStory', () => {
           // job status no longer returns affected_stories during the run
           getStatus: async () => ({ status: 'done', data: {} }),
           // an explicit baseline is set, but the base lookup is always called
-          // now (to surface browser_upgrade)
+          // now (to surface browsers_changed_from_base)
           getIntelliStorySnapshotNameToCommit: async () => ({})
         }
       };
@@ -796,15 +783,22 @@ describe('intelliStory', () => {
 
       // all snapshots are returned (the API performs selection when they post)
       expect(result.map(s => s.name).sort()).toEqual(['A', 'Dot', 'Empty', 'NoPath']);
-      // each is tagged for IntelliStory with its normalized storybook path
-      expect(result.every(s => s.intelliStory === true)).toBe(true);
-      expect(result.find(s => s.name === 'A').storybookPath).toEqual(path.join('src', 'A.stories.jsx'));
-      expect(result.find(s => s.name === 'Dot').storybookPath).toEqual(path.join('src', 'Dot.stories.jsx'));
+      // each resolvable story is tagged with its normalized storybook path
+      expect(result.find(s => s.name === 'A')).toEqual(jasmine.objectContaining({
+        intelliStory: true, storybookPath: path.join('src', 'A.stories.jsx')
+      }));
+      expect(result.find(s => s.name === 'Dot')).toEqual(jasmine.objectContaining({
+        intelliStory: true, storybookPath: path.join('src', 'Dot.stories.jsx')
+      }));
+      // stories with no resolvable source path stay untagged — the API rejects
+      // `intelli-story` without a `storybook-path`, so they are captured as normal
+      expect(result.find(s => s.name === 'NoPath').intelliStory).toBe(false);
+      expect(result.find(s => s.name === 'Empty').intelliStory).toBe(false);
       // the graph is enqueued against the real Percy build id, not the stats UUID
       expect(generate).toHaveBeenCalledWith('456', jasmine.any(Object));
     });
 
-    itPosix('disables IntelliStory for snapshots with a missing/failed/rejected baseline so they are always captured', async () => {
+    itPosix('tags every snapshot when the base commit comes from the API rather than an explicit baseline', async () => {
       let { dir, baseSha } = setup(
         { 'sb/enriched-stats.json': STATS, 'src/A.stories.jsx': 'v1' },
         { 'src/A.stories.jsx': 'v2' });
@@ -814,29 +808,19 @@ describe('intelliStory', () => {
         client: {
           generateIntelliStoryGraph: jasmine.createSpy('generateIntelliStoryGraph'),
           getStatus: async () => ({ status: 'done', data: {} }),
-          // no explicit baseline: base commit + per-snapshot states come from the API
-          getIntelliStorySnapshotNameToCommit: async () => ({
-            base_build_commit_sha: baseSha,
-            snapshots: { Approved: 'approved', Failed: 'failed', Rejected: 'rejected' }
-          })
+          // no explicit baseline: the base commit comes from the API
+          getIntelliStorySnapshotNameToCommit: async () => ({ base_build_commit_sha: baseSha })
         }
       };
       let snapshots = [
-        { name: 'Approved', importPath: 'src/A.stories.jsx' },
-        { name: 'Failed', importPath: 'src/A.stories.jsx' },
-        { name: 'Rejected', importPath: 'src/A.stories.jsx' },
-        { name: 'Missing', importPath: 'src/A.stories.jsx' }
+        { name: 'A', importPath: 'src/A.stories.jsx' },
+        { name: 'B', importPath: 'src/A.stories.jsx' }
       ];
 
       let result = await applyIntelliStory(percy, snapshots, { trace: false }, path.join(dir, 'sb'));
-      let byName = Object.fromEntries(result.map(s => [s.name, s.intelliStory]));
 
-      // approved baseline => IntelliStory selection applies
-      expect(byName.Approved).toBe(true);
-      // failed / rejected / missing baselines => always captured
-      expect(byName.Failed).toBe(false);
-      expect(byName.Rejected).toBe(false);
-      expect(byName.Missing).toBe(false);
+      // baseline eligibility is the API's call now — the CLI tags everything
+      expect(result.every(s => s.intelliStory === true)).toBe(true);
     });
   });
 });

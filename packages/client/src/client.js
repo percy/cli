@@ -704,27 +704,25 @@ export class PercyClient {
 
     // The API always creates the snapshot record now; when server-side SmartSnap
     // selection skips it, the response carries `skipped-via-smartsnap: true` and
-    // there is nothing to upload or finalize. Tally kept vs skipped so the
-    // storybook flow can print an IntelliStory summary.
+    // there are no resources to upload. Tally kept vs skipped so the storybook
+    // flow can print an IntelliStory summary.
     let skipped = !!snapshot?.data?.attributes?.['skipped-via-smartsnap'];
     if (typeof options.intelliStory === 'boolean') {
       this.intelliStoryStats ??= { kept: 0, skipped: 0 };
       this.intelliStoryStats[skipped ? 'skipped' : 'kept'] += 1;
     }
 
-    if (skipped) {
-      this.log.debug(`Snapshot skipped via SmartSnap, skipping upload: ${options.name}...`, meta);
-      return snapshot;
-    }
     meta.snapshotId = snapshot.data.id;
 
     let missing = snapshot.data.relationships?.['missing-resources']?.data;
     this.log.debug(`${missing?.length || 0} Missing resources: ${options.name}...`, meta);
-    if (missing?.length) {
+    if (skipped) {
+      this.log.debug('skipping resource upload because this is a intellistory skip build', meta);
+    } else if (missing?.length) {
       let resources = options.resources.reduce((acc, r) => Object.assign(acc, { [r.sha]: r }), {});
       await this.uploadResources(buildId, missing.map(({ id }) => resources[id]), meta);
-    }
     this.log.debug(`Resources uploaded: ${options.name}...`, meta);
+    }
 
     await this.finalizeSnapshot(snapshot.data.id, meta);
 
