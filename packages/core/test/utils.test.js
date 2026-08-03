@@ -919,6 +919,12 @@ describe('utils', () => {
       expect(isMetadataIP('93.184.216.34')).toBeNull();
     });
 
+    it('tolerates a colon-containing host that is not parseable IPv6 (falls back to the raw value)', () => {
+      // canonicalHost wraps the value in http://[...] to normalize IPv6; an
+      // unparseable value must fall back to the raw string, not throw.
+      expect(isMetadataIP('fd00:zz::254')).toBeNull();
+    });
+
     it('returns null for an empty/absent connected address', () => {
       expect(isMetadataIP('')).toBeNull();
       expect(isMetadataIP(undefined)).toBeNull();
