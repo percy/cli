@@ -180,6 +180,14 @@ describe('exec baseline seeding', () => {
       expect(state).toBe('unauthorized');
     });
 
+    it('a message-less non-auth error keeps the generic degrade path', async () => {
+      let client = fakeClient();
+      client.getBuild = async () => { throw new Error(); };
+
+      await expectAsync(waitForSeedBuild(client, 'seed-build-1', { log: fakeLog() }))
+        .toBeRejected();
+    });
+
     it('abandons the seed when the API hands back a non-first build (pre-candidate API)', async () => {
       let client = fakeClient({ buildNumber: 3 });
       let log = fakeLog();

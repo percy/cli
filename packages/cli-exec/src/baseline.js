@@ -129,9 +129,9 @@ export async function findBaselineProvider({ cwd = process.cwd(), log } = {}) {
 // server-side). That's a token-choice problem the user can fix, not a transient failure, so it is
 // classified here and surfaced as its own sentinel instead of the generic wait-timeout warning.
 function isAuthFailure(error) {
-  let status = error?.response?.statusCode;
+  let status = error.response?.statusCode;
   if (status === 401 || status === 403) return true;
-  return /\b(401|403|forbidden|unauthori[sz]ed)\b/i.test(error?.message || '');
+  return /\b(401|403|forbidden|unauthori[sz]ed)\b/i.test(error.message || '');
 }
 
 // The seed build keeps processing (renders + auto-approval) after finalize. The head build must
