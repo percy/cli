@@ -749,7 +749,7 @@ export class PercyClient {
     } else if (missing?.length) {
       let resources = options.resources.reduce((acc, r) => Object.assign(acc, { [r.sha]: r }), {});
       await this.uploadResources(buildId, missing.map(({ id }) => resources[id]), meta);
-    this.log.debug(`Resources uploaded: ${options.name}...`, meta);
+      this.log.debug(`Resources uploaded: ${options.name}...`, meta);
     }
 
     await this.finalizeSnapshot(snapshot.data.id, meta);
