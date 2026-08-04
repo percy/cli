@@ -1,3 +1,5 @@
+import fs from 'fs';
+import path from 'path';
 import { logger, api, setupTest } from '@percy/cli-command/test/helpers';
 import exec from '@percy/cli-exec';
 describe('percy exec', () => {
@@ -54,6 +56,76 @@ describe('percy exec', () => {
           '[percy:cli] Skipping percy project attribute calculation'
         ])
       );
+    });
+  });
+
+  describe('with a baseline provider installed', () => {
+    // A real package in this package's node_modules, discovered by the provider walk.
+    const providerRoot = path.join(process.cwd(), 'node_modules', '@percy', 'exec-test-baseline-provider');
+
+    beforeEach(async () => {
+      await fs.promises.mkdir(providerRoot, { recursive: true });
+      await fs.promises.writeFile(path.join(providerRoot, 'package.json'), JSON.stringify({
+        name: '@percy/exec-test-baseline-provider',
+        '@percy/cli': { baselineProvider: 'provider.cjs' }
+      }));
+      await fs.promises.writeFile(path.join(providerRoot, 'provider.cjs'), [
+        'module.exports = {',
+        "  buildSource: 'playwright-dropin',",
+        '  discoverBaselines: async () => ({ baselines: [] })',
+        '};'
+      ].join('\n'));
+    });
+
+    afterEach(async () => {
+      await fs.promises.rm(providerRoot, { recursive: true, force: true });
+      delete process.env.PERCY_BUILD_SOURCE;
+    });
+
+    it('tags the head build source and skips seeding when no baselines are found', async () => {
+      await exec(['--', 'node', '--eval', '']);
+
+      expect(process.env.PERCY_BUILD_SOURCE).toBe('playwright-dropin');
+      expect(logger.stdout).toEqual(jasmine.arrayContaining([
+        '[percy] Percy has started!'
+      ]));
+    });
+
+    it('preserves a user-set PERCY_BUILD_SOURCE', async () => {
+      process.env.PERCY_BUILD_SOURCE = 'playwright-dropin-baseline';
+
+      await exec(['--', 'node', '--eval', '']);
+
+      expect(process.env.PERCY_BUILD_SOURCE).toBe('playwright-dropin-baseline');
+    });
+
+    it('tags the head build source for an automate token but never seeds', async () => {
+      process.env.PERCY_TOKEN = 'auto_PERCY_TOKEN'; // tokenType() -> automate
+      let prevLevel = logger.loglevel();
+      logger.loglevel('debug');
+      process.env.PERCY_LOGLEVEL = 'debug';
+
+      try {
+        await exec(['--', 'node', '--eval', '']);
+      } finally {
+        logger.loglevel(prevLevel);
+        delete process.env.PERCY_LOGLEVEL;
+      }
+
+      // Automate drop-in head builds still carry the source tag (API telemetry keys on it)...
+      expect(process.env.PERCY_BUILD_SOURCE).toBe('playwright-dropin');
+      // ...but nothing is seeded — remote captures can never pair with committed local files.
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
+        jasmine.stringMatching(/baseline seeding does not apply/)
+      ]));
+    });
+
+    it('skips provider discovery entirely for unsupported token types', async () => {
+      process.env.PERCY_TOKEN = 'ss_PERCY_TOKEN'; // tokenType() -> generic
+
+      await exec(['--', 'node', '--eval', '']);
+
+      expect(process.env.PERCY_BUILD_SOURCE).toBeUndefined();
     });
   });
 
