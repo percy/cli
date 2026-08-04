@@ -124,18 +124,35 @@ export async function findBaselineProvider({ cwd = process.cwd(), log } = {}) {
   return null;
 }
 
+// The seed-build status poll needs a READ-capable token, but `percy exec` normally runs with the
+// project's default write-only token — the read then 403s (build reads are master/read_only-gated
+// server-side). That's a token-choice problem the user can fix, not a transient failure, so it is
+// classified here and surfaced as its own sentinel instead of the generic wait-timeout warning.
+function isAuthFailure(error) {
+  let status = error?.response?.statusCode;
+  if (status === 401 || status === 403) return true;
+  return /\b(401|403|forbidden|unauthori[sz]ed)\b/i.test(error?.message || '');
+}
+
 // The seed build keeps processing (renders + auto-approval) after finalize. The head build must
 // not start until it reaches a terminal state — head snapshots select their baseline as they are
 // processed, and an unapproved seed means the whole first run shows as new instead of diffing.
 // The timeout matches the pipeline latency budget (~99% of builds finish under 5 minutes) —
 // a seed of committed screenshots still renders server-side, so first runs can hold for minutes.
+// Returns the terminal state, or 'unauthorized' when the token cannot read build status at all
+// (every retry would fail identically, so polling stops on the first auth failure).
 export async function waitForSeedBuild(client, buildId, { log, timeout = 600000, interval = 5000 }) {
   let deadline = Date.now() + timeout;
   let state = 'pending';
   let polls = 0;
 
   for (;;) {
-    ({ state } = (await client.getBuild(buildId)).data.attributes);
+    try {
+      ({ state } = (await client.getBuild(buildId)).data.attributes);
+    } catch (err) {
+      if (isAuthFailure(err)) return 'unauthorized';
+      throw err;
+    }
     if (state !== 'pending' && state !== 'processing') return state;
     if (Date.now() >= deadline) return state;
     // A visible heartbeat every ~30s so a multi-minute first-run hold doesn't look like a hang.
@@ -228,6 +245,16 @@ export async function maybeSeedBaseline(percy, provider, { log, waitTimeout, wai
     if (state === 'finished') {
       log.info(`Baseline established from ${seeded}/${baselines.length} committed snapshot(s) ` +
         'and auto-approved — this run diffs against it.');
+    } else if (state === 'unauthorized') {
+      // Token-choice problem, not a transient one: build reads need a read-capable token, so
+      // with the default write-only token Percy cannot hold the run until the baseline is
+      // ready. Ask for the full access token up front — this fires BEFORE the head build's
+      // snapshots are taken, while switching tokens can still save the first run.
+      log.warn(`Uploaded ${seeded}/${baselines.length} baseline snapshot(s), but this token ` +
+        'cannot read build status, so Percy cannot wait for your baseline to finish before ' +
+        'tests start. Use your project\'s FULL ACCESS token as PERCY_TOKEN for this first run ' +
+        '(Project settings → Tokens). If snapshots in this run appear as new instead of ' +
+        'diffing, approve build #1 in the dashboard.');
     } else {
       log.warn(`Baseline build did not finish processing in time (state: ${state || 'unknown'}) — ` +
         'snapshots in this run may show as new instead of diffing against the baseline');
