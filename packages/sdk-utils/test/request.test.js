@@ -3,11 +3,19 @@ import https from 'https';
 import http from 'http';
 import fs from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
+
+// Resolve fixtures relative to this file. `__dirname` is unavailable here:
+// Node >=20 detects the module syntax below and (re)parses this file as ESM,
+// where `__dirname` is not defined. Deriving it from `import.meta.url` works
+// on every supported Node version, and avoids redeclaring `__dirname` in the
+// event the file is ever loaded as CJS.
+const testDir = path.dirname(fileURLToPath(import.meta.url));
 
 // NOTE: Although sdk-utils test run in browser as well, we do not run sdk-utils/request test in browsers as we require creation of https server for this test
 const ssl = {
-  cert: fs.readFileSync(path.join(__dirname, 'assets', 'certs', 'test.crt')),
-  key: fs.readFileSync(path.join(__dirname, 'assets', 'certs', 'test.key'))
+  cert: fs.readFileSync(path.join(testDir, 'assets', 'certs', 'test.crt')),
+  key: fs.readFileSync(path.join(testDir, 'assets', 'certs', 'test.key'))
 };
 
 // Returns the port number of a URL object. Defaults to port 443 for https
