@@ -616,6 +616,7 @@ export class PercyClient {
     regions,
     algorithm,
     algorithmConfiguration,
+    storybook,
     resources = [],
     meta
   } = {}) {
@@ -654,7 +655,8 @@ export class PercyClient {
           'enable-javascript': enableJavaScript || null,
           'enable-layout': enableLayout || false,
           'th-test-case-execution-id': thTestCaseExecutionId || null,
-          browsers: normalizeBrowsers(browsers) || null
+          browsers: normalizeBrowsers(browsers) || null,
+          storybook: storybook || null
         },
         relationships: {
           resources: {

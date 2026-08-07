@@ -1247,6 +1247,7 @@ describe('PercyClient', () => {
         clientInfo: 'sdk/info',
         environmentInfo: 'sdk/env',
         thTestCaseExecutionId: 'random-uuid',
+        storybook: { id: 'example-button--primary', args: 'primary:!false' },
         resources: [{
           url: '/foo',
           content: 'foo',
@@ -1288,7 +1289,8 @@ describe('PercyClient', () => {
             'enable-javascript': true,
             'enable-layout': true,
             'th-test-case-execution-id': 'random-uuid',
-            browsers: null
+            browsers: null,
+            storybook: { id: 'example-button--primary', args: 'primary:!false' }
           },
           relationships: {
             resources: {
@@ -1380,7 +1382,8 @@ describe('PercyClient', () => {
               'enable-javascript': true,
               'enable-layout': true,
               'th-test-case-execution-id': 'random-uuid',
-              browsers: ['chrome', 'firefox', 'safari_on_iphone']
+              browsers: ['chrome', 'firefox', 'safari_on_iphone'],
+              storybook: null
             },
             relationships: {
               resources: {
@@ -1431,7 +1434,8 @@ describe('PercyClient', () => {
             'enable-layout': false,
             regions: null,
             'th-test-case-execution-id': null,
-            browsers: null
+            browsers: null,
+            storybook: null
           },
           relationships: {
             resources: {
@@ -1504,7 +1508,8 @@ describe('PercyClient', () => {
             regions: null,
             'enable-layout': false,
             'th-test-case-execution-id': null,
-            browsers: null
+            browsers: null,
+            storybook: null
           },
           relationships: {
             resources: {
@@ -2282,7 +2287,8 @@ describe('PercyClient', () => {
               regions: null,
               'enable-layout': false,
               'th-test-case-execution-id': null,
-              browsers: null
+              browsers: null,
+              storybook: null
             },
             relationships: {
               resources: {

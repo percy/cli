@@ -567,6 +567,19 @@ export const snapshotSchema = {
         ignoreStyleSheetSerializationErrors: { $ref: '/config/snapshot#/properties/ignoreStyleSheetSerializationErrors' },
         ignoreIframeSelectors: { $ref: '/config/snapshot#/properties/ignoreIframeSelectors' },
         pseudoClassEnabledElements: { $ref: '/config/snapshot#/properties/pseudoClassEnabledElements' },
+        // Storybook story identity the snapshot was captured with. Attached by
+        // @percy/storybook and persisted by the API so the review UI can deep-link
+        // the hosted bundle to the exact captured variant (args/globals are the
+        // Storybook-encoded query values, e.g. "primary:!false").
+        storybook: {
+          type: 'object',
+          additionalProperties: false,
+          properties: {
+            id: { type: 'string' },
+            args: { type: 'string' },
+            globals: { type: 'string' }
+          }
+        },
         discovery: {
           type: 'object',
           additionalProperties: false,
