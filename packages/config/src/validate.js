@@ -234,10 +234,17 @@ export function validate(data, key = '/config') {
       }
 
       // fix invalid data
+      // A clamp silently replaces the caller's value with a valid-looking one, so the number that
+      // was actually received never reaches the logs. Record it — an out-of-range value usually
+      // means whatever produced it is broken, and the clamped result hides that.
+      let received, clampedTo;
+
       if (keyword === 'minimum') {
-        set(data, path, Math.max(error.data, error.schema));
+        [received, clampedTo] = [error.data, Math.max(error.data, error.schema)];
+        set(data, path, clampedTo);
       } else if (keyword === 'maximum') {
-        set(data, path, Math.min(error.data, error.schema));
+        [received, clampedTo] = [error.data, Math.min(error.data, error.schema)];
+        set(data, path, clampedTo);
       } else if (keyword === 'required') {
         del(data, path.slice(0, -1));
       } else if (!params.passingSchemas) {
@@ -248,7 +255,9 @@ export function validate(data, key = '/config') {
       path = joinPropertyPath(path);
 
       // map one error per path
-      errors.set(path, { path, message });
+      errors.set(path, clampedTo == null
+        ? { path, message }
+        : { path, message, received, clampedTo });
     }
     // filter empty values as a result of scrubbing
     filterEmpty(data);

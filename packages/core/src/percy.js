@@ -706,19 +706,27 @@ export class Percy {
       let errors = PercyConfig.validate(comparison, '/comparison');
 
       if (errors?.length > 0) {
-        this.log.warn('Invalid upload options:');
-        for (let e of errors) this.log.warn(`- ${e.path}: ${e.message}`);
+        // Meta must be set before these warnings, not after: without it the lines carry no
+        // snapshot name, and a run that warns about several snapshots gives no way to tell which
+        // one each `tiles[n]` belongs to.
+        this.log.warn('Invalid upload options:', uploadMeta(options));
+
+        for (let e of errors) {
+          // Validation does not reject the upload — it repairs the value and continues, so the
+          // snapshot is still captured with a substituted one. Say which value was dropped and
+          // what replaced it, otherwise the only visible symptom is a wrong screenshot: a bad
+          // tile offset, for instance, leaves the stitched image misaligned with no further clue.
+          let repaired = e.clampedTo != null
+            ? ` (received ${e.received}, continuing with ${e.clampedTo})`
+            : '';
+
+          this.log.warn(`- ${e.path}: ${e.message}${repaired}`, uploadMeta(options));
+        }
       }
     }
 
     // set meta for logging
-    options.meta = {
-      snapshot: {
-        name: options.name,
-        testCase: options.testCase,
-        tag: options.tag?.name
-      }
-    };
+    options.meta = uploadMeta(options);
 
     // add client & environment info
     this.client.addClientInfo(options.clientInfo);
@@ -978,6 +986,18 @@ export class Percy {
       this.log.debug(error);
     }
   }
+}
+
+// Logging meta for a comparison upload. Shared so the validation warnings and the snapshot itself
+// are attributed identically — they describe the same upload and have to be greppable together.
+function uploadMeta(options) {
+  return {
+    snapshot: {
+      name: options.name,
+      testCase: options.testCase,
+      tag: options.tag?.name
+    }
+  };
 }
 
 export default Percy;
