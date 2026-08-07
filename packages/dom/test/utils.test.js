@@ -1,5 +1,61 @@
-import { resourceFromDataURL, resourceFromText, rewriteLocalhostURL, styleSheetFromNode } from '../src/utils';
+import { handleErrors, resourceFromDataURL, resourceFromText, rewriteLocalhostURL, styleSheetFromNode } from '../src/utils';
 describe('utils', () => {
+  describe('handleErrors', () => {
+    it('enriches the message in place on a plain Error', () => {
+      let original = new Error('boom');
+
+      expect(() => handleErrors(original, 'Error serializing thing: '))
+        .toThrowMatching(err => err === original &&
+          err.message.startsWith('boom') &&
+          err.message.includes('Error serializing thing:') &&
+          err.handled === true);
+    });
+
+    it('includes element data when an element is passed', () => {
+      let el = document.createElement('canvas');
+      el.className = 'chart';
+      el.id = 'sales';
+
+      expect(() => handleErrors(new Error('boom'), 'Error serializing canvas element: ', el))
+        .toThrowMatching(err => err.message.includes('"nodeName":"CANVAS"') &&
+          err.message.includes('"classNames":"chart"') &&
+          err.message.includes('"id":"sales"'));
+    });
+
+    // DOMException declares `message` as a getter-only accessor, so assigning to it
+    // in this strict-mode bundle throws a TypeError that masks the real error and
+    // fails the entire snapshot. Regression test for PER-10368.
+    it('does not throw a TypeError when the error message is getter-only', () => {
+      let original = new window.DOMException('The canvas has been tainted by cross-origin data.', 'SecurityError');
+
+      expect(() => handleErrors(original, 'Error serializing canvas element: '))
+        .toThrowMatching(err => !(err instanceof TypeError) &&
+          !err.message.includes('which has only a getter'));
+    });
+
+    it('preserves the original message, name, and cause when message is getter-only', () => {
+      let original = new window.DOMException('The canvas has been tainted by cross-origin data.', 'SecurityError');
+
+      expect(() => handleErrors(original, 'Error serializing canvas element: '))
+        .toThrowMatching(err => err !== original &&
+          err.name === 'SecurityError' &&
+          err.cause === original &&
+          err.handled === true &&
+          err.message.startsWith('The canvas has been tainted by cross-origin data.') &&
+          err.message.includes('Error serializing canvas element:') &&
+          err.message.includes('W3C standards'));
+    });
+
+    it('handles a frozen error without throwing a TypeError', () => {
+      let original = Object.freeze(new Error('frozen boom'));
+
+      expect(() => handleErrors(original, 'Error cloning node: '))
+        .toThrowMatching(err => !(err instanceof TypeError) &&
+          err.message.startsWith('frozen boom') &&
+          err.handled === true);
+    });
+  });
+
   describe('styleSheetFromNode', () => {
     it('creates stylesheet properly', () => {
       const node = document.createElement('style');

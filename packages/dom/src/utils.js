@@ -71,7 +71,31 @@ export function handleErrors(error, prefixMessage, element = null, additionalDat
   let message = error.message;
   message += `\n${prefixMessage} \n${JSON.stringify(additionalData)}`;
   message += '\n Please validate that your DOM is as per W3C standards using any online tool';
-  error.message = message;
+
+  // `message` is not writable on every error shape. DOMException — thrown by
+  // `canvas.toDataURL()` on a tainted canvas, by CSSOM access on a cross-origin
+  // stylesheet, and by other DOM APIs — declares `message` as a getter-only
+  // accessor (WebIDL `readonly attribute`). Assigning to it inside this strict-mode
+  // bundle throws "Cannot set property message of #<DOMException> which has only a
+  // getter", which replaces the real, actionable error with a confusing TypeError
+  // and fails the whole snapshot. Frozen and sealed errors behave the same way.
+  // Enrich in place when we can; otherwise carry the enriched message on a new
+  // Error that preserves the original's name and a reference to the cause.
+  try {
+    error.message = message;
+  } catch {
+    // assignment threw — fall through to the wrapper below
+  }
+
+  // Also covers sloppy-mode callers, where the assignment fails silently.
+  if (error.message !== message) {
+    let wrapped = new Error(message);
+    wrapped.name = error.name;
+    wrapped.cause = error;
+    wrapped.handled = true;
+    throw wrapped;
+  }
+
   error.handled = true;
   throw error;
 }
