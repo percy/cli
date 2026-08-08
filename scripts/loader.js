@@ -128,6 +128,37 @@ function packageType(filename) {
   return 'commonjs';
 }
 
+// Restore `require.cache` / `require.extensions` on Node 22.
+//
+// Registering a `load` hook makes Node translate CommonJS reached through
+// ESM interop (`import` of a CJS package) via the ESM pipeline rather than the
+// classic CJS loader. The `require` that pipeline builds is missing `cache` and
+// `extensions` -- it carries only `main` and `resolve`. Verified against a
+// bare pass-through `load` hook, so it is not caused by anything this loader
+// does, and it is fixed in Node 24.
+//
+// Nothing can be done from the hook itself: returning no `source` for CommonJS
+// is rejected with ERR_INVALID_RETURN_PROPERTY_VALUE. So patch the two
+// properties back from inside the module, and only for sources that actually
+// reference them -- in practice `import-fresh`, which cosmiconfig requires to
+// load .percy.js config files, and which throws
+// "Cannot read properties of undefined" on `require.cache[filePath]`.
+const REQUIRE_STATICS_REG = /require\.(cache|extensions)\b/;
+
+const REQUIRE_STATICS_PRELUDE =
+  'if(!require.cache){const m=require("module");' +
+  'require.cache=m._cache;require.extensions=m._extensions;}';
+
+function restoreRequireStatics(result, format) {
+  if (format !== 'commonjs' || result.source == null) return result;
+
+  let source = typeof result.source === 'string'
+    ? result.source : Buffer.from(result.source).toString('utf8');
+  if (!REQUIRE_STATICS_REG.test(source)) return result;
+
+  return { ...result, source: REQUIRE_STATICS_PRELUDE + source, shortCircuit: true };
+}
+
 // Read a module's source directly, for the cases where Node does not hand
 // `source` to the load hook (notably CommonJS).
 //
@@ -175,7 +206,7 @@ export function load(loadURL, context, nextLoad) {
   if (!loadURL.startsWith('file:')) return result;
 
   let filename = url.fileURLToPath(loadURL.split('?')[0]);
-  if (!BABEL_REG.test(filename)) return result;
+  if (!BABEL_REG.test(filename)) return restoreRequireStatics(result, format);
 
   let source = result.source;
 
