@@ -17,8 +17,13 @@ describe('percy exec', () => {
     spyOn(process, 'exit').and.callFake(c => c);
     process.env.PERCY_CLIENT_ERROR_LOGS = false;
 
-    // Ensure global.__MOCK_IMPORTS__ is defined
-    global.__MOCK_IMPORTS__ = global.__MOCK_IMPORTS__ || new Map();
+    // The loader defines this registry when scripts/loader-register.js is
+    // imported. Substituting a plain Map when it is missing would be worse than
+    // useless: the loader would not consult it, so every mock below would
+    // silently no-op while the suite still reported green.
+    if (!global.__MOCK_IMPORTS__) {
+      throw new Error('global.__MOCK_IMPORTS__ is undefined — the test loader is not registered');
+    }
   });
 
   afterEach(() => {
@@ -275,9 +280,14 @@ describe('percy exec', () => {
       '[percy] Finalized build #1: https://percy.io/test/test/123'
     ]));
 
-    expect(logger.instance.query(log => log.debug === 'ci')[0].message).toContain([
-      'Some error with secret: [REDACTED]'
-    ]);
+    // Each 'data' event on the child's stderr becomes its own ci log entry, so
+    // indexing [0] assumes the error arrives in the very first chunk. Node 22
+    // emits an "[UNDICI-EHPA] EnvHttpProxyAgent is experimental" warning ahead
+    // of it, which took that slot; stream chunking makes the position
+    // unreliable in general. Assert the redacted secret is captured somewhere.
+    expect(logger.instance.query(log => log.debug === 'ci')
+      .map(log => log.message).join('')
+    ).toContain('Some error with secret: [REDACTED]');
     expect(stderrSpy).toHaveBeenCalled();
   });
 
@@ -325,15 +335,21 @@ describe('percy exec', () => {
   it('throws when the command receives an error event and stops percy', async () => {
     let { default: EventEmitter } = await import('events');
     let [e, err] = [new EventEmitter(), new Error('spawn error')];
-    let crossSpawn = () => (setImmediate(() => e.emit('error', err)), e);
+    // A spy, not a bare function: spawning the nonexistent `foobar` below fails
+    // with the real cross-spawn too, so without an assertion on the double this
+    // spec would pass even when the loader mock never applied.
+    let crossSpawn = jasmine.createSpy('crossSpawn').and.callFake(() => (
+      setImmediate(() => e.emit('error', err)), e
+    ));
     global.__MOCK_IMPORTS__.set('cross-spawn', { default: crossSpawn });
 
     let stdinSpy = spyOn(process.stdin, 'pipe').and.resolveTo('some response');
 
     await expectAsync(exec(['--', 'foobar'])).toBeRejected();
 
+    // proves the loader mock actually applied (see §9.1 of the migration plan)
+    expect(crossSpawn).toHaveBeenCalled();
     expect(stdinSpy).toHaveBeenCalled();
-    console.log(logger.stderr);
     expect(logger.stderr).toEqual(jasmine.arrayContaining([
       '[percy] Detected error for percy build',
       '[percy] Failure: Snapshot command was not called',
