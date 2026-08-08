@@ -7,7 +7,9 @@ try {
   } else if (!process.send && fs.existsSync('./src')) {
     // In development, fork this script with the development loader and always install
     await import('child_process').then(cp => cp.fork('./post-install.js', {
-      execArgv: ['--no-warnings', '--loader=../../scripts/loader.js'],
+      // --import (not --loader): the hooks are registered in-process via
+      // module.registerHooks. See scripts/loader-register.js.
+      execArgv: ['--no-warnings', '--import=../../scripts/loader-register.js'],
       env: { PERCY_POSTINSTALL_BROWSER: true }
     }));
   }
