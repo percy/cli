@@ -11,7 +11,7 @@ packages/logger/test/client.js
 packages/sdk-utils/test/client.js
 packs
 docs/
-
+build/
 # spec-level retry bookkeeping (CI only, see PER-9011)
 .cli-test-failures.json
 

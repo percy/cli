@@ -266,8 +266,67 @@ describe('intelliStory', () => {
       expect(() => assertNoBailOnChanges(['src/index.js'], ['*.css'])).not.toThrow();
     });
 
-    it('treats an over-long glob as non-matching instead of throwing', () => {
-      expect(() => assertNoBailOnChanges(['yarn.lock'], ['*'.repeat(600)])).not.toThrow();
+    it('bails on an over-long glob rather than silently disabling the pattern', () => {
+      expect(() => assertNoBailOnChanges(['yarn.lock'], ['*'.repeat(600)]))
+        .toThrowMatching(e => e instanceof IntelliStoryBailError && e.message.includes('not a valid glob'));
+    });
+
+    it('bails on a malformed glob rather than silently disabling the pattern', () => {
+      expect(() => assertNoBailOnChanges(['src/a.js'], ['src/[']))
+        .toThrowMatching(e => e instanceof IntelliStoryBailError && e.message.includes('not a valid glob'));
+    });
+
+    describe('when invoked from a subdirectory of the project root', () => {
+      const opts = (log) => ({
+        projectRoot: '/repo', invocationDir: '/repo/packages/ui', log
+      });
+
+      it('rebases an invocation-relative pattern onto the repo root', () => {
+        expect(() => assertNoBailOnChanges(
+          ['packages/ui/webpack.config.js'], ['webpack.config.js'], opts()))
+          .toThrowMatching(e => e.message.includes('packages/ui/webpack.config.js'));
+      });
+
+      it('rebases invocation-relative globs onto the repo root', () => {
+        expect(() => assertNoBailOnChanges(
+          ['packages/ui/src/theme.css'], ['src/**/*.css'], opts()))
+          .toThrowMatching(e => e.message.includes('packages/ui/src/theme.css'));
+      });
+
+      it('does not match a sibling package that shares the pattern', () => {
+        expect(() => assertNoBailOnChanges(
+          ['packages/api/webpack.config.js'], ['webpack.config.js'], opts())).not.toThrow();
+      });
+
+      it('honours <rootDir>/ as a repo-root anchor without warning', () => {
+        let log = mockLog();
+        expect(() => assertNoBailOnChanges(
+          ['packages/api/webpack.config.js'], ['<rootDir>/packages/api/webpack.config.js'], opts(log)))
+          .toThrowMatching(e => e.message.includes('packages/api/webpack.config.js'));
+        expect(log.warn).not.toHaveBeenCalled();
+      });
+
+      it('still bails, with a warning, on a pattern written relative to the repo root', () => {
+        let log = mockLog();
+        expect(() => assertNoBailOnChanges(
+          ['packages/ui/webpack.config.js'], ['packages/ui/webpack.config.js'], opts(log)))
+          .toThrowMatching(e => e.message.includes('packages/ui/webpack.config.js'));
+        expect(log.warn).toHaveBeenCalledOnceWith(
+          jasmine.stringMatching(/only when read relative to the project root/));
+        // the advice re-spells it against the invocation directory
+        expect(log.warn.calls.argsFor(0)[0]).toContain('"webpack.config.js"');
+      });
+
+      it('bails on a pattern that resolves outside the project root', () => {
+        expect(() => assertNoBailOnChanges(['src/a.js'], ['../../../etc/passwd'], opts()))
+          .toThrowMatching(e => e.message.includes('resolves outside the project root'));
+      });
+
+      it('rebases an absolute pattern inside the project root', () => {
+        expect(() => assertNoBailOnChanges(
+          ['packages/ui/webpack.config.js'], ['/repo/packages/ui/webpack.config.js'], opts()))
+          .toThrowMatching(e => e.message.includes('packages/ui/webpack.config.js'));
+      });
     });
   });
 
@@ -296,6 +355,58 @@ describe('intelliStory', () => {
     it('drops paths matching a bracket-set glob', () => {
       let nodes = ['docs/a.md', 'docs/b.md', 'src/a.js'];
       expect(enforceUntraced(nodes, ['docs/[ab].md'])).toEqual(['src/a.js']);
+    });
+
+    it('ignores a malformed glob with a warning instead of silently', () => {
+      let log = mockLog();
+      let nodes = ['src/a.js'];
+      expect(enforceUntraced(nodes, ['src/['], { log })).toEqual(nodes);
+      expect(log.warn).toHaveBeenCalledOnceWith(
+        jasmine.stringMatching(/not a valid glob/));
+    });
+
+    describe('when invoked from a subdirectory of the project root', () => {
+      const opts = (log) => ({
+        projectRoot: '/repo', invocationDir: '/repo/packages/ui', log
+      });
+
+      it('rebases an invocation-relative pattern onto the repo root', () => {
+        let nodes = ['packages/ui/tsconfig.json', 'packages/ui/src/a.js'];
+        expect(enforceUntraced(nodes, ['tsconfig.json'], opts()))
+          .toEqual(['packages/ui/src/a.js']);
+      });
+
+      it('does not untrace the same filename in a sibling package', () => {
+        let nodes = ['packages/api/tsconfig.json', 'packages/ui/src/a.js'];
+        expect(enforceUntraced(nodes, ['tsconfig.json'], opts())).toEqual(nodes);
+      });
+
+      it('honours <rootDir>/ as a repo-root anchor without warning', () => {
+        let log = mockLog();
+        let nodes = ['packages/api/tsconfig.json', 'packages/ui/src/a.js'];
+        expect(enforceUntraced(nodes, ['<rootDir>/packages/api/tsconfig.json'], opts(log)))
+          .toEqual(['packages/ui/src/a.js']);
+        expect(log.warn).not.toHaveBeenCalled();
+      });
+
+      // the opposite policy to bailOnChanges, and deliberately so: applying an
+      // ambiguous untraced pattern would drop snapshots, so it is reported and
+      // left unapplied rather than guessed at
+      it('warns but does not apply a pattern written relative to the repo root', () => {
+        let log = mockLog();
+        let nodes = ['packages/ui/tsconfig.json', 'packages/ui/src/a.js'];
+        expect(enforceUntraced(nodes, ['packages/ui/tsconfig.json'], opts(log))).toEqual(nodes);
+        expect(log.warn).toHaveBeenCalledOnceWith(
+          jasmine.stringMatching(/only when read relative to the project root/));
+      });
+
+      it('ignores a pattern that resolves outside the project root, with a warning', () => {
+        let log = mockLog();
+        let nodes = ['packages/ui/src/a.js'];
+        expect(enforceUntraced(nodes, ['../../../etc/passwd'], opts(log))).toEqual(nodes);
+        expect(log.warn).toHaveBeenCalledOnceWith(
+          jasmine.stringMatching(/resolves outside the project root/));
+      });
     });
   });
 
@@ -821,6 +932,89 @@ describe('intelliStory', () => {
 
       // baseline eligibility is the API's call now — the CLI tags everything
       expect(result.every(s => s.intelliStory === true)).toBe(true);
+    });
+
+    // `git diff --name-only` emits repo-root-relative paths whatever the cwd, so
+    // a monorepo invocation is the case where an un-rebased user pattern would
+    // silently match nothing
+    describe('invoked from a nested package directory', () => {
+      function setupNested(seed, changed) {
+        let info = makeRepo(seed, changed);
+        repos.push(info.dir);
+        process.chdir(path.join(info.dir, 'packages/ui'));
+        return info;
+      }
+
+      function percyStub() {
+        return {
+          build: { id: '456' },
+          client: {
+            generateIntelliStoryGraph: jasmine.createSpy('generateIntelliStoryGraph'),
+            getStatus: async () => ({ status: 'done', data: {} }),
+            getIntelliStorySnapshotNameToCommit: async () => ({})
+          }
+        };
+      }
+
+      itPosix('bails on a bailOnChanges pattern relative to the invocation directory', async () => {
+        let { dir, baseSha } = setupNested(
+          {
+            'packages/ui/sb/enriched-stats.json': STATS,
+            'packages/ui/src/A.stories.jsx': 'v1',
+            'packages/ui/webpack.config.js': 'v1'
+          },
+          { 'packages/ui/webpack.config.js': 'v2' });
+
+        await expectBail(
+          () => applyIntelliStory(
+            percyStub(),
+            [{ name: 'A', importPath: 'src/A.stories.jsx' }],
+            { baseline: baseSha, bailOnChanges: ['webpack.config.js'], trace: false },
+            path.join(dir, 'packages/ui/sb')),
+          'change to "packages/ui/webpack.config.js" matched bailOnChanges');
+      });
+
+      itPosix('rebases story paths and user patterns onto the same basis', async () => {
+        let { dir, baseSha } = setupNested(
+          {
+            'packages/ui/sb/enriched-stats.json': STATS,
+            'packages/ui/src/A.stories.jsx': 'v1',
+            'packages/ui/tsconfig.json': 'v1'
+          },
+          { 'packages/ui/src/A.stories.jsx': 'v2' });
+
+        let percy = percyStub();
+        let result = await applyIntelliStory(
+          percy,
+          [{ name: 'A', importPath: 'src/A.stories.jsx' }],
+          { baseline: baseSha, untraced: ['tsconfig.json'], trace: false },
+          path.join(dir, 'packages/ui/sb'));
+
+        // the story path is project-relative...
+        expect(result[0].storybookPath).toEqual(path.join('packages/ui/src', 'A.stories.jsx'));
+        // ...and so is the affected node the graph job was given
+        expect(percy.client.generateIntelliStoryGraph).toHaveBeenCalledWith('456',
+          jasmine.objectContaining({ affectedNodes: ['packages/ui/src/A.stories.jsx'] }));
+      });
+
+      itPosix('untraces a file matched by an invocation-relative pattern', async () => {
+        let { dir, baseSha } = setupNested(
+          {
+            'packages/ui/sb/enriched-stats.json': STATS,
+            'packages/ui/src/A.stories.jsx': 'v1',
+            'packages/ui/tsconfig.json': 'v1'
+          },
+          { 'packages/ui/tsconfig.json': 'v2' });
+
+        // the only changed file is untraced, so nothing is left to trace
+        await expectBail(
+          () => applyIntelliStory(
+            percyStub(),
+            [{ name: 'A', importPath: 'src/A.stories.jsx' }],
+            { baseline: baseSha, untraced: ['tsconfig.json'], trace: false },
+            path.join(dir, 'packages/ui/sb')),
+          'no affected files or packages detected');
+      });
     });
   });
 });

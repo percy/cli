@@ -42,6 +42,68 @@ function matchesPattern(str, pattern) {
   return str === pattern;
 }
 
+// Returns the compile error for a glob, or null when it is usable. Patterns are
+// validated up front rather than relying on `matchesPattern` swallowing the
+// throw, so a typo is reported even when nothing happens to be compared to it.
+function patternError(pattern) {
+  if (!GLOB_CHARS.test(pattern)) return null;
+  try {
+    patternToRegex(pattern);
+    return null;
+  } catch (e) {
+    return e;
+  }
+}
+
+const ROOT_DIR_TOKEN = '<rootDir>/';
+
+// `git diff --name-only` always emits repo-root-relative paths, whatever the
+// cwd. User patterns are interpreted relative to the invocation directory --
+// the same basis as the `importPath` normalization in `applyIntelliStory`, and
+// the basis a user editing `.percy.yml` beside their config files expects -- so
+// they have to be rebased onto the repo root before they can match. A
+// `<rootDir>/` prefix opts out and anchors the pattern to the repo root.
+//
+// `rebased` is null when the pattern resolves outside the repo, which no diff
+// path can ever match; callers report that rather than matching nothing.
+export function resolvePattern(raw, projectRoot, invocationDir) {
+  const toPosix = p => p.split(path.sep).join('/');
+
+  if (raw.startsWith(ROOT_DIR_TOKEN)) {
+    return { raw, rebased: toPosix(raw.slice(ROOT_DIR_TOKEN.length)), anchored: true };
+  }
+
+  const abs = path.isAbsolute(raw) ? raw : path.resolve(invocationDir, raw);
+  const rel = path.relative(projectRoot, abs);
+  if (!rel || rel.startsWith('..')) return { raw, rebased: null, anchored: false };
+  return { raw, rebased: toPosix(rel), anchored: false };
+}
+
+// Whether `raw` would have matched something under the repo-root reading that
+// the (correct) invocation-relative reading missed. Used to report the one
+// mistake this design can still produce -- a pattern written repo-relative --
+// instead of letting it silently match nothing.
+function rootReadingHit(affectedNodes, { raw, rebased, anchored }) {
+  if (anchored || raw === rebased || patternError(raw)) return null;
+  if (affectedNodes.some(p => matchesPattern(p, rebased))) return null;
+  return affectedNodes.find(p => matchesPattern(p, raw)) ?? null;
+}
+
+function describeInvocation(projectRoot, invocationDir) {
+  return path.relative(projectRoot, invocationDir).split(path.sep).join('/') || '.';
+}
+
+// How to spell a repo-root-relative pattern so it means the same thing under
+// the invocation-relative contract. Used only in the "you probably meant the
+// repo root" advice, so it falls back to the `<rootDir>/` form when the target
+// is not reachable from the invocation directory without escaping it.
+function suggestRewrite(raw, projectRoot, invocationDir) {
+  const rel = path.relative(invocationDir, path.resolve(projectRoot, raw)).split(path.sep).join('/');
+  const anchored = `"${ROOT_DIR_TOKEN}${raw}"`;
+  if (!rel || rel.startsWith('..')) return anchored;
+  return `"${rel}" (relative to the invocation directory) or ${anchored}`;
+}
+
 export class IntelliStoryBailError extends Error {
   constructor(message) {
     super(message);
@@ -247,20 +309,76 @@ export function assertNoDotStorybookChange(affectedNodes) {
   }
 }
 
-export function assertNoBailOnChanges(affectedNodes, bailOnChanges) {
-  if (bailOnChanges?.length) {
-    const bailed = affectedNodes.find(p => bailOnChanges.some(g => matchesPattern(p, g)));
-    if (bailed) {
-      throw new IntelliStoryBailError(`IntelliStory: change to "${bailed}" matched bailOnChanges; running full snapshot set`);
+// `bailOnChanges` is the user's escape hatch for changes the graph cannot
+// reason about, so every failure mode here resolves towards bailing: a pattern
+// that cannot be evaluated is a disabled safety valve, and a pattern that only
+// matches under the repo-root reading still bails (loudly) rather than being
+// treated as a non-match.
+export function assertNoBailOnChanges(affectedNodes, bailOnChanges, {
+  projectRoot = process.cwd(), invocationDir = projectRoot, log
+} = {}) {
+  if (!bailOnChanges?.length) return;
+
+  for (const raw of bailOnChanges) {
+    const resolved = resolvePattern(raw, projectRoot, invocationDir);
+
+    if (resolved.rebased == null) {
+      throw new IntelliStoryBailError(`IntelliStory: bailOnChanges pattern "${raw}" resolves outside the project root and can never match a changed file; running full snapshot set`);
     }
+
+    const err = patternError(resolved.rebased);
+    if (err) {
+      throw new IntelliStoryBailError(`IntelliStory: bailOnChanges pattern "${raw}" is not a valid glob (${err.message}); running full snapshot set`);
+    }
+
+    let bailed = affectedNodes.find(p => matchesPattern(p, resolved.rebased));
+
+    if (!bailed) {
+      const rootHit = rootReadingHit(affectedNodes, resolved);
+      if (!rootHit) continue;
+      log?.warn(`IntelliStory: bailOnChanges pattern "${raw}" matched "${rootHit}" only when read relative to the project root. Patterns are relative to the invocation directory ("${describeInvocation(projectRoot, invocationDir)}"); bailing anyway, but write it as ${suggestRewrite(raw, projectRoot, invocationDir)} to make this explicit.`);
+      bailed = rootHit;
+    }
+
+    throw new IntelliStoryBailError(`IntelliStory: change to "${bailed}" matched bailOnChanges; running full snapshot set`);
   }
 }
 
-export function enforceUntraced(affectedNodes, untraced) {
-  if (untraced?.length) {
-    return affectedNodes.filter(p => !untraced.some(g => matchesPattern(p, g)));
+// `untraced` drops files from the affected set, so honouring an ambiguous
+// reading here would remove snapshots -- the opposite direction of harm from
+// `bailOnChanges`. Only the invocation-relative reading is applied; a pattern
+// that looks repo-relative is reported and left unapplied, since keeping a file
+// traced never loses a comparison.
+export function enforceUntraced(affectedNodes, untraced, {
+  projectRoot = process.cwd(), invocationDir = projectRoot, log
+} = {}) {
+  if (!untraced?.length) return affectedNodes;
+
+  const resolved = [];
+  for (const raw of untraced) {
+    const r = resolvePattern(raw, projectRoot, invocationDir);
+
+    if (r.rebased == null) {
+      log?.warn(`IntelliStory: ignoring untraced pattern "${raw}" — it resolves outside the project root and can never match a changed file`);
+      continue;
+    }
+
+    const err = patternError(r.rebased);
+    if (err) {
+      log?.warn(`IntelliStory: ignoring untraced pattern "${raw}" — not a valid glob (${err.message})`);
+      continue;
+    }
+
+    const rootHit = rootReadingHit(affectedNodes, r);
+    if (rootHit) {
+      log?.warn(`IntelliStory: untraced pattern "${raw}" matches "${rootHit}" only when read relative to the project root. Patterns are relative to the invocation directory ("${describeInvocation(projectRoot, invocationDir)}") — not applied; write it as ${suggestRewrite(raw, projectRoot, invocationDir)}.`);
+      continue;
+    }
+
+    resolved.push(r);
   }
-  return affectedNodes;
+
+  return affectedNodes.filter(p => !resolved.some(({ rebased }) => matchesPattern(p, rebased)));
 }
 
 export async function getAffectedPackages(affectedNodes, baseRef, projectRoot, log) {
@@ -395,14 +513,20 @@ export async function applyIntelliStory(percy, snapshots, intelliStoryConfig, bu
   }
 
   const projectRoot = gitProjectRoot();
+  const invocationDir = process.cwd();
+  const patternOpts = { projectRoot, invocationDir, log };
+
+  if (invocationDir !== projectRoot) {
+    log.debug(`IntelliStory: invoked from "${describeInvocation(projectRoot, invocationDir)}" within the project root ${projectRoot}; user patterns are relative to the invocation directory`);
+  }
 
   const { files, modules } = await validateAndReadStats(buildDir, statsFile, projectRoot, log);
 
   let { baseRef, affectedNodes } = await getBaselineAndAffectedNodes(percy, baseline, log);
 
   assertNoDotStorybookChange(affectedNodes);
-  assertNoBailOnChanges(affectedNodes, bailOnChanges);
-  affectedNodes = enforceUntraced(affectedNodes, untraced);
+  assertNoBailOnChanges(affectedNodes, bailOnChanges, patternOpts);
+  affectedNodes = enforceUntraced(affectedNodes, untraced, patternOpts);
 
   const packageAffectedNodes = await getAffectedPackages(affectedNodes, baseRef, projectRoot, log);
 
@@ -412,7 +536,6 @@ export async function applyIntelliStory(percy, snapshots, intelliStoryConfig, bu
 
   const dotPosix = './';
   const dotPlatform = `.${path.sep}`;
-  const invocationDir = process.cwd();
   const normalizeImportPath = p => {
     if (typeof p !== 'string' || !p) return p;
     let rel = p;
