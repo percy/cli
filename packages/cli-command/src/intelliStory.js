@@ -35,14 +35,11 @@ function patternToRegex(pattern) {
   return regex;
 }
 
+// Callers must have cleared `pattern` through `patternError` first -- a glob that
+// fails to compile is reported there (bail for `bailOnChanges`, warn-and-skip for
+// `untraced`) rather than being swallowed into a silent non-match here.
 function matchesPattern(str, pattern) {
-  if (GLOB_CHARS.test(pattern)) {
-    try {
-      return patternToRegex(pattern).test(str);
-    } catch {
-      return false;
-    }
-  }
+  if (GLOB_CHARS.test(pattern)) return patternToRegex(pattern).test(str);
   return str === pattern;
 }
 
@@ -274,8 +271,9 @@ function readStats(statsFile, projectRoot, log, configDirs) {
   // are not a gap, and including them would bail on healthy builds whose stats
   // happen to carry a lot of node_modules.
   if (unresolved) {
+    // at least `unresolved` modules were candidates, so this cannot divide by zero
     const candidates = rawModules.length - excluded;
-    const ratio = candidates ? unresolved / candidates : 0;
+    const ratio = unresolved / candidates;
     if (ratio > MAX_DROPPED_MODULE_RATIO) {
       throw new IntelliStoryBailError(`IntelliStory: ${unresolved} of ${candidates} stats modules have unresolved (non-absolute) ids (${Math.round(ratio * 100)}%, limit ${Math.round(MAX_DROPPED_MODULE_RATIO * 100)}%); the dependency graph would be incomplete; running full snapshot set`);
     }
@@ -365,13 +363,13 @@ export function assertNoDotStorybookChange(affectedNodes, configDirs = [DEFAULT_
 // `bailOnChanges`/`untraced`; the default is kept alongside it so a project that
 // has both a custom directory and a stray `.storybook` is covered either way.
 export function resolveConfigDirs(configDir, projectRoot, invocationDir, log) {
-  const dirs = [DEFAULT_CONFIG_DIR];
-  if (!configDir || configDir === DEFAULT_CONFIG_DIR) return dirs;
+  const dirs = new Set([DEFAULT_CONFIG_DIR]);
+  if (!configDir || configDir === DEFAULT_CONFIG_DIR) return [...dirs];
 
   const { rebased } = resolvePattern(configDir, projectRoot, invocationDir);
   if (rebased == null) {
     log?.warn(`IntelliStory: configDir "${configDir}" resolves outside the project root; falling back to "${DEFAULT_CONFIG_DIR}"`);
-    return dirs;
+    return [...dirs];
   }
 
   // Unlike a glob, a config directory has to exist -- so a directory written on
@@ -384,14 +382,14 @@ export function resolveConfigDirs(configDir, projectRoot, invocationDir, log) {
 
     if (!path.isAbsolute(configDir) && fs.existsSync(path.resolve(projectRoot, configDir))) {
       log?.warn(`IntelliStory: configDir "${configDir}" does not exist relative to the invocation directory ("${describeInvocation(projectRoot, invocationDir)}") but does relative to the project root; recognising both. Write it relative to the invocation directory to make this explicit.`);
-      if (!dirs.includes(asRootRelative)) dirs.push(asRootRelative);
+      dirs.add(asRootRelative);
     } else {
       log?.warn(`IntelliStory: configDir "${configDir}" resolves to "${rebased}", which does not exist; it is interpreted relative to the invocation directory, not the project root`);
     }
   }
 
-  if (!dirs.includes(rebased)) dirs.push(rebased);
-  return dirs;
+  dirs.add(rebased);
+  return [...dirs];
 }
 
 // `bailOnChanges` is the user's escape hatch for changes the graph cannot
@@ -601,12 +599,10 @@ export async function applyIntelliStory(percy, snapshots, intelliStoryConfig, bu
   const invocationDir = process.cwd();
   const patternOpts = { projectRoot, invocationDir, log };
 
-  if (invocationDir !== projectRoot) {
-    log.debug(`IntelliStory: invoked from "${describeInvocation(projectRoot, invocationDir)}" within the project root ${projectRoot}; user patterns are relative to the invocation directory`);
-  }
+  log.debug(`IntelliStory: project root ${projectRoot}, invoked from "${describeInvocation(projectRoot, invocationDir)}" — user patterns and configDir are relative to the invocation directory`);
 
   const configDirs = resolveConfigDirs(configDir, projectRoot, invocationDir, log);
-  log.debug(`IntelliStory: treating ${configDirs.map(d => `"${d}"`).join(', ')} as Storybook config director${configDirs.length > 1 ? 'ies' : 'y'}`);
+  log.debug(`IntelliStory: Storybook config directories: ${configDirs.map(d => `"${d}"`).join(', ')}`);
 
   const { files, modules } = await validateAndReadStats(buildDir, statsFile, projectRoot, log, configDirs);
 

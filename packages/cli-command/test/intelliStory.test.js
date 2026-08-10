@@ -328,6 +328,10 @@ describe('intelliStory', () => {
       expect(() => assertNoDotStorybookChange(['packages/ui/sbconfig/main.js'], ['sbconfig']))
         .toThrow();
     });
+
+    it('ignores an empty config directory entry', () => {
+      expect(() => assertNoDotStorybookChange(['src/a.js'], ['', '/'])).not.toThrow();
+    });
   });
 
   describe('resolveConfigDirs()', () => {
@@ -468,6 +472,16 @@ describe('intelliStory', () => {
       it('bails on a pattern that resolves outside the project root', () => {
         expect(() => assertNoBailOnChanges(['src/a.js'], ['../../../etc/passwd'], opts()))
           .toThrowMatching(e => e.message.includes('resolves outside the project root'));
+      });
+
+      // the repo-root target is not reachable from packages/ui without escaping
+      // it, so `<rootDir>/` is the only rewrite worth suggesting
+      it('suggests only the <rootDir>/ form when the target is outside the invocation directory', () => {
+        let log = mockLog();
+        expect(() => assertNoBailOnChanges(['tools/build.js'], ['tools/build.js'], opts(log)))
+          .toThrowMatching(e => e.message.includes('tools/build.js'));
+        expect(log.warn).toHaveBeenCalledOnceWith(
+          jasmine.stringMatching(/write it as "<rootDir>\/tools\/build\.js"/));
       });
 
       it('rebases an absolute pattern inside the project root', () => {
