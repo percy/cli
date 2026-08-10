@@ -154,6 +154,103 @@ jobs:
         if: steps.retry0.outcome=='failure'
         run: echo "::warning title=Flaky tests::${{ matrix.package }} flaked on the first attempt and was recovered by a spec-level retry (tracked in PER-9011)."
 
+  # The Snyk-backed lockfile-diff path (resolveAffectedDeps in
+  # packages/cli-command/src/lockfileDiff.js) and its IntelliStory callers
+  # require snyk-nodejs-lockfile-parser, which needs Node >=18. On the Node 14
+  # matrix above those tests are xdescribe'd / bail, so this leg runs the
+  # @percy/cli-command suite on Node 20 to exercise that code in CI. See PPLT-5844.
+  test-node20:
+    name: Test ${{ matrix.package }} (Node ${{ matrix.node }})
+    # Skip only for the automated release PR (see the build job for rationale).
+    if: >-
+      ${{ !(github.event_name == 'pull_request'
+      && github.event.pull_request.user.login == 'github-actions[bot]'
+      && github.event.pull_request.head.repo.full_name == github.repository
+      && startsWith(github.head_ref, 'release/')) }}
+    needs: [build]
+    strategy:
+      matrix:
+        os: [ubuntu-latest]
+        node: [20]
+        package:
+          - '@percy/cli-command'
+    runs-on: ${{ matrix.os }}
+    # Collect failed node-test spec names so retries re-run only the specs that
+    # flaked instead of the whole suite. Non-PERCY_ name so it doesn't trip
+    # cli-doctor's env-audit tests. See PER-9011.
+    env:
+      CLI_TEST_FAILURES_FILE: ${{ github.workspace }}/.cli-test-failures.json
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - uses: actions/setup-node@3235b876344d2a9aa001b8d1453c930bba69e610 # v3.9.1
+        with:
+          node-version: ${{ matrix.node }}
+      - uses: actions/cache@f4b3439a656ba812b8cb417d2d49f9c810103092 # v3.4.0
+        with:
+          path: |
+            node_modules
+            packages/*/node_modules
+            packages/core/.local-chromium
+          key: >
+            ${{ runner.os }}/node-${{ matrix.node }}/
+            ${{ hashFiles('.github/.cache-key') }}/
+            ${{ hashFiles('**/yarn.lock') }}
+          restore-keys: >
+            ${{ runner.os }}/node-${{ matrix.node }}/
+            ${{ hashFiles('.github/.cache-key') }}/
+      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
+        with:
+          name: dist
+          path: packages
+      - run: yarn
+      - name: Install browser dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --fix-missing libgbm-dev
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+      # First attempt runs the full suite WITH coverage (enforces the 100%
+      # gate) and records any failed specs.
+      - name: Run tests
+        continue-on-error: true
+        id: retry0
+        run: yarn workspace ${{ matrix.package }} test:coverage --colors
+      # Retries re-run ONLY the specs that failed in the previous attempt, and
+      # WITHOUT coverage (a subset can't hit the 100% threshold). If retry0
+      # failed with no recorded spec failures (e.g. a real coverage drop), the
+      # runner preserves that failure instead of masking it. See PER-9011.
+      - name: Run tests Retry (1/4)
+        continue-on-error: true
+        id: retry1
+        if: steps.retry0.outcome=='failure'
+        env:
+          CLI_TEST_ONLY_FAILED: '1'
+        run: yarn workspace ${{ matrix.package }} test --colors
+      - name: Run tests Retry (2/4)
+        continue-on-error: true
+        id: retry2
+        if: steps.retry1.outcome=='failure'
+        env:
+          CLI_TEST_ONLY_FAILED: '1'
+        run: yarn workspace ${{ matrix.package }} test --colors
+      - name: Run tests Retry (3/4)
+        continue-on-error: true
+        id: retry3
+        if: steps.retry2.outcome=='failure'
+        env:
+          CLI_TEST_ONLY_FAILED: '1'
+        run: yarn workspace ${{ matrix.package }} test --colors
+      - name: Run tests Retry (4/4)
+        id: retry4
+        if: steps.retry3.outcome=='failure'
+        env:
+          CLI_TEST_ONLY_FAILED: '1'
+        run: yarn workspace ${{ matrix.package }} test --colors
+      # Keep "green via retry" honest: surface a warning whenever the first
+      # attempt failed and a retry recovered it, so flakiness stays visible.
+      - name: Flag flaky tests
+        if: steps.retry0.outcome=='failure'
+        run: echo "::warning title=Flaky tests::${{ matrix.package }} flaked on the first attempt and was recovered by a spec-level retry (tracked in PER-9011)."
+
   regression:
     name: Regression
     # Skip only for the automated release PR (see the build job for rationale).

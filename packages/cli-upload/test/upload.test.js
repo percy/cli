@@ -97,7 +97,9 @@ describe('percy upload', () => {
           regions: null,
           'enable-layout': false,
           'th-test-case-execution-id': null,
-          browsers: null
+          browsers: null,
+          'intelli-story': null,
+          'storybook-path': null
         },
         relationships: {
           resources: {
