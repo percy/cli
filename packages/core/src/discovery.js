@@ -234,7 +234,7 @@ function processSnapshotResources({ domSnapshot, resources, ...snapshot }) {
       // cache, which must keep replaying the original bytes to the browser.
       let uploaded = resource;
       try {
-        /* istanbul ignore else: alreadyZipped is very hard to mock true */
+        /* istanbul ignore else: an already-gzipped resource is very hard to mock */
         if (!isGzipped(resource.content)) {
           const content = Pako.gzip(resource.content);
           uploaded = { ...resource, content, sha: sha256hash(content) };
@@ -249,7 +249,7 @@ function processSnapshotResources({ domSnapshot, resources, ...snapshot }) {
         continue;
       }
 
-      // uploaded.content is guaranteed by the try block above.
+      // Either the gzipped copy or, when already gzipped, the resource itself.
       const size = uploaded.content.length;
       // Root (DOM HTML) and log resources are required for a valid snapshot;
       // shipping an oversized one and letting the API surface a clear error
