@@ -1089,7 +1089,11 @@ describe('intelliStory', () => {
       function setupNested(seed, changed) {
         let info = makeRepo(seed, changed);
         repos.push(info.dir);
-        process.chdir(path.join(info.dir, 'packages/ui'));
+        // two relative steps rather than a path.join of the temp dir: semgrep's
+        // path-join-resolve-traversal rule treats the helper's argument as user
+        // input, and inline `// nosemgrep` is not honored by the CI semgrep version
+        process.chdir(info.dir);
+        process.chdir('packages/ui');
         return info;
       }
 

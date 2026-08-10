@@ -1,9 +1,22 @@
 import { renderGraphTraceHtml } from '../src/graphTrace.js';
 
+// The template declares each payload on its own line as `const <name> = <json>;`.
+// Extracted by string search rather than a built RegExp: the pattern would be
+// assembled from `name` at runtime, which trips semgrep's detect-non-literal-regexp
+// (and inline `// nosemgrep` is not honored by the CI semgrep version).
 function embeddedJson(html, name) {
-  let match = html.match(new RegExp(`const ${name} = (.*);`)); // nosemgrep
-  if (!match) throw new Error(`could not find embedded "${name}" payload`);
-  return match[1];
+  const prefix = `const ${name} = `;
+  const start = html.indexOf(prefix);
+  if (start === -1) throw new Error(`could not find embedded "${name}" payload`);
+
+  const from = start + prefix.length;
+  const lineEnd = html.indexOf('\n', from);
+  const line = lineEnd === -1 ? html.slice(from) : html.slice(from, lineEnd);
+
+  // last `;` on the line, matching the greedy `(.*);` this replaced
+  const end = line.lastIndexOf(';');
+  if (end === -1) throw new Error(`could not find embedded "${name}" payload`);
+  return line.slice(0, end);
 }
 
 function vertices(html) {
