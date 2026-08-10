@@ -230,15 +230,8 @@ function processSnapshotResources({ domSnapshot, resources, ...snapshot }) {
     const kept = [];
     for (let index = 0; index < resources.length; index++) {
       const resource = resources[index];
-      // Compression must never be applied in place. These resource objects are
-      // the same ones held by the build-wide resource cache, which replays them
-      // to the browser via Fetch.fulfillRequest using their original headers
-      // (e.g. `content-type: text/css`, no `content-encoding`). Overwriting
-      // `content` with gzip bytes leaves the cache serving compressed bodies
-      // labelled as plain text, so the browser cannot parse them -- a stylesheet
-      // poisoned this way yields no @font-face and no background-image, and the
-      // resources they reference are never requested and so never captured for
-      // any later snapshot. Compress a copy and leave the cached entry intact.
+      // Never compress in place: these objects are shared with the resource
+      // cache, which must keep replaying the original bytes to the browser.
       let uploaded = resource;
       try {
         /* istanbul ignore else: alreadyZipped is very hard to mock true */
@@ -256,8 +249,7 @@ function processSnapshotResources({ domSnapshot, resources, ...snapshot }) {
         continue;
       }
 
-      // uploaded.content is guaranteed by the try block above (either just
-      // assigned from Pako.gzip, or the resource was already compressed).
+      // uploaded.content is guaranteed by the try block above.
       const size = uploaded.content.length;
       // Root (DOM HTML) and log resources are required for a valid snapshot;
       // shipping an oversized one and letting the API surface a clear error

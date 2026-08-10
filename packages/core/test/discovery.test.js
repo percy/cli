@@ -840,11 +840,8 @@ describe('Discovery', () => {
   });
 
   it('keeps cached resources uncompressed when PERCY_GZIP is enabled', async () => {
-    // Compressing a resource in place mutates the entry held by the build-wide
-    // resource cache. Later snapshots then have the compressed body replayed to
-    // the browser under the resource's original `text/css` content type, so the
-    // browser cannot parse the stylesheet, never sees the @font-face it declares,
-    // and never requests the font -- leaving it out of every later snapshot.
+    // A cached stylesheet compressed in place is replayed as gzip bytes under its
+    // original text/css type, so the browser never parses it or its @font-face.
     process.env.PERCY_GZIP = true;
 
     server.reply('/style.css', () => [200, 'text/css', [
@@ -865,8 +862,7 @@ describe('Discovery', () => {
     });
 
     expect(captured[0]).toEqual(jasmine.arrayContaining([font]));
-    // the second snapshot's stylesheet is served from the cache -- it must still
-    // arrive parseable so the font it references is discovered again
+    // snapshot two's stylesheet comes from the cache and must still be parseable
     expect(captured[1]).toEqual(jasmine.arrayContaining([font]));
   });
 
