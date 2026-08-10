@@ -5,6 +5,7 @@ import {
   findBaselineProvider,
   maybeSeedBaseline,
   uploadBaselines,
+  waitForSeedBuild,
   sanitizePath,
   sanitizeDirentName
 } from '../src/baseline.js';
@@ -144,6 +145,47 @@ describe('exec baseline seeding', () => {
       expect(seeded).toBe(true);
       expect(log.entries.debug.join('\n')).toContain('status boom');
       expect(log.entries.warn.join('\n')).toContain('did not finish processing in time');
+    });
+
+    it('asks for the full access token when the wait 403s (write-only token)', async () => {
+      // `percy exec` normally runs with the write-only token, which cannot read build status —
+      // the poll 403s. That's a fixable token choice, so the user gets targeted guidance BEFORE
+      // their tests run instead of the generic wait-timeout warning.
+      let polls = 0;
+      let client = fakeClient();
+      client.getBuild = async () => {
+        polls += 1;
+        throw Object.assign(new Error('403 Forbidden'), { response: { statusCode: 403 } });
+      };
+      let log = fakeLog();
+      let provider = { discoverBaselines: async () => ({ baselines: BASELINES }) };
+
+      let seeded = await maybeSeedBaseline({ client, projectType: 'web' }, provider, { log });
+
+      expect(seeded).toBe(true);
+      // Auth failures never resolve on retry — the wait must stop after the first poll.
+      expect(polls).toBe(1);
+      let warned = log.entries.warn.join('\n');
+      expect(warned).toContain('FULL ACCESS token');
+      expect(warned).toContain('cannot read build status');
+      expect(warned).not.toContain('did not finish processing in time');
+    });
+
+    it('classifies auth failures from the message when no response object is attached', async () => {
+      let client = fakeClient();
+      client.getBuild = async () => { throw new Error('401 Unauthorized'); };
+
+      let state = await waitForSeedBuild(client, 'seed-build-1', { log: fakeLog() });
+
+      expect(state).toBe('unauthorized');
+    });
+
+    it('a message-less non-auth error keeps the generic degrade path', async () => {
+      let client = fakeClient();
+      client.getBuild = async () => { throw new Error(); };
+
+      await expectAsync(waitForSeedBuild(client, 'seed-build-1', { log: fakeLog() }))
+        .toBeRejected();
     });
 
     it('abandons the seed when the API hands back a non-first build (pre-candidate API)', async () => {

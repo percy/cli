@@ -748,42 +748,82 @@ describe('serializeDOM', () => {
   });
 
   describe('interactive state CSS capture', () => {
-    it('marks checked inputs with data-percy-checked', () => {
+    // :checked and :disabled serialize natively — `disabled` is a reflected
+    // content attribute and serialize-inputs syncs checked/selected to
+    // attributes on the clone. They are neither stamped nor rewritten;
+    // copying their rules to the end of <head> flipped !important cascade
+    // ties against equal-specificity rules from later stylesheets (PER-10077).
+    it('does not mark checked inputs with data-percy-checked', () => {
       withExample('<input type="checkbox" id="cb" checked>', { withShadow: false });
       let result = serializeDOM();
-      expect(result.html).toContain('data-percy-checked="true"');
+      expect(result.html).not.toContain('data-percy-checked');
     });
 
-    it('marks disabled inputs with data-percy-disabled', () => {
+    it('does not mark disabled inputs with data-percy-disabled', () => {
       withExample('<input type="text" id="dis" disabled>', { withShadow: false });
       let result = serializeDOM();
-      expect(result.html).toContain('data-percy-disabled="true"');
+      expect(result.html).not.toContain('data-percy-disabled');
     });
 
-    it('extracts :checked CSS rules and injects as attribute selectors', () => {
+    it('does not copy or rewrite :checked CSS rules', () => {
       withExample('<label><input type="checkbox" checked><span>text</span></label>', { withShadow: false });
-      // Add a CSS rule with :checked
       let style = document.createElement('style');
       style.textContent = 'input:checked + span { color: green; }';
       document.head.appendChild(style);
 
       let result = serializeDOM();
-      expect(result.html).toContain('data-percy-interactive-states');
-      expect(result.html).toContain('[data-percy-checked]');
+      expect(result.html).not.toContain('[data-percy-checked]');
 
       style.remove();
     });
 
-    it('extracts :disabled CSS rules', () => {
+    it('does not copy or rewrite :disabled CSS rules (PER-10077)', () => {
       withExample('<input type="text" disabled>', { withShadow: false });
       let style = document.createElement('style');
       style.textContent = 'input:disabled { opacity: 0.5; }';
       document.head.appendChild(style);
 
       let result = serializeDOM();
-      expect(result.html).toContain('[data-percy-disabled]');
+      expect(result.html).not.toContain('[data-percy-disabled]');
 
       style.remove();
+    });
+
+    it('injects a rewritten :hover copy after its source sheet, not at end of head (PER-10077)', () => {
+      // The copy must keep its source sheet's cascade rank: it sits AFTER the
+      // sheet it came from but BEFORE any later sheet, so a later equal-
+      // specificity rule still wins the tie exactly as in the live browser.
+      withExample(
+        '<style>.cbtn:hover { color: red }</style>' +
+        '<style>.cbtn.later { color: blue }</style>' +
+        '<button class="cbtn later">go</button>',
+        { withShadow: false }
+      );
+      let html = serializeDOM().html;
+      let sourceIdx = html.indexOf('.cbtn:hover');
+      let copyIdx = html.indexOf('[data-percy-hover]');
+      let laterIdx = html.indexOf('.cbtn.later');
+      expect(copyIdx).toBeGreaterThan(-1);
+      expect(copyIdx).toBeGreaterThan(sourceIdx); // after its own sheet
+      expect(copyIdx).toBeLessThan(laterIdx); // before the later sheet
+    });
+  });
+
+  describe('stylesheet <link> stamping (PER-10077 cascade anchoring)', () => {
+    it('stamps only stylesheet <link>s with a percy element id', () => {
+      // The pseudo-class serializer anchors its rewritten rules after a sheet's
+      // clone element, found via data-percy-element-id — so stylesheet links
+      // need one. Non-stylesheet links (preload, icon, …) do not.
+      withExample(
+        '<link rel="stylesheet" href="data:text/css,.lx{color:red}">' +
+        '<link rel="preload" as="style" href="data:text/css,.ly{color:red}">' +
+        '<link href="data:text/css,.lz{color:red}">',
+        { withShadow: false }
+      );
+      let $ = parseDOM(serializeDOM().html, 'plain');
+      expect($('link[rel="stylesheet"]')[0].getAttribute('data-percy-element-id')).toBeTruthy();
+      expect($('link[rel="preload"]')[0].getAttribute('data-percy-element-id')).toBeNull();
+      expect($('link:not([rel])')[0].getAttribute('data-percy-element-id')).toBeNull();
     });
   });
 
