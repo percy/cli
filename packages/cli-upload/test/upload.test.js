@@ -1,11 +1,7 @@
 import { fs, logger, api, setupTest } from '@percy/cli-command/test/helpers';
 import upload from '@percy/cli-upload';
 import { BYOS_TAG } from '../src/upload.js';
-
-// http://png-pixel.com/
-const pixel = Buffer.from((
-  'R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw=='
-), 'base64').toString();
+import { PNG_PIXEL, JPEG_PIXEL, GIF_PIXEL, icnsZeroLengthEntry } from './fixtures.js';
 
 describe('percy upload', () => {
   beforeEach(async () => {
@@ -15,13 +11,18 @@ describe('percy upload', () => {
     process.env.PERCY_FORCE_PKG_VALUE = JSON.stringify({ name: '@percy/client', version: '1.0.0' });
     await setupTest({
       filesystem: {
-        'images/test-1.png': pixel,
-        'images/test-2.jpg': pixel,
-        'images/test-3.jpeg': pixel,
-        'images/test-4.gif': pixel,
+        'images/.keep': '',
         './nope': 'not here'
       }
     });
+
+    // written as buffers rather than through `filesystem` above, which only
+    // creates files from strings — and image bytes are not valid UTF-8
+    fs.writeFileSync('images/test-1.png', PNG_PIXEL);
+    fs.writeFileSync('images/test-2.jpg', JPEG_PIXEL);
+    fs.writeFileSync('images/test-3.jpeg', JPEG_PIXEL);
+    fs.writeFileSync('images/test-4.gif', GIF_PIXEL);
+    fs.unlinkSync('images/.keep');
   });
 
   afterEach(() => {
@@ -153,6 +154,34 @@ describe('percy upload', () => {
       '[percy] Snapshot uploaded: test-1.png',
       '[percy] Snapshot uploaded: test-2.jpg',
       '[percy] Snapshot uploaded: test-3.jpeg',
+      '[percy] Finalized build #1: https://percy.io/test/test/123'
+    ]));
+  });
+
+  it('skips files whose contents are not a readable image', async () => {
+    fs.writeFileSync('images/test-5.png', 'this is not a png');
+    await upload(['./images']);
+
+    expect(logger.stderr).toEqual([]);
+    expect(logger.stdout).toEqual(jasmine.arrayContaining([
+      '[percy] Skipping file with unreadable image data: test-5.png',
+      '[percy] Uploading 3 snapshots...',
+      '[percy] Snapshot uploaded: test-1.png'
+    ]));
+  });
+
+  // Regression for CVE-2025-71330. The previous `image-size` dependency picked
+  // its parser from magic bytes while this command filters on extension, so an
+  // ICNS buffer named `.png` reached a parser that looped forever on it. The
+  // upload now completes and the crafted file is skipped.
+  it('skips a crafted ICNS file named as a png without hanging', async () => {
+    fs.writeFileSync('images/crafted.png', icnsZeroLengthEntry());
+    await upload(['./images']);
+
+    expect(logger.stderr).toEqual([]);
+    expect(logger.stdout).toEqual(jasmine.arrayContaining([
+      '[percy] Skipping file with unreadable image data: crafted.png',
+      '[percy] Uploading 3 snapshots...',
       '[percy] Finalized build #1: https://percy.io/test/test/123'
     ]));
   });

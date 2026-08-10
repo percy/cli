@@ -85,7 +85,7 @@ export const upload = command('upload', {
     exit(1, 'Invalid Token Type. Only "web" and "self-managed" token types are allowed.');
   }
 
-  let { default: imageSize } = await import('image-size');
+  let { imageSize } = await import('./image-size.js');
   let { getImageResources } = await import('./utils.js');
 
   // the internal discovery queue shares a concurrency with the snapshots queue
@@ -97,7 +97,14 @@ export const upload = command('upload', {
       log.info(`Skipping unsupported file type: ${relativePath}`);
     } else {
       let absolutePath = path.resolve(args.dirname, relativePath);
-      let img = { relativePath, absolutePath, ...imageSize(absolutePath) };
+      let size = imageSize(absolutePath);
+
+      if (!size) {
+        log.info(`Skipping file with unreadable image data: ${relativePath}`);
+        continue;
+      }
+
+      let img = { relativePath, absolutePath, ...size };
       let { dir, name, ext } = path.parse(relativePath);
       img.type = ext === '.png' ? 'png' : 'jpeg';
       img.name = path.join(dir, name);

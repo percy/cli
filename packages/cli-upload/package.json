@@ -34,7 +34,6 @@
   },
   "dependencies": {
     "@percy/cli-command": "1.32.7-beta.0",
-    "fast-glob": "^3.2.11",
-    "image-size": "~1.0.2"
+    "fast-glob": "^3.2.11"
   }
 }
