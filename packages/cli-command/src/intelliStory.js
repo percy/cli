@@ -16,6 +16,10 @@ const POLL_ATTEMPTS = 12;
 const GLOB_CHARS = /[*?{}[\]]/;
 const MAX_PATTERN_LENGTH = 500;
 
+// Share of stats modules that may have unresolved ids before the dependency
+// graph is treated as too incomplete to filter on.
+const MAX_DROPPED_MODULE_RATIO = 0.1;
+
 const regexCache = new Map();
 
 function patternToRegex(pattern) {
@@ -173,14 +177,36 @@ export function getAffectedFileLocations(baseRef, files) {
   return locations;
 }
 
-const EXCLUDED_DIRS = new Set(['node_modules', '.storybook']);
-const isExcluded = relPath => relPath.split(/[/\\]/).some(seg => EXCLUDED_DIRS.has(seg));
+export const DEFAULT_CONFIG_DIR = '.storybook';
 
-function resolveAndIndex(value, fileIndex, projectRoot) {
+// Storybook's config directory is configurable (`-c`), so the literal
+// `.storybook` cannot be the only thing recognised. `configDirs` always carries
+// the default alongside any configured directory: recognising one directory too
+// many only costs snapshots, while missing the real one loses comparisons.
+//
+// A single-segment name matches at any depth — a `.storybook` anywhere is a
+// Storybook config directory, including in a sibling package — while a
+// multi-segment path (`config/storybook`) is matched as a path prefix so it
+// cannot also match `config/storybook-old`.
+function isInsideDirs(relPath, dirs) {
+  const segs = relPath.split(/[/\\]/).filter(Boolean);
+  return dirs.some(dir => {
+    const d = dir.split(/[/\\]/).filter(Boolean);
+    if (!d.length) return false;
+    if (d.length === 1) return segs.includes(d[0]);
+    return d.length <= segs.length && d.every((s, i) => segs[i] === s);
+  });
+}
+
+const isExcluded = (relPath, configDirs) => (
+  isInsideDirs(relPath, ['node_modules', ...configDirs])
+);
+
+function resolveAndIndex(value, fileIndex, projectRoot, configDirs) {
   const clean = stripNull(value);
   if (!path.isAbsolute(clean)) return clean;
   const rel = path.relative(projectRoot, clean);
-  if (isExcluded(rel)) return rel;
+  if (isExcluded(rel, configDirs)) return rel;
   let idx = fileIndex.get(rel);
   if (idx === undefined) {
     idx = fileIndex.size;
@@ -189,15 +215,22 @@ function resolveAndIndex(value, fileIndex, projectRoot) {
   return idx;
 }
 
-function transformModule(m, fileIndex, projectRoot) {
+// Returns `{ module }` when the module made it into the graph, or `{ dropped }`
+// with the reason it did not. The two reasons are not equivalent: `excluded` is
+// this module deliberately ignoring node_modules and the Storybook config
+// directory, while `unresolved` is a synthetic or virtual id we could not place
+// on disk — a hole in the graph, and the only one worth counting.
+function transformModule(m, fileIndex, projectRoot, configDirs) {
   const out = {};
-  if (m.id != null) out.id = resolveAndIndex(m.id, fileIndex, projectRoot);
-  if (typeof out.id === 'string') return null;
+  if (m.id != null) out.id = resolveAndIndex(m.id, fileIndex, projectRoot, configDirs);
+  if (typeof out.id === 'string') {
+    return { dropped: path.isAbsolute(stripNull(m.id)) ? 'excluded' : 'unresolved' };
+  }
 
   const mapEntry = (e) => {
     const copy = { ...e };
     if (copy.type === 'src' && typeof copy.source === 'string') {
-      copy.source = resolveAndIndex(copy.source, fileIndex, projectRoot);
+      copy.source = resolveAndIndex(copy.source, fileIndex, projectRoot, configDirs);
     }
     if (Array.isArray(copy.loc)) {
       copy.loc = copy.loc.map(l => [l.start, l.end]);
@@ -209,10 +242,10 @@ function transformModule(m, fileIndex, projectRoot) {
   if (Array.isArray(m.passThroughExports)) out.passThroughExports = m.passThroughExports.map(mapEntry);
   if (Array.isArray(m.nonPassThroughExports)) out.nonPassThroughExports = m.nonPassThroughExports;
 
-  return out;
+  return { module: out };
 }
 
-function readStats(statsFile, projectRoot, log) {
+function readStats(statsFile, projectRoot, log, configDirs) {
   const fileIndex = new Map();
   const modules = [];
   let stats;
@@ -223,13 +256,31 @@ function readStats(statsFile, projectRoot, log) {
   }
   /* istanbul ignore next */
   const rawModules = stats.modules || [];
-  let droppedModules = 0;
+  let unresolved = 0;
+  let excluded = 0;
   for (const m of rawModules) {
-    const t = transformModule(m, fileIndex, projectRoot);
-    if (t) modules.push(t);
-    else droppedModules++;
+    const { module, dropped } = transformModule(m, fileIndex, projectRoot, configDirs);
+    if (module) modules.push(module);
+    else if (dropped === 'unresolved') unresolved++;
+    else excluded++;
   }
-  if (droppedModules) log?.debug(`IntelliStory: dropped ${droppedModules} module(s) with unresolved (non-absolute) ids`);
+  if (excluded) log?.debug(`IntelliStory: skipped ${excluded} module(s) in node_modules or the Storybook config directory`);
+
+  // An unresolved module is a missing edge, and a missing edge is exactly what
+  // makes the API judge a story unaffected. A few synthetic ids are normal for
+  // some builders, so this warns rather than bails -- but past the threshold the
+  // graph is degraded enough that filtering on it is not trustworthy. Only
+  // resolvable candidates count towards the ratio: deliberately excluded modules
+  // are not a gap, and including them would bail on healthy builds whose stats
+  // happen to carry a lot of node_modules.
+  if (unresolved) {
+    const candidates = rawModules.length - excluded;
+    const ratio = candidates ? unresolved / candidates : 0;
+    if (ratio > MAX_DROPPED_MODULE_RATIO) {
+      throw new IntelliStoryBailError(`IntelliStory: ${unresolved} of ${candidates} stats modules have unresolved (non-absolute) ids (${Math.round(ratio * 100)}%, limit ${Math.round(MAX_DROPPED_MODULE_RATIO * 100)}%); the dependency graph would be incomplete; running full snapshot set`);
+    }
+    log?.warn(`IntelliStory: dropped ${unresolved} of ${candidates} module(s) with unresolved (non-absolute) ids; the dependency graph may be missing edges for them`);
+  }
 
   const files = [...fileIndex.entries()]
     .sort((a, b) => a[1] - b[1])
@@ -249,7 +300,7 @@ async function pollGraphStatus(percy, buildId, log) {
   return { status: null };
 }
 
-export async function validateAndReadStats(buildDir, statsFile, projectRoot, log) {
+export async function validateAndReadStats(buildDir, statsFile, projectRoot, log, configDirs = [DEFAULT_CONFIG_DIR]) {
   const statsName = path.basename(statsFile || 'enriched-stats.json');
   if (!/^[\w.-]+\.json$/i.test(statsName)) {
     throw new IntelliStoryBailError(`IntelliStory: invalid statsFile "${statsName}" — must be a .json filename; running full snapshot set`);
@@ -269,7 +320,7 @@ export async function validateAndReadStats(buildDir, statsFile, projectRoot, log
   // The graph is now keyed by the Percy build id, not the stats-file `buildId`,
   // so a missing `buildId` in the stats file is no longer fatal. We only need
   // the module graph (`files`/`modules`) from here.
-  const { files, modules } = await readStats(resolvedStatsPath, projectRoot, log);
+  const { files, modules } = await readStats(resolvedStatsPath, projectRoot, log, configDirs);
 
   return { files, modules };
 }
@@ -302,11 +353,45 @@ export async function getBaselineAndAffectedNodes(percy, baseline, log) {
   return { baseRef, affectedNodes };
 }
 
-export function assertNoDotStorybookChange(affectedNodes) {
-  const dotStorybookHit = affectedNodes.find(p => p.split(/[/\\]/).includes('.storybook'));
-  if (dotStorybookHit) {
-    throw new IntelliStoryBailError(`IntelliStory: change to "${dotStorybookHit}" inside .storybook affects all stories; running full snapshot set`);
+export function assertNoDotStorybookChange(affectedNodes, configDirs = [DEFAULT_CONFIG_DIR]) {
+  const hit = affectedNodes.find(p => isInsideDirs(p, configDirs));
+  if (hit) {
+    throw new IntelliStoryBailError(`IntelliStory: change to "${hit}" inside the Storybook config directory affects all stories; running full snapshot set`);
   }
+}
+
+// The config directory the user gave us, on the same repo-root basis as
+// everything else. Interpreted relative to the invocation directory, matching
+// `bailOnChanges`/`untraced`; the default is kept alongside it so a project that
+// has both a custom directory and a stray `.storybook` is covered either way.
+export function resolveConfigDirs(configDir, projectRoot, invocationDir, log) {
+  const dirs = [DEFAULT_CONFIG_DIR];
+  if (!configDir || configDir === DEFAULT_CONFIG_DIR) return dirs;
+
+  const { rebased } = resolvePattern(configDir, projectRoot, invocationDir);
+  if (rebased == null) {
+    log?.warn(`IntelliStory: configDir "${configDir}" resolves outside the project root; falling back to "${DEFAULT_CONFIG_DIR}"`);
+    return dirs;
+  }
+
+  // Unlike a glob, a config directory has to exist -- so a directory written on
+  // the wrong basis is detectable here rather than silently matching nothing
+  // later. When only the repo-root reading exists, recognise it as well:
+  // recognising one directory too many costs snapshots, missing the real one
+  // loses comparisons.
+  if (!fs.existsSync(path.resolve(projectRoot, rebased))) {
+    const asRootRelative = configDir.split(path.sep).join('/');
+
+    if (!path.isAbsolute(configDir) && fs.existsSync(path.resolve(projectRoot, configDir))) {
+      log?.warn(`IntelliStory: configDir "${configDir}" does not exist relative to the invocation directory ("${describeInvocation(projectRoot, invocationDir)}") but does relative to the project root; recognising both. Write it relative to the invocation directory to make this explicit.`);
+      if (!dirs.includes(asRootRelative)) dirs.push(asRootRelative);
+    } else {
+      log?.warn(`IntelliStory: configDir "${configDir}" resolves to "${rebased}", which does not exist; it is interpreted relative to the invocation directory, not the project root`);
+    }
+  }
+
+  if (!dirs.includes(rebased)) dirs.push(rebased);
+  return dirs;
 }
 
 // `bailOnChanges` is the user's escape hatch for changes the graph cannot
@@ -498,7 +583,7 @@ export function maybeWriteTrace(trace, data, log) {
 
 export async function applyIntelliStory(percy, snapshots, intelliStoryConfig, buildDir) {
   const log = logger('storybook:intelliStory');
-  const { baseline, untraced, bailOnChanges, statsFile } = intelliStoryConfig || {};
+  const { baseline, untraced, bailOnChanges, statsFile, configDir } = intelliStoryConfig || {};
 
   if (!buildDir) {
     throw new IntelliStoryBailError('IntelliStory requires the Storybook build directory (e.g. `percy storybook ./storybook-static`); URL and `start` modes are not supported. Running full snapshot set');
@@ -520,11 +605,14 @@ export async function applyIntelliStory(percy, snapshots, intelliStoryConfig, bu
     log.debug(`IntelliStory: invoked from "${describeInvocation(projectRoot, invocationDir)}" within the project root ${projectRoot}; user patterns are relative to the invocation directory`);
   }
 
-  const { files, modules } = await validateAndReadStats(buildDir, statsFile, projectRoot, log);
+  const configDirs = resolveConfigDirs(configDir, projectRoot, invocationDir, log);
+  log.debug(`IntelliStory: treating ${configDirs.map(d => `"${d}"`).join(', ')} as Storybook config director${configDirs.length > 1 ? 'ies' : 'y'}`);
+
+  const { files, modules } = await validateAndReadStats(buildDir, statsFile, projectRoot, log, configDirs);
 
   let { baseRef, affectedNodes } = await getBaselineAndAffectedNodes(percy, baseline, log);
 
-  assertNoDotStorybookChange(affectedNodes);
+  assertNoDotStorybookChange(affectedNodes, configDirs);
   assertNoBailOnChanges(affectedNodes, bailOnChanges, patternOpts);
   affectedNodes = enforceUntraced(affectedNodes, untraced, patternOpts);
 

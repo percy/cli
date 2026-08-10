@@ -8,6 +8,7 @@ import {
   validateAndReadStats,
   getBaselineAndAffectedNodes,
   assertNoDotStorybookChange,
+  resolveConfigDirs,
   assertNoBailOnChanges,
   enforceUntraced,
   getAffectedPackages,
@@ -155,6 +156,77 @@ describe('intelliStory', () => {
       expect(res.modules[0].nonPassThroughExports).toEqual([{ type: 'module', source: 'lodash' }]);
       expect(res.modules[1]).toEqual({});
     });
+
+    it('excludes modules inside a custom config directory from the graph', async () => {
+      await mockfs({
+        '/build/enriched-stats.json': JSON.stringify({
+          modules: [{ id: '/root/src/A.js' }, { id: '/root/config/storybook/preview.js' }]
+        })
+      });
+
+      let res = await validateAndReadStats('/build', undefined, '/root', log,
+        ['.storybook', 'config/storybook']);
+
+      expect(res.files).toEqual([path.join('src', 'A.js')]);
+      expect(res.modules.length).toEqual(1);
+    });
+
+    it('warns when a minority of modules have unresolved ids', async () => {
+      let warnLog = mockLog();
+      await mockfs({
+        '/build/enriched-stats.json': JSON.stringify({
+          modules: [
+            ...Array.from({ length: 19 }, (_, i) => ({ id: `/root/src/${i}.js` })),
+            { id: 'virtual:synthetic-module' }
+          ]
+        })
+      });
+
+      let res = await validateAndReadStats('/build', undefined, '/root', warnLog);
+
+      expect(res.modules.length).toEqual(19);
+      expect(warnLog.warn).toHaveBeenCalledOnceWith(
+        jasmine.stringMatching(/dropped 1 of 20 module\(s\) with unresolved/));
+    });
+
+    it('bails when too many modules have unresolved ids', async () => {
+      await mockfs({
+        '/build/enriched-stats.json': JSON.stringify({
+          modules: [
+            { id: '/root/src/A.js' },
+            { id: '/root/src/B.js' },
+            { id: 'virtual:one' },
+            { id: 'virtual:two' }
+          ]
+        })
+      });
+
+      await expectBail(
+        () => validateAndReadStats('/build', undefined, '/root', log),
+        '2 of 4 stats modules have unresolved (non-absolute) ids (50%, limit 10%)');
+    });
+
+    // deliberately excluded modules are not a graph gap, so they must not push
+    // a healthy build over the threshold
+    it('does not count excluded modules towards the unresolved ratio', async () => {
+      let warnLog = mockLog();
+      await mockfs({
+        '/build/enriched-stats.json': JSON.stringify({
+          modules: [
+            ...Array.from({ length: 20 }, (_, i) => ({ id: `/root/node_modules/dep${i}/index.js` })),
+            ...Array.from({ length: 19 }, (_, i) => ({ id: `/root/src/${i}.js` })),
+            { id: 'virtual:synthetic-module' }
+          ]
+        })
+      });
+
+      let res = await validateAndReadStats('/build', undefined, '/root', warnLog);
+
+      expect(res.modules.length).toEqual(19);
+      // 1/20 candidates, not 21/40 raw
+      expect(warnLog.warn).toHaveBeenCalledOnceWith(
+        jasmine.stringMatching(/dropped 1 of 20 module\(s\)/));
+    });
   });
 
   describe('getBaselineAndAffectedNodes()', () => {
@@ -234,6 +306,82 @@ describe('intelliStory', () => {
 
     it('does not throw when nothing touches .storybook', () => {
       expect(() => assertNoDotStorybookChange(['src/a.js', 'src/b.css'])).not.toThrow();
+    });
+
+    it('throws when a changed path lives under a custom config directory', () => {
+      expect(() => assertNoDotStorybookChange(['config/storybook/main.js'], ['config/storybook']))
+        .toThrowMatching(e => e instanceof IntelliStoryBailError &&
+          e.message.includes('config/storybook/main.js'));
+    });
+
+    it('does not confuse a custom config directory with a similarly named sibling', () => {
+      expect(() => assertNoDotStorybookChange(['config/storybook-old/main.js'], ['config/storybook']))
+        .not.toThrow();
+    });
+
+    it('still recognises .storybook when a custom directory is configured', () => {
+      expect(() => assertNoDotStorybookChange(['.storybook/preview.js'], ['.storybook', 'config/storybook']))
+        .toThrow();
+    });
+
+    it('matches a single-segment custom directory at any depth', () => {
+      expect(() => assertNoDotStorybookChange(['packages/ui/sbconfig/main.js'], ['sbconfig']))
+        .toThrow();
+    });
+  });
+
+  describe('resolveConfigDirs()', () => {
+    it('returns just the default when no configDir is set', () => {
+      expect(resolveConfigDirs(undefined, '/repo', '/repo')).toEqual(['.storybook']);
+      expect(resolveConfigDirs('.storybook', '/repo', '/repo')).toEqual(['.storybook']);
+    });
+
+    it('keeps the default alongside a custom directory', () => {
+      expect(resolveConfigDirs('config/storybook', '/repo', '/repo'))
+        .toEqual(['.storybook', 'config/storybook']);
+    });
+
+    it('rebases a custom directory from the invocation directory', () => {
+      expect(resolveConfigDirs('config/storybook', '/repo', '/repo/packages/ui'))
+        .toEqual(['.storybook', 'packages/ui/config/storybook']);
+    });
+
+    it('does not warn when the resolved directory exists', async () => {
+      let log = mockLog();
+      await mockfs({ '/repo/packages/ui/config/storybook/main.js': 'x' });
+
+      resolveConfigDirs('config/storybook', '/repo', '/repo/packages/ui', log);
+      expect(log.warn).not.toHaveBeenCalled();
+    });
+
+    // over-recognising a config directory costs snapshots; missing the real one
+    // loses comparisons, so a directory that only exists on the repo-root basis
+    // is recognised too rather than silently matching nothing
+    it('also recognises a directory that only exists relative to the project root', async () => {
+      let log = mockLog();
+      await mockfs({ '/repo/packages/ui/config/storybook/main.js': 'x' });
+
+      expect(resolveConfigDirs('packages/ui/config/storybook', '/repo', '/repo/packages/ui', log))
+        .toEqual(['.storybook', 'packages/ui/config/storybook', 'packages/ui/packages/ui/config/storybook']);
+      expect(log.warn).toHaveBeenCalledOnceWith(
+        jasmine.stringMatching(/does but does relative to the project root|but does relative to the project root; recognising both/));
+    });
+
+    it('warns when the directory does not exist on either basis', async () => {
+      let log = mockLog();
+      await mockfs({ '/repo/packages/ui/src/a.js': 'x' });
+
+      resolveConfigDirs('config/storybook', '/repo', '/repo/packages/ui', log);
+      expect(log.warn).toHaveBeenCalledOnceWith(
+        jasmine.stringMatching(/which does not exist/));
+    });
+
+    it('warns and falls back when the configDir escapes the project root', () => {
+      let log = mockLog();
+      expect(resolveConfigDirs('../../../elsewhere', '/repo', '/repo/packages/ui', log))
+        .toEqual(['.storybook']);
+      expect(log.warn).toHaveBeenCalledOnceWith(
+        jasmine.stringMatching(/resolves outside the project root/));
     });
   });
 
