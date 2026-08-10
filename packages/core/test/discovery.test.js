@@ -839,6 +839,37 @@ describe('Discovery', () => {
     );
   });
 
+  it('keeps cached resources uncompressed when PERCY_GZIP is enabled', async () => {
+    // Compressing a resource in place mutates the entry held by the build-wide
+    // resource cache. Later snapshots then have the compressed body replayed to
+    // the browser under the resource's original `text/css` content type, so the
+    // browser cannot parse the stylesheet, never sees the @font-face it declares,
+    // and never requests the font -- leaving it out of every later snapshot.
+    process.env.PERCY_GZIP = true;
+
+    server.reply('/style.css', () => [200, 'text/css', [
+      '@font-face { font-family: "test"; src: url("/font.woff") format("woff"); }',
+      'body { font-family: "test", "sans-serif"; }'
+    ].join('')]);
+
+    await percy.snapshot({ name: 'one', url: 'http://localhost:8000', domSnapshot: testDOM });
+    await percy.snapshot({ name: 'two', url: 'http://localhost:8000', domSnapshot: testDOM });
+
+    await percy.idle();
+
+    let font = jasmine.objectContaining({
+      id: sha256hash(Pako.gzip('<font>')),
+      attributes: jasmine.objectContaining({
+        'resource-url': 'http://localhost:8000/font.woff'
+      })
+    });
+
+    expect(captured[0]).toEqual(jasmine.arrayContaining([font]));
+    // the second snapshot's stylesheet is served from the cache -- it must still
+    // arrive parseable so the font it references is discovered again
+    expect(captured[1]).toEqual(jasmine.arrayContaining([font]));
+  });
+
   it('captures resource larger than 25MB raw when PERCY_GZIP is enabled', async () => {
     process.env.PERCY_GZIP = true;
     const largeCSS = 'A'.repeat(30_000_000);

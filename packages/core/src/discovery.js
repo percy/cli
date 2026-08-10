@@ -230,12 +230,21 @@ function processSnapshotResources({ domSnapshot, resources, ...snapshot }) {
     const kept = [];
     for (let index = 0; index < resources.length; index++) {
       const resource = resources[index];
+      // Compression must never be applied in place. These resource objects are
+      // the same ones held by the build-wide resource cache, which replays them
+      // to the browser via Fetch.fulfillRequest using their original headers
+      // (e.g. `content-type: text/css`, no `content-encoding`). Overwriting
+      // `content` with gzip bytes leaves the cache serving compressed bodies
+      // labelled as plain text, so the browser cannot parse them -- a stylesheet
+      // poisoned this way yields no @font-face and no background-image, and the
+      // resources they reference are never requested and so never captured for
+      // any later snapshot. Compress a copy and leave the cached entry intact.
+      let uploaded = resource;
       try {
-        const alreadyZipped = isGzipped(resource.content);
-        /* istanbul ignore next: very hard to mock true */
-        if (!alreadyZipped) {
-          resource.content = Pako.gzip(resource.content);
-          resource.sha = sha256hash(resource.content);
+        /* istanbul ignore else: alreadyZipped is very hard to mock true */
+        if (!isGzipped(resource.content)) {
+          const content = Pako.gzip(resource.content);
+          uploaded = { ...resource, content, sha: sha256hash(content) };
           log.debug(`- Gzipped resource: ${resource.url}`);
         }
       } catch (error) {
@@ -247,9 +256,9 @@ function processSnapshotResources({ domSnapshot, resources, ...snapshot }) {
         continue;
       }
 
-      // resource.content is guaranteed by the try block above (either just
-      // assigned from Pako.gzip, or alreadyZipped was true).
-      const size = resource.content.length;
+      // uploaded.content is guaranteed by the try block above (either just
+      // assigned from Pako.gzip, or the resource was already compressed).
+      const size = uploaded.content.length;
       // Root (DOM HTML) and log resources are required for a valid snapshot;
       // shipping an oversized one and letting the API surface a clear error
       // is better than silently dropping it here.
@@ -263,7 +272,7 @@ function processSnapshotResources({ domSnapshot, resources, ...snapshot }) {
         );
         continue;
       }
-      kept.push(resource);
+      kept.push(uploaded);
     }
     resources = kept;
   }
