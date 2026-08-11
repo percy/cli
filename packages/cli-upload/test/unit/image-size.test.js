@@ -9,7 +9,12 @@ import {
   JPEG_200X150,
   GIF_PIXEL,
   icnsZeroLengthEntry,
-  jpegZeroLengthSegment
+  jpegZeroLengthSegment,
+  jpegWalksIntoData,
+  jpegStandaloneMarkerBeforeFrame,
+  jpegScanWithoutFrame,
+  jpegEndsWithoutFrame,
+  jpegTruncatedFrameHeader
 } from '../fixtures.js';
 
 describe('unit / image-size', () => {
@@ -60,9 +65,29 @@ describe('unit / image-size', () => {
     expect(imageSize(write(png))).toBeNull();
   });
 
-  it('returns null for a JPEG with no frame header', () => {
-    // truncate to the SOI marker and the start of APP0
+  it('returns null for a JPEG too short to hold a signature', () => {
     expect(imageSize(write(JPEG_PIXEL.subarray(0, 4)))).toBeNull();
+  });
+
+  it('returns null when the segment chain leads into non-marker data', () => {
+    expect(imageSize(write(jpegWalksIntoData()))).toBeNull();
+  });
+
+  it('returns null for a JPEG that starts its scan without a frame', () => {
+    expect(imageSize(write(jpegScanWithoutFrame()))).toBeNull();
+  });
+
+  it('returns null for a JPEG that ends without a frame', () => {
+    expect(imageSize(write(jpegEndsWithoutFrame()))).toBeNull();
+  });
+
+  it('returns null for a JPEG that ends before its frame header', () => {
+    expect(imageSize(write(jpegTruncatedFrameHeader()))).toBeNull();
+  });
+
+  it('skips standalone markers to reach the frame header', () => {
+    expect(imageSize(write(jpegStandaloneMarkerBeforeFrame(320, 240))))
+      .toEqual({ width: 320, height: 240 });
   });
 
   // CVE-2025-71330 / CVE-2025-71329 — the advisories that made `image-size`

@@ -88,3 +88,56 @@ export function jpegZeroLengthSegment() {
   buffer.writeUInt16BE(0, 4); // segment length
   return buffer;
 }
+
+// A JPEG whose first segment length lands the walk on bytes that do not begin a
+// marker — i.e. off the segment chain and into data.
+export function jpegWalksIntoData() {
+  let buffer = Buffer.alloc(32);
+  buffer.writeUInt16BE(0xffd8, 0); // SOI
+  buffer.writeUInt16BE(0xffe0, 2); // APP0
+  buffer.writeUInt16BE(4, 4); // length 4 ⇒ next marker expected at offset 8
+  // offset 8 onward is left zeroed, so no 0xff marker prefix is found
+  return buffer;
+}
+
+// A JPEG carrying a standalone marker (RST0, no length payload) ahead of the
+// frame header. Mis-skipping it would desynchronise the walk.
+export function jpegStandaloneMarkerBeforeFrame(width, height) {
+  let buffer = Buffer.alloc(16);
+  buffer.writeUInt16BE(0xffd8, 0); // SOI
+  buffer.writeUInt16BE(0xffd0, 2); // RST0 — standalone
+  buffer.writeUInt16BE(0xffc0, 4); // SOF0
+  buffer.writeUInt16BE(11, 6); // segment length
+  buffer.writeUInt8(8, 8); // sample precision
+  buffer.writeUInt16BE(height, 9);
+  buffer.writeUInt16BE(width, 11);
+  return buffer;
+}
+
+// A JPEG that reaches the start of scan without ever declaring a frame.
+export function jpegScanWithoutFrame() {
+  let buffer = Buffer.alloc(32);
+  buffer.writeUInt16BE(0xffd8, 0); // SOI
+  buffer.writeUInt16BE(0xffda, 2); // SOS
+  buffer.writeUInt16BE(12, 4); // segment length
+  return buffer;
+}
+
+// A JPEG that reaches end of image without ever declaring a frame.
+export function jpegEndsWithoutFrame() {
+  let buffer = Buffer.alloc(32);
+  buffer.writeUInt16BE(0xffd8, 0); // SOI
+  buffer.writeUInt16BE(0xffd9, 2); // EOI
+  return buffer;
+}
+
+// A JPEG that announces a frame header and then ends before it. Must stay at
+// least 8 bytes long, or it is rejected at the signature read and never reaches
+// the segment walk this is meant to exercise.
+export function jpegTruncatedFrameHeader() {
+  let buffer = Buffer.alloc(8);
+  buffer.writeUInt16BE(0xffd8, 0); // SOI
+  buffer.writeUInt16BE(0xffc0, 2); // SOF0
+  buffer.writeUInt16BE(11, 4); // length claims a payload the file does not have
+  return buffer;
+}

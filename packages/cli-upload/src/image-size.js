@@ -45,10 +45,11 @@ function jpegSize(fd, fileSize) {
   let offset = 2;
 
   while (offset + 4 <= fileSize) {
+    // the loop bound guarantees these four bytes exist, so this cannot short read
     let header = readAt(fd, 4, offset);
     // every marker begins with 0xff — anything else means we've walked out of
     // the segment chain and into entropy-coded data
-    if (header?.[0] !== 0xff) return null;
+    if (header[0] !== 0xff) return null;
 
     let marker = header[1];
     // 0xff may repeat as fill bytes before the marker itself
