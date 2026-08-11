@@ -230,12 +230,14 @@ function processSnapshotResources({ domSnapshot, resources, ...snapshot }) {
     const kept = [];
     for (let index = 0; index < resources.length; index++) {
       const resource = resources[index];
+      // Never compress in place: these objects are shared with the resource
+      // cache, which must keep replaying the original bytes to the browser.
+      let uploaded = resource;
       try {
-        const alreadyZipped = isGzipped(resource.content);
-        /* istanbul ignore next: very hard to mock true */
-        if (!alreadyZipped) {
-          resource.content = Pako.gzip(resource.content);
-          resource.sha = sha256hash(resource.content);
+        /* istanbul ignore else: an already-gzipped resource is very hard to mock */
+        if (!isGzipped(resource.content)) {
+          const content = Pako.gzip(resource.content);
+          uploaded = { ...resource, content, sha: sha256hash(content) };
           log.debug(`- Gzipped resource: ${resource.url}`);
         }
       } catch (error) {
@@ -247,9 +249,8 @@ function processSnapshotResources({ domSnapshot, resources, ...snapshot }) {
         continue;
       }
 
-      // resource.content is guaranteed by the try block above (either just
-      // assigned from Pako.gzip, or alreadyZipped was true).
-      const size = resource.content.length;
+      // Either the gzipped copy or, when already gzipped, the resource itself.
+      const size = uploaded.content.length;
       // Root (DOM HTML) and log resources are required for a valid snapshot;
       // shipping an oversized one and letting the API surface a clear error
       // is better than silently dropping it here.
@@ -263,7 +264,7 @@ function processSnapshotResources({ domSnapshot, resources, ...snapshot }) {
         );
         continue;
       }
-      kept.push(resource);
+      kept.push(uploaded);
     }
     resources = kept;
   }

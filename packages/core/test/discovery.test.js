@@ -839,6 +839,33 @@ describe('Discovery', () => {
     );
   });
 
+  it('keeps cached resources uncompressed when PERCY_GZIP is enabled', async () => {
+    // A cached stylesheet compressed in place is replayed as gzip bytes under its
+    // original text/css type, so the browser never parses it or its @font-face.
+    process.env.PERCY_GZIP = true;
+
+    server.reply('/style.css', () => [200, 'text/css', [
+      '@font-face { font-family: "test"; src: url("/font.woff") format("woff"); }',
+      'body { font-family: "test", "sans-serif"; }'
+    ].join('')]);
+
+    await percy.snapshot({ name: 'one', url: 'http://localhost:8000', domSnapshot: testDOM });
+    await percy.snapshot({ name: 'two', url: 'http://localhost:8000', domSnapshot: testDOM });
+
+    await percy.idle();
+
+    let font = jasmine.objectContaining({
+      id: sha256hash(Pako.gzip('<font>')),
+      attributes: jasmine.objectContaining({
+        'resource-url': 'http://localhost:8000/font.woff'
+      })
+    });
+
+    expect(captured[0]).toEqual(jasmine.arrayContaining([font]));
+    // snapshot two's stylesheet comes from the cache and must still be parseable
+    expect(captured[1]).toEqual(jasmine.arrayContaining([font]));
+  });
+
   it('captures resource larger than 25MB raw when PERCY_GZIP is enabled', async () => {
     process.env.PERCY_GZIP = true;
     const largeCSS = 'A'.repeat(30_000_000);
