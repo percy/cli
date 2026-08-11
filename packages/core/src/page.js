@@ -25,22 +25,40 @@ export const DEFAULT_WAIT_FOR_CUSTOM_ELEMENTS_TIMEOUT = 500;
 // IMPORTANT: this body is intentionally ES5 — it is evaluated in the
 // page's realm and must work in any browser the page targets. Don't
 // "modernize" with arrow functions, let/const, or optional chaining.
+//
+// serializeFunction() injects the Percy helpers object as `arguments[0]`, so
+// the caller's first argument is `arguments[1]`.
 export const WAIT_FOR_CUSTOM_ELEMENTS_BODY = `
-  var deadline = Date.now() + (arguments[0] || 500);
+  var timeoutMs = typeof arguments[1] === 'number' && isFinite(arguments[1]) && arguments[1] > 0
+    ? arguments[1]
+    : 500;
+  var deadline = Date.now() + timeoutMs;
   return new Promise(function(resolve) {
+    var settled = false;
+    function finish() {
+      if (settled) return;
+      settled = true;
+      resolve();
+    }
+    setTimeout(finish, timeoutMs);
     function tick() {
+      if (settled) return;
       var undef = document.querySelectorAll(":not(:defined)");
-      if (!undef.length) return resolve();
-      if (Date.now() >= deadline) return resolve();
+      if (!undef.length) return finish();
+      if (Date.now() >= deadline) return finish();
       var names = {};
       for (var i = 0; i < undef.length; i++) names[undef[i].localName] = true;
       var promises = Object.keys(names).map(function(n) {
-        return window.customElements.whenDefined(n).catch(function(){});
+        try {
+          return window.customElements.whenDefined(n).catch(function(){});
+        } catch (e) {
+          return Promise.resolve();
+        }
       });
       Promise.race([
         Promise.all(promises),
         new Promise(function(r) { setTimeout(r, 100); })
-      ]).then(tick);
+      ]).then(tick, finish);
     }
     tick();
   });

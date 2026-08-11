@@ -4,7 +4,11 @@ import Percy from '@percy/core';
 import Pako from 'pako';
 import DetectProxy from '@percy/client/detect-proxy';
 import { validateSnapshotOptions } from '../src/snapshot.js';
-import { Page, WAIT_FOR_CUSTOM_ELEMENTS_BODY } from '../src/page.js';
+import {
+  Page,
+  WAIT_FOR_CUSTOM_ELEMENTS_BODY,
+  DEFAULT_WAIT_FOR_CUSTOM_ELEMENTS_TIMEOUT
+} from '../src/page.js';
 
 describe('Percy', () => {
   let percy, server;
@@ -214,6 +218,31 @@ describe('Percy', () => {
     expect(logger.stderr).toEqual(jasmine.arrayContaining([
       jasmine.stringMatching(/Custom elements wait failed: boom/)
     ]));
+  });
+
+  it('does not hang on a page holding a never-defined custom element', async () => {
+    // PER-10405: an unregistered tag matches `:not(:defined)` forever and its
+    // `customElements.whenDefined()` never resolves, so the wait must fall back
+    // on its own ceiling.
+    server.reply('/', () => [200, 'text/html', (
+      '<p>hi</p><next-route-announcer></next-route-announcer>'
+    )]);
+    await percy.browser.launch();
+    let page = await percy.browser.page();
+    await page.goto('http://localhost:8000');
+
+    let undefinedCount = await page.eval(
+      () => document.querySelectorAll(':not(:defined)').length);
+    expect(undefinedCount).toBe(1);
+
+    let start = Date.now();
+    await expectAsync(page.eval(
+      WAIT_FOR_CUSTOM_ELEMENTS_BODY,
+      DEFAULT_WAIT_FOR_CUSTOM_ELEMENTS_TIMEOUT
+    )).toBeResolved();
+    let elapsed = Date.now() - start;
+
+    expect(elapsed).toBeLessThan(5000);
   });
 
   it('runs readiness check before serializing when readiness option is set', async () => {
