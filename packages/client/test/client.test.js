@@ -235,6 +235,9 @@ describe('PercyClient', () => {
             'cli-start-time': null,
             'testhub-build-uuid': client.env.testhubBuildUuid,
             'testhub-build-run-id': client.env.testhubBuildRunId,
+            'machine-id': client.env.machine.id,
+            'machine-hostname': client.env.machine.hostname,
+            'machine-ci-run-url': client.env.machine.runUrl,
             source: 'user_created',
             partial: client.env.partial,
             tags: []
@@ -288,6 +291,9 @@ describe('PercyClient', () => {
             'cli-start-time': null,
             'testhub-build-uuid': client.env.testhubBuildUuid,
             'testhub-build-run-id': client.env.testhubBuildRunId,
+            'machine-id': client.env.machine.id,
+            'machine-hostname': client.env.machine.hostname,
+            'machine-ci-run-url': client.env.machine.runUrl,
             source: 'user_created',
             partial: client.env.partial,
             tags: []
@@ -373,6 +379,9 @@ describe('PercyClient', () => {
             'cli-start-time': null,
             'testhub-build-uuid': client.env.testhubBuildUuid,
             'testhub-build-run-id': client.env.testhubBuildRunId,
+            'machine-id': client.env.machine.id,
+            'machine-hostname': client.env.machine.hostname,
+            'machine-ci-run-url': client.env.machine.runUrl,
             source: 'user_created',
             partial: client.env.partial,
             tags: []
@@ -415,6 +424,9 @@ describe('PercyClient', () => {
             'cli-start-time': null,
             'testhub-build-uuid': client.env.testhubBuildUuid,
             'testhub-build-run-id': client.env.testhubBuildRunId,
+            'machine-id': client.env.machine.id,
+            'machine-hostname': client.env.machine.hostname,
+            'machine-ci-run-url': client.env.machine.runUrl,
             source: 'user_created',
             partial: client.env.partial,
             tags: [{ id: null, name: 'tag1' }, { id: null, name: 'tag2' }]
@@ -458,6 +470,9 @@ describe('PercyClient', () => {
             'cli-start-time': cliStartTime,
             'testhub-build-uuid': client.env.testhubBuildUuid,
             'testhub-build-run-id': client.env.testhubBuildRunId,
+            'machine-id': client.env.machine.id,
+            'machine-hostname': client.env.machine.hostname,
+            'machine-ci-run-url': client.env.machine.runUrl,
             source: 'auto_enabled_group',
             partial: client.env.partial,
             tags: [{ id: null, name: 'tag1' }, { id: null, name: 'tag2' }]
@@ -500,6 +515,9 @@ describe('PercyClient', () => {
             'cli-start-time': null,
             'testhub-build-uuid': client.env.testhubBuildUuid,
             'testhub-build-run-id': client.env.testhubBuildRunId,
+            'machine-id': client.env.machine.id,
+            'machine-hostname': client.env.machine.hostname,
+            'machine-ci-run-url': client.env.machine.runUrl,
             source: 'user_created',
             partial: client.env.partial,
             'skip-base-build': true,
@@ -540,6 +558,9 @@ describe('PercyClient', () => {
             'cli-start-time': null,
             'testhub-build-uuid': 'test-uuid-123',
             'testhub-build-run-id': client.env.testhubBuildRunId,
+            'machine-id': client.env.machine.id,
+            'machine-hostname': client.env.machine.hostname,
+            'machine-ci-run-url': client.env.machine.runUrl,
             source: 'user_created',
             partial: client.env.partial,
             tags: []
@@ -579,6 +600,9 @@ describe('PercyClient', () => {
             'cli-start-time': null,
             'testhub-build-uuid': client.env.testhubBuildUuid,
             'testhub-build-run-id': 'test-run-id-123',
+            'machine-id': client.env.machine.id,
+            'machine-hostname': client.env.machine.hostname,
+            'machine-ci-run-url': client.env.machine.runUrl,
             source: 'user_created',
             partial: client.env.partial,
             tags: []
@@ -618,6 +642,9 @@ describe('PercyClient', () => {
             'cli-start-time': null,
             'testhub-build-uuid': client.env.testhubBuildUuid,
             'testhub-build-run-id': client.env.testhubBuildRunId,
+            'machine-id': client.env.machine.id,
+            'machine-hostname': client.env.machine.hostname,
+            'machine-ci-run-url': client.env.machine.runUrl,
             source: 'bstack_sdk_created',
             partial: client.env.partial,
             tags: []
@@ -1211,6 +1238,14 @@ describe('PercyClient', () => {
       expect(api.requests['/builds/123/finalize']).toBeDefined();
     });
 
+    it('sends the machine identity header for per-machine liveness', async () => {
+      await expectAsync(client.finalizeBuild(123)).toBeResolved();
+      expect(api.requests['/builds/123/finalize'][0].headers).toEqual(
+        jasmine.objectContaining({
+          'X-Percy-Machine-Id': client.env.machine.id
+        }));
+    });
+
     it('can finalize all shards of a build', async () => {
       await expectAsync(client.finalizeBuild(123, { all: true })).toBeResolved();
       expect(api.requests['/builds/123/finalize?all-shards=true']).toBeDefined();
@@ -1357,6 +1392,14 @@ describe('PercyClient', () => {
         .toBeRejectedWithError('Missing build ID');
       await expectAsync(client.createSnapshot({}))
         .toBeRejectedWithError('Invalid build ID');
+    });
+
+    it('sends the machine identity header for per-machine liveness', async () => {
+      await expectAsync(client.createSnapshot(123, { name: 'snap' })).toBeResolved();
+      expect(api.requests['/builds/123/snapshots'][0].headers).toEqual(
+        jasmine.objectContaining({
+          'X-Percy-Machine-Id': client.env.machine.id
+        }));
     });
 
     it('creates a snapshot', async () => {

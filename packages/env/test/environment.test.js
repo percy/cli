@@ -23,6 +23,47 @@ describe('PercyEnv', () => {
     });
   });
 
+  describe('machine', () => {
+    it('returns a sanitized hostname-based id and the hostname', () => {
+      let env = new PercyEnv({});
+      expect(env.machine.hostname).toEqual(jasmine.any(String));
+      expect(env.machine.id).toMatch(/^[A-Za-z0-9._-]+$/);
+    });
+
+    it('suffixes the CI node index and captures the run url on circle', () => {
+      let env = new PercyEnv({
+        CIRCLECI: 'true',
+        CIRCLE_NODE_INDEX: '2',
+        CIRCLE_BUILD_URL: 'https://app.circleci.com/pipelines/x/1'
+      });
+      expect(env.machine.id).toMatch(/\.n2$/);
+      expect(env.machine.runUrl).toEqual('https://app.circleci.com/pipelines/x/1');
+    });
+
+    it('composes the github actions run url', () => {
+      let env = new PercyEnv({
+        GITHUB_ACTIONS: 'true',
+        GITHUB_SERVER_URL: 'https://github.com',
+        GITHUB_REPOSITORY: 'org/repo',
+        GITHUB_RUN_ID: '123'
+      });
+      expect(env.machine.runUrl).toEqual('https://github.com/org/repo/actions/runs/123');
+    });
+
+    it('returns a null run url when the provider exposes none', () => {
+      let env = new PercyEnv({});
+      expect(env.machine.runUrl).toBeNull();
+    });
+
+    it('is excluded from getter debug logging', () => {
+      let env = new PercyEnv({});
+      env.ci; // eslint-disable-line babel/no-unused-expressions -- warm nested getters
+      spyOn(env.log, 'debug');
+      env.machine; // eslint-disable-line babel/no-unused-expressions
+      expect(env.log.debug).not.toHaveBeenCalled();
+    });
+  });
+
   describe('testhubBuildUuid', () => {
     it('should return TH_BUILD_UUID when it is set', () => {
       let env = new PercyEnv({ TH_BUILD_UUID: 'test_id' });
