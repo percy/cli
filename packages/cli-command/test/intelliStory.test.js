@@ -292,6 +292,43 @@ describe('intelliStory', () => {
         () => getBaselineAndAffectedNodes(percy, '--upload-pack=evil', log),
         'unsafe baseline ref');
     });
+
+    it('bails when the base lookup rejects with a transient API error', async () => {
+      let percy = {
+        client: {
+          getIntelliStorySnapshotNameToCommit: async () => {
+            throw Object.assign(new Error('socket hang up'), { response: { statusCode: 502 } });
+          }
+        }
+      };
+      await expectBail(
+        () => getBaselineAndAffectedNodes(percy, 'HEAD', log),
+        'base build lookup failed: socket hang up');
+    });
+
+    it('bails with an entitlement message when the base lookup is not allowed', async () => {
+      let percy = {
+        client: {
+          getIntelliStorySnapshotNameToCommit: async () => {
+            throw Object.assign(new Error('Forbidden'), { response: { statusCode: 403 } });
+          }
+        }
+      };
+      await expectBail(
+        () => getBaselineAndAffectedNodes(percy, 'HEAD', log),
+        'not enabled for this organization');
+    });
+
+    it('bails when the base lookup rejects with a bare network error (no response)', async () => {
+      let percy = {
+        client: {
+          getIntelliStorySnapshotNameToCommit: async () => { throw new Error('ECONNRESET'); }
+        }
+      };
+      await expectBail(
+        () => getBaselineAndAffectedNodes(percy, 'HEAD', log),
+        'base build lookup failed: ECONNRESET');
+    });
   });
 
   describe('assertNoDotStorybookChange()', () => {
@@ -667,6 +704,87 @@ describe('intelliStory', () => {
       await expectBail(
         () => runGraphGeneration(percy, 'bld-1', { files: [], modules: [], storybookPaths: [], affectedNodes: [] }, log),
         'did not complete');
+    });
+
+    const emptyPayload = { files: [], modules: [], storybookPaths: [], affectedNodes: [] };
+
+    it('bails when the generate request rejects with a transient API error', async () => {
+      let log = mockLog();
+      let percy = {
+        client: {
+          generateIntelliStoryGraph: async () => {
+            throw Object.assign(new Error('503 Service Unavailable'), { response: { statusCode: 503 } });
+          },
+          getStatus: async () => ({ status: 'done' })
+        }
+      };
+      await expectBail(
+        () => runGraphGeneration(percy, 'bld-1', emptyPayload, log),
+        'graph generation request failed: 503 Service Unavailable');
+    });
+
+    it('bails with an entitlement message when the generate request is not allowed', async () => {
+      let log = mockLog();
+      let percy = {
+        client: {
+          generateIntelliStoryGraph: async () => {
+            throw Object.assign(new Error('Forbidden'), { response: { statusCode: 403 } });
+          },
+          getStatus: async () => ({ status: 'done' })
+        }
+      };
+      await expectBail(
+        () => runGraphGeneration(percy, 'bld-1', emptyPayload, log),
+        'not enabled for this organization');
+    });
+
+    // A 403 mid-poll will never clear, so it stops on the first attempt rather
+    // than burning the whole POLL_ATTEMPTS window — hence no fake clock here.
+    it('stops polling immediately when the status poll is not allowed', async () => {
+      let log = mockLog();
+      let getStatus = jasmine.createSpy('getStatus').and.callFake(async () => {
+        throw Object.assign(new Error('Forbidden'), { response: { statusCode: 403 } });
+      });
+      let percy = { client: { generateIntelliStoryGraph: async () => {}, getStatus } };
+
+      await expectBail(
+        () => runGraphGeneration(percy, 'bld-1', emptyPayload, log),
+        'not enabled for this organization');
+      expect(getStatus).toHaveBeenCalledTimes(1);
+    });
+
+    describe('when the status poll keeps failing transiently', () => {
+      beforeEach(() => jasmine.clock().install());
+      afterEach(() => jasmine.clock().uninstall());
+
+      // Flush microtasks between clock ticks so the poll loop advances.
+      async function drainPolls(promise, rounds = 20) {
+        for (let i = 0; i < rounds; i++) {
+          await Promise.resolve();
+          await Promise.resolve();
+          jasmine.clock().tick(5000);
+        }
+        return promise;
+      }
+
+      it('retries and then bails as timed out rather than throwing raw', async () => {
+        let log = mockLog();
+        let percy = {
+          client: {
+            generateIntelliStoryGraph: async () => {},
+            getStatus: async () => { throw new Error('ETIMEDOUT'); }
+          }
+        };
+
+        let err = null;
+        await drainPolls(
+          runGraphGeneration(percy, 'bld-1', emptyPayload, log).catch(e => { err = e; })
+        );
+
+        expect(err).toBeInstanceOf(IntelliStoryBailError);
+        expect(err.message).toContain('did not complete');
+        expect(log.debug).toHaveBeenCalledWith(jasmine.stringMatching(/errored: ETIMEDOUT/));
+      });
     });
   });
 
