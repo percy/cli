@@ -260,6 +260,17 @@ describe('PercyClient', () => {
       expect(api.requests['/builds'][0].body.data.attributes.priority).toBeUndefined();
     });
 
+    it('omits machine attributes when no machine identity is available', async () => {
+      spyOnProperty(client.env, 'machine').and.returnValue({ id: null });
+
+      await client.createBuild();
+
+      let attributes = api.requests['/builds'][0].body.data.attributes;
+      expect(attributes['machine-id']).toBeUndefined();
+      expect(attributes['machine-hostname']).toBeUndefined();
+      expect(attributes['machine-ci-run-url']).toBeUndefined();
+    });
+
     it('creates a new build with projectType passed as null', async () => {
       await expectAsync(client.createBuild({ projectType: null })).toBeResolvedTo({
         data: {
@@ -1244,6 +1255,14 @@ describe('PercyClient', () => {
         jasmine.objectContaining({
           'X-Percy-Machine-Id': client.env.machine.id
         }));
+    });
+
+    it('omits the machine header when no machine identity is available', async () => {
+      spyOnProperty(client.env, 'machine').and.returnValue({ id: null });
+
+      await expectAsync(client.finalizeBuild(123)).toBeResolved();
+      expect(api.requests['/builds/123/finalize'][0].headers['X-Percy-Machine-Id'])
+        .toBeUndefined();
     });
 
     it('can finalize all shards of a build', async () => {
