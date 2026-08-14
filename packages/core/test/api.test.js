@@ -1915,10 +1915,9 @@ describe('API Server', () => {
       });
     });
 
-    // Mirrors the realmobile AAP-18965 shape: the host points straight at the
-    // per-session dir, and the debug dir under it has no sessionId segment and
-    // no <device>_ prefix, so no tmp-root value composes it.
-    // Real-fs root for the same fast-glob binding-staleness reason as above.
+    // Mirrors the realmobile AAP-18965 shape: no sessionId segment and no
+    // <device>_ prefix, so no tmp-root value composes it. Real-fs root for the
+    // same fast-glob binding-staleness reason as above.
     describe('PERCY_MAESTRO_BS_SCOPE_ROOT override', () => {
       const SCOPE_ROOT = path.join(os.tmpdir(), 'percy-bs-scope-real-root');
       const REALMOBILE_DIR = path.join(SCOPE_ROOT, 'maestro_debug_LoginFlow_LoginFlow_0');
@@ -2002,8 +2001,7 @@ describe('API Server', () => {
       });
 
       it('re-anchors filePath containment on the overridden root', async () => {
-        // Same-root filePath resolves; a file outside it does not — the
-        // boundary moved with the root rather than being removed.
+        // In-root filePath resolves, out-of-root does not: boundary moved, not removed.
         fs.writeFileSync(path.join(REALMOBILE_DIR, `${FILEPATH_NAME}.png`), 'PNGBYTES-SCOPE-FILEPATH');
         spyOn(percy, 'upload').and.resolveTo();
         await percy.start();

@@ -99,8 +99,7 @@ export async function handleMaestroScreenshot(req, res, percy) {
   // realpath + prefix check inside locateScreenshot enforces the security
   // invariant at whichever root applies; the boundary is relocated, not removed.
   let scopeRoot;
-  // No convention to key on, so search the whole root. True for self-hosted and
-  // for a BS explicit root.
+  // Search the whole root — self-hosted, or a BS explicit root.
   let recursiveScope = false;
   if (selfHosted) {
     // Reject filePath outright in self-hosted mode. The SDK never emits it (it
@@ -130,9 +129,8 @@ export async function handleMaestroScreenshot(req, res, percy) {
     scopeRoot = dir;
     recursiveScope = true;
   } else {
-    // No existence pre-check here (unlike self-hosted): host config, not
-    // customer config, so a stale root should surface as the containment
-    // check's 404 rather than a 400 aimed at the customer.
+    // No existence pre-check (unlike self-hosted): host config, not customer
+    // config, so a stale root should 404, not 400 at the customer.
     let overrideRoot = bsScopeRootOverride();
     if (overrideRoot) {
       scopeRoot = overrideRoot;
