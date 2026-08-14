@@ -1915,16 +1915,11 @@ describe('API Server', () => {
       });
     });
 
-    // PERCY_MAESTRO_BS_SCOPE_ROOT override — for BS layouts the
-    // {tmpRoot}/{sessionId}{_test_suite} convention can no longer express at
-    // all. realmobile's AAP-18965 relocation is the motivating case: iOS
-    // Maestro debug output moved to <aa-tmp>/<device>/logs/maestro_debug_*,
-    // which has no sessionId segment and no <device>_ prefix, so relocating
-    // the tmp root alone can't compose either the scope root or the glob.
+    // Mirrors the realmobile AAP-18965 shape: the host points straight at the
+    // per-session dir, and the debug dir under it has no sessionId segment and
+    // no <device>_ prefix, so no tmp-root value composes it.
     // Real-fs root for the same fast-glob binding-staleness reason as above.
     describe('PERCY_MAESTRO_BS_SCOPE_ROOT override', () => {
-      // Mirrors the realmobile shape: the host points at the per-session dir
-      // directly, and the debug dir underneath matches no CLI convention.
       const SCOPE_ROOT = path.join(os.tmpdir(), 'percy-bs-scope-real-root');
       const REALMOBILE_DIR = path.join(SCOPE_ROOT, 'maestro_debug_LoginFlow_LoginFlow_0');
       let priorScope, priorTmp;

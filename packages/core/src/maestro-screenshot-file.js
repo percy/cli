@@ -15,24 +15,16 @@ export function appAutomateTmpDir() {
   return path.isAbsolute(dir) ? dir : '/tmp';
 }
 
-// Complete session scope root, injected by hosts whose layout no longer fits
-// the {appAutomateTmpDir()}/{sessionId}{_test_suite} convention at all — where
-// relocating the root alone can't express the new shape.
-//
-// realmobile's AAP-18965 relocation is the motivating case: iOS Maestro debug
-// output moved to <aa-tmp>/<device>/logs/maestro_debug_*, which drops the
-// sessionId path segment entirely (the CLI appends it, so no tmp-root value can
-// absorb <device>/logs) and drops the <device>_ prefix the *_maestro_debug_*
-// glob keys on. Android kept its shape under the relocation and stays on
+// Complete session scope root for BS hosts whose layout the
+// {appAutomateTmpDir()}/{sessionId}{_test_suite} convention can't express:
+// realmobile's AAP-18965 iOS relocation drops both the sessionId segment and
+// the <device>_ prefix the glob keys on. Android kept its shape and stays on
 // PERCY_APP_AUTOMATE_TMP_DIR.
 //
-// When set, this value IS the scope root: the relay globs {root}/**/{name}.png
-// with no layout assumption, and the realpath containment check anchors on it —
-// so the security boundary is relocated, never widened. Non-absolute values are
-// ignored (falling through to the composed convention) rather than producing a
-// cwd-relative root; trailing separators are trimmed for the same
-// prefix-composition reason as appAutomateTmpDir(). BrowserStack-mode only —
-// self-hosted scoping stays on PERCY_MAESTRO_SCREENSHOT_DIR.
+// When set this IS the scope root — the relay globs {root}/**/{name}.png and
+// the realpath containment check anchors on it, so the boundary is relocated,
+// never widened. Non-absolute values are ignored rather than resolved against
+// cwd, which also rejects '/' once the trailing separator is trimmed.
 export function bsScopeRootOverride() {
   let raw = process.env.PERCY_MAESTRO_BS_SCOPE_ROOT;
   if (!raw) return null;
@@ -48,10 +40,9 @@ export function bsScopeRootOverride() {
    rationale (upstream SAFE_ID validation, depth cap, exact filename match). */
 async function manualScreenshotWalk(platform, sessionId, name, scopeRoot) {
   const files = [];
-  // Shared recursive walker for both root-relative layouts. `accept` gates
-  // which matching files count, so the iOS convention can keep its
-  // `_maestro_debug_` guard while an explicit scope root — where the host has
-  // already narrowed the tree to one session — takes any depth.
+  // `accept` gates which matches count: the iOS convention keeps its
+  // `_maestro_debug_` guard, while an explicit scope root (already narrowed to
+  // one session by the host) takes anything.
   const walkFrom = async (root, accept) => {
     const walk = async (dir, depth) => {
       if (depth > 15) return; // sanity cap
@@ -94,17 +85,16 @@ async function manualScreenshotWalk(platform, sessionId, name, scopeRoot) {
 //      session root; rejected upstream in self-hosted mode).
 //   2. BrowserStack glob (the BS-infra SCREENSHOTS_DIR layout).
 //   3. Recursive glob under scopeRoot — self-hosted
-//      (PERCY_MAESTRO_SCREENSHOT_DIR) or a BS host that injected an explicit
-//      scope root (PERCY_MAESTRO_BS_SCOPE_ROOT); `recursiveScope` selects it.
+//      (PERCY_MAESTRO_SCREENSHOT_DIR) or a BS explicit root
+//      (PERCY_MAESTRO_BS_SCOPE_ROOT); `recursiveScope` selects it.
 // Either way, the shared realpath + scopeRoot prefix check below enforces the
 // security invariant. Returns the canonicalized absolute path, or throws
 // ServerError(404) when the file is missing or resolves outside scopeRoot.
 // Callers pass `filePath` already shape-validated, plus the resolved `scopeRoot`
 // and `selfHosted` flag.
 export async function locateScreenshot({ platform, sessionId, name, filePath, scopeRoot, selfHosted, recursiveScope }) {
-  // Self-hosted always scopes recursively under its root; BS does so only when
-  // the host injected an explicit scope root. Derived here rather than trusted
-  // from the caller so `selfHosted` alone keeps its existing meaning.
+  // Derived here rather than trusted from the caller so `selfHosted` alone
+  // keeps its existing meaning.
   let scopedGlob = selfHosted || !!recursiveScope;
   let chosenFile;
   if (filePath) {
@@ -119,9 +109,8 @@ export async function locateScreenshot({ platform, sessionId, name, filePath, sc
     //   Self-hosted: recursive glob under the customer's --test-output-dir
     //     (scopeRoot = PERCY_MAESTRO_SCREENSHOT_DIR). `name` is SAFE_ID-validated
     //     by the caller, so it cannot contain separators or traversal chars.
-    //   BS explicit scope root (PERCY_MAESTRO_BS_SCOPE_ROOT): same recursive
-    //     glob — the host already narrowed scopeRoot to this session's dir, so
-    //     there is no convention left to key on.
+    //   BS explicit scope root: same recursive glob — the host already narrowed
+    //     scopeRoot to this session, so there is no convention left to key on.
     let searchPattern;
     if (scopedGlob) {
       // fast-glob requires forward-slashes in patterns on every platform; on
@@ -150,8 +139,8 @@ export async function locateScreenshot({ platform, sessionId, name, filePath, sc
       // Fast-glob import / glob call failed — fall back to manual walker (BS
       // only; self-hosted has no fixed-layout convention, so empty → 404 with
       // the actionable PERCY_MAESTRO_SCREENSHOT_DIR guidance from the caller).
-      // On BS the walker mirrors the glob: an explicit scope root recurses that
-      // root, otherwise it follows the platform convention.
+      // The walker mirrors the glob: an explicit scope root recurses that root,
+      // otherwise it follows the platform convention.
       // See manualScreenshotWalk() at file top + the file-level .semgrepignore.
       /* istanbul ignore next — only fires when fast-glob import throws
          (broken install / FS corruption); integration-test territory. */

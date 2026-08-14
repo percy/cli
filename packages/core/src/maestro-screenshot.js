@@ -91,17 +91,16 @@ export async function handleMaestroScreenshot(req, res, percy) {
 
   // Resolve the file-find scope root. On BrowserStack (sessionId present), the
   // root is the BS host's {appAutomateTmpDir()}/{sessionId}{_test_suite}
-  // convention (PERCY_APP_AUTOMATE_TMP_DIR, defaulting to /tmp), unless the
-  // host injected a complete scope root via PERCY_MAESTRO_BS_SCOPE_ROOT — for
-  // layouts that convention can no longer express. Self-hosted
+  // convention (PERCY_APP_AUTOMATE_TMP_DIR, defaulting to /tmp), unless the host
+  // injected a complete root via PERCY_MAESTRO_BS_SCOPE_ROOT. Self-hosted
   // (sessionId absent) requires PERCY_MAESTRO_SCREENSHOT_DIR (read from
   // process.env, never the request body) to be an absolute, existing directory
   // — typically the customer's `maestro test --test-output-dir <DIR>` path. The
   // realpath + prefix check inside locateScreenshot enforces the security
   // invariant at whichever root applies; the boundary is relocated, not removed.
   let scopeRoot;
-  // Recursive-glob mode: no layout convention to key on, so the relay searches
-  // the whole scope root. True for self-hosted and for a BS explicit root.
+  // No convention to key on, so search the whole root. True for self-hosted and
+  // for a BS explicit root.
   let recursiveScope = false;
   if (selfHosted) {
     // Reject filePath outright in self-hosted mode. The SDK never emits it (it
@@ -131,10 +130,9 @@ export async function handleMaestroScreenshot(req, res, percy) {
     scopeRoot = dir;
     recursiveScope = true;
   } else {
-    // Host-injected complete scope root wins over the composed convention. No
-    // existence pre-check here (unlike self-hosted): this is host config, not
-    // customer config, so a stale/missing root should surface as the same 404
-    // the containment check emits rather than a 400 aimed at the customer.
+    // No existence pre-check here (unlike self-hosted): host config, not
+    // customer config, so a stale root should surface as the containment
+    // check's 404 rather than a 400 aimed at the customer.
     let overrideRoot = bsScopeRootOverride();
     if (overrideRoot) {
       scopeRoot = overrideRoot;
