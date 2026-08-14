@@ -1,3 +1,4 @@
+import os from 'os';
 import PercyEnv from '@percy/env';
 
 describe('PercyEnv', () => {
@@ -50,9 +51,69 @@ describe('PercyEnv', () => {
       expect(env.machine.runUrl).toEqual('https://github.com/org/repo/actions/runs/123');
     });
 
+    it('suffixes the parallel job index and captures the run url on buildkite', () => {
+      let env = new PercyEnv({
+        BUILDKITE: 'true',
+        BUILDKITE_PARALLEL_JOB: '3',
+        BUILDKITE_BUILD_URL: 'https://buildkite.com/org/pipe/builds/9'
+      });
+      expect(env.machine.id).toMatch(/\.n3$/);
+      expect(env.machine.runUrl).toEqual('https://buildkite.com/org/pipe/builds/9');
+    });
+
+    it('captures the job url on gitlab', () => {
+      let env = new PercyEnv({
+        GITLAB_CI: 'true',
+        CI_SERVER_VERSION: '16.0',
+        CI_JOB_URL: 'https://gitlab.com/org/repo/-/jobs/42'
+      });
+      expect(env.machine.runUrl).toEqual('https://gitlab.com/org/repo/-/jobs/42');
+    });
+
+    it('omits the index suffix when the provider exposes no node index', () => {
+      let env = new PercyEnv({ BUILDKITE: 'true' });
+      expect(env.machine.id).not.toMatch(/\.n/);
+    });
+
+    it('handles circle without a node index or build url', () => {
+      let env = new PercyEnv({ CIRCLECI: 'true' });
+      expect(env.machine.id).not.toMatch(/\.n/);
+      expect(env.machine.runUrl).toBeNull();
+    });
+
+    it('handles gitlab without a job url', () => {
+      let env = new PercyEnv({ GITLAB_CI: 'true', CI_SERVER_VERSION: '16.0' });
+      expect(env.machine.runUrl).toBeNull();
+    });
+
+    it('omits an incomplete github run url', () => {
+      let env = new PercyEnv({ GITHUB_ACTIONS: 'true', GITHUB_RUN_ID: '123' });
+      expect(env.machine.runUrl).toBeNull();
+    });
+
     it('returns a null run url when the provider exposes none', () => {
       let env = new PercyEnv({});
       expect(env.machine.runUrl).toBeNull();
+    });
+
+    it('degrades to null identity when the hostname cannot be read', () => {
+      spyOn(os, 'hostname').and.throwError('EPERM');
+      let env = new PercyEnv({});
+      expect(env.machine.hostname).toBeNull();
+      expect(env.machine.id).toBeNull();
+    });
+
+    it('treats an empty hostname as absent', () => {
+      spyOn(os, 'hostname').and.returnValue('');
+      let env = new PercyEnv({});
+      expect(env.machine.hostname).toBeNull();
+      expect(env.machine.id).toBeNull();
+    });
+
+    it('sanitizes characters that are invalid in a machine id', () => {
+      spyOn(os, 'hostname').and.returnValue('host name/with:chars');
+      let env = new PercyEnv({});
+      expect(env.machine.id).toEqual('host-name-with-chars');
     });
 
     it('is excluded from getter debug logging', () => {
