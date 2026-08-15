@@ -43,3 +43,11 @@ if ! echo "$output" | grep -qE '[0-9]+\.[0-9]+\.[0-9]+'; then
 fi
 
 echo "OK: $BIN is healthy"
+
+# pkg's default targets follow the host arch, so assert explicitly.
+arch_info="$(file "$BIN")"
+if ! echo "$arch_info" | grep -qE 'x86[-_]64|PE32\+'; then
+  echo "::error::'$BIN' is not an x86-64 binary: $arch_info"
+  exit 1
+fi
+echo "OK: $BIN is x86-64"

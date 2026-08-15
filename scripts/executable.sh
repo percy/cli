@@ -8,7 +8,11 @@ function cleanup {
 }
 
 brew install gnu-sed
-npm install -g pkg
+# @yao-pkg/pkg is the maintained fork. vercel/pkg is archived at 5.8.1 and fails
+# with "No available node version satisfies 'node20'". Pinned deliberately: an
+# unversioned global install here lets the registry decide what compiles the
+# binaries customers download.
+npm install -g @yao-pkg/pkg@6.22.0
 
 yarn install
 yarn build
@@ -47,12 +51,18 @@ cp -R ./build/* packages/
 # Create executables. (No `-d`/`--debug`: it only adds per-file "included as
 # DISCLOSED code / asset content" logging — thousands of lines — without
 # changing the output binaries.)
-pkg ./packages/cli/bin/run.js
+# Targets are explicit on purpose. pkg defaults to linux,macos,win at the HOST
+# arch, so on an arm64 runner it silently emits arm64 binaries for every x64
+# customer -- and `--version` passes on the arm64 runner that built them.
+pkg ./packages/cli/bin/run.js \
+  --targets node20-linux-x64,node20-macos-x64,node20-win-x64
 
 # Rename executables
-mv run-linux percy && chmod +x percy
-mv run-macos percy-osx && chmod +x percy-osx
-mv run-win.exe percy.exe && chmod +x percy.exe
+# pkg names outputs `<entry>-<platform>` when the target arch equals the host
+# arch and `<entry>-<platform>-<arch>` otherwise, so match by prefix.
+mv "$(ls run-linux* | head -1)" percy && chmod +x percy
+mv "$(ls run-macos* | head -1)" percy-osx && chmod +x percy-osx
+mv "$(ls run-win*.exe | head -1)" percy.exe && chmod +x percy.exe
 
 # Sign, notarize and package the assets only when the Apple signing secrets are
 # present. Pull-request builds run without secrets: there we only want to prove
