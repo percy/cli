@@ -140,6 +140,7 @@ export async function request(url, options = {}, callback) {
   // bundling cli inside electron or another package fails if we import it
   // like this: await import(protocol === 'https:' ? 'https' : 'http');
   let { default: http } = protocol === 'https:' ? await import('https') : await import('http');
+  let { default: dns } = await import('dns');
   let { proxyAgentFor } = await import('./proxy.js');
 
   // automatically stringify body content
@@ -151,6 +152,12 @@ export async function request(url, options = {}, callback) {
   // combine request options
   Object.assign(requestOptions, {
     agent: requestOptions.agent || (!noProxy && proxyAgentFor(url)) || null,
+    // Node >=17 defaults dns.lookup to verbatim, so `localhost` can resolve ::1
+    // before 127.0.0.1 and fail against IPv4-only dev servers. Restore Node 14
+    // ordering for Percy's own requests only -- dns.setDefaultResultOrder() is
+    // process-global and @percy/core runs inside SDK consumers' processes.
+    lookup: requestOptions.lookup || ((hostname, opts, cb) =>
+      dns.lookup(hostname, { ...opts, verbatim: false }, cb)),
     path: pathname + search + hash,
     protocol,
     hostname,
