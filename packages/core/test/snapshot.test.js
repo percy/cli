@@ -1,5 +1,5 @@
 import { sha256hash, base64encode } from '@percy/client/utils';
-import { logger, api, setupTest, createTestServer, dedent } from './helpers/index.js';
+import { logger, api, setupTest, createTestServer, dedent, mockRequests } from './helpers/index.js';
 import { waitFor } from '@percy/core/utils';
 import Percy from '@percy/core';
 import { handleSyncJob } from '../src/snapshot.js';
@@ -46,6 +46,34 @@ describe('Snapshot', () => {
   it('errors when not running', async () => {
     await percy.stop();
     expect(() => percy.snapshot({})).toThrowError('Not running');
+  });
+
+  // PER-10514: POST /percy/snapshot does not answer until percy.snapshot()
+  // resolves, so anything the generator awaits stalls the SDK. The version
+  // check talks to api.github.com — a third party that proxies and egress
+  // firewalls routinely leave hanging — and it must never gate a snapshot.
+  it('does not wait on the SDK version check to take a snapshot', async () => {
+    let ghAPI = await mockRequests('https://api.github.com');
+    // accept the request and never answer, the way a black-holing proxy does
+    ghAPI.and.returnValue(new Promise(() => {}));
+
+    let tooSlow = new Promise((resolve, reject) => setTimeout(() => {
+      reject(new Error('percy.snapshot() blocked on the SDK version check'));
+    }, 10000));
+
+    await expectAsync(Promise.race([
+      percy.snapshot({
+        name: 'test snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot: testDOM,
+        clientInfo: '@percy/cypress/3.1.9'
+      }),
+      tooSlow
+    ])).toBeResolved();
+
+    await percy.idle();
+    expect(api.requests['/builds/123/snapshots'][0].body.data.attributes.name)
+      .toEqual('test snapshot');
   });
 
   it('errors when missing a url', () => {
