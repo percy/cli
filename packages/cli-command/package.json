@@ -16,7 +16,7 @@
     "test/helpers.js"
   ],
   "engines": {
-    "node": ">=14"
+    "node": ">=20"
   },
   "bin": {
     "percy-cli-readme": "./bin/readme.js"
