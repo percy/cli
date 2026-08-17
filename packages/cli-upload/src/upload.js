@@ -6,6 +6,29 @@ import * as UploadConfig from './config.js';
 const ALLOWED_FILE_TYPES = /\.(png|jpg|jpeg)$/i;
 const ALLOWED_TOKEN_TYPES = ['web', 'generic'];
 
+// The dimension reader recognises about ten formats; this command accepts two.
+const SUPPORTED_IMAGE_TYPES = new Set(['png', 'jpg']);
+
+// A JPEG frame header sits behind however much metadata the encoder wrote, so
+// dimensions cannot be read at a fixed offset. This is the limit the previous
+// `image-size` dependency applied, kept so that no file it could read becomes
+// unreadable.
+const MAX_HEADER_BYTES = 512 * 1024;
+
+// Reads the leading bytes of a file, rather than pulling a multi-megabyte image
+// into memory just to read its dimensions.
+function readImageHeader(absolutePath) {
+  let fd = fs.openSync(absolutePath, 'r');
+
+  try {
+    let length = Math.min(fs.fstatSync(fd).size, MAX_HEADER_BYTES);
+    let header = Buffer.alloc(length);
+    return header.subarray(0, fs.readSync(fd, header, 0, length, 0));
+  } finally {
+    fs.closeSync(fd);
+  }
+}
+
 // All BYOS screenshots have a fixed comparison tag
 export const BYOS_TAG = {
   name: 'Uploaded Screenshot',
@@ -85,7 +108,10 @@ export const upload = command('upload', {
     exit(1, 'Invalid Token Type. Only "web" and "self-managed" token types are allowed.');
   }
 
-  let { imageSize } = await import('./image-size.js');
+  // `sync.js` is the buffer-parser entrypoint — none of the http or stream
+  // machinery. The extension is required because the package publishes no
+  // `exports` map and this one is ESM.
+  let { default: probeImageSize } = await import('probe-image-size/sync.js');
   let { getImageResources } = await import('./utils.js');
 
   // the internal discovery queue shares a concurrency with the snapshots queue
@@ -97,14 +123,21 @@ export const upload = command('upload', {
       log.info(`Skipping unsupported file type: ${relativePath}`);
     } else {
       let absolutePath = path.resolve(args.dirname, relativePath);
-      let size = imageSize(absolutePath);
+      let probed = probeImageSize(readImageHeader(absolutePath));
 
-      if (!size) {
+      // covers a file whose extension disagrees with its contents — including a
+      // readable image in a format this command does not accept
+      if (!probed || !SUPPORTED_IMAGE_TYPES.has(probed.type)) {
         log.info(`Skipping file with unreadable image data: ${relativePath}`);
         continue;
       }
 
-      let img = { relativePath, absolutePath, ...size };
+      let img = {
+        relativePath,
+        absolutePath,
+        width: probed.width,
+        height: probed.height
+      };
       let { dir, name, ext } = path.parse(relativePath);
       img.type = ext === '.png' ? 'png' : 'jpeg';
       img.name = path.join(dir, name);

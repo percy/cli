@@ -1,7 +1,47 @@
 import { fs, logger, api, setupTest } from '@percy/cli-command/test/helpers';
 import upload from '@percy/cli-upload';
 import { BYOS_TAG } from '../src/upload.js';
-import { PNG_PIXEL, JPEG_PIXEL, GIF_PIXEL, icnsZeroLengthEntry } from './fixtures.js';
+
+// Real image bytes, kept as buffers rather than strings — the PNG signature
+// starts with 0x89, which does not survive a round trip through UTF-8.
+const b64 = str => Buffer.from(str, 'base64');
+
+// 1x1 red PNG
+const PNG_PIXEL = b64(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ' +
+  '/pLvAAAAAElFTkSuQmCC'
+);
+
+// 1x1 red JPEG
+const JPEG_PIXEL = b64(
+  '/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDABALDA4MChAODQ4SERATGCgaGBYWGDEjJR0oOjM9' +
+  'PDkzODdASFxOQERXRTc4UG1RV19iZ2hnPk1xeXBkeFxlZ2P/2wBDARESEhgVGC8aGi9jQjhC' +
+  'Y2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2P/wAAR' +
+  'CAABAAEDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAA' +
+  'AgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkK' +
+  'FhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWG' +
+  'h4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl' +
+  '5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREA' +
+  'AgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYk' +
+  'NOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOE' +
+  'hYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk' +
+  '5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwDFoooryz7w/9k='
+);
+
+// A GIF — readable by the parser, but not a format this command accepts.
+const GIF_PIXEL = b64('R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==');
+
+// An ICNS buffer with valid magic bytes and a zero-valued entry length — the
+// CVE-2025-71330 proof of concept. `image-size` looped forever on it because a
+// zero-length entry never advanced the read offset.
+const icnsZeroLengthEntry = () => {
+  let buffer = Buffer.alloc(64);
+  buffer.write('icns', 0, 'ascii');
+  buffer.writeUInt32BE(64, 4); // file length
+  buffer.write('ic09', 8, 'ascii'); // first entry type
+  buffer.writeUInt32BE(0, 12); // first entry length
+  return buffer;
+};
 
 describe('percy upload', () => {
   beforeEach(async () => {
@@ -181,6 +221,20 @@ describe('percy upload', () => {
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual(jasmine.arrayContaining([
       '[percy] Skipping file with unreadable image data: crafted.png',
+      '[percy] Uploading 3 snapshots...',
+      '[percy] Finalized build #1: https://percy.io/test/test/123'
+    ]));
+  });
+
+  // the extension filter passes this through, and the parser reads GIFs happily,
+  // so only the format gate keeps it out
+  it('skips a readable image whose format is not png or jpeg', async () => {
+    fs.writeFileSync('images/gif-named.png', GIF_PIXEL);
+    await upload(['./images']);
+
+    expect(logger.stderr).toEqual([]);
+    expect(logger.stdout).toEqual(jasmine.arrayContaining([
+      '[percy] Skipping file with unreadable image data: gif-named.png',
       '[percy] Uploading 3 snapshots...',
       '[percy] Finalized build #1: https://percy.io/test/test/123'
     ]));
