@@ -20,8 +20,9 @@ import {
 describe('unit / image-size', () => {
   let dirname, index = 0;
 
-  // these tests read real files — `imageSize` opens a descriptor and reads at
-  // offsets, which is the behaviour worth exercising against a real filesystem
+  // these tests read real files — `imageSize` opens a descriptor and reads a
+  // bounded prefix, which is the behaviour worth exercising against a real
+  // filesystem rather than a stubbed buffer
   beforeAll(() => {
     dirname = fs.mkdtempSync(path.join(os.tmpdir(), 'percy-image-size-'));
   });
@@ -46,6 +47,9 @@ describe('unit / image-size', () => {
     expect(imageSize(write(JPEG_200X150))).toEqual({ width: 200, height: 150 });
   });
 
+  // the underlying parser reads about ten formats, but `percy upload` accepts
+  // only png and jpeg, so anything else is rejected here even when it is a
+  // perfectly readable image
   it('returns null for other image formats', () => {
     expect(imageSize(write(GIF_PIXEL))).toBeNull();
   });

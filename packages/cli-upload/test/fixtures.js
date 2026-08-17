@@ -103,7 +103,12 @@ export function jpegWalksIntoData() {
 // A JPEG carrying a standalone marker (RST0, no length payload) ahead of the
 // frame header. Mis-skipping it would desynchronise the walk.
 export function jpegStandaloneMarkerBeforeFrame(width, height) {
-  let buffer = Buffer.alloc(16);
+  // A SOF0 declaring one component is 11 bytes: length (2) + precision (1) +
+  // dimensions (4) + component count (1) + one component spec (3). The segment
+  // starts at offset 6, so the buffer has to reach offset 17 for the length it
+  // declares to be satisfiable — a parser that checks the declared length
+  // against the bytes actually present rejects anything shorter.
+  let buffer = Buffer.alloc(17);
   buffer.writeUInt16BE(0xffd8, 0); // SOI
   buffer.writeUInt16BE(0xffd0, 2); // RST0 — standalone
   buffer.writeUInt16BE(0xffc0, 4); // SOF0
@@ -111,6 +116,10 @@ export function jpegStandaloneMarkerBeforeFrame(width, height) {
   buffer.writeUInt8(8, 8); // sample precision
   buffer.writeUInt16BE(height, 9);
   buffer.writeUInt16BE(width, 11);
+  buffer.writeUInt8(1, 13); // component count
+  buffer.writeUInt8(1, 14); // component id
+  buffer.writeUInt8(0x11, 15); // sampling factors
+  buffer.writeUInt8(0, 16); // quantization table selector
   return buffer;
 }
 
