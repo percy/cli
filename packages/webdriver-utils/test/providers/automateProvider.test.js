@@ -331,6 +331,50 @@ describe('AutomateProvider', () => {
         expect(res).toEqual(expectedOutput);
       });
 
+      // percy-api relaxes its tile-count limit by this factor, so it has to reach the
+      // comparison payload -- a scaleToFit capture walks a taller page and returns ~1/factor
+      // times the usual tile count, which the unrelaxed limit would reject.
+      it('forwards scaleToFit and the applied factor into metadata when scaling happened', async () => {
+        const response = {
+          success: true,
+          result: JSON.stringify({
+            tiles: [{ sha: 'abc', index: 0 }],
+            dom_sha: 'def',
+            scale_to_fit: true,
+            applied_scale_factor: 0.38095238095
+          })
+        };
+        spyOn(AutomateProvider.prototype, 'browserstackExecutor')
+          .and.returnValue(Promise.resolve({ value: JSON.stringify(response) }));
+        await automateProvider.createDriver();
+        const res = await automateProvider.getTiles(false);
+
+        expect(res.metadata).toEqual({
+          screenshotType: 'fullpage',
+          scaleToFit: true,
+          appliedScaleFactor: 0.38095238095
+        });
+      });
+
+      // These land in comparison_details.metadata, the largest table on the platform, so
+      // the default path must not add constants to every row.
+      it('omits the scaleToFit metadata keys when mobile-common did not scale', async () => {
+        const response = {
+          success: true,
+          result: JSON.stringify({
+            tiles: [{ sha: 'abc', index: 0 }],
+            dom_sha: 'def',
+            scale_to_fit: false
+          })
+        };
+        spyOn(AutomateProvider.prototype, 'browserstackExecutor')
+          .and.returnValue(Promise.resolve({ value: JSON.stringify(response) }));
+        await automateProvider.createDriver();
+        const res = await automateProvider.getTiles(false);
+
+        expect(res.metadata).toEqual({ screenshotType: 'fullpage' });
+      });
+
       it('should return default values of header and footer if not in response', async () => {
         const response = {
           success: true,

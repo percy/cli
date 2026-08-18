@@ -96,6 +96,16 @@ export default class AutomateProvider extends GenericProvider {
     const metadata = {
       screenshotType: screenshotType
     };
+    // Forwarded so percy-api can relax its tile-count limit by exactly the amount each
+    // tile shrank: a scaleToFit capture walks a taller page and so returns ~1/factor times
+    // the usual tile count, which the unrelaxed limit would reject.
+    // Added only when mobile-common reports it actually scaled -- these land in
+    // comparison_details.metadata, the largest table on the platform, so the default path
+    // must not add constants to every row.
+    if (tileResponse.scale_to_fit === true) {
+      metadata.scaleToFit = true;
+      metadata.appliedScaleFactor = tileResponse.applied_scale_factor;
+    }
     return {
       tiles: tiles,
       domInfoSha: tileResponse.dom_sha,
