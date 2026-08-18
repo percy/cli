@@ -56,6 +56,9 @@ jobs:
       && startsWith(github.head_ref, 'release/')) }}
     needs: [build]
     strategy:
+      # windows.yml already sets this. Without it one failing package cancels the
+      # other 16, so a single red job hides the state of the whole matrix.
+      fail-fast: false
       matrix:
         os: [ubuntu-latest]
         node: [20.19.5]
@@ -169,6 +172,7 @@ jobs:
       && startsWith(github.head_ref, 'release/')) }}
     needs: [build]
     strategy:
+      fail-fast: false
       matrix:
         os: [ubuntu-latest]
         node: [20]
