@@ -68,15 +68,21 @@ cp -R ./build/* packages/
 # silently emits arm64 binaries for every x64 customer -- and `--version` passes on
 # the arm64 runner that built them. verify-executable.sh now asserts x86-64 too.
 #
-# NODE VERSION: an exact patch, not the `node20` range, so the runtime compiled
-# into the binary is the same one .nvmrc pins and CI tests with rather than
-# whatever the range resolves to on the day. Verified present for all three x64
-# platforms in the pkg-fetch v3.5 release. Bump this and .nvmrc together, and
-# check the target actually exists first:
-#   gh api repos/yao-pkg/pkg-fetch/releases --paginate \
-#     --jq '.[] | select(.tag_name=="v3.5") | .assets[]?.name' | grep node-v20
+# NODE VERSION: the `node20` range, deliberately, paired with the pkg pin above.
+# An exact patch is NOT accepted -- pkg matches the target against its own
+# known-version list rather than against whatever pkg-fetch publishes, so
+# `node20.19.5-...` dies with "No available node version satisfies 'v20.19.5'"
+# even though that prebuilt exists. The range lets pkg pick a version it knows,
+# and on the 3.5 line every node20 it knows is published for all three x64
+# platforms.
+#
+# Consequence: the runtime inside the binary is whichever node20 patch pkg-fetch
+# 3.5.33 resolves to, which will not always equal the .nvmrc pin. That is
+# tolerable -- they only have to share a major -- but it does mean the binary's
+# exact runtime is decided by the pkg pin, so treat bumping that pin as a change
+# to what ships, not as routine maintenance.
 pkg ./packages/cli/bin/run.js \
-  --targets node20.19.5-linux-x64,node20.19.5-macos-x64,node20.19.5-win-x64
+  --targets node20-linux-x64,node20-macos-x64,node20-win-x64
 
 # Rename executables
 # pkg names outputs `<entry>-<platform>` when the target arch equals the host
