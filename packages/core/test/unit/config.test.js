@@ -124,17 +124,18 @@ describe('SnapshotSchema', () => {
       .toEqual({ type: 'boolean', onlyAutomate: true });
   });
 
-  // ...and this proves it is wired into validation with fullPage's gating, not inert.
-  it('flags scaleToFit on a non-automate token, exactly like fullPage', () => {
+  // ...and this proves it is wired into validation, not inert. Asserted RELATIVE to
+  // fullPage: onlyAutomate is compiled in from PERCY_TOKEN, which differs between a local
+  // run and CI, so an absolute expectation here passes locally and breaks in CI.
+  it('gates scaleToFit exactly like fullPage', () => {
     PercyConfig.addSchema(CoreConfig.schemas);
-    const errors = PercyConfig.validate({ fullPage: true, scaleToFit: true }, '/config/snapshot');
-    const paths = errors.map(e => e.path);
-    const messages = new Set(errors.map(e => e.message));
+    const errors = PercyConfig.validate({ fullPage: true, scaleToFit: true }, '/config/snapshot') || [];
+    const messagesFor = (path) => errors.filter(e => e.path === path).map(e => e.message);
 
-    expect(paths).toContain('scaleToFit');
-    expect(paths).toContain('fullPage');
-    // NOT 'unknown property', which would mean the entry is missing and this passes vacuously.
-    expect([...messages]).toEqual(['property only valid with Automate integration.']);
+    expect(messagesFor('scaleToFit')).toEqual(messagesFor('fullPage'));
+    // An undeclared key would draw 'unknown property' here while fullPage drew none, so
+    // this still fails if the schema entry goes missing.
+    expect(messagesFor('scaleToFit')).not.toContain('unknown property');
   });
 });
 
