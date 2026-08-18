@@ -526,11 +526,21 @@ export async function getAffectedPackages(affectedNodes, baseRef, projectRoot, l
     /* istanbul ignore next */
     return packageAffected;
   } catch (e) {
-    /* istanbul ignore else */
+    /* istanbul ignore next: the parser-unavailable bail. Until this repo moved to
+       Node 20 it was the ONLY branch CI ever took -- Node 14 could not install
+       snyk-nodejs-lockfile-parser (engines >=18), so loadSnyk() always threw. On
+       Node 20 the parser installs and the diff succeeds, so this branch stops
+       executing and the coverage it used to supply disappears with it.
+       Forcing it needs a refactor rather than a test: loadSnyk() caches
+       _snykModule at module scope and intelliStory.js imports diffLockfileDeps
+       statically, so neither the require nor the import can be made to fail once
+       any earlier spec has loaded the parser. Tracked separately -- do NOT
+       re-justify this pragma with "CI runs Node 14". */
     if (e.code === 'SNYK_LOCKFILE_PARSER_UNAVAILABLE') {
       throw new IntelliStoryBailError(`IntelliStory: ${e.message}; running full snapshot set`);
     }
-    /* istanbul ignore next */
+    /* istanbul ignore next: rethrow of a non-snyk parser failure; same
+       untestability as the branch above */
     throw e;
   }
 }
