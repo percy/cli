@@ -646,10 +646,18 @@ export class Percy {
       let server;
 
       try {
-        // Check SDK version
+        // Check SDK version. This generator runs inside the POST /percy/snapshot
+        // request handler (see api.js), so anything awaited here delays the HTTP
+        // response the SDK is blocked on. checkSDKVersion reaches out to
+        // api.github.com — an unrelated third party that a corporate proxy,
+        // egress firewall or GitHub throttling can leave hanging — so it must
+        // never gate a snapshot. Set the flag first so exactly one check is ever
+        // started (it used to be set after the await, which meant every snapshot
+        // posted during a slow check started its own), and run it detached:
+        // checkSDKVersion swallows its own errors and only logs.
         if (!this.sdkInfoDisplayed && options.clientInfo) {
-          await checkSDKVersion(options.clientInfo);
           this.sdkInfoDisplayed = true;
+          checkSDKVersion(options.clientInfo);
         }
         if ('serve' in options) {
           // create and start a static server

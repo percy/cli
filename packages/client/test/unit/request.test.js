@@ -210,6 +210,29 @@ describe('Unit / Request', () => {
       .toBeRejectedWithError('403 \nSTOP');
   });
 
+  describe('timeout', () => {
+    let silent;
+
+    beforeEach(async () => {
+      // a server that accepts the connection and then never answers
+      silent = await createTestServer({ port: 8081 }, () => {}).start();
+    });
+
+    afterEach(async () => {
+      await silent?.close();
+    });
+
+    it('rejects instead of hanging forever when a timeout is given', async () => {
+      await expectAsync(silent.request('/', { timeout: 200, retries: 0 }))
+        .toBeRejectedWithError(/timed out after 200ms/);
+    });
+
+    it('does not time out requests that answer in time', async () => {
+      await expectAsync(server.request('/', { timeout: 10000 }))
+        .toBeResolvedTo('test');
+    });
+  });
+
   describe('retries', () => {
     it('automatically retries server 500 errors', async () => {
       let responses = [[502], [503], [520], [200]];

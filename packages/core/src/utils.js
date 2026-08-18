@@ -978,6 +978,12 @@ export async function* maybeScrollToBottom(page, discovery) {
   }
 }
 
+// How long the (purely informational) SDK version check may spend talking to
+// api.github.com before it gives up. Kept short deliberately: the check now runs
+// detached, so its socket is a live handle that would otherwise hold the event
+// loop open at shutdown for as long as the peer stays silent.
+const SDK_VERSION_CHECK_TIMEOUT = 5000;
+
 // Package to GitHub repo mapping
 const PACKAGE_TO_REPO = {
   '@percy/selenium-webdriver': 'percy-selenium-js',
@@ -1022,9 +1028,13 @@ export async function checkSDKVersion(clientInfo) {
       return;
     }
 
-    // Fetch latest version from GitHub releases
+    // Fetch latest version from GitHub releases. api.github.com is a third
+    // party we don't control and networks routinely black-hole it (proxies,
+    // egress firewalls, rate limiting), so this is bounded — without a timeout
+    // the socket stays open for the life of the CLI process.
     const githubData = await request(`https://api.github.com/repos/percy/${repoName}/releases?page=1`, {
       headers: { 'User-Agent': '@percy/cli' },
+      timeout: SDK_VERSION_CHECK_TIMEOUT,
       retries: 0
     });
 
