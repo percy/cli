@@ -8,11 +8,22 @@ function cleanup {
 }
 
 brew install gnu-sed
-# @yao-pkg/pkg is the maintained fork. vercel/pkg is archived at 5.8.1 and fails
-# with "No available node version satisfies 'node20'". Pinned deliberately: an
-# unversioned global install here lets the registry decide what compiles the
-# binaries customers download.
-npm install -g @yao-pkg/pkg@6.22.0
+# @yao-pkg/pkg is the maintained fork; vercel/pkg is archived at 5.8.1 and fails
+# with "No available node version satisfies 'node20'".
+#
+# Pinned to 6.19.0 SPECIFICALLY, and not upgradable without dropping Node 20:
+# pkg resolves targets against its @yao-pkg/pkg-fetch dependency, and pkg-fetch
+# serves prebuilt Node binaries from the GitHub release matching its own minor.
+#   pkg 6.20.0+  -> pkg-fetch 3.6.x -> release v3.6 -> ships node 22, 24, 26 ONLY
+#   pkg 6.19.0   -> pkg-fetch 3.5.33 -> release v3.5 -> ships node 14/16/18/19/20/22/24
+# On 6.22.0 a `node20` target dies with "404: Not Found / Not found in remote
+# cache" and then "Not able to build for 'linux' here, only for 'macos'", because
+# there is no node20 prebuilt to fetch and it will not cross-compile without one.
+#
+# The pin is also deliberate for supply-chain reasons: an unversioned global
+# install here lets the registry decide what compiles the binaries customers
+# download.
+npm install -g @yao-pkg/pkg@6.19.0
 
 yarn install
 yarn build
@@ -57,16 +68,13 @@ cp -R ./build/* packages/
 # silently emits arm64 binaries for every x64 customer -- and `--version` passes on
 # the arm64 runner that built them. verify-executable.sh now asserts x86-64 too.
 #
-# NODE VERSION: pinned to an exact patch, not the `node20` range. The range fails
-# outright -- @yao-pkg/pkg resolves it to a patch that has no prebuilt in
-# pkg-fetch, so the fetch 404s and it then refuses to cross-compile:
-#     Error! 404: Not Found / Not found in remote cache:
-#     Error! Not able to build for 'linux' here, only for 'macos'
-# 20.19.5 is the same version .nvmrc pins, and pkg-fetch publishes it for all
-# three x64 platforms, so the runtime inside the binary matches the one we build
-# and test with. Bump this and .nvmrc together; check the target exists first:
-#   gh api repos/yao-pkg/pkg-fetch/releases --paginate --jq '.[].assets[]?.name' \
-#     | grep node-v20
+# NODE VERSION: an exact patch, not the `node20` range, so the runtime compiled
+# into the binary is the same one .nvmrc pins and CI tests with rather than
+# whatever the range resolves to on the day. Verified present for all three x64
+# platforms in the pkg-fetch v3.5 release. Bump this and .nvmrc together, and
+# check the target actually exists first:
+#   gh api repos/yao-pkg/pkg-fetch/releases --paginate \
+#     --jq '.[] | select(.tag_name=="v3.5") | .assets[]?.name' | grep node-v20
 pkg ./packages/cli/bin/run.js \
   --targets node20.19.5-linux-x64,node20.19.5-macos-x64,node20.19.5-win-x64
 
