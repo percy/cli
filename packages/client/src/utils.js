@@ -119,6 +119,37 @@ const RETRY_ERROR_CODES = [
   'EHOSTUNREACH', 'EAI_AGAIN'
 ];
 
+// Node >=20 enables autoSelectFamily (Happy Eyeballs) by default, so a failed
+// connection to a dual-stack host — `localhost`, or any name with both A and
+// AAAA records — rejects with an AggregateError wrapping one error per address
+// rather than the single error earlier versions produced.
+//
+// Node does copy `.code` onto the AggregateError, so the retry gate below still
+// works. What it does NOT carry is a `.message`: AggregateError's is the empty
+// string. Percy classifies some failures by message rather than code —
+// client/src/proxy.js and sdk-utils/src/proxy.js both test
+// `err.message.includes('ECONNREFUSED')` to decide whether a proxy is
+// unreachable — and those checks silently stop matching.
+//
+// Restore the message Node used to produce by borrowing the first sub-error's
+// (e.g. "connect ECONNREFUSED 127.0.0.1:5883"). Mutate rather than rewrap so
+// callers keep the AggregateError and its `.errors`.
+export function flattenAggregateError(error) {
+  if (!Array.isArray(error?.errors) || !error.errors.length) return error;
+
+  // prefer a retryable cause when the addresses failed for different reasons
+  let cause = error.errors.find(e => RETRY_ERROR_CODES.includes(e?.code)) ?? error.errors[0];
+  error.code ??= cause?.code;
+
+  if (!error.message) {
+    error.message = cause?.message || 'connection failed';
+  } else if (error.code && !error.message.includes(error.code)) {
+    error.message = `${error.code}: ${error.message}`;
+  }
+
+  return error;
+}
+
 // Proxified request function that resolves with the response body when the request is successful
 // and rejects when a non-successful response is received. The rejected error contains response data
 // and any received error details. Server 500 errors are retried up to 5 times at 50ms intervals by
@@ -170,6 +201,7 @@ export async function request(url, options = {}, callback) {
       if (handleError.handled) return;
       handleError.handled = true;
 
+      error = flattenAggregateError(error);
       const response = error.response;
       meta.responseCode = error.code;
       meta.errorCount = (meta.errorCount || 0) + 1;
