@@ -117,23 +117,14 @@ describe('SnapshotSchema', () => {
     expect(errors[0].message).toBe('must have property scope when property scopeOptions is present');
   });
 
-  // Automate-only options live on /config/snapshot (the .percy.yml `snapshot:` section),
-  // NOT on /snapshot -- which $refs only a hand-picked subset and so reports fullPage as
-  // an unknown property too. /config/snapshot sets additionalProperties: false, so an
-  // undeclared key is rejected there: the reason scaleToFit needs a schema entry and not
-  // just provider plumbing.
-  // Structural assertion rather than a PercyConfig.validate() round-trip: the
-  // onlyAutomate keyword is evaluated when AJV COMPILES the schema, so a validate() call
-  // reflects whatever PERCY_TOKEN was set when the schema was first added in this process
-  // -- flipping the env var inside a spec cannot change the outcome. Asserting the
-  // declaration directly is what actually pins the change.
+  // Structural, not a validate() round-trip: onlyAutomate is evaluated when AJV COMPILES
+  // the schema, so flipping PERCY_TOKEN inside a spec cannot change the outcome.
   it('declares scaleToFit as an automate-only boolean', () => {
     expect(CoreConfig.schemas[0].snapshot.properties.scaleToFit)
       .toEqual({ type: 'boolean', onlyAutomate: true });
   });
 
-  // ...and this proves it is really wired into validation with the same gating as
-  // fullPage, not just present as an inert key.
+  // ...and this proves it is wired into validation with fullPage's gating, not inert.
   it('flags scaleToFit on a non-automate token, exactly like fullPage', () => {
     PercyConfig.addSchema(CoreConfig.schemas);
     const errors = PercyConfig.validate({ fullPage: true, scaleToFit: true }, '/config/snapshot');
@@ -142,8 +133,7 @@ describe('SnapshotSchema', () => {
 
     expect(paths).toContain('scaleToFit');
     expect(paths).toContain('fullPage');
-    // Same message as fullPage, and crucially NOT 'unknown property' -- an unknown-property
-    // error would mean the schema entry is missing and this spec passes vacuously.
+    // NOT 'unknown property', which would mean the entry is missing and this passes vacuously.
     expect([...messages]).toEqual(['property only valid with Automate integration.']);
   });
 });

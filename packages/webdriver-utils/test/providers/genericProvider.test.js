@@ -68,8 +68,7 @@ describe('GenericProvider', () => {
       expect(provider.options.scaleToFit).toBeFalse();
     });
 
-    // mobile-common compares the forwarded option with `== true`, so anything that is
-    // merely truthy would arrive as a no-op and silently truncate the page instead.
+    // mobile-common compares with `== true`, so a merely-truthy value would silently no-op.
     it('coerces scaleToFit to a real boolean', () => {
       const provider = new GenericProvider({ options: { scaleToFit: 'true' } });
       provider.addDefaultOptions();

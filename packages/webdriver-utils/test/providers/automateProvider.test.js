@@ -331,9 +331,7 @@ describe('AutomateProvider', () => {
         expect(res).toEqual(expectedOutput);
       });
 
-      // percy-api relaxes its tile-count limit by this factor, so it has to reach the
-      // comparison payload -- a scaleToFit capture walks a taller page and returns ~1/factor
-      // times the usual tile count, which the unrelaxed limit would reject.
+      // percy-api relaxes its tile-count limit by this factor, so it must reach the payload.
       it('forwards scaleToFit and the applied factor into metadata when scaling happened', async () => {
         const response = {
           success: true,
@@ -356,8 +354,7 @@ describe('AutomateProvider', () => {
         });
       });
 
-      // These land in comparison_details.metadata, the largest table on the platform, so
-      // the default path must not add constants to every row.
+      // These land in the largest table on the platform; don't grow every row.
       it('omits the scaleToFit metadata keys when mobile-common did not scale', async () => {
         const response = {
           success: true,
