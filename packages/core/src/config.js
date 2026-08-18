@@ -202,6 +202,14 @@ export const configSchema = {
         type: 'boolean',
         onlyAutomate: true
       },
+      // Opts a full-page Automate capture into downscaling each tile by 1/dpr, so the
+      // stitched image stays inside the 50,000px comparison ceiling. Without it the
+      // walkable DOM height is capped at 50000/dpr CSS px and taller pages are truncated.
+      // Only honoured on the fullPage path -- mobile-common ignores it for singlepage.
+      scaleToFit: {
+        type: 'boolean',
+        onlyAutomate: true
+      },
       freezeAnimation: { // for backward compatibility
         type: 'boolean',
         onlyAutomate: true

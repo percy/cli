@@ -48,6 +48,12 @@ export default class GenericProvider {
 
   addDefaultOptions() {
     this.options.freezeAnimation = this.options.freezeAnimatedImage || this.options.freezeAnimation || false;
+    // PERCY_SCALE_TO_FIT lets a whole run opt in without touching per-snapshot config,
+    // which is how support enables it for a customer hitting the 50,000px truncation.
+    // Coerced to a real boolean: mobile-common compares with `== true`, so a truthy
+    // string would silently fail to enable scaling.
+    this.options.scaleToFit = this.options.scaleToFit === true ||
+      process.env.PERCY_SCALE_TO_FIT === 'true';
   }
 
   async createDriver() {

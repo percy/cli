@@ -51,6 +51,36 @@ describe('GenericProvider', () => {
       provider.addDefaultOptions();
       expect(provider.options.freezeAnimation).toBeFalse();
     });
+
+    it('enables scaleToFit from the option or PERCY_SCALE_TO_FIT', () => {
+      let provider = new GenericProvider({ options: { scaleToFit: true } });
+      provider.addDefaultOptions();
+      expect(provider.options.scaleToFit).toBeTrue();
+
+      process.env.PERCY_SCALE_TO_FIT = 'true';
+      provider = new GenericProvider({ options: {} });
+      provider.addDefaultOptions();
+      expect(provider.options.scaleToFit).toBeTrue();
+
+      delete process.env.PERCY_SCALE_TO_FIT;
+      provider = new GenericProvider({ options: {} });
+      provider.addDefaultOptions();
+      expect(provider.options.scaleToFit).toBeFalse();
+    });
+
+    // mobile-common compares the forwarded option with `== true`, so anything that is
+    // merely truthy would arrive as a no-op and silently truncate the page instead.
+    it('coerces scaleToFit to a real boolean', () => {
+      const provider = new GenericProvider({ options: { scaleToFit: 'true' } });
+      provider.addDefaultOptions();
+      expect(provider.options.scaleToFit).toBeFalse();
+
+      process.env.PERCY_SCALE_TO_FIT = '1';
+      const other = new GenericProvider({ options: {} });
+      other.addDefaultOptions();
+      expect(other.options.scaleToFit).toBeFalse();
+      delete process.env.PERCY_SCALE_TO_FIT;
+    });
   });
 
   describe('supports', () => {
