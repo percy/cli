@@ -114,6 +114,10 @@ function mockSource(mockURL) {
 // package.json's `type` field, so the loader has to agree with it — see load().
 const pkgTypeCache = new Map();
 
+// Returns 'module' or 'commonjs' when a package.json was actually found, and
+// null when the walk found nothing. The distinction matters: "found, and it does
+// not say module" is a CommonJS package, whereas "no package.json at all" means
+// we know nothing and must not assume either way.
 function nearestPackageType(filename) {
   let dir = path.dirname(filename);
 
@@ -123,8 +127,9 @@ function nearestPackageType(filename) {
 
     if (fs.existsSync(pkg)) {
       let { type } = JSON.parse(fs.readFileSync(pkg, 'utf8'));
-      pkgTypeCache.set(dir, type);
-      return type;
+      let resolved = type === 'module' ? 'module' : 'commonjs';
+      pkgTypeCache.set(dir, resolved);
+      return resolved;
     }
 
     let parent = path.dirname(dir);
@@ -132,7 +137,7 @@ function nearestPackageType(filename) {
     dir = parent;
   }
 
-  return undefined;
+  return null;
 }
 
 export async function load(loadURL, context, nextLoad) {
@@ -143,12 +148,42 @@ export async function load(loadURL, context, nextLoad) {
   let result = await nextLoad(loadURL, context);
   if (result.format !== 'module' && result.format !== 'commonjs') return result;
 
-  let source = result.source;
-  if (Buffer.isBuffer(source)) source = source.toString();
-  if (typeof source !== 'string') return result;
+  // Hand CommonJS packages straight back to Node's CJS loader, transforming
+  // nothing here.
+  //
+  // Node 18 reported these as `format: 'commonjs'` with a null source, so the CJS
+  // require path loaded them and @babel/register (wired in via jasmine's
+  // `requires`) did the ESM->CJS transform. Node 20 reports the same file as
+  // `module` and hands us its source, which tempted this hook into transforming
+  // it and declaring the format Babel actually emitted.
+  //
+  // Returning a source for a CommonJS module makes Node load it as a distinct
+  // module instead of going through the `require` cache, so a package imported
+  // BOTH ways ends up with two live instances. @percy/sdk-utils is imported as
+  // ESM by the specs and required as CJS by test/helpers.js: with two instances,
+  // `delete utils.percy.enabled` in setupTest() mutated one object while
+  // isPercyEnabled() read the other, so `percy.enabled` stayed cached, the
+  // healthcheck was never re-issued, and 8 specs failed on stale state.
+  //
+  // Declaring the format without a source keeps a single shared instance and
+  // leaves the transform to @babel/register, exactly as on Node 18.
+  //
+  // Scoped to files BABEL_REG matches (our own packages' src/test) and to
+  // packages that positively declare themselves non-ESM. Applying it whenever
+  // nearestPackageType() failed to answer would strip the source from genuinely
+  // ESM files it knows nothing about — which broke cli, cli-build, cli-snapshot
+  // and cli-upload the first time round.
 
   // strip the ?__mock__ cache-buster: fileURLToPath throws on a query string
   let filename = url.fileURLToPath(loadURL.split('?')[0]);
+
+  if (BABEL_REG.test(filename) && nearestPackageType(filename) === 'commonjs') {
+    return { ...result, format: 'commonjs', source: undefined, shortCircuit: true };
+  }
+
+  let source = result.source;
+  if (Buffer.isBuffer(source)) source = source.toString();
+  if (typeof source !== 'string') return result;
 
   let out = await babel.transformAsync(source, {
     filename,
@@ -163,18 +198,7 @@ export async function load(loadURL, context, nextLoad) {
   // load() does not, and returning { source: undefined } throws.
   if (!out?.code) return result;
 
-  // Declare the format Babel actually emitted, not the one Node guessed.
-  //
-  // Node 18 reported these files as `commonjs` with a null source, so the CJS
-  // loader read them and @babel/register did the transform. Node 20 reports the
-  // SAME file as `module` and hands us its source — but babel.config.cjs keys
-  // off the nearest package.json's `type`, so for a package without
-  // `"type": "module"` (e.g. @percy/sdk-utils) it still compiles ESM down to
-  // CommonJS. Passing that CJS output back as `module` makes Node parse
-  // `exports.x = …` as an ES module, and every export silently disappears:
-  //   SyntaxError: The requested module '@percy/sdk-utils'
-  //   does not provide an export named 'default'
-  let format = nearestPackageType(filename) === 'module' ? 'module' : 'commonjs';
-
-  return { ...result, format, source: out.code };
+  // Only ESM packages reach here (the CommonJS case returned above), so the
+  // format Node reported is the one Babel emitted.
+  return { ...result, source: out.code };
 }
