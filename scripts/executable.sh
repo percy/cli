@@ -57,17 +57,18 @@ cp -R ./build/* packages/
 # silently emits arm64 binaries for every x64 customer -- and `--version` passes on
 # the arm64 runner that built them. verify-executable.sh now asserts x86-64 too.
 #
-# NODE VERSION: node22, not node20. This is the runtime compiled INTO the binary,
-# which is our choice and independent of the `engines` floor the packages declare.
-# `node20` fails outright -- @yao-pkg/pkg resolves that range to a patch with no
-# prebuilt in pkg-fetch, so the fetch 404s and it refuses to cross-compile:
+# NODE VERSION: pinned to an exact patch, not the `node20` range. The range fails
+# outright -- @yao-pkg/pkg resolves it to a patch that has no prebuilt in
+# pkg-fetch, so the fetch 404s and it then refuses to cross-compile:
 #     Error! 404: Not Found / Not found in remote cache:
 #     Error! Not able to build for 'linux' here, only for 'macos'
-# node22 is the fork's documented primary target, and unlike Node 20 (EOL
-# 30 Apr 2026) it still receives security releases -- which matters most here,
-# because binary users cannot patch the runtime we ship them.
+# 20.19.5 is the same version .nvmrc pins, and pkg-fetch publishes it for all
+# three x64 platforms, so the runtime inside the binary matches the one we build
+# and test with. Bump this and .nvmrc together; check the target exists first:
+#   gh api repos/yao-pkg/pkg-fetch/releases --paginate --jq '.[].assets[]?.name' \
+#     | grep node-v20
 pkg ./packages/cli/bin/run.js \
-  --targets node22-linux-x64,node22-macos-x64,node22-win-x64
+  --targets node20.19.5-linux-x64,node20.19.5-macos-x64,node20.19.5-win-x64
 
 # Rename executables
 # pkg names outputs `<entry>-<platform>` when the target arch equals the host
