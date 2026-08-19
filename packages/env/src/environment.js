@@ -1,3 +1,4 @@
+import os from 'os';
 import {
   getCommitData,
   getJenkinsSha,
@@ -405,6 +406,48 @@ export class PercyEnv {
     return !!partial && partial !== '0';
   }
 
+  // machine identity for slow-build diagnostics (dead-CI-machine detection on
+  // parallel builds). percy-api validates all of these server-side and may
+  // discard any of them. Deliberately excluded from the getter debug logging
+  // below (like `token`) — env debug logs are uploaded with build logs, and
+  // hostnames should not ride along in them.
+  get machine() {
+    let hostname = null;
+    try { hostname = os.hostname() || null; } catch { hostname = null; }
+
+    let index = null;
+    let runUrl = null;
+    switch (this.ci) {
+      case 'circle':
+        index = this.vars.CIRCLE_NODE_INDEX ?? null;
+        runUrl = this.vars.CIRCLE_BUILD_URL || null;
+        break;
+      case 'buildkite':
+        index = this.vars.BUILDKITE_PARALLEL_JOB ?? null;
+        runUrl = this.vars.BUILDKITE_BUILD_URL || null;
+        break;
+      case 'github':
+        runUrl = (this.vars.GITHUB_SERVER_URL && this.vars.GITHUB_REPOSITORY && this.vars.GITHUB_RUN_ID)
+          ? `${this.vars.GITHUB_SERVER_URL}/${this.vars.GITHUB_REPOSITORY}/actions/runs/${this.vars.GITHUB_RUN_ID}`
+          : null;
+        break;
+      case 'gitlab':
+        runUrl = this.vars.CI_JOB_URL || null;
+        break;
+    }
+
+    // stable id: sanitized hostname, suffixed with the CI node index when the
+    // provider exposes one (the same host can run multiple shards)
+    let id = hostname && hostname.replace(/[^A-Za-z0-9._-]/g, '-');
+    if (id && index != null && index !== '') id = `${id}.n${index}`;
+
+    return {
+      id: id || null,
+      hostname: hostname || null,
+      runUrl: runUrl || null
+    };
+  }
+
   // percy token
   get token() {
     return this.vars.PERCY_TOKEN || null;
@@ -441,7 +484,9 @@ Object.defineProperties(PercyEnv.prototype, (
           get() {
             let value = get.call(this);
             Object.defineProperty(this, key, { value });
-            if (key !== 'token') {
+            // `machine` carries a hostname and these debug logs are uploaded
+            // with build logs — keep it out, like the token.
+            if (key !== 'token' && key !== 'machine') {
               this.log.debug(`Detected ${key} as ${JSON.stringify(value)}`);
             }
             return value;
