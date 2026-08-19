@@ -917,7 +917,7 @@ describe('PercyClient', () => {
 
     beforeEach(() => stubEnv());
 
-    it('issues a GET with no query params when env is empty', async () => {
+    it('issues a GET with no query params when no build id is given', async () => {
       const path = '/intelli_story/snapshot-name-to-commit';
       api.reply(path, () => [200, { data: { foo: 'sha-foo' } }]);
 
@@ -927,46 +927,6 @@ describe('PercyClient', () => {
 
       expect(api.requests[path]).toBeDefined();
       expect(api.requests[path][0].method).toBe('GET');
-    });
-
-    it('appends git/target/PR/partial context when present in env', async () => {
-      stubEnv({
-        git: { branch: 'feature/x', sha: 'commit-sha-1' },
-        target: { branch: 'main', commit: 'commit-sha-2' },
-        pullRequest: 42,
-        partial: true
-      });
-
-      const expectedPath = '/intelli_story/snapshot-name-to-commit?' + [
-        'branch=feature%2Fx',
-        'target_branch=main',
-        'commit_sha=commit-sha-1',
-        'target_commit_sha=commit-sha-2',
-        'pull_request_number=42',
-        'partial=true'
-      ].join('&');
-
-      api.reply(expectedPath, () => [200, { data: { a: 'sha-a' } }]);
-
-      await expectAsync(
-        client.getIntelliStorySnapshotNameToCommit()
-      ).toBeResolvedTo({ data: { a: 'sha-a' } });
-
-      expect(api.requests[expectedPath]).toBeDefined();
-      expect(api.requests[expectedPath][0].method).toBe('GET');
-    });
-
-    it('includes pull_request_number=0 when env.pullRequest is 0 (not null)', async () => {
-      stubEnv({ pullRequest: 0 });
-
-      const expectedPath = '/intelli_story/snapshot-name-to-commit?pull_request_number=0';
-      api.reply(expectedPath, () => [200, { data: {} }]);
-
-      await expectAsync(
-        client.getIntelliStorySnapshotNameToCommit()
-      ).toBeResolvedTo({ data: {} });
-
-      expect(api.requests[expectedPath]).toBeDefined();
     });
 
     it('includes the build_id when provided', async () => {
@@ -979,6 +939,27 @@ describe('PercyClient', () => {
 
       expect(api.requests[expectedPath]).toBeDefined();
       expect(api.requests[expectedPath][0].method).toBe('GET');
+    });
+
+    // The endpoint resolves the base build from the build id alone, so git/PR
+    // context is no longer sent — build_id must be the only query param even
+    // when the environment has a full git context to offer.
+    it('does not send git/target/PR/partial context even when present in env', async () => {
+      stubEnv({
+        git: { branch: 'feature/x', sha: 'commit-sha-1' },
+        target: { branch: 'main', commit: 'commit-sha-2' },
+        pullRequest: 42,
+        partial: true
+      });
+
+      const expectedPath = '/intelli_story/snapshot-name-to-commit?build_id=bld-456';
+      api.reply(expectedPath, () => [200, { data: { a: 'sha-a' } }]);
+
+      await expectAsync(
+        client.getIntelliStorySnapshotNameToCommit('bld-456')
+      ).toBeResolvedTo({ data: { a: 'sha-a' } });
+
+      expect(Object.keys(api.requests)).toEqual([expectedPath]);
     });
   });
 

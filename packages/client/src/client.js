@@ -456,15 +456,13 @@ export class PercyClient {
 
   async getIntelliStorySnapshotNameToCommit(buildId) {
     this.log.debug('IntelliStory: looking up baselines...');
+    // `build_id` is the only input. The build already exists by the time this is
+    // called, so its base build has been selected server-side and the endpoint
+    // reads through to that base build's commit — there is nothing to predict
+    // from git/PR context any more.
     const qs = new URLSearchParams();
 
     if (buildId) qs.append('build_id', buildId);
-    if (this.env.git?.branch) qs.append('branch', this.env.git.branch);
-    if (this.env.target?.branch) qs.append('target_branch', this.env.target.branch);
-    if (this.env.git?.sha) qs.append('commit_sha', this.env.git.sha);
-    if (this.env.target?.commit) qs.append('target_commit_sha', this.env.target.commit);
-    if (this.env.pullRequest != null) qs.append('pull_request_number', String(this.env.pullRequest));
-    if (this.env.partial) qs.append('partial', 'true');
 
     const query = qs.toString();
     return this.get(
