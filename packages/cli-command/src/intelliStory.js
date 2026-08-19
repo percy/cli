@@ -345,10 +345,11 @@ export async function validateAndReadStats(buildDir, statsFile, projectRoot, log
   }
 
   log.debug(`IntelliStory: parsing stats file ${resolvedStatsPath}`);
-  // The graph is now keyed by the Percy build id, not the stats-file `buildId`,
-  // so a missing `buildId` in the stats file is no longer fatal. We only need
-  // the module graph (`files`/`modules`) from here.
-  const { files, modules } = await readStats(resolvedStatsPath, projectRoot, log, configDirs);
+  // The graph is keyed by the Percy build id, not the stats-file `buildId`, so a
+  // missing `buildId` here is not fatal — it is logged only so a support ticket
+  // can be tied back to the Storybook build that produced this stats file.
+  const { files, modules, buildId } = await readStats(resolvedStatsPath, projectRoot, log, configDirs);
+  log.debug(`IntelliStory: stats file buildId = ${buildId}`);
 
   return { files, modules };
 }

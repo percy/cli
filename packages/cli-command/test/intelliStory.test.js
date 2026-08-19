@@ -106,6 +106,26 @@ describe('intelliStory', () => {
       expect(res).toEqual({ files: [], modules: [] });
     });
 
+    // Logged for support correlation only — the graph is keyed by the Percy
+    // build id, so this value is not returned or acted on.
+    it("logs the stats file's buildId at debug level", async () => {
+      let log = mockLog();
+      await mockfs({ '/build/enriched-stats.json': JSON.stringify({ buildId: 'sb-42', modules: [] }) });
+
+      await validateAndReadStats('/build', undefined, '/root', log);
+
+      expect(log.debug).toHaveBeenCalledWith('IntelliStory: stats file buildId = sb-42');
+    });
+
+    it('logs undefined when the stats file carries no buildId', async () => {
+      let log = mockLog();
+      await mockfs({ '/build/enriched-stats.json': JSON.stringify({ modules: [] }) });
+
+      await validateAndReadStats('/build', undefined, '/root', log);
+
+      expect(log.debug).toHaveBeenCalledWith('IntelliStory: stats file buildId = undefined');
+    });
+
     it('bails when the stats file contains malformed JSON', async () => {
       await mockfs({ '/build/enriched-stats.json': '{ not valid json' });
       await expectBail(
