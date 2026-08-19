@@ -85,7 +85,9 @@ export const upload = command('upload', {
     exit(1, 'Invalid Token Type. Only "web" and "self-managed" token types are allowed.');
   }
 
-  let { default: imageSize } = await import('image-size');
+  // the stream entrypoint, not the package index — it pulls in the parsers and
+  // nothing else, and stops reading each file as soon as it has the dimensions
+  let { default: probeImageSize } = await import('probe-image-size/stream.js');
   let { getImageResources } = await import('./utils.js');
 
   // the internal discovery queue shares a concurrency with the snapshots queue
@@ -97,7 +99,16 @@ export const upload = command('upload', {
       log.info(`Skipping unsupported file type: ${relativePath}`);
     } else {
       let absolutePath = path.resolve(args.dirname, relativePath);
-      let img = { relativePath, absolutePath, ...imageSize(absolutePath) };
+      // rejects when the contents are not an image the parsers recognise,
+      // whatever the extension claims — skip that file rather than fail the run
+      let size = await probeImageSize(fs.createReadStream(absolutePath)).catch(() => null);
+
+      if (!size) {
+        log.info(`Skipping file with unreadable image data: ${relativePath}`);
+        continue;
+      }
+
+      let img = { relativePath, absolutePath, ...size };
       let { dir, name, ext } = path.parse(relativePath);
       img.type = ext === '.png' ? 'png' : 'jpeg';
       img.name = path.join(dir, name);
