@@ -323,6 +323,17 @@ class ClosedShadowCard extends HTMLElement {
 customElements.define('closed-shadow-card', ClosedShadowCard);
 
 // ---- Closed Dynamic Card ----
+// Covers a closed shadow root whose content is MUTATED after the constructor's
+// template is assigned: capture must serialize the live post-mutation DOM, not
+// the innerHTML the constructor set. That mutation is the whole point of this
+// case — it is what distinguishes it from the static <closed-shadow-card>
+// above — so it stays.
+//
+// It used to mutate on a 1s setInterval, which made the snapshot
+// non-deterministic: capture normally landed before the first tick (Count: 0),
+// but any CI slowness past 1s bumped it to 1+, so the digit varied run to run
+// and diffed against master on unrelated PRs. It now mutates exactly once, to a
+// fixed value — still a post-render mutation, but identical on every run.
 class ClosedDynamicCard extends HTMLElement {
   constructor() {
     super();
@@ -333,13 +344,14 @@ class ClosedDynamicCard extends HTMLElement {
         .counter { font-size: 24px; font-weight: bold; color: #dc3545; }
       </style>
       <div class="counter">Count: <span id="count">0</span></div>
-      <div>Dynamic closed shadow content — updates every second</div>
+      <div>Dynamic closed shadow content — mutated once after render</div>
     `;
-    let count = 0;
-    setInterval(() => {
-      count++;
-      this._shadow.getElementById('count').textContent = count;
-    }, 1000);
+  }
+
+  connectedCallback() {
+    // template renders 0, live DOM renders 42 — a capture that serialized the
+    // constructor's innerHTML instead of the live closed shadow root shows 0
+    this._shadow.getElementById('count').textContent = '42';
   }
 }
 customElements.define('closed-dynamic-card', ClosedDynamicCard);
