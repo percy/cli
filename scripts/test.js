@@ -88,8 +88,11 @@ async function main({
   } else if (!process.send) {
     // test runners assume they have control over the entire process, so give them each forks
     let flags = flagify({ coverage, karma: karmaArgs });
-    let loader = url.pathToFileURL(path.resolve(filename, '../loader.js')).href;
-    let opts = { execArgv: ['--loader', loader, ...process.execArgv] };
+    // --import (not --loader): the hooks must run in-process and share a realm
+    // with the specs so global.__MOCK_IMPORTS__ is the same object on both
+    // sides. See scripts/loader-register.js.
+    let loader = url.pathToFileURL(path.resolve(filename, '../loader-register.js')).href;
+    let opts = { execArgv: ['--import', loader, ...process.execArgv] };
 
     if (testNode) {
       await child('fork', filename, ['--node', ...flags], opts);
