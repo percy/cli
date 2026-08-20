@@ -287,9 +287,39 @@ function readStats(statsFile, projectRoot, log, configDirs) {
   return { files, modules, buildId: stats.buildId };
 }
 
+// Every other failure mode in this module — git, fs, config, lockfile, glob,
+// degraded graph — is converted to IntelliStoryBailError so the caller can
+// degrade to a full snapshot run. API and network failures are no different: a
+// 403 means the organization is not entitled to IntelliStory, and a 5xx /
+// timeout / connection reset is transient. Neither should hard-fail the
+// storybook command, which is what a bare Error does once @percy/storybook
+// catches IntelliStoryBailError specifically.
+function isNotAllowed(e) {
+  return e?.response?.statusCode === 403;
+}
+
+function apiBailError(e, action) {
+  if (isNotAllowed(e)) {
+    return new IntelliStoryBailError(`IntelliStory: not enabled for this organization (${action} was not allowed); running full snapshot set`);
+  }
+  return new IntelliStoryBailError(`IntelliStory: ${action} failed: ${e?.message}; running full snapshot set`);
+}
+
 async function pollGraphStatus(percy, buildId, log) {
   for (let i = 0; i < POLL_ATTEMPTS; i++) {
-    const res = await percy.client.getStatus('intelli_story_graph', [buildId]);
+    let res;
+    try {
+      res = await percy.client.getStatus('intelli_story_graph', [buildId]);
+    } catch (e) {
+      // A 403 will not resolve by polling again, so stop immediately rather
+      // than burning the full POLL_ATTEMPTS window on it. Anything else is
+      // treated as "not done yet" and retried; if it never clears, the caller's
+      // timed-out bail covers it.
+      if (isNotAllowed(e)) throw apiBailError(e, 'graph status poll');
+      log.debug(`IntelliStory: graph status (attempt ${i + 1}) errored: ${e?.message}`);
+      if (i < POLL_ATTEMPTS - 1) await new Promise(r => setTimeout(r, POLL_INTERVAL_MS));
+      continue;
+    }
     const status = res?.status;
     log.debug(`IntelliStory: graph status (attempt ${i + 1}) = ${status}`);
     if (status === 'done' || status === 'failed') return { status, data: res?.data };
@@ -315,10 +345,11 @@ export async function validateAndReadStats(buildDir, statsFile, projectRoot, log
   }
 
   log.debug(`IntelliStory: parsing stats file ${resolvedStatsPath}`);
-  // The graph is now keyed by the Percy build id, not the stats-file `buildId`,
-  // so a missing `buildId` in the stats file is no longer fatal. We only need
-  // the module graph (`files`/`modules`) from here.
-  const { files, modules } = await readStats(resolvedStatsPath, projectRoot, log, configDirs);
+  // The graph is keyed by the Percy build id, not the stats-file `buildId`, so a
+  // missing `buildId` here is not fatal — it is logged only so a support ticket
+  // can be tied back to the Storybook build that produced this stats file.
+  const { files, modules, buildId } = await readStats(resolvedStatsPath, projectRoot, log, configDirs);
+  log.debug(`IntelliStory: stats file buildId = ${buildId}`);
 
   return { files, modules };
 }
@@ -328,7 +359,12 @@ export async function getBaselineAndAffectedNodes(percy, baseline, log) {
 
   // Always look up the base build: its `browsers_changed_from_base` flag forces
   // a full snapshot run regardless of whether an explicit baseline was configured.
-  const baseLookup = await percy.client.getIntelliStorySnapshotNameToCommit(percy.build?.id);
+  let baseLookup;
+  try {
+    baseLookup = await percy.client.getIntelliStorySnapshotNameToCommit(percy.build?.id);
+  } catch (e) {
+    throw apiBailError(e, 'base build lookup');
+  }
   log.debug(`IntelliStory: base lookup ${JSON.stringify(baseLookup)}`);
 
   if (baseLookup?.browsers_changed_from_base) {
@@ -562,9 +598,13 @@ export function extractStorybookPaths(snapshots, normalizeImportPath, log) {
 export async function runGraphGeneration(percy, buildId, payload, log) {
   const { files, modules, storybookPaths, affectedNodes, affectedFileLocations } = payload;
   log.debug(`IntelliStory: starting graph generation job ${JSON.stringify({ buildId, files, modules, storybookPaths, affectedNodes, affectedFileLocations })}`);
-  await percy.client.generateIntelliStoryGraph(buildId, {
-    files, modules, storybookPaths, affectedNodes, affectedFileLocations
-  });
+  try {
+    await percy.client.generateIntelliStoryGraph(buildId, {
+      files, modules, storybookPaths, affectedNodes, affectedFileLocations
+    });
+  } catch (e) {
+    throw apiBailError(e, 'graph generation request');
+  }
 
   const { status } = await pollGraphStatus(percy, buildId, log);
   if (status !== 'done') {

@@ -267,6 +267,19 @@ export async function request(url, options = {}, callback) {
     let req = http.request(requestOptions);
     req.on('response', handleResponse);
     req.on('error', handleError);
+
+    // Node's `timeout` option only *emits* a 'timeout' event once the socket
+    // has been idle that long — it does not abort anything. Without this
+    // listener a caller passing `timeout` still waits forever on a peer that
+    // accepts the connection and then goes silent, and the promise never
+    // settles. Destroying the request surfaces it through 'error' instead.
+    if (requestOptions.timeout) {
+      req.on('timeout', () => req.destroy(Object.assign(
+        new Error(`Request to ${url} timed out after ${requestOptions.timeout}ms`),
+        { code: 'ETIMEDOUT' }
+      )));
+    }
+
     req.end(body);
   }, { retries, interval });
 }
