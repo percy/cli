@@ -202,6 +202,12 @@ export const configSchema = {
         type: 'boolean',
         onlyAutomate: true
       },
+      // Downscales each tile by 1/dpr so the stitched image fits the 50,000px ceiling;
+      // without it the DOM walk is capped at 50000/dpr CSS px. fullPage path only.
+      scaleToFit: {
+        type: 'boolean',
+        onlyAutomate: true
+      },
       freezeAnimation: { // for backward compatibility
         type: 'boolean',
         onlyAutomate: true

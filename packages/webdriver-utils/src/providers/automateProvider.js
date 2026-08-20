@@ -96,6 +96,12 @@ export default class AutomateProvider extends GenericProvider {
     const metadata = {
       screenshotType: screenshotType
     };
+    // percy-api needs the factor to relax its tile-count limit. Added only when it really
+    // scaled -- these land in the largest table on the platform.
+    if (tileResponse.scale_to_fit === true) {
+      metadata.scaleToFit = true;
+      metadata.appliedScaleFactor = tileResponse.applied_scale_factor;
+    }
     return {
       tiles: tiles,
       domInfoSha: tileResponse.dom_sha,

@@ -116,6 +116,27 @@ describe('SnapshotSchema', () => {
     expect(errors[0].path).toBe('scope');
     expect(errors[0].message).toBe('must have property scope when property scopeOptions is present');
   });
+
+  // Structural, not a validate() round-trip: onlyAutomate is evaluated when AJV COMPILES
+  // the schema, so flipping PERCY_TOKEN inside a spec cannot change the outcome.
+  it('declares scaleToFit as an automate-only boolean', () => {
+    expect(CoreConfig.schemas[0].snapshot.properties.scaleToFit)
+      .toEqual({ type: 'boolean', onlyAutomate: true });
+  });
+
+  // ...and this proves it is wired into validation, not inert. Asserted RELATIVE to
+  // fullPage: onlyAutomate is compiled in from PERCY_TOKEN, which differs between a local
+  // run and CI, so an absolute expectation here passes locally and breaks in CI.
+  it('gates scaleToFit exactly like fullPage', () => {
+    PercyConfig.addSchema(CoreConfig.schemas);
+    const errors = PercyConfig.validate({ fullPage: true, scaleToFit: true }, '/config/snapshot') || [];
+    const messagesFor = (path) => errors.filter(e => e.path === path).map(e => e.message);
+
+    expect(messagesFor('scaleToFit')).toEqual(messagesFor('fullPage'));
+    // An undeclared key would draw 'unknown property' here while fullPage drew none, so
+    // this still fails if the schema entry goes missing.
+    expect(messagesFor('scaleToFit')).not.toContain('unknown property');
+  });
 });
 
 describe('ComparisonSchema - elementSelectorsData', () => {

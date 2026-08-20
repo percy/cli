@@ -48,6 +48,10 @@ export default class GenericProvider {
 
   addDefaultOptions() {
     this.options.freezeAnimation = this.options.freezeAnimatedImage || this.options.freezeAnimation || false;
+    // PERCY_SCALE_TO_FIT opts a whole run in without per-snapshot config. Coerced to a
+    // real boolean: mobile-common compares with `== true`, so a truthy string would no-op.
+    this.options.scaleToFit = this.options.scaleToFit === true ||
+      process.env.PERCY_SCALE_TO_FIT === 'true';
   }
 
   async createDriver() {
