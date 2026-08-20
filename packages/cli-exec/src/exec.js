@@ -22,6 +22,10 @@ export const exec = command('exec', {
     description: 'Marks the build as a partial build',
     parse: () => !!(process.env.PERCY_PARTIAL_BUILD ||= '1')
   }, {
+    name: 'fail-on-error',
+    description: 'Exit non-zero when Percy fails to start, even if the command succeeds',
+    parse: () => !!(process.env.PERCY_FAIL_ON_ERROR ||= 'true')
+  }, {
     name: 'archive-dir',
     description: 'Save snapshot data to an archive directory for deferred upload',
     percyrc: 'percy.archiveDir',
@@ -65,6 +69,12 @@ export const exec = command('exec', {
     exit(127, `Command not found "${command}"`, false);
   }
 
+  // Tracks a Percy startup failure so `--fail-on-error` can surface it as a non-zero
+  // exit after the wrapped command has run. Keyed off the thrown error rather than
+  // scraped error logs, which also carry non-fatal diagnostics (e.g. the error-analysis
+  // and build-log upload side channels) that must not fail a CI run.
+  let startError = null;
+
   // attempt to start percy if enabled
   if (!percy) {
     log.warn('Percy is disabled');
@@ -101,6 +111,7 @@ export const exec = command('exec', {
       yield* percy.yield.start();
     } catch (error) {
       if (error.name === 'AbortError') throw error;
+      startError = error;
       log.warn('Skipping visual tests');
       log.error(error);
     }
@@ -124,8 +135,19 @@ export const exec = command('exec', {
   await percy?.stop(force);
 
   log.info(`Command "${[command, ...args].join(' ')}" exited with status: ${status}`);
-  // forward any returned status code
+  // forward any returned status code — the wrapped command's own failure takes
+  // priority over a Percy startup failure, since it is the more specific signal
   if (status) exit(status, error, false);
+
+  // Opt-in: fail the run when Percy never started, so a CI pipeline does not report
+  // success for a build that produced no visual coverage. Default behavior is
+  // unchanged — without the flag the wrapped command's status is still the only
+  // thing that determines the exit code.
+  let failOnError = flags.failOnError || process.env.PERCY_FAIL_ON_ERROR === 'true';
+
+  if (failOnError && startError) {
+    exit(1, 'Percy failed to start and --fail-on-error was set; no visual tests ran', false);
+  }
 
   // force exit post timeout
   await waitForTimeout(10000);
