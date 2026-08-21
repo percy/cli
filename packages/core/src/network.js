@@ -634,7 +634,7 @@ export class Network {
     }
 
     let remoteAddresses = [];
-    let lookup = (hostname, opts, cb) => dns.lookup(hostname, opts, (err, address, family) => {
+    let lookup = (hostname, opts, cb) => dns.lookup(hostname, { ...opts, verbatim: false }, (err, address, family) => {
       remoteAddresses.push(...flattenLookupAddresses(address));
       cb(err, address, family);
     });

@@ -61,3 +61,10 @@ packages/cli-command/src/intelliStory.js
 # to assert no `require()` bindings leak in; the traversal roots are static
 # literals, no user input flows here. semgrep flags the path.join() anyway.
 packages/cli-command/test/noRequireBinding.test.js
+
+# ESM test harness (dev-only, never shipped): path joins derive from the repo's own
+# layout, not user input. File-level because inline nosemgrep is ignored in CI.
+scripts/loader.js
+scripts/loader-alias.js
+scripts/register-hooks.mjs
+packages/config/test/helpers.js
