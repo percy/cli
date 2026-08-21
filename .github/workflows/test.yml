@@ -25,7 +25,7 @@ jobs:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
       - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
-          node-version: 20.19.5
+          node-version: 20
       - uses: actions/cache@f4b3439a656ba812b8cb417d2d49f9c810103092 # v3.4.0
         with:
           path: |
@@ -61,7 +61,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest]
-        node: [20.19.5]
+        node: [20]
         package:
           - '@percy/env'
           - '@percy/client'
@@ -98,11 +98,11 @@ jobs:
             packages/*/node_modules
             packages/core/.local-chromium
           key: >
-            ${{ runner.os }}/node-20/
+            ${{ runner.os }}/node-${{ matrix.node }}/
             ${{ hashFiles('.github/.cache-key') }}/
             ${{ hashFiles('**/yarn.lock') }}
           restore-keys: >
-            ${{ runner.os }}/node-20/
+            ${{ runner.os }}/node-${{ matrix.node }}/
             ${{ hashFiles('.github/.cache-key') }}/
       - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
         with:
@@ -196,11 +196,11 @@ jobs:
             packages/*/node_modules
             packages/core/.local-chromium
           key: >
-            ${{ runner.os }}/node-20/
+            ${{ runner.os }}/node-${{ matrix.node }}/
             ${{ hashFiles('.github/.cache-key') }}/
             ${{ hashFiles('**/yarn.lock') }}
           restore-keys: >
-            ${{ runner.os }}/node-20/
+            ${{ runner.os }}/node-${{ matrix.node }}/
             ${{ hashFiles('.github/.cache-key') }}/
       - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
         with:
@@ -272,7 +272,7 @@ jobs:
           fetch-depth: 50
       - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
-          node-version: 20.19.5
+          node-version: 20
       - uses: actions/cache@f4b3439a656ba812b8cb417d2d49f9c810103092 # v3.4.0
         with:
           path: |
