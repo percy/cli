@@ -1,11 +1,18 @@
 #!/bin/bash
 # Smoke-test a packaged percy executable.
 #
-# Why this isn't just `./percy --version`: the executables are built on Node 14,
-# where an unhandled promise rejection is reported as a *warning* and the process
-# still exits 0. So a binary that throws on startup (e.g. a bad require produced
-# by the CJS transpile) prints a stack trace yet a bare `--version` exit-code
-# check passes — and the release pipeline happily uploads a broken binary.
+# Why this isn't just `./percy --version`: this check was written when the
+# executables were built on Node 14, where an unhandled promise rejection was
+# reported as a *warning* and the process still exited 0 — so a binary that threw
+# on startup (e.g. a bad require produced by the CJS transpile) printed a stack
+# trace yet a bare `--version` exit-code check passed, and the release pipeline
+# happily uploaded a broken binary.
+#
+# On Node 20 that specific hole is closed twice over: unhandled rejections are
+# fatal by default, and bin/run.cjs now catches startup failures and exits 1. The
+# output scan below is kept as defence in depth — it still catches a binary that
+# prints a stack trace and then exits 0 for some other reason. Do NOT re-justify
+# it with "the executables are built on Node 14".
 #
 # This script treats the binary as broken if `--version` either exits non-zero,
 # fails to print a real version, or emits any runtime-error marker on stdout/stderr.
