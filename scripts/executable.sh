@@ -8,21 +8,8 @@ function cleanup {
 }
 
 brew install gnu-sed
-# @yao-pkg/pkg is the maintained fork; vercel/pkg is archived at 5.8.1 and fails
-# with "No available node version satisfies 'node20'".
-#
-# Pinned to 6.19.0 SPECIFICALLY, and not upgradable without dropping Node 20:
-# pkg resolves targets against its @yao-pkg/pkg-fetch dependency, and pkg-fetch
-# serves prebuilt Node binaries from the GitHub release matching its own minor.
-#   pkg 6.20.0+  -> pkg-fetch 3.6.x -> release v3.6 -> ships node 22, 24, 26 ONLY
-#   pkg 6.19.0   -> pkg-fetch 3.5.33 -> release v3.5 -> ships node 14/16/18/19/20/22/24
-# On 6.22.0 a `node20` target dies with "404: Not Found / Not found in remote
-# cache" and then "Not able to build for 'linux' here, only for 'macos'", because
-# there is no node20 prebuilt to fetch and it will not cross-compile without one.
-#
-# The pin is also deliberate for supply-chain reasons: an unversioned global
-# install here lets the registry decide what compiles the binaries customers
-# download.
+# vercel/pkg is archived and cannot build node20. Pinned to 6.19.0: later
+# versions use pkg-fetch 3.6+, which ships no node20 prebuilt.
 npm install -g @yao-pkg/pkg@6.19.0
 
 yarn install
@@ -62,31 +49,13 @@ cp -R ./build/* packages/
 # Create executables. (No `-d`/`--debug`: it only adds per-file "included as
 # DISCLOSED code / asset content" logging — thousands of lines — without
 # changing the output binaries.)
-# Targets are explicit on purpose, for two separate reasons.
-#
-# ARCH: pkg defaults to linux,macos,win at the HOST arch, so on an arm64 runner it
-# silently emits arm64 binaries for every x64 customer -- and `--version` passes on
-# the arm64 runner that built them. verify-executable.sh now asserts x86-64 too.
-#
-# NODE VERSION: the `node20` range, deliberately, paired with the pkg pin above.
-# An exact patch is NOT accepted -- pkg matches the target against its own
-# known-version list rather than against whatever pkg-fetch publishes, so
-# `node20.19.5-...` dies with "No available node version satisfies 'v20.19.5'"
-# even though that prebuilt exists. The range lets pkg pick a version it knows,
-# and on the 3.5 line every node20 it knows is published for all three x64
-# platforms.
-#
-# Consequence: the runtime inside the binary is whichever node20 patch pkg-fetch
-# 3.5.33 resolves to, which will not always equal the .nvmrc pin. That is
-# tolerable -- they only have to share a major -- but it does mean the binary's
-# exact runtime is decided by the pkg pin, so treat bumping that pin as a change
-# to what ships, not as routine maintenance.
+# Targets are explicit: pkg otherwise follows the HOST arch, silently shipping
+# arm64 binaries to x64 customers. `node20` must stay a range, not an exact patch.
 pkg ./packages/cli/bin/run.js \
   --targets node20-linux-x64,node20-macos-x64,node20-win-x64
 
-# Rename executables
-# pkg names outputs `<entry>-<platform>` when the target arch equals the host
-# arch and `<entry>-<platform>-<arch>` otherwise, so match by prefix.
+# Rename executables. Match by prefix: pkg appends `-<arch>` when it differs
+# from the host.
 mv "$(ls run-linux* | head -1)" percy && chmod +x percy
 mv "$(ls run-macos* | head -1)" percy-osx && chmod +x percy-osx
 mv "$(ls run-win*.exe | head -1)" percy.exe && chmod +x percy.exe

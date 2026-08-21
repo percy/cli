@@ -62,20 +62,8 @@ packages/cli-command/src/intelliStory.js
 # literals, no user input flows here. semgrep flags the path.join() anyway.
 packages/cli-command/test/noRequireBinding.test.js
 
-# The ESM test harness (dev-only; never shipped) joins paths derived from the
-# repo's own layout, not from request input: loader-alias.js resolves
-# `@percy/<name>` against a hardcoded ROOT and the workspace's own package.json
-# `exports` map; loader.js resolves an import specifier against its importer's
-# directory to look it up in the mock manifest, and walks upward from a file to
-# the nearest package.json to decide CJS vs ESM. config/test/helpers.js resolves
-# the paths of virtual modules that mockfs() itself created inside a jasmine
-# spec. semgrep's path-join-resolve-traversal rule cannot distinguish these from
-# user input, and inline `// nosemgrep` is not honored by the CI semgrep version
-# (see the rationale on the entries above) — suppress at the file level.
-#
-# NOTE: file-level entries disable EVERY rule for the whole file, including rules
-# and code added later. Prefer line-scoped suppression here as soon as the CI
-# semgrep version honors it.
+# ESM test harness (dev-only, never shipped): path joins derive from the repo's own
+# layout, not user input. File-level because inline nosemgrep is ignored in CI.
 scripts/loader.js
 scripts/loader-alias.js
 scripts/register-hooks.mjs
