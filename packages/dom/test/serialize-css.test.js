@@ -44,13 +44,7 @@ describe('serializeCSSOM', () => {
       it(`${platform}: serializes CSSOM and does not mutate the orignal DOM`, () => {
         let $cssom = parseDOM(serializeDOM(), platform)('[data-percy-cssom-serialized]');
 
-        // linked and unmodified stylesheets are not included. Plain
-        // authored <style> tags with unchanged content (e.g. `style`
-        // below, `.box { background: green; }`) are cloned via walkTree,
-        // not synthesized from CSSOM, so they never carry this marker
-        // either — clone-dom previously set it unconditionally whenever
-        // it had any text to clone, which falsely flagged every ordinary
-        // <style> as CSSOM-serialized (PER-10567).
+        // linked, unmodified and plain authored stylesheets are not included
         expect($cssom).toHaveSize(2);
         expect($cssom[0].innerHTML).toBe('.box { height: 500px; }');
         expect($cssom[1].innerHTML).toBe('.box { width: 1000px; }');
@@ -89,9 +83,7 @@ describe('serializeCSSOM', () => {
         cssomSheet.deleteRule(0); // Remove all rules to make it empty
         const serialized = serializeDOM();
         let $cssom = parseDOM(serialized, platform)('[data-percy-cssom-serialized]');
-        // should skip the empty stylesheet; only `mod` (genuinely
-        // CSSOM-mutated) remains marked — see PER-10567 note above.
-        expect($cssom).toHaveSize(1);
+        expect($cssom).toHaveSize(1); // should skip the empty stylesheet
       });
 
       it(`${platform}: preserves media queries inside CSSOM`, () => {
@@ -558,19 +550,7 @@ describe('serializeCSSOM', () => {
       expect(reserialized.textContent).toContain('.live-only');
     });
 
-    it('clone-dom does not duplicate authored <style> text end-to-end (preserves `background: var(--x)` shorthand)', () => {
-      // PER-10567: clone-dom previously set clone.textContent = cssText for
-      // every <style> (even ones with their own authored text), and the
-      // subsequent generic walkTree call re-cloned the live text node on
-      // top of that — doubling the parsed rule count. This is the same
-      // failure mode the styleSheetsMatch relaxation above tolerates for a
-      // clean duplicate, but a real page's stylesheet can still fail that
-      // guard (e.g. any unrelated CSSOM mutation elsewhere in the same
-      // sheet), forcing a full lossy re-serialization that expands
-      // shorthands like `background: var(--x)` into empty longhands. The
-      // fix is to never duplicate in the first place: only synthesize
-      // clone.textContent for CSSOM-only sheets that have no text node of
-      // their own.
+    it('does not duplicate authored <style> text, preserving `background: var(--x)` shorthands', () => {
       withExample('<style id="var-shorthand">.box { all: initial; background: var(--x); background-clip: text; }</style>', { withShadow: false });
 
       let liveStyle = document.getElementById('var-shorthand');

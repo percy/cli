@@ -80,12 +80,6 @@ export function cloneNodeAndShadow(ctx) {
       // Handle <style> tag specifically for media queries
       if (node.nodeName === 'STYLE' && !enableJavaScript) {
         let ownText = node.textContent?.trim() || '';
-        // Only synthesize text for CSSOM-only sheets (JS-inserted, no text
-        // node of their own). A <style> that already has its own text gets
-        // it from walkTree below — setting clone.textContent here as well
-        // would duplicate it (walkTree re-clones the live text node right
-        // after), doubling the parsed rule count and defeating
-        // serializeCSSOM's identity guard (styleSheetsMatch).
         if (!ownText && node.sheet) {
           try {
             const cssRules = node.sheet.cssRules;
