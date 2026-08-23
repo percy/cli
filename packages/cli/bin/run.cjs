@@ -14,8 +14,6 @@ import('../dist/index.js')
     await percy(process.argv.slice(2));
   })
   .catch(error => {
-    // Node <15 reported this as a warning and still exited 0, which is how a
-    // binary that crashes on startup used to ship (see verify-executable.sh).
-    console.error(`Percy failed to start: ${(error && error.stack) || error}`);
+    console.error(`Percy CLI exited with an error: ${(error && error.stack) || error}`);
     process.exit(1);
   });
