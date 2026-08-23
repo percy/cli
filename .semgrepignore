@@ -67,4 +67,7 @@ packages/cli-command/test/noRequireBinding.test.js
 scripts/loader.js
 scripts/loader-alias.js
 scripts/register-hooks.mjs
+
+# Published (see @percy/config `files`/`exports`) but test-only: the paths joined
+# here are virtual modules mockfs() created in-process, not user input.
 packages/config/test/helpers.js
