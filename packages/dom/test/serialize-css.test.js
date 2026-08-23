@@ -463,23 +463,14 @@ describe('serializeCSSOM', () => {
 
   describe('regression: cloned <style> text-node duplication', () => {
     // serializeCSSOM decides whether to re-serialize each in-memory CSSOM
-    // stylesheet via styleSheetsMatch(liveSheet, cloneSheet). Cloned <style>
-    // elements in real snapshots can end up with the original text node
-    // appended twice (clone-dom assigns clone.textContent = ... and the
-    // subsequent generic walkTree re-clones the original text node). The
-    // parsed cloneSheet then has 2x the rules of liveSheet.
-    //
-    // Strict length equality (`lenA !== lenB`) treats that as a mismatch
-    // and forces re-serialization via Array.from(liveSheet.cssRules).map(
-    // r => r.cssText), which is NOT semantically identity-preserving:
-    // Chromium expands `all: initial` into hundreds of longhands and
-    // emits logical-property longhands (border-end-end-radius: initial,
-    // ...) AFTER the shorthand it sat next to in source, silently
-    // overriding `border-radius: var(--x)` with 0.
-    //
-    // styleSheetsMatch must therefore tolerate lenB > lenA when every
-    // live rule still appears in the clone (re-serialization is only
-    // required when the live sheet has rules the clone is missing).
+    // stylesheet via styleSheetsMatch(liveSheet, cloneSheet). It must
+    // tolerate lenB > lenA when every live rule still appears in the clone:
+    // re-serialization via Array.from(liveSheet.cssRules).map(r => r.cssText)
+    // is NOT semantically identity-preserving — Chromium expands
+    // `all: initial` into hundreds of longhands and emits logical-property
+    // longhands (border-end-end-radius: initial, ...) AFTER the shorthand
+    // it sat next to in source, silently overriding
+    // `border-radius: var(--x)` with 0.
 
     it('skips re-serialization when clone <style> text duplicates the live rules — preserves `all: initial; border-radius: var(--x)` semantics', () => {
       withExample('<div class="box"></div>', { withShadow: false });
@@ -492,8 +483,7 @@ describe('serializeCSSOM', () => {
       const clone = document.createDocumentFragment();
       const cloneOwner = document.createElement('style');
       cloneOwner.setAttribute('data-percy-element-id', 'dup-regression');
-      // Duplicate the source rule — what clone-dom currently produces.
-      // styleSheetFromNode will parse this into a sheet with 2 rules,
+      // styleSheetFromNode parses this into a sheet with 2 rules,
       // while the live sheet has 1.
       cloneOwner.textContent = liveRuleText + '\n' + liveRuleText;
       clone.appendChild(cloneOwner);
