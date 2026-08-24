@@ -10,6 +10,7 @@ import logger from '@percy/logger';
 import install from './install.js';
 import { MAX_CDP_PAYLOAD } from './network.js';
 import Session from './session.js';
+import { pendingCommand } from './utils.js';
 import Page from './page.js';
 
 // Chrome features Percy disables for v143 new-headless asset discovery.
@@ -204,6 +205,8 @@ export class Browser extends EventEmitter {
 
     // reject any pending callbacks
     for (let callback of this.#callbacks.values()) {
+      clearTimeout(callback.timer);
+
       callback.reject(Object.assign(callback.error, {
         message: `Protocol error (${callback.method}): Browser closed.`
       }));
@@ -278,7 +281,7 @@ export class Browser extends EventEmitter {
     return page;
   }
 
-  async send(method, params) {
+  async send(method, params, { timeout } = {}) {
     /* istanbul ignore next:
      *   difficult to test failure here without mocking private properties */
     if (!this.isConnected()) throw new Error('Browser not connected');
@@ -294,10 +297,7 @@ export class Browser extends EventEmitter {
       // send the message payload
       this.ws.send(JSON.stringify({ id, method, params }));
 
-      // will resolve or reject when a matching response is received
-      return new Promise((resolve, reject) => {
-        this.#callbacks.set(id, { error: new Error(), resolve, reject, method });
-      });
+      return pendingCommand(this.#callbacks, id, method, timeout);
     }
   }
 
@@ -368,6 +368,7 @@ export class Browser extends EventEmitter {
       // resolve or reject a pending promise created with #send()
       let callback = this.#callbacks.get(data.id);
       this.#callbacks.delete(data.id);
+      clearTimeout(callback.timer);
 
       /* istanbul ignore next: races with page._handleMessage() */
       if (data.error) {

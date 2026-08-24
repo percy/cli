@@ -7,7 +7,9 @@ import {
   hostname,
   waitFor,
   waitForTimeout as sleep,
-  serializeFunction
+  serializeFunction,
+  normalizeEvalException,
+  DEFAULT_CDP_CLOSE_TIMEOUT
 } from './utils.js';
 
 // Internal ceiling on the customElements wait. Set tight (500ms) so a
@@ -95,13 +97,17 @@ export class Page {
   // Close the page
   async close() {
     let browser = this.session.browser;
-    await this.session.close();
+
+    await this.session.close().catch(error => {
+      this.log.debug('Failed to close page session', this.meta);
+      this.log.debug(error);
+    });
 
     if (this.browserContextId && browser) {
       /* istanbul ignore next: safety net for already-disposed contexts */
       await browser.send('Target.disposeBrowserContext', {
         browserContextId: this.browserContextId
-      }).catch(() => {});
+      }, { timeout: DEFAULT_CDP_CLOSE_TIMEOUT }).catch(() => {});
     }
 
     this.log.debug('Page closed', this.meta);
@@ -216,7 +222,7 @@ export class Page {
       });
 
     if (exceptionDetails) {
-      throw exceptionDetails.exception.description;
+      throw normalizeEvalException(exceptionDetails);
     } else {
       return result.value;
     }
