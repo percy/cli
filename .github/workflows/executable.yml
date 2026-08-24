@@ -55,6 +55,8 @@ jobs:
         with:
           node-version: 14
       - name: Install resedit
+        env:
+          npm_config_engine_strict: 'false'
         run: npm install resedit
       - name: Update exe metadata
         run: node ./scripts/win-metadata-update.js
