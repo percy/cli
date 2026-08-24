@@ -41,7 +41,13 @@ $(cat ./packages/cli/dist/percy.js)" > ./packages/cli/dist/percy.js
 gsed -i '/Update NODE_ENV for executable/{s//\nprocess.env.NODE_ENV = "executable";/;h};${x;/./{x;q0};x;q1}' ./packages/cli/bin/run.cjs
 
 # Convert ES6 code to cjs
-npm run build_cjs
+npm_config_ignore_scripts=false npm run build_cjs
+
+if [ -z "$(ls -A ./build 2>/dev/null)" ]; then
+  echo "::error::CJS build produced no output in ./build — aborting executable build"
+  exit 1
+fi
+
 cp -R ./build/* packages/
 
 # Create executables. (No `-d`/`--debug`: it only adds per-file "included as
