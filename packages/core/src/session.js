@@ -1,5 +1,6 @@
 import EventEmitter from 'events';
 import logger from '@percy/logger';
+import { pendingCommand, DEFAULT_CDP_CLOSE_TIMEOUT } from './utils.js';
 
 export class Session extends EventEmitter {
   #callbacks = new Map();
@@ -33,10 +34,10 @@ export class Session extends EventEmitter {
 
     await this.browser.send('Target.closeTarget', {
       targetId: this.targetId
-    }).catch(this._handleClosedError);
+    }, { timeout: DEFAULT_CDP_CLOSE_TIMEOUT }).catch(this._handleClosedError);
   }
 
-  async send(method, params) {
+  async send(method, params, { timeout } = {}) {
     /* istanbul ignore next: race condition paranoia */
     if (this.closedReason) {
       throw new Error(`Protocol error (${method}): ${this.closedReason}`);
@@ -45,10 +46,7 @@ export class Session extends EventEmitter {
     // send a raw message to the browser so we can provide a sessionId
     let id = await this.browser.send({ sessionId: this.sessionId, method, params });
 
-    // will resolve or reject when a matching response is received
-    return new Promise((resolve, reject) => {
-      this.#callbacks.set(id, { error: new Error(), resolve, reject, method });
-    });
+    return pendingCommand(this.#callbacks, id, method, timeout);
   }
 
   _handleMessage(data) {
@@ -56,6 +54,7 @@ export class Session extends EventEmitter {
       // resolve or reject a pending promise created with #send()
       let callback = this.#callbacks.get(data.id);
       this.#callbacks.delete(data.id);
+      clearTimeout(callback.timer);
 
       /* istanbul ignore next: races with browser._handleMessage() */
       if (data.error) {
@@ -75,8 +74,9 @@ export class Session extends EventEmitter {
   _handleClose() {
     this.closedReason ||= 'Session closed.';
 
-    // reject any pending callbacks
     for (let callback of this.#callbacks.values()) {
+      clearTimeout(callback.timer);
+
       callback.reject(Object.assign(callback.error, {
         message: `Protocol error (${callback.method}): ${this.closedReason}`
       }));

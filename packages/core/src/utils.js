@@ -19,6 +19,51 @@ export {
   createServer
 } from './server.js';
 
+export const DEFAULT_CDP_TIMEOUT = 300000;
+
+export const DEFAULT_CDP_CLOSE_TIMEOUT = 10000;
+
+export function cdpTimeout(override) {
+  if (override != null) return override;
+  let configured = parseInt(process.env.PERCY_CDP_TIMEOUT, 10);
+  return Number.isFinite(configured) ? configured : DEFAULT_CDP_TIMEOUT;
+}
+
+export function pendingCommand(callbacks, id, method, timeout) {
+  return new Promise((resolve, reject) => {
+    let callback = { error: new Error(), resolve, reject, method };
+    callbacks.set(id, callback);
+
+    let ms = cdpTimeout(timeout);
+    if (!(ms > 0)) return;
+
+    callback.timer = setTimeout(() => {
+      callbacks.delete(id);
+
+      reject(Object.assign(callback.error, {
+        message: `Protocol error (${method}): Timed out after ${ms}ms`
+      }));
+    }, ms);
+
+    callback.timer.unref?.();
+  });
+}
+
+export function normalizeEvalException(exceptionDetails) {
+  let { exception, text } = exceptionDetails ?? {};
+  let description = exception?.description;
+
+  if (typeof description === 'string') return new Error(description);
+
+  let value = exception && 'value' in exception ? exception.value : undefined;
+
+  let detail = typeof value === 'string' ? value
+    : value !== undefined ? JSON.stringify(value)
+      : exception?.type ?? 'unknown';
+
+  return new Error(`${text || 'Page evaluation failed'}: ${detail}`);
+}
+
 // Returns the hostname portion of a URL.
 export function hostname(url) {
   return new URL(url).hostname;
