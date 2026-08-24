@@ -44,8 +44,8 @@ describe('serializeCSSOM', () => {
       it(`${platform}: serializes CSSOM and does not mutate the orignal DOM`, () => {
         let $cssom = parseDOM(serializeDOM(), platform)('[data-percy-cssom-serialized]');
 
-        // linked and unmodified stylesheets are not included
-        expect($cssom).toHaveSize(3);
+        // linked, unmodified and plain authored stylesheets are not included
+        expect($cssom).toHaveSize(2);
         expect($cssom[0].innerHTML).toBe('.box { height: 500px; }');
         expect($cssom[1].innerHTML).toBe('.box { width: 1000px; }');
 
@@ -83,7 +83,7 @@ describe('serializeCSSOM', () => {
         cssomSheet.deleteRule(0); // Remove all rules to make it empty
         const serialized = serializeDOM();
         let $cssom = parseDOM(serialized, platform)('[data-percy-cssom-serialized]');
-        expect($cssom).toHaveSize(2); // should skip the empty stylesheet
+        expect($cssom).toHaveSize(1); // should skip the empty stylesheet
       });
 
       it(`${platform}: preserves media queries inside CSSOM`, () => {
@@ -463,23 +463,14 @@ describe('serializeCSSOM', () => {
 
   describe('regression: cloned <style> text-node duplication', () => {
     // serializeCSSOM decides whether to re-serialize each in-memory CSSOM
-    // stylesheet via styleSheetsMatch(liveSheet, cloneSheet). Cloned <style>
-    // elements in real snapshots can end up with the original text node
-    // appended twice (clone-dom assigns clone.textContent = ... and the
-    // subsequent generic walkTree re-clones the original text node). The
-    // parsed cloneSheet then has 2x the rules of liveSheet.
-    //
-    // Strict length equality (`lenA !== lenB`) treats that as a mismatch
-    // and forces re-serialization via Array.from(liveSheet.cssRules).map(
-    // r => r.cssText), which is NOT semantically identity-preserving:
-    // Chromium expands `all: initial` into hundreds of longhands and
-    // emits logical-property longhands (border-end-end-radius: initial,
-    // ...) AFTER the shorthand it sat next to in source, silently
-    // overriding `border-radius: var(--x)` with 0.
-    //
-    // styleSheetsMatch must therefore tolerate lenB > lenA when every
-    // live rule still appears in the clone (re-serialization is only
-    // required when the live sheet has rules the clone is missing).
+    // stylesheet via styleSheetsMatch(liveSheet, cloneSheet). It must
+    // tolerate lenB > lenA when every live rule still appears in the clone:
+    // re-serialization via Array.from(liveSheet.cssRules).map(r => r.cssText)
+    // is NOT semantically identity-preserving — Chromium expands
+    // `all: initial` into hundreds of longhands and emits logical-property
+    // longhands (border-end-end-radius: initial, ...) AFTER the shorthand
+    // it sat next to in source, silently overriding
+    // `border-radius: var(--x)` with 0.
 
     it('skips re-serialization when clone <style> text duplicates the live rules — preserves `all: initial; border-radius: var(--x)` semantics', () => {
       withExample('<div class="box"></div>', { withShadow: false });
@@ -492,8 +483,7 @@ describe('serializeCSSOM', () => {
       const clone = document.createDocumentFragment();
       const cloneOwner = document.createElement('style');
       cloneOwner.setAttribute('data-percy-element-id', 'dup-regression');
-      // Duplicate the source rule — what clone-dom currently produces.
-      // styleSheetFromNode will parse this into a sheet with 2 rules,
+      // styleSheetFromNode parses this into a sheet with 2 rules,
       // while the live sheet has 1.
       cloneOwner.textContent = liveRuleText + '\n' + liveRuleText;
       clone.appendChild(cloneOwner);
@@ -548,6 +538,19 @@ describe('serializeCSSOM', () => {
       const reserialized = clone.querySelector('[data-percy-cssom-serialized]');
       expect(reserialized).not.toBeNull();
       expect(reserialized.textContent).toContain('.live-only');
+    });
+
+    it('does not duplicate authored <style> text, preserving `background: var(--x)` shorthands', () => {
+      withExample('<style id="var-shorthand">.box { all: initial; background: var(--x); background-clip: text; }</style>', { withShadow: false });
+
+      let liveStyle = document.getElementById('var-shorthand');
+      let liveText = liveStyle.textContent;
+
+      let $ = parseDOM(serializeDOM(), 'plain');
+      let clonedStyle = $('#var-shorthand')[0];
+
+      expect(clonedStyle.innerHTML).toBe(liveText);
+      expect(clonedStyle.getAttribute('data-percy-cssom-serialized')).toBeNull();
     });
   });
 });

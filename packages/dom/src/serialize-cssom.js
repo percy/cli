@@ -27,8 +27,7 @@ function styleSheetsMatch(sheetA, sheetB) {
   // Only treat as mismatch when the live sheet has MORE rules than the
   // clone — that signals rules were added via CSSOM (insertRule/adopted)
   // and must be re-serialized. When lenA <= lenB, the clone already
-  // contains all of the live rules (often duplicated by clone-dom's
-  // <style> textContent handling); trust the clone's source text so that
+  // contains all of the live rules; trust the clone's source text so that
   // CSS shorthand semantics (e.g. `all: initial; border-radius: var(...)`)
   // survive — `cssRule.cssText` expansion appends logical longhands like
   // `border-end-end-radius: initial` AFTER the shorthand, which silently
