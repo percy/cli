@@ -7,8 +7,9 @@
 // dead.
 //
 // Cross-platform note: `fs.renameSync` over an existing target is
-// unreliable on Windows, so we reclaim via unlink + retry-`wx` rather
-// than rename-based reclaim.
+// unreliable on Node 14 Windows (Percy's Windows CI is pinned to
+// node-version: 14, see .github/workflows/windows.yml). We therefore
+// reclaim via unlink + retry-`wx` rather than rename-based reclaim.
 
 import { mkdirSync, writeFileSync, readFileSync, unlinkSync } from 'fs';
 import { join } from 'path';
