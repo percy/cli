@@ -337,6 +337,10 @@ export const configSchema = {
           minLength: 1
         }
       },
+      enablePseudoClassSerialization: {
+        type: 'boolean',
+        default: false
+      },
       pseudoClassEnabledElements: {
         type: 'object',
         additionalProperties: false,
@@ -571,6 +575,7 @@ export const snapshotSchema = {
         ignoreCanvasSerializationErrors: { $ref: '/config/snapshot#/properties/ignoreCanvasSerializationErrors' },
         ignoreStyleSheetSerializationErrors: { $ref: '/config/snapshot#/properties/ignoreStyleSheetSerializationErrors' },
         ignoreIframeSelectors: { $ref: '/config/snapshot#/properties/ignoreIframeSelectors' },
+        enablePseudoClassSerialization: { $ref: '/config/snapshot#/properties/enablePseudoClassSerialization' },
         pseudoClassEnabledElements: { $ref: '/config/snapshot#/properties/pseudoClassEnabledElements' },
         discovery: {
           type: 'object',

@@ -100,8 +100,11 @@ export function serializeDOM(options) {
     ignoreIframeSelectors = options?.ignore_iframe_selectors,
     maxIframeDepth = options?.max_iframe_depth,
     iframeDepth = options?.iframe_depth ?? 0,
-    pseudoClassEnabledElements = options?.pseudo_class_enabled_elements
+    pseudoClassEnabledElements = options?.pseudo_class_enabled_elements,
+    enablePseudoClassSerialization = options?.enable_pseudo_class_serialization
   } = options || {};
+
+  const pseudoClassSerialization = !!(enablePseudoClassSerialization || pseudoClassEnabledElements);
 
   // keep certain records throughout serialization
   let ctx = {
@@ -118,7 +121,8 @@ export function serializeDOM(options) {
     ignoreIframeSelectors,
     maxIframeDepth,
     iframeDepth,
-    pseudoClassEnabledElements
+    pseudoClassEnabledElements,
+    pseudoClassSerialization
   };
 
   ctx.dom = dom;

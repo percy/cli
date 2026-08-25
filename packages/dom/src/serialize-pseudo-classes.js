@@ -2,7 +2,14 @@
 
 // Serializes pseudo-class state into Percy's clone via two paths:
 //
-//   1. Auto-detect path (every snapshot). For :focus / :focus-within we
+// Both paths below are gated on ctx.pseudoClassSerialization, which is off
+// unless the snapshot sets enablePseudoClassSerialization or configures
+// pseudoClassEnabledElements. Open-popover stamping and custom element
+// :state() rewriting are NOT gated — the renderer requires
+// data-percy-popover-open, and :state() is rewritten in place so it cannot
+// reorder the cascade.
+//
+//   1. Auto-detect path (when enabled). For :focus / :focus-within we
 //      stamp the live DOM with the corresponding data-percy-* attribute
 //      and rewrite matching CSS rules to use those attribute selectors.
 //      :focus-within stamps the focused element's ancestor chain across
@@ -329,8 +336,9 @@ export function getElementsToProcess(ctx, config, markWithId = false) {
 // the data-attributes are copied through to the clone via cloneNode.
 export function markPseudoClassElements(ctx, config) {
   ctx._liveMutations = [];
-  markInteractiveStates(ctx);
   markOpenPopovers(ctx);
+  if (!ctx.pseudoClassSerialization) return;
+  markInteractiveStates(ctx);
   if (config) getElementsToProcess(ctx, config, true);
 }
 
@@ -531,10 +539,11 @@ function injectAtSheetPosition(scopeRoot, sheet, styleElement, fallbackTarget) {
 }
 
 export function serializePseudoClasses(ctx) {
-  // Auto-detect path runs unconditionally so `:focus`/`:focus-within`
-  // rules are rewritten regardless of whether the user configured a
-  // pseudoClassEnabledElements list (and regardless of whether that list
-  // matched anything on this page).
+  if (!ctx.pseudoClassSerialization) return;
+
+  // Auto-detect path rewrites `:focus`/`:focus-within` rules whether or not
+  // a pseudoClassEnabledElements list was configured (and regardless of
+  // whether that list matched anything on this page).
   extractPseudoClassRules(ctx);
 
   if (!ctx.pseudoClassEnabledElements) return;

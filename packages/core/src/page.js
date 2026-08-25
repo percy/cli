@@ -249,7 +249,7 @@ export class Page {
     execute,
     ...snapshot
   }) {
-    let { name, width, enableJavaScript, disableShadowDOM, forceShadowAsLightDOM, domTransformation, reshuffleInvalidTags, ignoreCanvasSerializationErrors, ignoreStyleSheetSerializationErrors, ignoreIframeSelectors, pseudoClassEnabledElements } = snapshot;
+    let { name, width, enableJavaScript, disableShadowDOM, forceShadowAsLightDOM, domTransformation, reshuffleInvalidTags, ignoreCanvasSerializationErrors, ignoreStyleSheetSerializationErrors, ignoreIframeSelectors, pseudoClassEnabledElements, enablePseudoClassSerialization } = snapshot;
     this.log.debug(`Taking snapshot: ${name}${width ? ` @${width}px` : ''}`, this.meta);
 
     // wait for any specified timeout
@@ -329,7 +329,8 @@ export class Page {
       ignoreCanvasSerializationErrors,
       ignoreStyleSheetSerializationErrors,
       ignoreIframeSelectors,
-      pseudoClassEnabledElements
+      pseudoClassEnabledElements,
+      enablePseudoClassSerialization
     });
 
     // Attach readiness diagnostics onto the captured DOM snapshot so the backend/UI can surface

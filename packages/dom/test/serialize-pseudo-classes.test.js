@@ -26,7 +26,8 @@ describe('serialize-pseudo-classes', () => {
   beforeEach(() => {
     ctx = {
       dom: document,
-      warnings: new Set()
+      warnings: new Set(),
+      pseudoClassSerialization: true
     };
     withExample('<div id="foo" style="color: red;"></div><div class="bar"></div><div id="baz"></div>');
     ctx.clone = document.implementation.createHTMLDocument('Clone');
@@ -179,7 +180,7 @@ describe('serialize-pseudo-classes', () => {
       // We'll temporarily patch getElementsToProcess to expose markWithId
       withExample('<div id="foo"></div>');
       const el = document.getElementById('foo');
-      const ctx2 = { dom: document, warnings: new Set() };
+      const ctx2 = { dom: document, warnings: new Set(), pseudoClassSerialization: true };
       getElementsToProcess(ctx2, { id: ['foo'] });
       expect(el.hasAttribute('data-percy-pseudo-element-id')).toBe(false);
     });
@@ -191,7 +192,7 @@ describe('serialize-pseudo-classes', () => {
     });
 
     it('throws an error if config is null', () => {
-      const ctx2 = { dom: document, warnings: new Set() };
+      const ctx2 = { dom: document, warnings: new Set(), pseudoClassSerialization: true };
       expect(() => {
         getElementsToProcess(ctx2, null);
       }).toThrow();
@@ -476,7 +477,8 @@ describe('serialize-pseudo-classes', () => {
         cache: new Map(),
         resources: new Set(),
         hints: new Set(),
-        shadowRootElements: []
+        shadowRootElements: [],
+        pseudoClassSerialization: true
       };
       // nosemgrep: javascript.browser.security.insecure-document-method.insecure-document-method
       ctx.clone.body.innerHTML = document.body.innerHTML;
@@ -531,7 +533,8 @@ describe('serialize-pseudo-classes', () => {
         cache: new Map(),
         resources: new Set(),
         hints: new Set(),
-        shadowRootElements: []
+        shadowRootElements: [],
+        pseudoClassSerialization: true
       };
       // nosemgrep: javascript.browser.security.insecure-document-method.insecure-document-method
       ctx.clone.body.innerHTML = document.body.innerHTML;
@@ -562,7 +565,8 @@ describe('serialize-pseudo-classes', () => {
         cache: new Map(),
         resources: new Set(),
         hints: new Set(),
-        shadowRootElements: []
+        shadowRootElements: [],
+        pseudoClassSerialization: true
       };
       // nosemgrep: javascript.browser.security.insecure-document-method.insecure-document-method
       ctx.clone.body.innerHTML = document.body.innerHTML;
@@ -679,7 +683,8 @@ describe('serialize-pseudo-classes', () => {
         cache: new Map(),
         resources: new Set(),
         hints: new Set(),
-        shadowRootElements: []
+        shadowRootElements: [],
+        pseudoClassSerialization: true
       };
       // nosemgrep: javascript.browser.security.insecure-document-method.insecure-document-method
       ctx.clone.body.innerHTML = document.body.innerHTML;
@@ -709,6 +714,7 @@ describe('serialize-pseudo-classes', () => {
         resources: new Set(),
         hints: new Set(),
         shadowRootElements: [],
+        pseudoClassSerialization: true,
         pseudoClassEnabledElements: { id: ['has-test'] }
       };
       // nosemgrep: javascript.browser.security.insecure-document-method.insecure-document-method
@@ -738,7 +744,8 @@ describe('serialize-pseudo-classes', () => {
         cache: new Map(),
         resources: new Set(),
         hints: new Set(),
-        shadowRootElements: []
+        shadowRootElements: [],
+        pseudoClassSerialization: true
       };
       // nosemgrep: javascript.browser.security.insecure-document-method.insecure-document-method
       ctx.clone.body.innerHTML = document.body.innerHTML;
@@ -763,7 +770,8 @@ describe('serialize-pseudo-classes', () => {
         cache: new Map(),
         resources: new Set(),
         hints: new Set(),
-        shadowRootElements: []
+        shadowRootElements: [],
+        pseudoClassSerialization: true
       };
       // nosemgrep: javascript.browser.security.insecure-document-method.insecure-document-method
       ctx.clone.body.innerHTML = document.body.innerHTML;
@@ -793,7 +801,8 @@ describe('serialize-pseudo-classes', () => {
         cache: new Map(),
         resources: new Set(),
         hints: new Set(),
-        shadowRootElements: []
+        shadowRootElements: [],
+        pseudoClassSerialization: true
       };
       // nosemgrep: javascript.browser.security.insecure-document-method.insecure-document-method
       ctx.clone.body.innerHTML = document.body.innerHTML;
@@ -836,7 +845,8 @@ describe('serialize-pseudo-classes', () => {
         cache: new Map(),
         resources: new Set(),
         hints: new Set(),
-        shadowRootElements: []
+        shadowRootElements: [],
+        pseudoClassSerialization: true
       };
       // Do NOT copy DOM to clone - so the clone element won't be found
       // nosemgrep: javascript.browser.security.insecure-document-method.insecure-document-method
@@ -873,7 +883,8 @@ describe('serialize-pseudo-classes', () => {
         cache: new Map(),
         resources: new Set(),
         hints: new Set(),
-        shadowRootElements: []
+        shadowRootElements: [],
+        pseudoClassSerialization: true
       };
       // nosemgrep: javascript.browser.security.insecure-document-method.insecure-document-method
       ctx.clone.body.innerHTML = document.body.innerHTML;
@@ -908,7 +919,8 @@ describe('serialize-pseudo-classes', () => {
         cache: new Map(),
         resources: new Set(),
         hints: new Set(),
-        shadowRootElements: []
+        shadowRootElements: [],
+        pseudoClassSerialization: true
       };
       // nosemgrep: javascript.browser.security.insecure-document-method.insecure-document-method
       ctx.clone.body.innerHTML = '<div>test</div>';
@@ -930,7 +942,8 @@ describe('serialize-pseudo-classes', () => {
         cache: new Map(),
         resources: new Set(),
         hints: new Set(),
-        shadowRootElements: []
+        shadowRootElements: [],
+        pseudoClassSerialization: true
       };
       // nosemgrep: javascript.browser.security.insecure-document-method.insecure-document-method
       ctx.clone.body.innerHTML = document.body.innerHTML;
@@ -956,7 +969,8 @@ describe('serialize-pseudo-classes', () => {
         cache: new Map(),
         resources: new Set(),
         hints: new Set(),
-        shadowRootElements: []
+        shadowRootElements: [],
+        pseudoClassSerialization: true
       };
       // nosemgrep: javascript.browser.security.insecure-document-method.insecure-document-method
       ctx.clone.body.innerHTML = document.body.innerHTML;
@@ -976,7 +990,8 @@ describe('serialize-pseudo-classes', () => {
         cache: new Map(),
         resources: new Set(),
         hints: new Set(),
-        shadowRootElements: []
+        shadowRootElements: [],
+        pseudoClassSerialization: true
       };
       // nosemgrep: javascript.browser.security.insecure-document-method.insecure-document-method
       ctx.clone.body.innerHTML = document.body.innerHTML;
@@ -1004,7 +1019,8 @@ describe('serialize-pseudo-classes', () => {
         cache: new Map(),
         resources: new Set(),
         hints: new Set(),
-        shadowRootElements: []
+        shadowRootElements: [],
+        pseudoClassSerialization: true
       };
       // Blur any active element to ensure nothing is focused
       document.activeElement?.blur();
@@ -1025,7 +1041,7 @@ describe('serialize-pseudo-classes', () => {
       let el = document.getElementById('has-percy-id');
       el.setAttribute('data-percy-element-id', '_focus_branch_test');
       withMockedFocus(el, () => {
-        ctx = { dom: document, warnings: new Set() };
+        ctx = { dom: document, warnings: new Set(), pseudoClassSerialization: true };
         markPseudoClassElements(ctx, { id: ['has-percy-id'] });
       });
       expect(el.hasAttribute('data-percy-focus')).toBe(true);
@@ -1078,7 +1094,8 @@ describe('serialize-pseudo-classes', () => {
         cache: new Map(),
         resources: new Set(),
         hints: new Set(),
-        shadowRootElements: []
+        shadowRootElements: [],
+        pseudoClassSerialization: true
       };
       // nosemgrep: javascript.browser.security.insecure-document-method.insecure-document-method
       ctx.clone.body.innerHTML = document.body.innerHTML;
@@ -1135,7 +1152,8 @@ describe('serialize-pseudo-classes', () => {
         cache: new Map(),
         resources: new Set(),
         hints: new Set(),
-        shadowRootElements: []
+        shadowRootElements: [],
+        pseudoClassSerialization: true
       };
       // nosemgrep: javascript.browser.security.insecure-document-method.insecure-document-method
       ctx.clone.body.innerHTML = document.body.innerHTML;
@@ -1179,7 +1197,8 @@ describe('serialize-pseudo-classes', () => {
         cache: new Map(),
         resources: new Set(),
         hints: new Set(),
-        shadowRootElements: []
+        shadowRootElements: [],
+        pseudoClassSerialization: true
       };
       // nosemgrep: javascript.browser.security.insecure-document-method.insecure-document-method
       ctx.clone.body.innerHTML = document.body.innerHTML;
@@ -1234,7 +1253,8 @@ describe('serialize-pseudo-classes', () => {
         cache: new Map(),
         resources: new Set(),
         hints: new Set(),
-        shadowRootElements: []
+        shadowRootElements: [],
+        pseudoClassSerialization: true
       };
       // nosemgrep: javascript.browser.security.insecure-document-method.insecure-document-method
       ctx.clone.body.innerHTML = document.body.innerHTML;
@@ -1281,7 +1301,7 @@ describe('serialize-pseudo-classes', () => {
       Object.defineProperty(shadow, 'activeElement', { get: () => deepInput, configurable: true });
       Object.defineProperty(document, 'activeElement', { get: () => host, configurable: true });
       try {
-        ctx = { dom: document, warnings: new Set() };
+        ctx = { dom: document, warnings: new Set(), pseudoClassSerialization: true };
         markPseudoClassElements(ctx, null);
         // The traversal should reach deepInput and stamp [data-percy-focus]
         expect(deepInput.hasAttribute('data-percy-focus')).toBe(true);
@@ -1325,7 +1345,8 @@ describe('serialize-pseudo-classes', () => {
         cache: new Map(),
         resources: new Set(),
         hints: new Set(),
-        shadowRootElements: []
+        shadowRootElements: [],
+        pseudoClassSerialization: true
       };
       // nosemgrep: javascript.browser.security.insecure-document-method.insecure-document-method
       ctx.clone.body.innerHTML = '<div id="sh-style-host" data-percy-shadow-host data-percy-element-id="_sh_style_1"></div>';
@@ -1371,7 +1392,8 @@ describe('serialize-pseudo-classes', () => {
         cache: new Map(),
         resources: new Set(),
         hints: new Set(),
-        shadowRootElements: []
+        shadowRootElements: [],
+        pseudoClassSerialization: true
       };
       // Clone host exists but WITHOUT a shadow root attached
       // nosemgrep: javascript.browser.security.insecure-document-method.insecure-document-method
@@ -1447,7 +1469,8 @@ describe('serialize-pseudo-classes', () => {
         cache: new Map(),
         resources: new Set(),
         hints: new Set(),
-        shadowRootElements: []
+        shadowRootElements: [],
+        pseudoClassSerialization: true
       };
       // nosemgrep: javascript.browser.security.insecure-document-method.insecure-document-method
       ctx.clone.body.innerHTML = document.body.innerHTML;
@@ -1485,6 +1508,7 @@ describe('serialize-pseudo-classes', () => {
         resources: new Set(),
         hints: new Set(),
         shadowRootElements: [],
+        pseudoClassSerialization: true,
         pseudoClassEnabledElements: { id: ['cm3-btn'] }
       };
       // nosemgrep: javascript.browser.security.insecure-document-method.insecure-document-method
@@ -1509,7 +1533,8 @@ describe('serialize-pseudo-classes', () => {
         cache: new Map(),
         resources: new Set(),
         hints: new Set(),
-        shadowRootElements: []
+        shadowRootElements: [],
+        pseudoClassSerialization: true
       };
       // nosemgrep: javascript.browser.security.insecure-document-method.insecure-document-method
       ctx.clone.body.innerHTML = document.body.innerHTML;
@@ -1566,7 +1591,8 @@ describe('serialize-pseudo-classes', () => {
         cache: new Map(),
         resources: new Set(),
         hints: new Set(),
-        shadowRootElements: []
+        shadowRootElements: [],
+        pseudoClassSerialization: true
       };
       // nosemgrep: javascript.browser.security.insecure-document-method.insecure-document-method
       ctx.clone.body.innerHTML = document.body.innerHTML;
@@ -1595,7 +1621,8 @@ describe('serialize-pseudo-classes', () => {
         cache: new Map(),
         resources: new Set(),
         hints: new Set(),
-        shadowRootElements: []
+        shadowRootElements: [],
+        pseudoClassSerialization: true
       };
       // nosemgrep: javascript.browser.security.insecure-document-method.insecure-document-method
       ctx.clone.body.innerHTML = document.body.innerHTML;
@@ -1631,7 +1658,8 @@ describe('serialize-pseudo-classes', () => {
         cache: new Map(),
         resources: new Set(),
         hints: new Set(),
-        shadowRootElements: []
+        shadowRootElements: [],
+        pseudoClassSerialization: true
       };
       // nosemgrep: javascript.browser.security.insecure-document-method.insecure-document-method
       ctx.clone.body.innerHTML = ctx.dom.body.innerHTML;
@@ -1661,7 +1689,8 @@ describe('serialize-pseudo-classes', () => {
         cache: new Map(),
         resources: new Set(),
         hints: new Set(),
-        shadowRootElements: []
+        shadowRootElements: [],
+        pseudoClassSerialization: true
       };
       // Clone intentionally does NOT mirror the source <style>, so no anchor.
       markPseudoClassElements(ctx, null);
@@ -1694,7 +1723,8 @@ describe('serialize-pseudo-classes', () => {
         cache: new Map(),
         resources: new Set(),
         hints: new Set(),
-        shadowRootElements: []
+        shadowRootElements: [],
+        pseudoClassSerialization: true
       };
       // nosemgrep: javascript.browser.security.insecure-document-method.insecure-document-method
       ctx.clone.body.innerHTML = document.body.innerHTML;
@@ -1742,6 +1772,7 @@ describe('serialize-pseudo-classes', () => {
         resources: new Set(),
         hints: new Set(),
         shadowRootElements: [],
+        pseudoClassSerialization: true,
         pseudoClassEnabledElements: { id: ['dv'] }
       };
       expect(() => serializePseudoClasses(ctx)).not.toThrow();
@@ -1767,7 +1798,8 @@ describe('serialize-pseudo-classes', () => {
         cache: new Map(),
         resources: new Set(),
         hints: new Set(),
-        shadowRootElements: []
+        shadowRootElements: [],
+        pseudoClassSerialization: true
       };
       // nosemgrep: javascript.browser.security.insecure-document-method.insecure-document-method
       ctx.clone.body.innerHTML = document.body.innerHTML;
@@ -1927,7 +1959,8 @@ describe('serialize-pseudo-classes', () => {
         cache: new Map(),
         resources: new Set(),
         hints: new Set(),
-        shadowRootElements: []
+        shadowRootElements: [],
+        pseudoClassSerialization: true
       };
       // nosemgrep: javascript.browser.security.insecure-document-method.insecure-document-method
       ctx.clone.body.innerHTML = document.body.innerHTML;

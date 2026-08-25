@@ -799,13 +799,87 @@ describe('serializeDOM', () => {
         '<button class="cbtn later">go</button>',
         { withShadow: false }
       );
-      let html = serializeDOM().html;
+      let html = serializeDOM({ enablePseudoClassSerialization: true }).html;
       let sourceIdx = html.indexOf('.cbtn:hover');
       let copyIdx = html.indexOf('[data-percy-hover]');
       let laterIdx = html.indexOf('.cbtn.later');
       expect(copyIdx).toBeGreaterThan(-1);
       expect(copyIdx).toBeGreaterThan(sourceIdx); // after its own sheet
       expect(copyIdx).toBeLessThan(laterIdx); // before the later sheet
+    });
+  });
+
+  describe('interactive-state serialization opt-in gate (PER-10588)', () => {
+    const HOVER_PAGE =
+      '<style>.gbtn:hover { color: red }</style>' +
+      '<button id="gbtn" class="gbtn">go</button>';
+
+    it('is off by default — no rewritten copy and no state stamps', () => {
+      withExample(HOVER_PAGE, { withShadow: false });
+      let html = serializeDOM().html;
+      expect(html).not.toContain('data-percy-interactive-states');
+      expect(html).not.toContain('[data-percy-hover]');
+      expect(html).not.toContain('data-percy-focus');
+    });
+
+    it('is on when enablePseudoClassSerialization is set', () => {
+      withExample(HOVER_PAGE, { withShadow: false });
+      let html = serializeDOM({ enablePseudoClassSerialization: true }).html;
+      expect(html).toContain('data-percy-interactive-states');
+      expect(html).toContain('[data-percy-hover]');
+    });
+
+    it('accepts the snake_case option name', () => {
+      withExample(HOVER_PAGE, { withShadow: false });
+      let html = serializeDOM({ enable_pseudo_class_serialization: true }).html;
+      expect(html).toContain('[data-percy-hover]');
+    });
+
+    it('is on when pseudoClassEnabledElements is configured, without the flag', () => {
+      withExample(HOVER_PAGE, { withShadow: false });
+      let html = serializeDOM({ pseudoClassEnabledElements: { id: ['gbtn'] } }).html;
+      expect(html).toContain('[data-percy-hover]');
+      expect(html).toContain('data-percy-pseudo-element-id');
+    });
+
+    it('stays on for configured elements even when the flag is materialized false', () => {
+      withExample(HOVER_PAGE, { withShadow: false });
+      let html = serializeDOM({
+        enablePseudoClassSerialization: false,
+        pseudoClassEnabledElements: { id: ['gbtn'] }
+      }).html;
+      expect(html).toContain('[data-percy-hover]');
+    });
+
+    it('still stamps open popovers while disabled — the renderer requires it', () => {
+      withExample(
+        '<div id="gpop" popover="manual">hi</div>',
+        { withShadow: false }
+      );
+      let popover = document.getElementById('gpop');
+      if (typeof popover.showPopover !== 'function') return;
+      popover.showPopover();
+
+      let html = serializeDOM().html;
+      expect(html).not.toContain('data-percy-interactive-states');
+      expect(html).toContain('data-percy-popover-open');
+    });
+
+    it('still rewrites custom element :state() while disabled', () => {
+      withExample(
+        '<style>.gstate:state(checked) { color: red }</style><div class="gstate"></div>',
+        { withShadow: false }
+      );
+      let html = serializeDOM().html;
+      expect(html).not.toContain('data-percy-interactive-states');
+      expect(html).toContain('[data-percy-custom-state~="checked"]');
+    });
+
+    it('leaves no data-percy-* state attributes on the live DOM either way', () => {
+      withExample(HOVER_PAGE, { withShadow: false });
+      serializeDOM({ enablePseudoClassSerialization: true });
+      expect(document.querySelector('[data-percy-hover]')).toBeNull();
+      expect(document.querySelector('[data-percy-focus]')).toBeNull();
     });
   });
 
