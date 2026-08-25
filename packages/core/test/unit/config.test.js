@@ -166,7 +166,9 @@ describe('ComparisonSchema - scaleToFit metadata', () => {
 
   it('rejects a factor outside (0, 1]', () => {
     const build = (appliedScaleFactor) => PercyConfig.validate({
-      name: 'snap', tag: { name: 'Pixel 10' }, tiles: [],
+      name: 'snap',
+      tag: { name: 'Pixel 10' },
+      tiles: [],
       metadata: { scaleToFit: true, appliedScaleFactor }
     }, '/comparison') || [];
 

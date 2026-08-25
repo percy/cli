@@ -368,6 +368,58 @@ describe('PlaywrightProvider', () => {
       });
     });
 
+    it('reports the scale factor when the host shrank the tiles', async () => {
+      const provider = new PlaywrightProvider(
+        'sessionId', 'frameGuid', 'pageGuid', 'clientInfo', 'environmentInfo',
+        { fullPage: true, scaleToFit: true }, { id: 1 }
+      );
+      provider.browserstackExecutor = jasmine
+        .createSpy('browserstackExecutor')
+        .and.resolveTo({
+          value: JSON.stringify({
+            success: true,
+            result: JSON.stringify({
+              tiles: [{ status_bar: 0, nav_bar: 0, header_height: 0, footer_height: 0, sha: 't1' }],
+              comparison_tag_data: { width: 411, height: 858, resolution: '1080x2251' },
+              dom_sha: 'domSHA',
+              scale_to_fit: true,
+              applied_scale_factor: 0.380952
+            })
+          })
+        });
+
+      const response = await provider.getTiles(true);
+
+      expect(response.metadata).toEqual({
+        screenshotType: 'fullpage', scaleToFit: true, appliedScaleFactor: 0.380952
+      });
+    });
+
+    // A half-pair would ask percy-api to relax its tile limit by nothing.
+    it('omits the pair when the factor is missing', async () => {
+      const provider = new PlaywrightProvider(
+        'sessionId', 'frameGuid', 'pageGuid', 'clientInfo', 'environmentInfo',
+        { fullPage: true, scaleToFit: true }, { id: 1 }
+      );
+      provider.browserstackExecutor = jasmine
+        .createSpy('browserstackExecutor')
+        .and.resolveTo({
+          value: JSON.stringify({
+            success: true,
+            result: JSON.stringify({
+              tiles: [{ status_bar: 0, nav_bar: 0, header_height: 0, footer_height: 0, sha: 't1' }],
+              comparison_tag_data: { width: 411, height: 858, resolution: '1080x2251' },
+              dom_sha: 'domSHA',
+              scale_to_fit: true
+            })
+          })
+        });
+
+      const response = await provider.getTiles(true);
+
+      expect(response.metadata).toEqual({ screenshotType: 'fullpage' });
+    });
+
     it('should handle errors during tile capture', async () => {
       const error = new Error('Failed to capture tiles');
       provider.browserstackExecutor = jasmine
