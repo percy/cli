@@ -933,7 +933,11 @@ export const comparisonSchema = {
         },
         cliScreenshotStartTime: { type: 'integer', default: 0 },
         cliScreenshotEndTime: { type: 'integer', default: 0 },
-        screenshotType: { type: 'string', default: 'singlepage' }
+        screenshotType: { type: 'string', default: 'singlepage' },
+        // additionalProperties is false here and PercyConfig.validate DELETES unknown keys
+        // from the object it validates, so an undeclared key is silently dropped pre-upload.
+        scaleToFit: { type: 'boolean' },
+        appliedScaleFactor: { type: 'number', exclusiveMinimum: 0, maximum: 1 }
       }
     },
     tag: {

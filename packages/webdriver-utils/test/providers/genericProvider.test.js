@@ -52,33 +52,50 @@ describe('GenericProvider', () => {
       expect(provider.options.freezeAnimation).toBeFalse();
     });
 
-    it('enables scaleToFit from the option or PERCY_SCALE_TO_FIT', () => {
-      let provider = new GenericProvider({ options: { scaleToFit: true } });
-      provider.addDefaultOptions();
-      expect(provider.options.scaleToFit).toBeTrue();
+    describe('scaleToFit', () => {
+      const build = (options) => {
+        const provider = new GenericProvider({ options });
+        provider.addDefaultOptions();
+        return provider.options.scaleToFit;
+      };
 
-      process.env.PERCY_SCALE_TO_FIT = 'true';
-      provider = new GenericProvider({ options: {} });
-      provider.addDefaultOptions();
-      expect(provider.options.scaleToFit).toBeTrue();
+      beforeEach(() => { delete process.env.PERCY_SCALE_TO_FIT; });
+      afterEach(() => { delete process.env.PERCY_SCALE_TO_FIT; });
 
-      delete process.env.PERCY_SCALE_TO_FIT;
-      provider = new GenericProvider({ options: {} });
-      provider.addDefaultOptions();
-      expect(provider.options.scaleToFit).toBeFalse();
-    });
+      it('enables from the option or PERCY_SCALE_TO_FIT', () => {
+        expect(build({ fullPage: true, scaleToFit: true })).toBeTrue();
 
-    // mobile-common compares with `== true`, so a merely-truthy value would silently no-op.
-    it('coerces scaleToFit to a real boolean', () => {
-      const provider = new GenericProvider({ options: { scaleToFit: 'true' } });
-      provider.addDefaultOptions();
-      expect(provider.options.scaleToFit).toBeFalse();
+        process.env.PERCY_SCALE_TO_FIT = 'true';
+        expect(build({ fullPage: true })).toBeTrue();
 
-      process.env.PERCY_SCALE_TO_FIT = '1';
-      const other = new GenericProvider({ options: {} });
-      other.addDefaultOptions();
-      expect(other.options.scaleToFit).toBeFalse();
-      delete process.env.PERCY_SCALE_TO_FIT;
+        delete process.env.PERCY_SCALE_TO_FIT;
+        expect(build({ fullPage: true })).toBeFalse();
+      });
+
+      // The host only shrinks tiles in its full-page loop, so outside it the flag would
+      // report a scale factor for tiles that were never scaled.
+      it('is ignored without fullPage', () => {
+        expect(build({ scaleToFit: true })).toBeFalse();
+        expect(build({ fullPage: false, scaleToFit: true })).toBeFalse();
+
+        process.env.PERCY_SCALE_TO_FIT = 'true';
+        expect(build({})).toBeFalse();
+      });
+
+      // The env var is a run-wide default, not an override -- otherwise a single snapshot
+      // could never opt out once it is set.
+      it('lets an explicit false beat the env var', () => {
+        process.env.PERCY_SCALE_TO_FIT = 'true';
+        expect(build({ fullPage: true, scaleToFit: false })).toBeFalse();
+      });
+
+      // mobile-common compares with `== true`, so a merely-truthy value would silently no-op.
+      it('coerces to a real boolean', () => {
+        expect(build({ fullPage: true, scaleToFit: 'true' })).toBeFalse();
+
+        process.env.PERCY_SCALE_TO_FIT = '1';
+        expect(build({ fullPage: true })).toBeFalse();
+      });
     });
   });
 

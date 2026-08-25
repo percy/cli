@@ -50,8 +50,11 @@ export default class GenericProvider {
     this.options.freezeAnimation = this.options.freezeAnimatedImage || this.options.freezeAnimation || false;
     // PERCY_SCALE_TO_FIT opts a whole run in without per-snapshot config. Coerced to a
     // real boolean: mobile-common compares with `== true`, so a truthy string would no-op.
-    this.options.scaleToFit = this.options.scaleToFit === true ||
-      process.env.PERCY_SCALE_TO_FIT === 'true';
+    // fullPage-only: the host shrinks tiles solely in its full-page loop, so outside it the
+    // flag would report a scale factor for tiles that were never scaled.
+    this.options.scaleToFit = this.options.fullPage === true &&
+      (this.options.scaleToFit === true ||
+        (this.options.scaleToFit !== false && process.env.PERCY_SCALE_TO_FIT === 'true'));
   }
 
   async createDriver() {

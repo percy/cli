@@ -80,7 +80,7 @@ export async function checkConfig(options = {}) {
 
     // Keys that only work with automate tokens
     const automateOnlyKeys = ['fullPage', 'freezeAnimation', 'freezeAnimatedImage',
-      'freezeAnimatedImageOptions', 'ignoreRegions', 'considerRegions'];
+      'freezeAnimatedImageOptions', 'ignoreRegions', 'considerRegions', 'scaleToFit'];
     // Keys that only work with web tokens (not automate, not app)
     const webOnlyKeys = ['waitForTimeout', 'waitForSelector'];
 

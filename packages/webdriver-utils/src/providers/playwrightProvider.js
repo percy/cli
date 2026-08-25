@@ -134,6 +134,12 @@ export default class PlaywrightProvider extends GenericProvider {
     const metadata = {
       screenshotType: screenshotType
     };
+    // Same pair as automateProvider: the host shrinks tiles, so percy-api needs the factor
+    // to relax its tile-count limit. Without this a playwright capture reports none.
+    if (tileResponse.scale_to_fit === true && Number.isFinite(tileResponse.applied_scale_factor)) {
+      metadata.scaleToFit = true;
+      metadata.appliedScaleFactor = tileResponse.applied_scale_factor;
+    }
     return {
       tiles: tiles,
       domInfoSha: tileResponse.dom_sha,
