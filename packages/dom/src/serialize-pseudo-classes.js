@@ -79,6 +79,47 @@ function selectorContainsPseudo(selectorText, pseudoList) {
   });
 }
 
+function splitSelectorList(selectorText) {
+  const parts = [];
+  let depth = 0;
+  let quote = null;
+  let start = 0;
+
+  for (let i = 0; i < selectorText.length; i++) {
+    const char = selectorText[i];
+
+    if (quote) {
+      if (char === '\\') i++;
+      else if (char === quote) quote = null;
+      continue;
+    }
+
+    if (char === '"' || char === "'") quote = char;
+    else if (char === '(' || char === '[') depth++;
+    else if (char === ')' || char === ']') depth--;
+    else if (char === ',' && depth === 0) {
+      parts.push(selectorText.slice(start, i));
+      start = i + 1;
+    }
+  }
+
+  parts.push(selectorText.slice(start));
+  return parts;
+}
+
+function rewritePseudoSelectorList(selectorText, pseudoList) {
+  const pseudoParts = [];
+
+  for (const part of splitSelectorList(selectorText)) {
+    const trimmed = part.trim();
+    if (trimmed && selectorContainsPseudo(trimmed, pseudoList)) {
+      pseudoParts.push(rewritePseudoSelector(trimmed));
+    }
+  }
+
+  return pseudoParts.length ? pseudoParts.join(', ') : null;
+}
+
 export function rewritePseudoSelector(selectorText) {
   let out = selectorText;
   for (const [pseudo, re] of PSEUDO_RES) out = out.replace(re, PSEUDO_TO_ATTR[pseudo]);
@@ -426,9 +467,9 @@ function extractPseudoClassRules(ctx) {
       // interactive pseudo. Skips most rules on most stylesheets without
       // touching the regex bank.
       if (!rule.selectorText.includes(':')) continue;
-      if (!selectorContainsPseudo(rule.selectorText, ALL_INTERACTIVE_PSEUDO)) continue;
 
-      const rewrittenSelector = rewritePseudoSelector(rule.selectorText);
+      const rewrittenSelector = rewritePseudoSelectorList(rule.selectorText, ALL_INTERACTIVE_PSEUDO);
+      if (!rewrittenSelector) continue;
 
       const cssText = `${rewrittenSelector} { ${rule.style.cssText} }`;
       const wrapped = rule.wrapper ? `${rule.wrapper} { ${cssText} }` : cssText;

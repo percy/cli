@@ -1499,6 +1499,58 @@ describe('serialize-pseudo-classes', () => {
     });
   });
 
+  describe('grouped selector lists (PER-10588)', () => {
+    function serializeWith(styleText, bodyHTML) {
+      withExample('<style>' + styleText + '</style>' + bodyHTML);
+      ctx = {
+        dom: document,
+        clone: document.implementation.createHTMLDocument('Clone'),
+        warnings: new Set(),
+        cache: new Map(),
+        resources: new Set(),
+        hints: new Set(),
+        shadowRootElements: []
+      };
+      // nosemgrep: javascript.browser.security.insecure-document-method.insecure-document-method
+      ctx.clone.body.innerHTML = document.body.innerHTML;
+      markPseudoClassElements(ctx, null);
+      // nosemgrep: javascript.browser.security.insecure-document-method.insecure-document-method
+      ctx.clone.body.innerHTML = ctx.dom.body.innerHTML;
+      serializePseudoClasses(ctx);
+      let el = ctx.clone.querySelector('style[data-percy-interactive-states]');
+      return el ? el.textContent : null;
+    }
+
+    it('copies only the pseudo-bearing members of a grouped selector', () => {
+      let css = serializeWith(
+        '.card .title, .card .trigger:hover { color: rgb(0, 75, 111) }' +
+        '.card--blue .title { color: rgb(255, 255, 255) }',
+        '<div class="card card--blue"><span class="title">t</span>' +
+        '<a class="trigger" href="#">go</a></div>'
+      );
+      expect(css).toContain('.card .trigger[data-percy-hover]');
+      expect(css).not.toContain('.card .title');
+    });
+
+    it('does not split commas nested in :is()/:not() or attribute values', () => {
+      let css = serializeWith(
+        ':is(.a, .b) .lnk:focus, [data-k="x,y"] .lnk:focus { color: red }',
+        '<div class="a"><a class="lnk" href="#">a</a></div>'
+      );
+      expect(css).toContain(':is(.a, .b) .lnk[data-percy-focus]');
+      expect(css).toContain('[data-k="x,y"] .lnk[data-percy-focus]');
+    });
+
+    it('keeps every member when they all carry a pseudo', () => {
+      let css = serializeWith(
+        '.p:focus, .q:focus { color: red }',
+        '<div><span class="p">p</span><span class="q">q</span></div>'
+      );
+      expect(css).toContain('.p[data-percy-focus]');
+      expect(css).toContain('.q[data-percy-focus]');
+    });
+  });
+
   describe('walkCSSRules charset / import / etc with no selectorText', () => {
     it('skips rules that have neither nested cssRules nor a selector', () => {
       // @charset has no cssRules and no selectorText — exercises the
