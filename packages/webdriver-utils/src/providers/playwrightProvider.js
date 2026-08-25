@@ -42,6 +42,10 @@ export default class PlaywrightProvider extends GenericProvider {
   async screenshot(name, options) {
     let response = null;
     let error;
+    // This override does not call super.screenshot(), which is where GenericProvider applies
+    // addDefaultOptions -- so without this the scaleToFit fullPage gate, its boolean
+    // coercion and PERCY_SCALE_TO_FIT were all skipped on the playwright path.
+    this.addDefaultOptions();
     log.debug(`[${name}] : Preparing to capture screenshots on playwright with automate ...`);
     try {
       log.debug(`[${name}] : Marking automate session as percy ...`);
@@ -136,9 +140,11 @@ export default class PlaywrightProvider extends GenericProvider {
     };
     // Same pair as automateProvider: the host shrinks tiles, so percy-api needs the factor
     // to relax its tile-count limit. Without this a playwright capture reports none.
-    if (tileResponse.scale_to_fit === true && Number.isFinite(tileResponse.applied_scale_factor)) {
+    const scaleFactor = tileResponse.applied_scale_factor;
+    if (tileResponse.scale_to_fit === true &&
+        Number.isFinite(scaleFactor) && scaleFactor > 0 && scaleFactor <= 1) {
       metadata.scaleToFit = true;
-      metadata.appliedScaleFactor = tileResponse.applied_scale_factor;
+      metadata.appliedScaleFactor = scaleFactor;
     }
     return {
       tiles: tiles,

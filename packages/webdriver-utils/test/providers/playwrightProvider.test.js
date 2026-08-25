@@ -13,7 +13,7 @@ describe('PlaywrightProvider', () => {
       'pageGuid',
       'clientInfo',
       'environmentInfo',
-      'options',
+      {},
       { id: 1 }
     );
   });
@@ -25,7 +25,7 @@ describe('PlaywrightProvider', () => {
       expect(provider.pageGuid).toBe('pageGuid');
       expect(provider.clientInfo).toBe('clientInfo');
       expect(provider.environmentInfo).toBe('environmentInfo');
-      expect(provider.options).toBe('options');
+      expect(provider.options).toEqual({});
       expect(provider.buildInfo).toEqual({ id: 1 });
     });
   });
@@ -206,7 +206,7 @@ describe('PlaywrightProvider', () => {
           percyBuildId: 1,
           screenshotType: 'singlepage',
           scaleFactor: 1,
-          options: 'options',
+          options: {},
           frameworkData: { frameGuid: 'frameGuid', pageGuid: 'pageGuid' },
           framework: 'playwright'
         }
@@ -260,7 +260,7 @@ describe('PlaywrightProvider', () => {
           percyBuildId: 1,
           screenshotType: 'singlepage',
           scaleFactor: 1,
-          options: 'options',
+          options: {},
           frameworkData: { frameGuid: 'frameGuid', pageGuid: 'pageGuid' },
           framework: 'playwright'
         }

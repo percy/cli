@@ -98,9 +98,11 @@ export default class AutomateProvider extends GenericProvider {
     };
     // percy-api needs the factor to relax its tile-count limit. Added only when it really
     // scaled -- these land in the largest table on the platform.
-    if (tileResponse.scale_to_fit === true && Number.isFinite(tileResponse.applied_scale_factor)) {
+    const scaleFactor = tileResponse.applied_scale_factor;
+    if (tileResponse.scale_to_fit === true &&
+        Number.isFinite(scaleFactor) && scaleFactor > 0 && scaleFactor <= 1) {
       metadata.scaleToFit = true;
-      metadata.appliedScaleFactor = tileResponse.applied_scale_factor;
+      metadata.appliedScaleFactor = scaleFactor;
     }
     return {
       tiles: tiles,
