@@ -152,7 +152,7 @@ export class Browser extends EventEmitter {
     // Reset state for fresh launch
     this.readyState = null;
     this._closed = null;
-    for (let callback of this.#callbacks.values()) clearTimeout(callback.timer);
+    // close() above already cleared every pending callback and its deadline
     this.#callbacks.clear();
     this.sessions.clear();
 
