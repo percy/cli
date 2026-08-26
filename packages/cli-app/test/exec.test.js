@@ -387,6 +387,25 @@ describe('percy app:exec', () => {
       expect(log.warn).toHaveBeenCalled();
     });
 
+    it('falls back and reports err.message when the error has no code', () => {
+      // The warning interpolates `err.code || err.message`. Every other
+      // fallback spec throws an error carrying a code (EACCES/EROFS/EEXIST),
+      // so the `err.message` arm is never taken and the package sits below
+      // the 100% branch gate.
+      spyOn(fs, 'mkdirSync').and.callFake((dirPath) => {
+        if (dirPath === path.join(process.cwd(), '.percy-out')) {
+          throw new Error('codeless mkdir failure');
+        }
+      });
+      const log = { warn: jasmine.createSpy('warn') };
+      const ctx = ctxFor(['maestro', 'test', 'flow.yaml']);
+      maybeInjectScreenshotDir(ctx, log);
+      const fallback = path.join(os.tmpdir(), `percy-maestro-${process.pid}`);
+      expect(process.env.PERCY_MAESTRO_SCREENSHOT_DIR).toBe(fallback);
+      expect(log.warn).toHaveBeenCalledTimes(1);
+      expect(log.warn.calls.argsFor(0)[0]).toContain('codeless mkdir failure');
+    });
+
     it('skips for `maestro hierarchy` (not a test command)', () => {
       const mkdir = spyOn(fs, 'mkdirSync').and.callFake(() => {});
       const argv = ['maestro', 'hierarchy', '--udid', 'X'];
@@ -762,6 +781,22 @@ describe('percy app:exec', () => {
       });
       expect(ctx.argv).toEqual(argv);
       expect(log.debug).toHaveBeenCalled();
+    });
+
+    it('no-ops (debug) reporting err.message when the throw has no code', async () => {
+      // Same `err.code || err.message` branch as the screenshot-dir fallback:
+      // the ENOENT spec above always supplies a code, so the message arm is
+      // otherwise unreachable.
+      const log = { debug: jasmine.createSpy('debug') };
+      const argv = ['maestro', '--platform=ios', 'test', 'flow.yaml'];
+      const ctx = ctxFor(argv);
+      await maybeInjectDriverHostPort(ctx, log, {
+        execMaestro: () => { throw new Error('codeless spawn failure'); },
+        pickFreePort: () => 9555
+      });
+      expect(ctx.argv).toEqual(argv);
+      expect(log.debug).toHaveBeenCalled();
+      expect(log.debug.calls.argsFor(0)[0]).toContain('codeless spawn failure');
     });
 
     it('no-ops (debug) when execMaestro returns a non-zero status', async () => {
