@@ -2,6 +2,8 @@ import fs from 'fs';
 import path from 'path';
 import { ServerError } from './server.js';
 
+const MAX_SEARCH_DEPTH = 15;
+
 // Root under which BrowserStack App Automate hosts write Maestro session
 // artifacts (screenshots + debug output). Historically /tmp; hosts that
 // relocate it inject PERCY_APP_AUTOMATE_TMP_DIR with the new root, so the
@@ -32,7 +34,7 @@ async function manualScreenshotWalk(platform, sessionId, name, scopeRoot) {
   const files = [];
   const walkFrom = async (root, accept) => {
     const walk = async (dir, depth) => {
-      if (depth > 15) return; // sanity cap
+      if (depth > MAX_SEARCH_DEPTH) return;
       let entries;
       try { entries = await fs.promises.readdir(dir, { withFileTypes: true }); } catch { return; }
       for (const entry of entries) {
@@ -111,11 +113,7 @@ export async function locateScreenshot({ platform, sessionId, name, filePath, sc
     let files;
     try {
       let { default: glob } = await import('fast-glob');
-      // Self-hosted needs `dot: true` because Maestro's default output dir is
-      // `.maestro/` — a dot-prefixed entry fast-glob hides by default. BS
-      // layouts have no dot-prefixed segments, so omitting it there keeps the
-      // byte-identical behavior.
-      files = await glob(searchPattern, selfHosted ? { dot: true } : undefined);
+      files = await glob(searchPattern, scopedGlob ? { dot: true, deep: MAX_SEARCH_DEPTH } : undefined);
     } catch {
       // Fast-glob import / glob call failed — fall back to manual walker (BS
       // only; self-hosted has no fixed-layout convention, so empty → 404 with
@@ -168,7 +166,10 @@ export async function locateScreenshot({ platform, sessionId, name, filePath, sc
   const realPathFwd = realPath.replace(/\\/g, '/');
   const realPrefixFwd = realPrefix.replace(/\\/g, '/');
   if (!realPathFwd.startsWith(`${realPrefixFwd}/`)) {
-    throw new ServerError(404, `Screenshot not found: ${name}.png (resolved outside ${selfHosted ? 'PERCY_MAESTRO_SCREENSHOT_DIR' : 'session dir'})`);
+    const scopeLabel = selfHosted
+      ? 'PERCY_MAESTRO_SCREENSHOT_DIR'
+      : recursiveScope ? 'PERCY_MAESTRO_BS_SCOPE_ROOT' : 'session dir';
+    throw new ServerError(404, `Screenshot not found: ${name}.png (resolved outside ${scopeLabel})`);
   }
 
   return realPath;
