@@ -1,0 +1,157 @@
+# Disk-consumption stress test for the Percy CLI.
+#
+# Measures how much scratch disk a large snapshot build consumes. A local
+# 250-page run exhausted a laptop and died with "Browser not connected"
+# rather than an obvious disk error. A stock ubuntu runner has ~14 GB free
+# and the local rate suggested ~30 MB/snapshot, so this answers directly:
+# does a large Percy build survive a standard CI runner, and where do the
+# bytes actually go? Profile dirs only accounted for a third of the local
+# consumption, so the per-15s sampler below is the point of the job.
+#
+# Manual trigger only — it consumes Percy quota (snapshots x browsers).
+name: Stress (disk)
+
+on:
+  workflow_dispatch:
+    inputs:
+      url_count:
+        description: 'Number of URLs to snapshot'
+        required: true
+        default: '250'
+      free_disk:
+        description: 'Reclaim runner disk before starting (adds ~30GB)'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  stress:
+    name: Stress ${{ inputs.url_count }} URLs
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      # Inputs go through env rather than being interpolated into run: blocks.
+      URL_COUNT: ${{ inputs.url_count }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: yarn
+
+      # Off by default so the FIRST run measures a stock runner. That is the
+      # customer-relevant number; enable it only to force a full-size run.
+      - name: Reclaim runner disk
+        if: ${{ inputs.free_disk }}
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/lib/android /opt/hostedtoolcache/CodeQL
+          sudo docker image prune --all --force || true
+
+      - name: Baseline disk
+        run: |
+          {
+            echo "### Baseline"
+            echo '```'
+            df -h /
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - run: yarn install --frozen-lockfile
+      - run: yarn build
+
+      - name: Generate snapshot list
+        run: |
+          python3 - "$URL_COUNT" <<'PY'
+          import sys
+          n = int(sys.argv[1])
+          domains = [
+            "wikipedia.org/wiki/Node.js","developer.mozilla.org/en-US/docs/Web/JavaScript",
+            "github.com/nodejs/node","stackoverflow.com/questions/tagged/node.js",
+            "news.ycombinator.com","nodejs.org/en/about","npmjs.com/package/express",
+            "w3.org/TR/html52","example.com","info.cern.ch","apache.org","python.org",
+            "golang.org","rust-lang.org","kernel.org","gnu.org","mit.edu","stanford.edu",
+            "bbc.com/news","theguardian.com/international","reuters.com","arstechnica.com",
+            "theverge.com","techcrunch.com","wired.com",
+          ]
+          urls, rnd = [], 0
+          while len(urls) < n:
+              d = domains[len(urls) % len(domains)]
+              sep = '&' if '?' in d else '?'
+              urls.append("https://%s%sv=%d" % (d, sep, rnd))
+              if len(urls) % len(domains) == 0:
+                  rnd += 1
+          with open('stress-snapshots.yml', 'w') as f:
+              f.write('snapshots:\n')
+              for j, u in enumerate(urls, 1):
+                  f.write('  - name: "stress-%04d"\n    url: "%s"\n' % (j, u))
+          print("generated", len(urls), "urls")
+          PY
+
+      # Sample every 15s so we get a timeline, not a before/after. This is the
+      # artifact the local run could not produce.
+      - name: Start disk sampler
+        run: |
+          T="${TMPDIR:-/tmp}"
+          echo "ts,free_kb,tmp_kb,profile_dirs" > disk-timeline.csv
+          ( while :; do
+              printf '%s,%s,%s,%s\n' \
+                "$(date +%H:%M:%S)" \
+                "$(df -k / | tail -1 | awk '{print $4}')" \
+                "$(du -sk "$T" 2>/dev/null | awk '{print $1}')" \
+                "$(ls -d "$T"/percy-browser-* 2>/dev/null | wc -l | tr -d ' ')" \
+                >> disk-timeline.csv
+              sleep 15
+            done ) & echo $! > sampler.pid
+
+      - name: Run stress build
+        id: stress
+        env:
+          PERCY_TOKEN: ${{ secrets.PERCY_STRESS_TOKEN }}
+        continue-on-error: true
+        run: |
+          set +e
+          node packages/cli/bin/run.cjs snapshot stress-snapshots.yml 2>&1 | tee percy-stress.log
+          echo "exit_code=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
+
+      - name: Stop sampler
+        if: always()
+        run: kill "$(cat sampler.pid)" 2>/dev/null || true
+
+      - name: Summary
+        if: always()
+        run: |
+          T="${TMPDIR:-/tmp}"
+          taken=$(grep -c 'Snapshot taken' percy-stress.log 2>/dev/null || echo 0)
+          lost=$(grep -c 'Browser not connected' percy-stress.log 2>/dev/null || echo 0)
+          first=$(sed -n '2p' disk-timeline.csv | cut -d, -f2)
+          last=$(tail -1 disk-timeline.csv | cut -d, -f2)
+          used_mb=$(( (first - last) / 1024 ))
+          {
+            echo "### Result"
+            echo ""
+            echo "| metric | value |"
+            echo "|---|---|"
+            echo "| snapshots taken | $taken / $URL_COUNT |"
+            echo "| snapshot exit code | ${{ steps.stress.outputs.exit_code }} |"
+            echo "| disk consumed | ${used_mb} MB |"
+            if [ "$taken" -gt 0 ]; then echo "| per snapshot | $(( used_mb / taken )) MB |"; fi
+            echo "| browser lost | $lost |"
+            echo "| free at end | $(df -h / | tail -1 | awk '{print $4}') |"
+            echo ""
+            echo "### Largest consumers under TMPDIR at end"
+            echo '```'
+            du -sk "$T"/* 2>/dev/null | sort -rn | head -10 | awk '{printf "%8.1f MB  %s\n", $1/1024, $2}'
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: stress-disk-${{ inputs.url_count }}
+          path: |
+            disk-timeline.csv
+            percy-stress.log
+          retention-days: 7
