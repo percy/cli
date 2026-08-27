@@ -80,6 +80,7 @@ function debugSnapshotOptions(snapshot) {
   debugProp(snapshot, 'ignoreCanvasSerializationErrors');
   debugProp(snapshot, 'ignoreStyleSheetSerializationErrors');
   debugProp(snapshot, 'pseudoClassEnabledElements', JSON.stringify);
+  debugProp(snapshot, 'enablePseudoClassSerialization');
   debugProp(snapshot, 'discovery.autoConfigureAllowedHostnames');
 
   if (Array.isArray(snapshot.domSnapshot)) {

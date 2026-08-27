@@ -554,3 +554,56 @@ describe('serializeFrames', () => {
     });
   });
 });
+
+describe('serializeFrames - pseudo-class option propagation', () => {
+  let $container;
+
+  const srcdocOfFrame = (options) => {
+    let $ = parseDOM(serializeDOM(options).html, 'plain');
+    let el = $('#frame-pseudo')[0];
+    let raw = el?.getAttribute('srcdoc') || '';
+    let decoder = document.createElement('textarea');
+    decoder.innerHTML = raw;
+    return decoder.value;
+  };
+
+  beforeEach(async () => {
+    $container = document.createElement('div');
+    $container.id = 'pseudo-frame-host';
+    $container.innerHTML = '<iframe id="frame-pseudo" srcdoc="<style>.ibtn:hover { color: rgb(1, 2, 3); }</style><div class=\'ibtn\'>x</div>"></iframe>';
+    document.body.appendChild($container);
+
+    await when(() => {
+      let $frame = $container.querySelector('#frame-pseudo');
+      assert($frame?.contentDocument?.querySelector('.ibtn'), '#frame-pseudo did not load in time');
+      return $frame;
+    }, 5000);
+  }, 0);
+
+  afterEach(() => {
+    $container?.remove();
+    $container = null;
+  });
+
+  it('does not serialize iframe interactive states by default', () => {
+    let inner = srcdocOfFrame();
+    expect(inner).not.toContain('data-percy-interactive-states');
+    expect(inner).not.toContain('data-percy-hover');
+  });
+
+  it('serializes iframe interactive states when the flag is enabled', () => {
+    let inner = srcdocOfFrame({ enablePseudoClassSerialization: true });
+    expect(inner).toContain('data-percy-interactive-states');
+    expect(inner).toContain('[data-percy-hover]');
+  });
+
+  it('serializes iframe interactive states via the snake_case alias', () => {
+    let inner = srcdocOfFrame({ enable_pseudo_class_serialization: true });
+    expect(inner).toContain('[data-percy-hover]');
+  });
+
+  it('serializes iframe interactive states when pseudoClassEnabledElements is configured', () => {
+    let inner = srcdocOfFrame({ pseudoClassEnabledElements: { selectors: ['.ibtn'] } });
+    expect(inner).toContain('[data-percy-hover]');
+  });
+});
