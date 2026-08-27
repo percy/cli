@@ -12,6 +12,11 @@
 name: Stress (disk)
 
 on:
+  # workflow_dispatch alone is not dispatchable until the file reaches the
+  # default branch, so this also runs on push to its own branch — the same way
+  # the regression job runs — to get results before merge. Remove once merged.
+  push:
+    branches: [chore/stress-disk-workflow]
   workflow_dispatch:
     inputs:
       url_count:
@@ -33,7 +38,7 @@ jobs:
     timeout-minutes: 120
     env:
       # Inputs go through env rather than being interpolated into run: blocks.
-      URL_COUNT: ${{ inputs.url_count }}
+      URL_COUNT: ${{ inputs.url_count || '250' }}
     steps:
       - uses: actions/checkout@v4
 
