@@ -313,6 +313,10 @@ export class Browser extends EventEmitter {
               message: cdpTimeoutMessage(method, timeout)
             }));
           }, timeout);
+
+          // See the note in session.js: the watchdog must not keep the event
+          // loop alive once the real work has finished.
+          callback.timer.unref();
         }
 
         this.#callbacks.set(id, callback);
