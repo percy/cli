@@ -129,9 +129,12 @@ export async function handleMaestroScreenshot(req, res, percy) {
   } else {
     let overrideRoot = bsScopeRootOverride();
     if (overrideRoot) {
-      scopeRoot = overrideRoot;
       recursiveScope = true;
-      percy.log.debug(`maestro screenshot scope root overridden: ${scopeRoot}`);
+      let sessionScoped = path.join(overrideRoot, sessionId);
+      let sessionStat;
+      try { sessionStat = await fs.promises.stat(sessionScoped); } catch { sessionStat = null; }
+      scopeRoot = sessionStat?.isDirectory() ? sessionScoped : overrideRoot;
+      percy.log.debug(`maestro screenshot scope root: ${scopeRoot}`);
     } else {
       scopeRoot = platform === 'ios'
         ? `${appAutomateTmpDir()}/${sessionId}`

@@ -2078,6 +2078,63 @@ describe('API Server', () => {
           .toBeRejectedWithError(/Screenshot not found/);
       });
 
+      it('narrows to the session subtree when the root contains one', async () => {
+        const SCOPED_SID = 'scopedsession';
+        const MINE = path.join(SCOPE_ROOT, SCOPED_SID, 'maestro_debug_Flow');
+        const THEIRS = path.join(SCOPE_ROOT, 'othersession', 'maestro_debug_Flow');
+        fs.mkdirSync(MINE, { recursive: true });
+        fs.mkdirSync(THEIRS, { recursive: true });
+        const mineFile = path.join(MINE, 'Isolated.png');
+        const theirsFile = path.join(THEIRS, 'Isolated.png');
+        fs.writeFileSync(mineFile, 'PNGBYTES-MINE');
+        fs.writeFileSync(theirsFile, 'PNGBYTES-THEIRS');
+        const now = Date.now() / 1000;
+        fs.utimesSync(mineFile, now - 60, now - 60);
+        fs.utimesSync(theirsFile, now, now);
+        percy.maestroInsetCache.set(SCOPED_SID, null);
+        spyOn(percy, 'upload').and.resolveTo();
+        await percy.start();
+
+        await expectAsync(postMaestro({ name: 'Isolated', sessionId: SCOPED_SID, platform: 'ios' }))
+          .toBeResolvedTo(jasmine.objectContaining({ success: true }));
+
+        let [payload] = percy.upload.calls.mostRecent().args;
+        expect(payload.tiles[0].content).toBe(Buffer.from('PNGBYTES-MINE').toString('base64'));
+      });
+
+      it('rejects a filePath from another session subtree once narrowed', async () => {
+        const SCOPED_SID = 'scopedsession';
+        const MINE = path.join(SCOPE_ROOT, SCOPED_SID, 'maestro_debug_Flow');
+        const THEIRS = path.join(SCOPE_ROOT, 'othersession', 'maestro_debug_Flow');
+        fs.mkdirSync(MINE, { recursive: true });
+        fs.mkdirSync(THEIRS, { recursive: true });
+        fs.writeFileSync(path.join(MINE, `${FILEPATH_NAME}.png`), 'PNGBYTES-MINE');
+        fs.writeFileSync(path.join(THEIRS, `${FILEPATH_NAME}.png`), 'PNGBYTES-THEIRS');
+        percy.maestroInsetCache.set(SCOPED_SID, null);
+        await percy.start();
+
+        await expectAsync(postMaestro({
+          name: FILEPATH_NAME,
+          sessionId: SCOPED_SID,
+          platform: 'ios',
+          filePath: path.join(THEIRS, `${FILEPATH_NAME}.png`)
+        })).toBeRejectedWithError(/resolved outside PERCY_MAESTRO_BS_SCOPE_ROOT/);
+      });
+
+      it('ignores a session-named entry that is not a directory', async () => {
+        const FILE_SID = 'filesession';
+        fs.writeFileSync(path.join(SCOPE_ROOT, FILE_SID), 'not-a-directory');
+        percy.maestroInsetCache.set(FILE_SID, null);
+        spyOn(percy, 'upload').and.resolveTo();
+        await percy.start();
+
+        await expectAsync(postMaestro({ name: SS_NAME, sessionId: FILE_SID, platform: 'ios' }))
+          .toBeResolvedTo(jasmine.objectContaining({ success: true }));
+
+        let [payload] = percy.upload.calls.mostRecent().args;
+        expect(payload.tiles[0].content).toBe(Buffer.from('PNGBYTES-SCOPE-ROOT').toString('base64'));
+      });
+
       it('finds a screenshot under a dot-prefixed directory beneath the root', async () => {
         const DOT_DIR = path.join(SCOPE_ROOT, '.maestro', 'maestro_debug_DotFlow');
         fs.mkdirSync(DOT_DIR, { recursive: true });
