@@ -130,7 +130,7 @@ export async function handleMaestroScreenshot(req, res, percy) {
     let overrideRoot = bsScopeRootOverride();
     if (overrideRoot) {
       recursiveScope = true;
-      let sessionScoped = path.join(overrideRoot, sessionId);
+      let sessionScoped = `${overrideRoot}/${sessionId}`;
       let sessionStat;
       try { sessionStat = await fs.promises.stat(sessionScoped); } catch { sessionStat = null; }
       scopeRoot = sessionStat?.isDirectory() ? sessionScoped : overrideRoot;

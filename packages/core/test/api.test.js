@@ -2080,7 +2080,7 @@ describe('API Server', () => {
 
       it('narrows to the session subtree when the root contains one', async () => {
         const SCOPED_SID = 'scopedsession';
-        const MINE = path.join(SCOPE_ROOT, SCOPED_SID, 'maestro_debug_Flow');
+        const MINE = `${SCOPE_ROOT}/${SCOPED_SID}/maestro_debug_Flow`;
         const THEIRS = path.join(SCOPE_ROOT, 'othersession', 'maestro_debug_Flow');
         fs.mkdirSync(MINE, { recursive: true });
         fs.mkdirSync(THEIRS, { recursive: true });
@@ -2104,7 +2104,7 @@ describe('API Server', () => {
 
       it('rejects a filePath from another session subtree once narrowed', async () => {
         const SCOPED_SID = 'scopedsession';
-        const MINE = path.join(SCOPE_ROOT, SCOPED_SID, 'maestro_debug_Flow');
+        const MINE = `${SCOPE_ROOT}/${SCOPED_SID}/maestro_debug_Flow`;
         const THEIRS = path.join(SCOPE_ROOT, 'othersession', 'maestro_debug_Flow');
         fs.mkdirSync(MINE, { recursive: true });
         fs.mkdirSync(THEIRS, { recursive: true });
@@ -2123,7 +2123,7 @@ describe('API Server', () => {
 
       it('ignores a session-named entry that is not a directory', async () => {
         const FILE_SID = 'filesession';
-        fs.writeFileSync(path.join(SCOPE_ROOT, FILE_SID), 'not-a-directory');
+        fs.writeFileSync(`${SCOPE_ROOT}/${FILE_SID}`, 'not-a-directory');
         percy.maestroInsetCache.set(FILE_SID, null);
         spyOn(percy, 'upload').and.resolveTo();
         await percy.start();
