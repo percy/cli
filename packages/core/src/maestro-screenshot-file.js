@@ -15,31 +15,42 @@ export function appAutomateTmpDir() {
   return path.isAbsolute(dir) ? dir : '/tmp';
 }
 
+export function bsScopeRootOverride() {
+  let raw = process.env.PERCY_MAESTRO_BS_SCOPE_ROOT;
+  if (!raw) return null;
+  let dir = raw.replace(/[/\\]+$/, '');
+  return path.isAbsolute(dir) ? dir : null;
+}
+
 /* istanbul ignore next — defensive manual directory walker invoked only when
    fast-glob import fails (broken install / FS corruption). Unit tests
    exercise the primary glob path; integration tests on BS hosts exercise
    the walker against real session layouts. Path-traversal sinks inside this
    function are suppressed at file level in .semgrepignore with the same
    rationale (upstream SAFE_ID validation, depth cap, exact filename match). */
-async function manualScreenshotWalk(platform, sessionId, name) {
+async function manualScreenshotWalk(platform, sessionId, name, scopeRoot) {
   const files = [];
-  try {
-    if (platform === 'ios') {
-      const sessionDir = `${appAutomateTmpDir()}/${sessionId}`;
-      const walk = async (dir, depth) => {
-        if (depth > 15) return; // sanity cap
-        let entries;
-        try { entries = await fs.promises.readdir(dir, { withFileTypes: true }); } catch { return; }
-        for (const entry of entries) {
-          const full = path.join(dir, entry.name);
-          if (entry.isDirectory()) {
-            await walk(full, depth + 1);
-          } else if (entry.isFile() && entry.name === `${name}.png` && full.includes('_maestro_debug_')) {
-            files.push(full);
-          }
+  const walkFrom = async (root, accept) => {
+    const walk = async (dir, depth) => {
+      if (depth > 15) return; // sanity cap
+      let entries;
+      try { entries = await fs.promises.readdir(dir, { withFileTypes: true }); } catch { return; }
+      for (const entry of entries) {
+        const full = path.join(dir, entry.name);
+        if (entry.isDirectory()) {
+          await walk(full, depth + 1);
+        } else if (entry.isFile() && entry.name === `${name}.png` && accept(full)) {
+          files.push(full);
         }
-      };
-      await walk(sessionDir, 0);
+      }
+    };
+    await walk(root, 0);
+  };
+  try {
+    if (scopeRoot) {
+      await walkFrom(scopeRoot, () => true);
+    } else if (platform === 'ios') {
+      await walkFrom(`${appAutomateTmpDir()}/${sessionId}`, full => full.includes('_maestro_debug_'));
     } else {
       const baseDir = `${appAutomateTmpDir()}/${sessionId}_test_suite/logs`;
       const logDirs = await fs.promises.readdir(baseDir);
@@ -66,7 +77,8 @@ async function manualScreenshotWalk(platform, sessionId, name) {
 // ServerError(404) when the file is missing or resolves outside scopeRoot.
 // Callers pass `filePath` already shape-validated, plus the resolved `scopeRoot`
 // and `selfHosted` flag.
-export async function locateScreenshot({ platform, sessionId, name, filePath, scopeRoot, selfHosted }) {
+export async function locateScreenshot({ platform, sessionId, name, filePath, scopeRoot, selfHosted, recursiveScope }) {
+  let scopedGlob = selfHosted || !!recursiveScope;
   let chosenFile;
   if (filePath) {
     chosenFile = filePath;
@@ -81,7 +93,7 @@ export async function locateScreenshot({ platform, sessionId, name, filePath, sc
     //     (scopeRoot = PERCY_MAESTRO_SCREENSHOT_DIR). `name` is SAFE_ID-validated
     //     by the caller, so it cannot contain separators or traversal chars.
     let searchPattern;
-    if (selfHosted) {
+    if (scopedGlob) {
       // fast-glob requires forward-slashes in patterns on every platform; on
       // Windows scopeRoot contains backslashes, so normalize before embedding.
       // Production-code Windows portability — verified by the CI Windows runner.
@@ -111,7 +123,9 @@ export async function locateScreenshot({ platform, sessionId, name, filePath, sc
       // See manualScreenshotWalk() at file top + the file-level .semgrepignore.
       /* istanbul ignore next — only fires when fast-glob import throws
          (broken install / FS corruption); integration-test territory. */
-      files = selfHosted ? [] : await manualScreenshotWalk(platform, sessionId, name);
+      files = selfHosted
+        ? []
+        : await manualScreenshotWalk(platform, sessionId, name, recursiveScope ? scopeRoot : null);
     }
 
     if (!files || files.length === 0) {
