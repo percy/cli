@@ -112,6 +112,7 @@ export function serializeDOM(options) {
     warnings: new Set(),
     hints: new Set(),
     cache: new Map(),
+    styleSheetClones: new WeakMap(),
     shadowRootElements: [],
     enableJavaScript,
     disableShadowDOM,

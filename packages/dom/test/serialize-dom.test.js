@@ -883,11 +883,18 @@ describe('serializeDOM', () => {
     });
   });
 
-  describe('stylesheet <link> stamping (PER-10077 cascade anchoring)', () => {
-    it('stamps only stylesheet <link>s with a percy element id', () => {
-      // The pseudo-class serializer anchors its rewritten rules after a sheet's
-      // clone element, found via data-percy-element-id — so stylesheet links
-      // need one. Non-stylesheet links (preload, icon, …) do not.
+  describe('stylesheet <link> handling (PER-10610)', () => {
+    it('leaves a live stylesheet <link> equal to what a head manager rendered', () => {
+      withExample('<link rel="stylesheet" href="data:text/css,.lx{color:red}">', { withShadow: false });
+      let link = document.querySelector('link[rel="stylesheet"][href^="data:text/css,.lx"]');
+      let rendered = link.cloneNode();
+
+      serializeDOM();
+
+      expect(link.isEqualNode(rendered)).toBe(true);
+    });
+
+    it('does not stamp stylesheet <link>s in the serialized output', () => {
       withExample(
         '<link rel="stylesheet" href="data:text/css,.lx{color:red}">' +
         '<link rel="preload" as="style" href="data:text/css,.ly{color:red}">' +
@@ -895,9 +902,47 @@ describe('serializeDOM', () => {
         { withShadow: false }
       );
       let $ = parseDOM(serializeDOM().html, 'plain');
-      expect($('link[rel="stylesheet"]')[0].getAttribute('data-percy-element-id')).toBeTruthy();
+      expect($('link[rel="stylesheet"]')[0].getAttribute('data-percy-element-id')).toBeNull();
       expect($('link[rel="preload"]')[0].getAttribute('data-percy-element-id')).toBeNull();
       expect($('link:not([rel])')[0].getAttribute('data-percy-element-id')).toBeNull();
+    });
+
+    it('does not accumulate <link>s when a head manager reconciles between snapshots', () => {
+      withExample('<link rel="stylesheet" href="data:text/css,.lrec{color:red}">', { withShadow: false });
+      let link = document.querySelector('link[rel="stylesheet"][href^="data:text/css,.lrec"]');
+      let rendered = link.cloneNode();
+      let reconcile = () => {
+        if (!link.isEqualNode(rendered)) link.after(rendered.cloneNode());
+      };
+
+      serializeDOM();
+      reconcile();
+      let html = serializeDOM().html;
+
+      expect(html.split('data:text/css,.lrec{').length - 1).toEqual(1);
+    });
+
+    it('still anchors a rewritten copy after its source <link>, not at end of head (PER-10077)', async () => {
+      withExample(
+        '<link rel="stylesheet" href="base/test/assets/hover-anchor.css">' +
+        '<style>.lbtn.later { color: blue }</style>' +
+        '<button class="lbtn later">go</button>',
+        { withShadow: false }
+      );
+      let link = document.querySelector('link[href="base/test/assets/hover-anchor.css"]');
+      await new Promise((resolve, reject) => {
+        if (link.sheet) return resolve();
+        link.addEventListener('load', resolve, { once: true });
+        link.addEventListener('error', () => reject(new Error('hover-anchor.css failed to load')), { once: true });
+      });
+
+      let html = serializeDOM({ enablePseudoClassSerialization: true }).html;
+      let sourceIdx = html.indexOf('hover-anchor.css');
+      let copyIdx = html.indexOf('.lbtn[data-percy-hover]');
+      let laterIdx = html.indexOf('.lbtn.later');
+      expect(copyIdx).toBeGreaterThan(-1);
+      expect(copyIdx).toBeGreaterThan(sourceIdx);
+      expect(copyIdx).toBeLessThan(laterIdx);
     });
   });
 

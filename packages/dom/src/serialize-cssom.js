@@ -51,7 +51,7 @@ function createStyleResource(styleSheet) {
 }
 
 export function serializeCSSOM(ctx) {
-  let { dom, clone, resources, cache, warnings, ignoreStyleSheetSerializationErrors } = ctx;
+  let { dom, clone, resources, cache, warnings, ignoreStyleSheetSerializationErrors, styleSheetClones } = ctx;
   // in-memory CSSOM into their respective DOM nodes.
   let styleSheets = null;
   // catch error in case styleSheets property is not available (overwritten to throw error)
@@ -81,6 +81,7 @@ export function serializeCSSOM(ctx) {
 
           cloneOwnerNode.parentNode.insertBefore(style, cloneOwnerNode.nextSibling);
           cloneOwnerNode.remove();
+          styleSheetClones?.set(styleSheet.ownerNode, style);
         } catch (err) {
           handleErrors(err, 'Error serializing stylesheet: ', cloneOwnerNode, {
             styleId: styleId
