@@ -89,7 +89,8 @@ describe('Percy', () => {
       ignoreCanvasSerializationErrors: false,
       ignoreStyleSheetSerializationErrors: false,
       forceShadowAsLightDOM: false,
-      ignoreIframeSelectors: []
+      ignoreIframeSelectors: [],
+      enablePseudoClassSerialization: false
     });
   });
 
