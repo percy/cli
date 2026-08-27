@@ -12,11 +12,9 @@
 name: Stress (disk)
 
 on:
-  # workflow_dispatch alone is not dispatchable until the file reaches the
-  # default branch, so this also runs on push to its own branch — the same way
-  # the regression job runs — to get results before merge. Remove once merged.
-  push:
-    branches: [chore/stress-disk-workflow]
+  # Dispatch-only. A temporary `push` trigger on this branch was used to get a
+  # pre-merge result (run 33086755284) because workflow_dispatch is not
+  # dispatchable until the file reaches the default branch; it has been removed.
   workflow_dispatch:
     inputs:
       url_count:
@@ -40,9 +38,11 @@ jobs:
       # Inputs go through env rather than being interpolated into run: blocks.
       URL_COUNT: ${{ inputs.url_count || '250' }}
     steps:
-      - uses: actions/checkout@v4
+      # SHA-pinned to match the rest of this repo's workflows (semgrep's
+      # github-actions-mutable-action-tag rule blocks floating @v4 tags).
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@3235b876344d2a9aa001b8d1453c930bba69e610
         with:
           node-version: 20
           cache: yarn
@@ -152,7 +152,7 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
           name: stress-disk-${{ inputs.url_count }}
