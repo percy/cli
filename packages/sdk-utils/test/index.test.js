@@ -105,9 +105,6 @@ describe('SDK Utils', () => {
     });
 
     it('stays enabled against a next-major CLI', async () => {
-      // Replaces the old `major !== 1` gate, which disabled snapshots against
-      // any CLI 2.x+. This is the regression guard for that: a future major
-      // must not silently turn capture off.
       await helpers.test('version', '2.0.0');
       await expectAsync(isPercyEnabled()).toBeResolvedTo(true);
 
@@ -117,8 +114,6 @@ describe('SDK Utils', () => {
     });
 
     it('stays enabled against a 0.x CLI', async () => {
-      // The gate was originally aimed at the legacy 0.x @percy/agent. That
-      // agent is long gone, so 0.x is no longer special-cased either.
       await helpers.test('version', '0.1.0');
       await expectAsync(isPercyEnabled()).toBeResolvedTo(true);
     });
