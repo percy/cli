@@ -104,13 +104,23 @@ describe('SDK Utils', () => {
       ]));
     });
 
-    it('disables snapshots when the API version is unsupported', async () => {
-      await helpers.test('version', '0.1.0');
-      await expectAsync(isPercyEnabled()).toBeResolvedTo(false);
+    it('stays enabled against a next-major CLI', async () => {
+      // Replaces the old `major !== 1` gate, which disabled snapshots against
+      // any CLI 2.x+. This is the regression guard for that: a future major
+      // must not silently turn capture off.
+      await helpers.test('version', '2.0.0');
+      await expectAsync(isPercyEnabled()).toBeResolvedTo(true);
 
-      expect(helpers.logger.stdout).toEqual(jasmine.arrayContaining([
-        '[percy] Unsupported Percy CLI version, disabling snapshots'
+      expect(helpers.logger.stdout).not.toEqual(jasmine.arrayContaining([
+        jasmine.stringMatching(/Unsupported Percy CLI version/)
       ]));
+    });
+
+    it('stays enabled against a 0.x CLI', async () => {
+      // The gate was originally aimed at the legacy 0.x @percy/agent. That
+      // agent is long gone, so 0.x is no longer special-cased either.
+      await helpers.test('version', '0.1.0');
+      await expectAsync(isPercyEnabled()).toBeResolvedTo(true);
     });
 
     it('returns false if the build fails during a snapshot', async () => {
