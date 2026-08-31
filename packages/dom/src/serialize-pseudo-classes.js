@@ -510,11 +510,11 @@ function extractPseudoClassRules(ctx) {
     styleElement.textContent = rewrittenRules.join('\n');
 
     if (owner === null) {
-      injectAtSheetPosition(ctx.clone, sheet, styleElement, ctx.clone.head || ctx.clone.querySelector('head'));
+      injectAtSheetPosition(ctx, ctx.clone, sheet, styleElement, ctx.clone.head || ctx.clone.querySelector('head'));
     } else {
       const cloneHost = cloneByPercyId.get(owner.getAttribute('data-percy-element-id'));
       if (cloneHost && cloneHost.shadowRoot) {
-        injectAtSheetPosition(cloneHost.shadowRoot, sheet, styleElement, cloneHost.shadowRoot);
+        injectAtSheetPosition(ctx, cloneHost.shadowRoot, sheet, styleElement, cloneHost.shadowRoot);
       }
     }
   }
@@ -523,13 +523,16 @@ function extractPseudoClassRules(ctx) {
 // Insert an interactive-states <style> immediately AFTER its source sheet's
 // clone element so the copy keeps the sheet's original source-order rank —
 // later stylesheets still win equal-specificity ties, exactly as on the live
-// page (PER-10077). The sheet's ownerNode (<style> / <link rel=stylesheet>) is
-// stamped with a data-percy-element-id, which serialize-cssom preserves on any
-// node it rebuilds in place. Falls back to appending at the scope's end when
-// the sheet has no locatable clone anchor.
-function injectAtSheetPosition(scopeRoot, sheet, styleElement, fallbackTarget) {
-  const anchorId = sheet.ownerNode.getAttribute('data-percy-element-id');
-  const anchor = anchorId ? scopeRoot.querySelector(`[data-percy-element-id="${anchorId}"]`) : null;
+// page (PER-10077).
+function injectAtSheetPosition(ctx, scopeRoot, sheet, styleElement, fallbackTarget) {
+  const ownerNode = sheet.ownerNode;
+  let anchor = ownerNode ? ctx.styleSheetClones?.get(ownerNode) : null;
+
+  if (!anchor?.parentNode && ownerNode) {
+    const anchorId = ownerNode.getAttribute('data-percy-element-id');
+    anchor = anchorId ? scopeRoot.querySelector(`[data-percy-element-id="${anchorId}"]`) : null;
+  }
+
   const anchorParent = anchor ? anchor.parentNode : null;
   if (anchorParent) {
     anchorParent.insertBefore(styleElement, anchor.nextSibling);

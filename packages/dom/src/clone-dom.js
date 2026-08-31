@@ -49,7 +49,7 @@ function cloneElementWithoutLifecycle(element) {
 }
 
 export function cloneNodeAndShadow(ctx) {
-  let { dom, disableShadowDOM, forceShadowAsLightDOM, resources, cache, enableJavaScript } = ctx;
+  let { dom, disableShadowDOM, forceShadowAsLightDOM, resources, cache, enableJavaScript, styleSheetClones } = ctx;
   // clones shadow DOM and light DOM for a given node
   let cloneNode = (node, parent) => {
     try {
@@ -72,6 +72,10 @@ export function cloneNodeAndShadow(ctx) {
       markElement(node, disableShadowDOM, forceShadowAsLightDOM);
 
       let clone = cloneElementWithoutLifecycle(node);
+
+      if (styleSheetClones && (node.nodeName === 'LINK' || node.nodeName === 'STYLE')) {
+        styleSheetClones.set(node, clone);
+      }
 
       // Custom-element :state() is captured by the fallback path in
       // serialize-custom-states.js (live el.matches against state names
