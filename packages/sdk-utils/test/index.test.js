@@ -104,13 +104,18 @@ describe('SDK Utils', () => {
       ]));
     });
 
-    it('disables snapshots when the API version is unsupported', async () => {
-      await helpers.test('version', '0.1.0');
-      await expectAsync(isPercyEnabled()).toBeResolvedTo(false);
+    it('stays enabled against a next-major CLI', async () => {
+      await helpers.test('version', '2.0.0');
+      await expectAsync(isPercyEnabled()).toBeResolvedTo(true);
 
-      expect(helpers.logger.stdout).toEqual(jasmine.arrayContaining([
-        '[percy] Unsupported Percy CLI version, disabling snapshots'
+      expect(helpers.logger.stdout).not.toEqual(jasmine.arrayContaining([
+        jasmine.stringMatching(/Unsupported Percy CLI version/)
       ]));
+    });
+
+    it('stays enabled against a 0.x CLI', async () => {
+      await helpers.test('version', '0.1.0');
+      await expectAsync(isPercyEnabled()).toBeResolvedTo(true);
     });
 
     it('returns false if the build fails during a snapshot', async () => {
