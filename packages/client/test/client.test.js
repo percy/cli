@@ -238,6 +238,7 @@ describe('PercyClient', () => {
             'machine-id': client.env.machine.id,
             'machine-hostname': client.env.machine.hostname,
             'machine-ci-run-url': client.env.machine.runUrl,
+            'machine-ci-platform': client.env.machine.platform,
             source: 'user_created',
             partial: client.env.partial,
             tags: []
@@ -269,6 +270,7 @@ describe('PercyClient', () => {
       expect(attributes['machine-id']).toBeUndefined();
       expect(attributes['machine-hostname']).toBeUndefined();
       expect(attributes['machine-ci-run-url']).toBeUndefined();
+      expect(attributes['machine-ci-platform']).toBeUndefined();
     });
 
     it('creates a new build with projectType passed as null', async () => {
@@ -305,6 +307,7 @@ describe('PercyClient', () => {
             'machine-id': client.env.machine.id,
             'machine-hostname': client.env.machine.hostname,
             'machine-ci-run-url': client.env.machine.runUrl,
+            'machine-ci-platform': client.env.machine.platform,
             source: 'user_created',
             partial: client.env.partial,
             tags: []
@@ -393,6 +396,7 @@ describe('PercyClient', () => {
             'machine-id': client.env.machine.id,
             'machine-hostname': client.env.machine.hostname,
             'machine-ci-run-url': client.env.machine.runUrl,
+            'machine-ci-platform': client.env.machine.platform,
             source: 'user_created',
             partial: client.env.partial,
             tags: []
@@ -438,6 +442,7 @@ describe('PercyClient', () => {
             'machine-id': client.env.machine.id,
             'machine-hostname': client.env.machine.hostname,
             'machine-ci-run-url': client.env.machine.runUrl,
+            'machine-ci-platform': client.env.machine.platform,
             source: 'user_created',
             partial: client.env.partial,
             tags: [{ id: null, name: 'tag1' }, { id: null, name: 'tag2' }]
@@ -484,6 +489,7 @@ describe('PercyClient', () => {
             'machine-id': client.env.machine.id,
             'machine-hostname': client.env.machine.hostname,
             'machine-ci-run-url': client.env.machine.runUrl,
+            'machine-ci-platform': client.env.machine.platform,
             source: 'auto_enabled_group',
             partial: client.env.partial,
             tags: [{ id: null, name: 'tag1' }, { id: null, name: 'tag2' }]
@@ -529,6 +535,7 @@ describe('PercyClient', () => {
             'machine-id': client.env.machine.id,
             'machine-hostname': client.env.machine.hostname,
             'machine-ci-run-url': client.env.machine.runUrl,
+            'machine-ci-platform': client.env.machine.platform,
             source: 'user_created',
             partial: client.env.partial,
             'skip-base-build': true,
@@ -572,6 +579,7 @@ describe('PercyClient', () => {
             'machine-id': client.env.machine.id,
             'machine-hostname': client.env.machine.hostname,
             'machine-ci-run-url': client.env.machine.runUrl,
+            'machine-ci-platform': client.env.machine.platform,
             source: 'user_created',
             partial: client.env.partial,
             tags: []
@@ -614,6 +622,7 @@ describe('PercyClient', () => {
             'machine-id': client.env.machine.id,
             'machine-hostname': client.env.machine.hostname,
             'machine-ci-run-url': client.env.machine.runUrl,
+            'machine-ci-platform': client.env.machine.platform,
             source: 'user_created',
             partial: client.env.partial,
             tags: []
@@ -656,6 +665,7 @@ describe('PercyClient', () => {
             'machine-id': client.env.machine.id,
             'machine-hostname': client.env.machine.hostname,
             'machine-ci-run-url': client.env.machine.runUrl,
+            'machine-ci-platform': client.env.machine.platform,
             source: 'bstack_sdk_created',
             partial: client.env.partial,
             tags: []

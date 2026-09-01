@@ -388,7 +388,8 @@ export class PercyClient {
           ...(this.env.machine?.id ? {
             'machine-id': this.env.machine.id,
             'machine-hostname': this.env.machine.hostname,
-            'machine-ci-run-url': this.env.machine.runUrl
+            'machine-ci-run-url': this.env.machine.runUrl,
+            'machine-ci-platform': this.env.machine.platform
           } : {}),
           ...(dropinBaselineCandidate ? { 'dropin-baseline-candidate': true } : {}),
           ...(dropinBaselineSetup ? { 'dropin-baseline-setup': true } : {}),

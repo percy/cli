@@ -444,7 +444,10 @@ export class PercyEnv {
     return {
       id: id || null,
       hostname: hostname || null,
-      runUrl: runUrl || null
+      runUrl: runUrl || null,
+      // which CI product the agent belongs to ("jenkins", "buildkite", ...);
+      // percy-web maps it to a display name in the stopped-responding copy
+      platform: this.ci || null
     };
   }
 

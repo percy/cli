@@ -96,6 +96,16 @@ describe('PercyEnv', () => {
       expect(env.machine.runUrl).toBeNull();
     });
 
+    it('reports the CI platform when one is detected', () => {
+      let env = new PercyEnv({ JENKINS_URL: 'http://jenkins.local/' });
+      expect(env.machine.platform).toEqual('jenkins');
+    });
+
+    it('reports a null platform outside of CI', () => {
+      let env = new PercyEnv({});
+      expect(env.machine.platform).toBeNull();
+    });
+
     it('degrades to null identity when the hostname cannot be read', () => {
       spyOn(os, 'hostname').and.throwError('EPERM');
       let env = new PercyEnv({});
