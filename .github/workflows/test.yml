@@ -67,6 +67,7 @@ jobs:
           - '@percy/config'
           - '@percy/core'
           - '@percy/cli'
+          - '@percy/cli-app'
           - '@percy/cli-command'
           - '@percy/cli-exec'
           - '@percy/cli-snapshot'
