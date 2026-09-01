@@ -863,7 +863,10 @@ export class Percy {
     if (!process.env.PERCY_TOKEN) return;
     try {
       const logsObject = {
-        clilogs: logger.query(log => !['ci'].includes(log.debug))
+        // Redacted for the same reason as cilogs below: CLI log entries can
+        // carry upstream response text (SDK errors interpolate remote bodies),
+        // and /logs content is readable by anyone with build read access.
+        clilogs: redactSecrets(logger.query(log => !['ci'].includes(log.debug)))
       };
 
       // Only add CI logs if not disabled voluntarily.

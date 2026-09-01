@@ -553,10 +553,21 @@ export async function withRetries(fn, { count, onRetry, signal, throwOn }) {
   }
 }
 
-export function redactSecrets(data) {
-  const filepath = path.resolve(url.fileURLToPath(import.meta.url), '../secretPatterns.yml');
-  const secretPatterns = YAML.parse(readFileSync(filepath, 'utf-8'));
+// Parsed and compiled once. redactSecrets recurses per log entry and the
+// pattern file holds ~1750 rules, so re-reading the YAML and recompiling every
+// regex on each call dominates the cost of sending build logs.
+let compiledSecretPatterns;
 
+function secretPatterns() {
+  if (!compiledSecretPatterns) {
+    const filepath = path.resolve(url.fileURLToPath(import.meta.url), '../secretPatterns.yml');
+    const { patterns } = YAML.parse(readFileSync(filepath, 'utf-8'));
+    compiledSecretPatterns = patterns.map(p => new RegExp(p.pattern.regex, 'g'));
+  }
+  return compiledSecretPatterns;
+}
+
+export function redactSecrets(data) {
   if (Array.isArray(data)) {
     // Process each item in the array
     return data.map(item => redactSecrets(item));
@@ -565,8 +576,8 @@ export function redactSecrets(data) {
     data.message = redactSecrets(data.message);
   }
   if (typeof data === 'string') {
-    for (const pattern of secretPatterns.patterns) {
-      data = data.replace(new RegExp(pattern.pattern.regex, 'g'), '[REDACTED]');
+    for (const regex of secretPatterns()) {
+      data = data.replace(regex, '[REDACTED]');
     }
   }
   return data;

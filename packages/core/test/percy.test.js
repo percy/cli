@@ -1455,6 +1455,37 @@ describe('Percy', () => {
       ]));
     });
 
+    it('redacts secrets from CLI logs, not just CI logs', async () => {
+      process.env.PERCY_TOKEN = 'PERCY_TOKEN';
+      delete process.env.PERCY_CLIENT_ERROR_LOGS;
+      percy = new Percy({
+        token: 'PERCY_TOKEN',
+        snapshot: { widths: [1000] },
+        discovery: { concurrency: 1 },
+        clientInfo: 'client-info',
+        environmentInfo: 'env-info'
+      });
+      percy.build = { id: 1 };
+      // A CLI-side log entry can carry upstream response text, so it needs the
+      // same redaction cilogs already gets.
+      percy.log.info('leaked from upstream: ASIAY34FZKBOKMUTVV7A');
+      percy.log.info('ci side: ASIAY34FZKBOKMUTVV7A', {}, true);
+
+      await expectAsync(percy.sendBuildLogs()).toBeResolved();
+      expect(api.requests['/logs']).toBeDefined();
+
+      const sent = JSON.parse(Pako.ungzip(
+        Buffer.from(api.requests['/logs'][0].body.data.content, 'base64'),
+        { to: 'string' }
+      ));
+
+      const clilogs = JSON.stringify(sent.clilogs);
+      const cilogs = JSON.stringify(sent.cilogs);
+      expect(clilogs).not.toContain('ASIAY34FZKBOKMUTVV7A');
+      expect(clilogs).toContain('[REDACTED]');
+      expect(cilogs).not.toContain('ASIAY34FZKBOKMUTVV7A');
+    });
+
     it('should catch the error in sending build logs', async () => {
       process.env.PERCY_TOKEN = 'PERCY_TOKEN';
       delete process.env.PERCY_CLIENT_ERROR_LOGS;
