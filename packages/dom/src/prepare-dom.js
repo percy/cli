@@ -10,8 +10,9 @@ export function markElement(domElement, disableShadowDOM, forceShadowAsLightDOM)
   // Mark elements that are to be serialized later with a data attribute.
   // Custom elements with ElementInternals or closed shadow roots also get
   // stamped so the post-clone state-fallback can locate their clones.
+  let tagName = domElement.tagName?.toLowerCase();
   if (
-    ['input', 'textarea', 'select', 'iframe', 'canvas', 'video', 'style', 'dialog'].includes(domElement.tagName?.toLowerCase()) ||
+    ['input', 'textarea', 'select', 'iframe', 'canvas', 'video', 'style', 'dialog'].includes(tagName) ||
     isCustomElement(domElement)
   ) {
     if (!domElement.getAttribute('data-percy-element-id')) {

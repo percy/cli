@@ -145,6 +145,15 @@ export class Percy {
     this.grpcClientCache = new Map();
     this.grpcClientCache.shutdownInProgress = false;
 
+    // Per-Percy cache of derived device system-bar insets, keyed by sessionId.
+    // Insets are device-constant within a session, so the Maestro relay derives
+    // them once (one /viewHierarchy or `dumpsys` call) and reuses the result —
+    // including a null "derivation failed, use SDK default" outcome — for every
+    // subsequent snapshot in that session. Per-instance (not module-scoped) so
+    // concurrent Percy instances don't share session state; holds plain data
+    // (no sockets), so stop() just clears it.
+    this.maestroInsetCache = new Map();
+
     // Domain validation state for auto domain allow-listing
     this.domainValidation = {
       autoConfiguredHosts: new Set(), // Domains from project config
@@ -156,7 +165,7 @@ export class Percy {
     };
 
     // generator methods are wrapped to autorun and return promises
-    for (let m of ['start', 'stop', 'flush', 'idle', 'snapshot', 'upload', 'replaySnapshot']) {
+    for (let m of ['start', 'stop', 'flush', 'idle', 'snapshot', 'upload', 'replaySnapshot', 'startBuild']) {
       // the original generator can be referenced with percy.yield.<method>
       let method = (this.yield ||= {})[m] = this[m].bind(this);
       this[m] = (...args) => generatePromise(method(...args));
@@ -354,6 +363,19 @@ export class Percy {
     this._lockHandle = null;
   }
 
+  // Forces the snapshots queue to start, which creates the Percy build up
+  // front and populates `percy.build.id`. Normally, when uploads are delayed
+  // or deferred, the build is created lazily on the first flush. IntelliStory
+  // needs the real build id before any snapshots are taken so it can enqueue
+  // the affected-story graph against it. Safe to call more than once — the
+  // queue memoizes its start task, so the build is only created once.
+  async *startBuild() {
+    if (!this.readyState) return this.build;
+    if (this.build?.id || this.build?.error) return this.build;
+    yield this.#snapshots.start();
+    return this.build;
+  }
+
   // Resolves once snapshot and upload queues are idle
   async *idle() {
     yield* this.#discovery.idle();
@@ -450,6 +472,9 @@ export class Percy {
       // triggering the fallback chain on a tearing-down process (R-7).
       this.grpcClientCache.shutdownInProgress = true;
       closeGrpcClientCache(this.grpcClientCache);
+
+      // Drop the per-session device-inset cache (plain data, no sockets).
+      this.maestroInsetCache.clear();
 
       // mark instance as stopped
       this.readyState = 3;
@@ -606,7 +631,7 @@ export class Percy {
     options = validateSnapshotOptions(options);
     // process CORS iframes in domSnapshot before validation
     if (options.domSnapshot) {
-      options.domSnapshot = processCorsIframes(options.domSnapshot);
+      options.domSnapshot = processCorsIframes(options.domSnapshot, options.url);
     }
     this.client.addClientInfo(options.clientInfo);
     this.client.addEnvironmentInfo(options.environmentInfo);
@@ -621,10 +646,18 @@ export class Percy {
       let server;
 
       try {
-        // Check SDK version
+        // Check SDK version. This generator runs inside the POST /percy/snapshot
+        // request handler (see api.js), so anything awaited here delays the HTTP
+        // response the SDK is blocked on. checkSDKVersion reaches out to
+        // api.github.com — an unrelated third party that a corporate proxy,
+        // egress firewall or GitHub throttling can leave hanging — so it must
+        // never gate a snapshot. Set the flag first so exactly one check is ever
+        // started (it used to be set after the await, which meant every snapshot
+        // posted during a slow check started its own), and run it detached:
+        // checkSDKVersion swallows its own errors and only logs.
         if (!this.sdkInfoDisplayed && options.clientInfo) {
-          await checkSDKVersion(options.clientInfo);
           this.sdkInfoDisplayed = true;
+          checkSDKVersion(options.clientInfo);
         }
         if ('serve' in options) {
           // create and start a static server
@@ -863,9 +896,9 @@ export class Percy {
     if (!process.env.PERCY_TOKEN) return;
     try {
       const logsObject = {
-        // Redacted for the same reason as cilogs below: CLI log entries can
-        // carry upstream response text (SDK errors interpolate remote bodies),
-        // and /logs content is readable by anyone with build read access.
+        // Redact secrets from CLI logs before egress to the Percy API — these
+        // can contain tokens or URLs with embedded credentials (CWE-532). The
+        // cilogs below were already redacted; clilogs were not.
         clilogs: redactSecrets(logger.query(log => !['ci'].includes(log.debug)))
       };
 

@@ -27,8 +27,7 @@ function styleSheetsMatch(sheetA, sheetB) {
   // Only treat as mismatch when the live sheet has MORE rules than the
   // clone — that signals rules were added via CSSOM (insertRule/adopted)
   // and must be re-serialized. When lenA <= lenB, the clone already
-  // contains all of the live rules (often duplicated by clone-dom's
-  // <style> textContent handling); trust the clone's source text so that
+  // contains all of the live rules; trust the clone's source text so that
   // CSS shorthand semantics (e.g. `all: initial; border-radius: var(...)`)
   // survive — `cssRule.cssText` expansion appends logical longhands like
   // `border-end-end-radius: initial` AFTER the shorthand, which silently
@@ -52,7 +51,7 @@ function createStyleResource(styleSheet) {
 }
 
 export function serializeCSSOM(ctx) {
-  let { dom, clone, resources, cache, warnings, ignoreStyleSheetSerializationErrors } = ctx;
+  let { dom, clone, resources, cache, warnings, ignoreStyleSheetSerializationErrors, styleSheetClones } = ctx;
   // in-memory CSSOM into their respective DOM nodes.
   let styleSheets = null;
   // catch error in case styleSheets property is not available (overwritten to throw error)
@@ -82,6 +81,7 @@ export function serializeCSSOM(ctx) {
 
           cloneOwnerNode.parentNode.insertBefore(style, cloneOwnerNode.nextSibling);
           cloneOwnerNode.remove();
+          styleSheetClones?.set(styleSheet.ownerNode, style);
         } catch (err) {
           handleErrors(err, 'Error serializing stylesheet: ', cloneOwnerNode, {
             styleId: styleId

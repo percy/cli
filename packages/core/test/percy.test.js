@@ -4,7 +4,11 @@ import Percy from '@percy/core';
 import Pako from 'pako';
 import DetectProxy from '@percy/client/detect-proxy';
 import { validateSnapshotOptions } from '../src/snapshot.js';
-import { Page, WAIT_FOR_CUSTOM_ELEMENTS_BODY } from '../src/page.js';
+import {
+  Page,
+  WAIT_FOR_CUSTOM_ELEMENTS_BODY,
+  DEFAULT_WAIT_FOR_CUSTOM_ELEMENTS_TIMEOUT
+} from '../src/page.js';
 
 describe('Percy', () => {
   let percy, server;
@@ -85,7 +89,8 @@ describe('Percy', () => {
       ignoreCanvasSerializationErrors: false,
       ignoreStyleSheetSerializationErrors: false,
       forceShadowAsLightDOM: false,
-      ignoreIframeSelectors: []
+      ignoreIframeSelectors: [],
+      enablePseudoClassSerialization: false
     });
   });
 
@@ -112,7 +117,7 @@ describe('Percy', () => {
     });
 
     // expect required arguments are passed to PercyDOM.serialize
-    expect(evalSpy.calls.allArgs()[4]).toEqual(jasmine.arrayContaining([jasmine.anything(), { enableJavaScript: undefined, disableShadowDOM: true, domTransformation: undefined, reshuffleInvalidTags: undefined, ignoreCanvasSerializationErrors: undefined, ignoreStyleSheetSerializationErrors: undefined, ignoreIframeSelectors: undefined, forceShadowAsLightDOM: undefined, pseudoClassEnabledElements: undefined }]));
+    expect(evalSpy.calls.allArgs()[4]).toEqual(jasmine.arrayContaining([jasmine.anything(), { enableJavaScript: undefined, disableShadowDOM: true, domTransformation: undefined, reshuffleInvalidTags: undefined, ignoreCanvasSerializationErrors: undefined, ignoreStyleSheetSerializationErrors: undefined, ignoreIframeSelectors: undefined, forceShadowAsLightDOM: undefined, pseudoClassEnabledElements: undefined, enablePseudoClassSerialization: undefined }]));
 
     expect(snapshot.url).toEqual('http://localhost:8000/');
     expect(snapshot.domSnapshot).toEqual(jasmine.objectContaining({
@@ -214,6 +219,31 @@ describe('Percy', () => {
     expect(logger.stderr).toEqual(jasmine.arrayContaining([
       jasmine.stringMatching(/Custom elements wait failed: boom/)
     ]));
+  });
+
+  it('does not hang on a page holding a never-defined custom element', async () => {
+    // PER-10405: an unregistered tag matches `:not(:defined)` forever and its
+    // `customElements.whenDefined()` never resolves, so the wait must fall back
+    // on its own ceiling.
+    server.reply('/', () => [200, 'text/html', (
+      '<p>hi</p><next-route-announcer></next-route-announcer>'
+    )]);
+    await percy.browser.launch();
+    let page = await percy.browser.page();
+    await page.goto('http://localhost:8000');
+
+    let undefinedCount = await page.eval(
+      () => document.querySelectorAll(':not(:defined)').length);
+    expect(undefinedCount).toBe(1);
+
+    let start = Date.now();
+    await expectAsync(page.eval(
+      WAIT_FOR_CUSTOM_ELEMENTS_BODY,
+      DEFAULT_WAIT_FOR_CUSTOM_ELEMENTS_TIMEOUT
+    )).toBeResolved();
+    let elapsed = Date.now() - start;
+
+    expect(elapsed).toBeLessThan(5000);
   });
 
   it('runs readiness check before serializing when readiness option is set', async () => {
@@ -841,6 +871,55 @@ describe('Percy', () => {
     });
   });
 
+  describe('#startBuild()', () => {
+    it('returns the current build without creating one when percy has not started', async () => {
+      // readyState is null before start()
+      let result = await generatePromise(percy.yield.startBuild());
+      expect(result).toBe(percy.build);
+      expect(api.requests['/builds']).toBeUndefined();
+    });
+
+    it('returns the existing build without re-creating it when one already exists', async () => {
+      spyOn(percy.browser, 'launch');
+      await percy.start();
+      expect(percy.build.id).toBeDefined();
+      let buildCount = api.requests['/builds'].length;
+
+      let result = await generatePromise(percy.yield.startBuild());
+
+      expect(result).toBe(percy.build);
+      // the memoized queue start means no additional build is created
+      expect(api.requests['/builds'].length).toEqual(buildCount);
+    });
+
+    it('returns the build without re-creating it when a prior creation errored', async () => {
+      percy.readyState = 1;
+      percy.build = { error: 'build creation failed' };
+
+      let result = await generatePromise(percy.yield.startBuild());
+
+      expect(result).toEqual({ error: 'build creation failed' });
+      expect(api.requests['/builds']).toBeUndefined();
+
+      // neutralize afterEach stop() for this hand-set state
+      percy.readyState = null;
+    });
+
+    it('creates the build up front when uploads are deferred', async () => {
+      percy = new Percy({ token: 'PERCY_TOKEN', snapshot: { widths: [1000] }, deferUploads: true });
+      spyOn(percy.browser, 'launch');
+      await percy.start();
+      // deferred: the build is not created during start()
+      expect(percy.build?.id).toBeUndefined();
+
+      let result = await generatePromise(percy.yield.startBuild());
+
+      expect(percy.build.id).toBeDefined();
+      expect(result).toBe(percy.build);
+      expect(api.requests['/builds']).toBeDefined();
+    });
+  });
+
   describe('#stop()', () => {
     // stop the previously started instance and clear requests
     async function reset(options) {
@@ -883,6 +962,12 @@ describe('Percy', () => {
       expect(percy.browser.isConnected()).toBe(true);
       await expectAsync(percy.stop()).toBeResolved();
       expect(percy.browser.isConnected()).toBe(false);
+    });
+
+    it('clears the per-session device-inset cache', async () => {
+      percy.maestroInsetCache.set('some-session', { statusBarHeight: 141, navBarHeight: 0 });
+      await expectAsync(percy.stop()).toBeResolved();
+      expect(percy.maestroInsetCache.size).toBe(0);
     });
 
     it('clears pending tasks and logs when force stopping', async () => {

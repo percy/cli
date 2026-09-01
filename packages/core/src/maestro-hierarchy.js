@@ -101,12 +101,37 @@ const SELECTOR_KEYS_UNION = ['resource-id', 'text', 'content-desc', 'class', 'id
 // past the socket timeout.
 const IOS_HTTP_HEALTHY_DEADLINE_MS = 1500;
 const IOS_HTTP_CIRCUIT_BREAKER_MS = 5000;
-// Maestro iOS driver-host-port is realmobile-derived as wda_port + 2700.
-// WDA ports are 8400-8410 → driver host ports are 11100-11110.
-const IOS_DRIVER_HOST_PORT_MIN = 11100;
-const IOS_DRIVER_HOST_PORT_MAX = 11110;
+// `parseIosDriverHostPort` accepts any valid TCP port (1-65535). The
+// BrowserStack-realmobile canonical range (11100-11110, derived as
+// wda_port + 2700 from WDA ports 8400-8410) is a strict subset. Self-hosted
+// callers prescribe the port via `@percy/cli-app`'s `maybeInjectDriverHostPort`
+// helper, which auto-injects `--driver-host-port <PORT>` into the
+// `maestro test` argv and mirrors the chosen value to
+// `PERCY_IOS_DRIVER_HOST_PORT`. This relay reads the env var unconditionally
+// and no longer auto-discovers the port via probe / lsof — see Phase 3 of
+// the self-hosted Maestro architecture doc and brainstorm
+// `2026-06-11-ios-port-discovery-simplification-requirements.md`.
 // HTTP response cap before parse — sized for WebView-heavy iOS apps.
 const IOS_HTTP_RESPONSE_MAX_BYTES = 20 * 1024 * 1024;
+
+// Device system-bar inset derivation tunables.
+//
+// iOS: the `/viewHierarchy` AXElement tree exposes the status bar as a node
+// with `elementType === 26` (XCUIElementTypeStatusBar — a stable XCUITest
+// enum constant). Its `frame.Height` is in logical POINTS; the comparison
+// tile expects PIXELS, so we scale by the device scale factor derived
+// empirically as PNG-pixel-height ÷ AUT-root-point-height (avoids the
+// Plus-class `nativeScale ≠ scale` foot-gun). Apple scale factors are 1/2/3;
+// we snap the ratio to the nearest integer and reject anything implausible
+// (a wrong root-frame height would otherwise yield a bogus inset).
+const IOS_STATUS_BAR_ELEMENT_TYPE = 26;
+const DEVICE_SCALE_MIN = 1;
+const DEVICE_SCALE_MAX = 3;
+// Max distance the raw PNG/point ratio may sit from an integer before we treat
+// the root-frame height as unreliable and fall back (e.g. a non-full-screen
+// AUT frame). 0.15 comfortably admits real rounding (2532/844 = 3.000) while
+// rejecting a half-screen root (e.g. 2532/667 = 3.79 → 0.21 off).
+const DEVICE_SCALE_TOLERANCE = 0.15;
 
 // Android gRPC transport tunables. Symmetric with iOS HTTP (D11): same
 // healthy-deadline + circuit-breaker pair. gRPC's `deadline` option is
@@ -902,17 +927,23 @@ function defaultHttpRequest({ host, port, method, path: requestPath, headers, bo
   });
 }
 
-// Validate PERCY_IOS_DRIVER_HOST_PORT env value as integer in the realmobile
-// range (wda_port + 2700 = 11100-11110). Out-of-range values return null.
+// Validate PERCY_IOS_DRIVER_HOST_PORT env value as an integer in the valid
+// TCP range (1-65535). Was previously clamped to the BS-specific realmobile
+// range (wda_port+2700 = 11100-11110); the relaxed range is a superset so BS
+// continues to accept its canonical port unchanged. Self-hosted callers can
+// pass any port they pinned via `maestro test --driver-host-port <P>` (e.g.
+// the deterministic `7001` on a simulator, or a forwarded port like ~6001 on
+// a real device).
 function parseIosDriverHostPort(raw) {
   /* istanbul ignore if — undefined/null/empty raw value branch; iOS dispatch
      pre-checks PERCY_IOS_DRIVER_HOST_PORT before calling, so these never fire. */
   if (raw === undefined || raw === null || raw === '') return null;
   const n = Number(raw);
   /* istanbul ignore if — non-integer port (e.g. NaN from non-numeric env);
-     env var is set by realmobile as the canonical wda_port+2700 integer. */
+     env var is set by realmobile as the canonical wda_port+2700 integer or by
+     a self-hosted customer as their explicit `--driver-host-port` value. */
   if (!Number.isInteger(n)) return null;
-  if (n < IOS_DRIVER_HOST_PORT_MIN || n > IOS_DRIVER_HOST_PORT_MAX) return null;
+  if (n < 1 || n > 65535) return null;
   return n;
 }
 
@@ -942,6 +973,33 @@ function findAxAutRoot(axElement) {
     for (const child of children) {
       const found = findAxAutRoot(child);
       if (found) return found;
+    }
+  }
+  return null;
+}
+
+// Walk the FULL AXElement tree (not just the AUT subtree) for the status-bar
+// element (`elementType === IOS_STATUS_BAR_ELEMENT_TYPE`) and return its
+// `frame.Height` in points, or null when absent. The status bar is a sibling
+// of the AUT app node (cli-2.0.7 wraps as `[appHierarchy, statusBarsContainer]`),
+// so callers must pass the raw `axElement` root, not `findAxAutRoot(...)`.
+function findStatusBarFrameHeight(node) {
+  /* istanbul ignore if — defensive guard; deriveIosInsets passes a parsed
+     object and recursion only descends into well-formed array children. A
+     malformed child instead surfaces via deriveDeviceInsets' catch → null. */
+  if (!node || typeof node !== 'object') return null;
+  if (node.elementType === IOS_STATUS_BAR_ELEMENT_TYPE) {
+    // `|| null` collapses a missing/zero/non-numeric height to null so the
+    // caller's single `== null` check covers every malformed-frame case.
+    /* istanbul ignore next — frame optional-chain guards a malformed status-bar
+       frame; real /viewHierarchy responses always carry a positive frame.Height. */
+    return node.frame?.Height || null;
+  }
+  const children = node.children;
+  if (Array.isArray(children)) {
+    for (const child of children) {
+      const found = findStatusBarFrameHeight(child);
+      if (found != null) return found;
     }
   }
   return null;
@@ -1144,6 +1202,89 @@ async function runIosHttpDump({ port, sessionId, httpRequest }) {
   return { kind: 'hierarchy', nodes };
 }
 
+// Derive the iOS status-bar inset (in pixels) from a fresh `/viewHierarchy`
+// fetch. Returns `{ statusBarHeight, navBarHeight: 0 }` on success, or null on
+// any failure (transport error, non-JSON/missing root, no AUT root, no status
+// bar element, implausible scale). navBarHeight is always 0 on iOS — the home
+// indicator is static and unmeasured, matching the rest of the Percy SDK fleet.
+//
+// This is a separate, lighter parse than runIosHttpDump: that path flattens the
+// AUT subtree for element-region matching and DISCARDS the status-bar sibling,
+// so the status-bar frame is not reachable through dump(). Here we retain the
+// raw response, read the AUT root frame height (points) for the scale factor,
+// and the status-bar element frame height (points), then convert to pixels.
+async function deriveIosInsets({ port, pngDims, httpRequest, sessionId }) {
+  /* istanbul ignore next — production-only default; unit suite injects a stub. */
+  httpRequest = httpRequest || defaultHttpRequest;
+  // Need PNG pixel height to derive the points→pixels scale. parsePngDimensions
+  // only ever yields null or a fully-valid {width>0, height>0}, so a single
+  // truthiness check suffices; a degenerate height is additionally caught by
+  // the scale sanity bounds below.
+  if (!pngDims) return null;
+
+  const requestBody = JSON.stringify({ appIds: [], excludeKeyboardElements: false });
+  let response;
+  try {
+    // Best-effort, cached, fallback-safe: a single request with the transport's
+    // own timeout is sufficient (no outer circuit-breaker race needed — that's
+    // defense-in-depth the resolver cascade owns).
+    response = await httpRequest({
+      host: '127.0.0.1',
+      port,
+      method: 'POST',
+      path: '/viewHierarchy',
+      headers: {
+        'content-type': 'application/json',
+        'content-length': Buffer.byteLength(requestBody)
+      },
+      body: requestBody,
+      timeoutMs: IOS_HTTP_HEALTHY_DEADLINE_MS
+    });
+  } catch {
+    // Transport failure — caller falls back to the SDK default.
+    return null;
+  }
+
+  /* istanbul ignore if — defensive; httpRequest resolves to a response object
+     or the race rejects (caught above). */
+  if (!response) return null;
+  if (response.statusCode !== 200) return null;
+
+  let parsed;
+  try {
+    parsed = JSON.parse(response.body);
+  } catch {
+    // Non-JSON body, or a non-string body that JSON.parse rejects.
+    return null;
+  }
+
+  // Root point-height for scale = the AUT app frame (full-screen on iOS; the
+  // app draws under the status bar). SpringBoard-only / malformed responses →
+  // no AUT → null. (findAxAutRoot guards a null/undefined argument.)
+  const aut = findAxAutRoot(parsed && parsed.axElement);
+  /* istanbul ignore next — frame optional-chain guards a malformed AUT frame;
+     real AUT nodes always carry a positive frame.Height. */
+  const rootPointHeight = aut?.frame?.Height;
+  if (!rootPointHeight) return null;
+
+  // Empirical scale: PNG pixel height ÷ AUT root point height, snapped to an
+  // integer and sanity-checked. Guards the Plus-class nativeScale≠scale gap and
+  // a non-full-screen root frame.
+  const ratio = pngDims.height / rootPointHeight;
+  const scale = Math.round(ratio);
+  if (scale < DEVICE_SCALE_MIN || scale > DEVICE_SCALE_MAX) return null;
+  if (Math.abs(ratio - scale) > DEVICE_SCALE_TOLERANCE) return null;
+
+  const statusBarPoints = findStatusBarFrameHeight(parsed.axElement);
+  if (statusBarPoints == null) return null;
+
+  /* istanbul ignore next — sid log tag ternary; relay always passes a sessionId. */
+  const sidTag = sessionId ? `sid=${String(sessionId).slice(0, 8)}…` : 'sid=none';
+  const statusBarHeight = Math.round(statusBarPoints * scale);
+  log.debug(`deriveIosInsets ok ${sidTag} statusBar=${statusBarHeight}px (${statusBarPoints}pt × ${scale})`);
+  return { statusBarHeight, navBarHeight: 0 };
+}
+
 // iOS maestro-CLI fallback path. Spawns
 // `maestro --udid <udid> --driver-host-port <port> hierarchy` and parses
 // stdout (Maestro's normalized TreeNode shape, identical to Android).
@@ -1238,6 +1379,78 @@ async function runAdbFallback(serial, execAdb) {
   return result;
 }
 
+// Parse the first `mStableInsets=Rect(left, top - right, bottom)` from
+// `dumpsys window` output. Android's Rect.toString() prints
+// `Rect(L, T - R, B)`, so top = status-bar inset, bottom = navigation-bar
+// inset (both in pixels — same space as the screenshot). Returns
+// `{ statusBarHeight, navBarHeight }` or null when the line is absent.
+// Validated against real-device `dumpsys window` output during BS validation;
+// gesture-nav and 3-button-nav both surface here, differing only in the
+// bottom value.
+function parseStableInsets(stdout) {
+  // execAdb always yields a string stdout (''); the regex returns null on no
+  // match, so empty input needs no separate guard.
+  const m = /mStableInsets=Rect\(\s*\d+,\s*(\d+)\s*-\s*\d+,\s*(\d+)\s*\)/.exec(stdout);
+  if (!m) return null;
+  const statusBarHeight = Number(m[1]);
+  const navBarHeight = Number(m[2]);
+  /* istanbul ignore if — defensive NaN guard; the regex only matches digit
+     runs, so Number() always parses. */
+  if (!Number.isFinite(statusBarHeight) || !Number.isFinite(navBarHeight)) return null;
+  return { statusBarHeight, navBarHeight };
+}
+
+// Derive Android status + navigation bar insets (in pixels) via adb. System
+// bars are not present in the uiautomator hierarchy dump, so this is a distinct
+// `dumpsys window` read. Reuses the resolver's serial-resolution + execAdb
+// path (ANDROID_SERIAL on BS multi-device hosts, else `adb devices`). Returns
+// `{ statusBarHeight, navBarHeight }` or null on any failure (no/ambiguous
+// device, adb error, unparseable output) — caller falls back to SDK defaults.
+async function deriveAndroidInsets({ execAdb, getEnv }) {
+  /* istanbul ignore next — production-only defaults; unit suite injects stubs. */
+  execAdb = execAdb || defaultExecAdb;
+  /* istanbul ignore next */
+  getEnv = getEnv || defaultGetEnv;
+
+  const { serial, classification } = await resolveSerial({ execAdb, getEnv });
+  if (classification) return null;
+
+  const result = await execAdb(['-s', serial, 'shell', 'dumpsys', 'window']);
+  if (classifyAdbFailure(result)) return null;
+  /* istanbul ignore next — `?? 1` fallback branch; spawn helpers always set an
+     exitCode. Non-zero exit with no recognized failure → treat as unparseable. */
+  if ((result.exitCode ?? 1) !== 0) return null;
+
+  return parseStableInsets(result.stdout);
+}
+
+// Derive exact device system-bar insets for the comparison tile, dispatching by
+// platform. Returns `{ statusBarHeight, navBarHeight }` (pixels) or null on any
+// failure. Never throws — the relay treats null as "use the SDK default". iOS
+// navBarHeight is always 0 (static home indicator, fleet-consistent); the iOS
+// path additionally needs the PNG pixel height for the points→pixels scale.
+export async function deriveDeviceInsets(options) {
+  /* istanbul ignore next — options-omitted default; callers always pass an object. */
+  options = options || {};
+  let { platform, sessionId, pngDims, execAdb, httpRequest, getEnv } = options;
+  /* istanbul ignore next — defaults applied only when caller omits them; tests
+     inject every dependency, production binds them at runtime. */
+  getEnv = getEnv || defaultGetEnv;
+
+  try {
+    if (platform === 'ios') {
+      const driverHostPort = parseIosDriverHostPort(getEnv('PERCY_IOS_DRIVER_HOST_PORT'));
+      if (driverHostPort === null) return null;
+      return await deriveIosInsets({ port: driverHostPort, pngDims, httpRequest, sessionId });
+    }
+    return await deriveAndroidInsets({ execAdb, getEnv });
+  } catch {
+    // Defensive: derive paths return null on their own failures; this only
+    // fires if a transport (e.g. getEnv) throws unexpectedly.
+    return null;
+  }
+}
+
 export async function dump(options) {
   /* istanbul ignore next — options-omitted default; callers always pass an
      object (tests inject every dependency; production code binds them). */
@@ -1260,14 +1473,50 @@ export async function dump(options) {
   const started = Date.now();
 
   if (platform === 'ios') {
-    // iOS dispatch: read realmobile-injected env vars; warn-skip if absent.
     const udid = getEnv('PERCY_IOS_DEVICE_UDID');
-    const driverHostPortRaw = getEnv('PERCY_IOS_DRIVER_HOST_PORT');
-    if (!udid || !driverHostPortRaw) {
-      log.warn(`iOS resolver env-missing: udid=${udid ? 'set' : 'unset'} driver_port=${driverHostPortRaw ? 'set' : 'unset'}`);
+    let driverHostPortRaw = getEnv('PERCY_IOS_DRIVER_HOST_PORT');
+
+    // Self-hosted env-absent path: probe the Maestro 2.4.0 documented
+    // single-simulator default port (127.0.0.1:7001) before giving up.
+    // Maestro 2.4.0's TestCommand binds the driver to 7001 deterministically
+    // for the single-simulator case, so a single HTTP probe resolves the
+    // dominant self-hosted scenario without any port discovery from outside
+    // the process. Older releases used the same default; newer releases
+    // (2.6+, ephemeral port via ServerSocket(0)) require the customer to
+    // pin via `PERCY_IOS_DRIVER_HOST_PORT` (or `maestro --driver-host-port`,
+    // which 2.6+ accepts at the parent level).
+    //
+    // `PERCY_IOS_DRIVER_HOST_PORT` is the only signal the explicit branch
+    // below reads. Set by:
+    //   * BrowserStack hosts (canonical 11100-11110 range, via
+    //     `cli_manager.rb#start_percy_cli` env injection)
+    //   * Customers who pin the driver host port themselves
+    //
+    // If neither the env var nor a live driver on 7001 is found, element
+    // regions degrade gracefully with `env-missing` — coordinate regions
+    // and the snapshot itself continue to upload via the relay's other
+    // paths.
+    if (!driverHostPortRaw) {
+      const probe = await runIosHttpDump({ port: 7001, sessionId, httpRequest });
+      if (probe.kind === 'hierarchy' || probe.kind === 'no-aut-tree') {
+        log.debug(`dump took ${Date.now() - started}ms via maestro-http (self-hosted probe :7001, ${probe.kind === 'hierarchy' ? `${probe.nodes.length} nodes` : probe.reason})`);
+        if (probe.kind === 'hierarchy') {
+          recordResolverSuccess({ platform: 'ios', via: 'maestro-http' });
+        } else {
+          recordResolverFinalFailure({ platform: 'ios', failureClass: failureClassFromReason(probe.reason) });
+        }
+        return probe;
+      }
+      log.warn('[percy] iOS element regions unavailable — no Maestro driver responded on 127.0.0.1:7001. Set PERCY_IOS_DRIVER_HOST_PORT if your driver binds a non-default port (e.g. Maestro 2.6+ ephemeral or sharded runs).');
       recordResolverFinalFailure({ platform: 'ios', failureClass: 'other' });
       return { kind: 'unavailable', reason: 'env-missing' };
     }
+
+    // ─── Explicit — PERCY_IOS_DRIVER_HOST_PORT present ─────────────────────
+    // BrowserStack (host-injected) and self-hosted-with-explicit-port both
+    // take this path. The HTTP primary runs against the supplied port; the
+    // CLI fallback runs only when UDID is also present (without UDID
+    // there's no way to target a specific device via `maestro --udid`).
 
     // D3 kill switch (PERCY_MAESTRO_GRPC=0): same env name gates BOTH Maestro
     // primaries. On iOS this skips runIosHttpDump and routes straight to the
@@ -1278,8 +1527,10 @@ export async function dump(options) {
       log.warn('PERCY_MAESTRO_GRPC=0 kill switch active; skipping iOS HTTP primary');
     }
 
-    // Validate driver-host-port range before attempting HTTP. Out-of-range
-    // values skip the HTTP path entirely and fall through to maestro-CLI.
+    // Validate driver-host-port — integer 1-65535 (relaxed from the BS
+    // 11100-11110 range; BS values stay valid as a subset). Out-of-range
+    // values skip the HTTP path entirely and fall through to maestro-CLI
+    // (when UDID is present) or warn-skip (when not).
     const driverHostPort = parseIosDriverHostPort(driverHostPortRaw);
     let httpResult = null;
     if (!iosKillSwitch && driverHostPort !== null) {
@@ -1306,6 +1557,15 @@ export async function dump(options) {
       const oorReason = `out-of-range-port-${driverHostPortRaw}`;
       recordResolverFallback({ platform: 'ios', failureClass: 'other' });
       log.info(`[percy] hierarchy: maestro-http failed (other: ${oorReason}) → falling back to maestro-cli-fallback`);
+    }
+
+    // CLI fallback requires UDID. Without it (port-only self-hosted), the
+    // HTTP attempt above was the only available path — emit warn-skip with
+    // an actionable message rather than running maestro without a target.
+    if (!udid) {
+      log.warn('[percy] iOS resolver: PERCY_IOS_DEVICE_UDID absent — no CLI fallback. HTTP primary either succeeded above and returned, or failed and there is no further path. Set UDID to enable the CLI fallback.');
+      recordResolverFinalFailure({ platform: 'ios', failureClass: 'other' });
+      return { kind: 'unavailable', reason: 'self-hosted-no-udid' };
     }
 
     const cliResult = await runMaestroIosDump(udid, driverHostPort ?? driverHostPortRaw, execMaestro, getEnv);

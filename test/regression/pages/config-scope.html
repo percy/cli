@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Scope Regression Test</title>
+  <link rel="stylesheet" href="/assets/css/base.css">
+  <style>
+    .noise { background: #fde8e8; border: 2px dashed #e02424; padding: 20px; margin: 12px 0; }
+    #scope-target { background: #e6f0ff; border: 3px solid #2b6cb0; padding: 24px; max-width: 480px; }
+    #scope-target h2 { margin-top: 0; }
+    #scope-target .scroll-area { max-height: 120px; overflow: auto; border: 1px dashed #2b6cb0; padding: 8px; background: #fff; }
+  </style>
+</head>
+<body>
+  <h1>Scope</h1>
+
+  <!-- This block must NOT appear when snapshot scope is set to #scope-target -->
+  <div class="noise">Surrounding content OUTSIDE the scoped element — excluded when scope is applied.</div>
+
+  <div id="scope-target">
+    <h2>Scoped Region</h2>
+    <p>Only this element is captured when <code>scope: '#scope-target'</code> is set.</p>
+    <div class="scroll-area">
+      <p>Scroll line 1 — scopeOptions.scroll scrolls within this region during capture.</p>
+      <p>Scroll line 2</p>
+      <p>Scroll line 3</p>
+      <p>Scroll line 4</p>
+      <p>Scroll line 5</p>
+      <p>Scroll line 6</p>
+      <p>Scroll line 7 (only visible after scrolling)</p>
+    </div>
+  </div>
+
+  <div class="noise">More surrounding content OUTSIDE the scoped element — also excluded.</div>
+</body>
+</html>

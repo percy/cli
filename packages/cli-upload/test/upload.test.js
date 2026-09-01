@@ -7,6 +7,13 @@ const pixel = Buffer.from((
   'R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw=='
 ), 'base64').toString();
 
+// An ICNS header whose first entry declares a length of zero — the
+// CVE-2025-71330 proof of concept. `image-size` chose its parser from these
+// magic bytes regardless of the file's extension, and its ICNS loop never
+// advanced past a zero-length entry. Every byte here is below 0x80 so the
+// buffer survives being written as a string.
+const craftedIcns = 'icns\0\0\0\x40ic09\0\0\0\0'.padEnd(64, '\0');
+
 describe('percy upload', () => {
   beforeEach(async () => {
     upload.packageInformation = { name: '@percy/cli-upload' };
@@ -97,7 +104,9 @@ describe('percy upload', () => {
           regions: null,
           'enable-layout': false,
           'th-test-case-execution-id': null,
-          browsers: null
+          browsers: null,
+          'intelli-story': null,
+          'storybook-path': null
         },
         relationships: {
           resources: {
@@ -151,6 +160,19 @@ describe('percy upload', () => {
       '[percy] Snapshot uploaded: test-1.png',
       '[percy] Snapshot uploaded: test-2.jpg',
       '[percy] Snapshot uploaded: test-3.jpeg',
+      '[percy] Finalized build #1: https://percy.io/test/test/123'
+    ]));
+  });
+
+  // Regression for CVE-2025-71330: this file used to hang the run indefinitely.
+  it('skips a file whose contents are not a readable image', async () => {
+    fs.writeFileSync('images/crafted.png', craftedIcns);
+    await upload(['./images']);
+
+    expect(logger.stderr).toEqual([]);
+    expect(logger.stdout).toEqual(jasmine.arrayContaining([
+      '[percy] Skipping file with unreadable image data: crafted.png',
+      '[percy] Uploading 3 snapshots...',
       '[percy] Finalized build #1: https://percy.io/test/test/123'
     ]));
   });

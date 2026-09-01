@@ -2,11 +2,36 @@
 
 // Serializes pseudo-class state into Percy's clone via two paths:
 //
-//   1. Auto-detect path (every snapshot). For :focus / :focus-within /
-//      :checked / :disabled we stamp the live DOM with the corresponding
-//      data-percy-* attribute and rewrite matching CSS rules to use those
-//      attribute selectors. :focus-within stamps the focused element's
-//      ancestor chain across shadow boundaries.
+// Both paths below are gated on ctx.pseudoClassSerialization, which is off
+// unless the snapshot sets enablePseudoClassSerialization or configures
+// pseudoClassEnabledElements. Open-popover stamping and custom element
+// :state() rewriting are NOT gated — the renderer requires
+// data-percy-popover-open, and :state() is rewritten in place so it cannot
+// reorder the cascade.
+//
+//   1. Auto-detect path (when enabled). For :focus / :focus-within we
+//      stamp the live DOM with the corresponding data-percy-* attribute
+//      and rewrite matching CSS rules to use those attribute selectors.
+//      :focus-within stamps the focused element's ancestor chain across
+//      shadow boundaries.
+//
+//      Each rewritten rule is injected into a <style> placed immediately
+//      AFTER its source stylesheet's clone element, so the copy keeps the
+//      sheet's original cascade rank. Appending every copy at the end of
+//      <head> (the pre-PER-10077 behavior) flipped cascade ties — same
+//      specificity/importance, later source order wins — against equal-
+//      specificity rules from later sheets that were not copied. Angular
+//      Material's pervasive `:not(:disabled)` rules recolored buttons
+//      page-wide that way; anchoring the copy at the sheet's position keeps
+//      later sheets winning their ties exactly as the live page does.
+//
+//      :checked and :disabled are intentionally NOT handled here — those
+//      states serialize natively (`disabled` is a reflected content
+//      attribute the renderer recomputes, including `<fieldset disabled>`
+//      descendants, and serialize-inputs syncs checked/selected properties
+//      to attributes on the clone), so their pseudo-classes match in the
+//      renderer without any rewriting. Copying their rules would be pure
+//      redundancy, so they stay off the rewrite path entirely.
 //
 //   2. Configured-element path (`pseudoClassEnabledElements` config). User
 //      opts in elements by id/className/xpath/selector. We snapshot all
@@ -31,18 +56,14 @@ const PSEUDO_ELEMENT_MARKER_ATTR = 'data-percy-pseudo-element-id';
 const POPOVER_OPEN_ATTR = 'data-percy-popover-open';
 const FOCUS_ATTR = 'data-percy-focus';
 const FOCUS_WITHIN_ATTR = 'data-percy-focus-within';
-const CHECKED_ATTR = 'data-percy-checked';
-const DISABLED_ATTR = 'data-percy-disabled';
 const HOVER_ATTR = 'data-percy-hover';
 const ACTIVE_ATTR = 'data-percy-active';
 
-const ALL_INTERACTIVE_PSEUDO = [':focus', ':focus-within', ':checked', ':disabled', ':hover', ':active'];
+const ALL_INTERACTIVE_PSEUDO = [':focus', ':focus-within', ':hover', ':active'];
 
 const PSEUDO_TO_ATTR = {
   ':focus': '[data-percy-focus]',
   ':focus-within': '[data-percy-focus-within]',
-  ':checked': '[data-percy-checked]',
-  ':disabled': '[data-percy-disabled]',
   ':hover': '[data-percy-hover]',
   ':active': '[data-percy-active]'
 };
@@ -53,8 +74,6 @@ const PSEUDO_TO_ATTR = {
 const PSEUDO_RES = [
   [':focus-within', /:focus-within(?![-\w])/g],
   [':focus', /:focus(?![-\w])/g],
-  [':checked', /:checked(?![-\w])/g],
-  [':disabled', /:disabled(?![-\w])/g],
   [':hover', /:hover(?![-\w])/g],
   [':active', /:active(?![-\w])/g]
 ];
@@ -65,6 +84,47 @@ function selectorContainsPseudo(selectorText, pseudoList) {
     re.lastIndex = 0;
     return re.test(selectorText);
   });
+}
+
+function splitSelectorList(selectorText) {
+  const parts = [];
+  let depth = 0;
+  let quote = null;
+  let start = 0;
+
+  for (let i = 0; i < selectorText.length; i++) {
+    const char = selectorText[i];
+
+    if (quote) {
+      if (char === '\\') i++;
+      else if (char === quote) quote = null;
+      continue;
+    }
+
+    if (char === '"' || char === "'") quote = char;
+    else if (char === '(' || char === '[') depth++;
+    else if (char === ')' || char === ']') depth--;
+    else if (char === ',' && depth === 0) {
+      parts.push(selectorText.slice(start, i));
+      start = i + 1;
+    }
+  }
+
+  parts.push(selectorText.slice(start));
+  return parts;
+}
+
+function rewritePseudoSelectorList(selectorText, pseudoList) {
+  const pseudoParts = [];
+
+  for (const part of splitSelectorList(selectorText)) {
+    const trimmed = part.trim();
+    if (trimmed && selectorContainsPseudo(trimmed, pseudoList)) {
+      pseudoParts.push(rewritePseudoSelector(trimmed));
+    }
+  }
+
+  return pseudoParts.length ? pseudoParts.join(', ') : null;
 }
 
 export function rewritePseudoSelector(selectorText) {
@@ -120,29 +180,48 @@ function markInteractiveStates(ctx) {
     stampOnce(ctx, focused, FOCUS_ATTR, 'true');
     markFocusWithinAncestors(ctx, focused);
   }
+}
 
-  // Single walk of ctx.dom + shadow roots collecting BOTH :checked and
-  // :disabled in one pass. Previously two separate queryShadowAll calls
-  // each walked the tree and re-traversed every [data-percy-shadow-host]
-  // — on pages with many shadow hosts this doubled the per-snapshot
-  // walk cost. Also tracks which states were observed so the CSS rule
-  // extractor can skip work for selectors that have no matched elements.
-  ctx._stampedInteractive = ctx._stampedInteractive || new Set();
-  // walkShadowDOM only invokes the visitor with Document/Element/ShadowRoot
-  // scopes — each has querySelectorAll, so no defensive guard is needed here.
-  walkShadowDOM(ctx.dom, scope => {
+// Walk the LIVE document and every shadow root (open, or closed via the CDP
+// WeakMap) WITHOUT relying on data-percy-shadow-host markers. walkShadowDOM
+// descends through those markers, but they are only stamped later during
+// cloning — so during this pre-clone marking pass it cannot reach shadow
+// content. We descend via the live shadowRoot directly instead.
+function eachScopeIncludingShadow(root, visit) {
+  if (!root || typeof root.querySelectorAll !== 'function') return;
+  visit(root);
+  for (const el of root.querySelectorAll('*')) {
+    const shadow = getShadowRoot(el);
+    if (shadow) eachScopeIncludingShadow(shadow, visit);
+  }
+}
+
+// Auto-detect open native popovers page-wide, INCLUDING inside shadow roots.
+// `:popover-open` is an unambiguous serialize-time state, so it is
+// stamped automatically rather than only on
+// pseudoClassEnabledElements. The renderer's popover-element-helper already
+// re-opens any [popover][data-percy-popover-open] across shadow boundaries;
+// without this stamp a popover open at snapshot time renders hidden via the
+// UA `[popover]:not(:popover-open){display:none}` rule. If `:popover-open`
+// is unsupported the selector throws — we stop querying and warn once.
+function markOpenPopovers(ctx) {
+  let supported = true;
+  eachScopeIncludingShadow(ctx.dom, scope => {
+    if (!supported) return;
+    // Only the `:popover-open` SELECTOR can legitimately throw a SyntaxError
+    // (engines without popover support). Scope the try to the query and
+    // materialize the matches; stamp OUTSIDE the try. Otherwise a throw from
+    // stampOnce mid-iteration would be misreported as "unsupported" AND would
+    // silently skip every remaining scope.
+    let matches;
     try {
-      for (const el of scope.querySelectorAll(':checked')) {
-        stampOnce(ctx, el, CHECKED_ATTR, 'true');
-        ctx._stampedInteractive.add('checked');
-      }
-    } catch (e) { /* selector unsupported in this scope */ }
-    try {
-      for (const el of scope.querySelectorAll(':disabled')) {
-        stampOnce(ctx, el, DISABLED_ATTR, 'true');
-        ctx._stampedInteractive.add('disabled');
-      }
-    } catch (e) { /* selector unsupported in this scope */ }
+      matches = scope.querySelectorAll('[popover]:popover-open');
+    } catch (e) {
+      supported = false;
+      ctx.warnings.add('Browser does not support :popover-open pseudo-class.');
+      return;
+    }
+    for (const el of matches) stampOnce(ctx, el, POPOVER_OPEN_ATTR, 'true');
   });
 }
 
@@ -169,8 +248,8 @@ function stampPseudoElementId(ctx, element) {
 }
 
 // Configured elements get :hover/:active stamped unconditionally — opting in
-// IS the request to capture those forced states. :focus/:checked/:disabled
-// are already covered by the page-wide markInteractiveStates pass.
+// IS the request to capture those forced states. :focus is already
+// covered by the page-wide markInteractiveStates pass.
 function markElementInteractiveStates(ctx, element) {
   stampOnce(ctx, element, HOVER_ATTR, 'true');
   stampOnce(ctx, element, ACTIVE_ATTR, 'true');
@@ -257,6 +336,8 @@ export function getElementsToProcess(ctx, config, markWithId = false) {
 // the data-attributes are copied through to the clone via cloneNode.
 export function markPseudoClassElements(ctx, config) {
   ctx._liveMutations = [];
+  markOpenPopovers(ctx);
+  if (!ctx.pseudoClassSerialization) return;
   markInteractiveStates(ctx);
   if (config) getElementsToProcess(ctx, config, true);
 }
@@ -286,10 +367,26 @@ function stylesToCSSText(styles) {
   return decls.join(' ');
 }
 
+// Resolve a nested rule's selector against its parent per CSS Nesting.
+// The CSSOM serializes nested selectors with the implicit nesting selector
+// made explicit, so every nested selector — including each item of a
+// selector list — carries its own `&`. Replacing every `&` with :is(parent)
+// therefore fully scopes the rule. Without this, a bare top-level `&`
+// resolves to :root on engines that support nesting, so component-scoped
+// interactive-state rules leak page-wide (PER-9775). :is(...) preserves the
+// parent's grouping/specificity.
+function resolveNestedSelector(selectorText, parentSelector) {
+  if (!parentSelector) return selectorText;
+  return selectorText.replace(/&/g, `:is(${parentSelector})`);
+}
+
 // Walk a CSSRule list yielding every reachable style rule. Nested rules
 // inside @media/@layer/@supports are emitted with the at-rule prelude
 // preserved as a wrapper string; flat-emitting would drop the guard.
-function walkCSSRules(ruleList) {
+// `parentSelector` carries the enclosing style rule's (already-resolved)
+// selector down through native CSS nesting so `&`-relative children are
+// resolved against it rather than leaking as a bare top-level `&`.
+function walkCSSRules(ruleList, parentSelector = null) {
   const result = [];
   for (let i = 0; i < ruleList.length; i++) {
     const rule = ruleList[i];
@@ -299,7 +396,19 @@ function walkCSSRules(ruleList) {
       const atRulePrelude = conditionText && rule.cssText
         ? rule.cssText.split('{')[0].trim()
         : null;
-      for (const inner of walkCSSRules(rule.cssRules)) {
+      // An at-rule (@media/@layer/@supports) keeps the current parent scope
+      // and is re-applied as a wrapper. A style rule with nested children
+      // (native CSS nesting) becomes the scope for its children — resolve
+      // its own selector against any outer parent first so deeper nesting
+      // composes correctly.
+      // Default to the current scope (also covers at-rules and nested-decl
+      // rules that have no selector of their own). A style rule with nested
+      // children resolves its own selector first and becomes the new scope.
+      let childParent = parentSelector;
+      if (!atRulePrelude && rule.selectorText) {
+        childParent = resolveNestedSelector(rule.selectorText, parentSelector);
+      }
+      for (const inner of walkCSSRules(rule.cssRules, childParent)) {
         if (atRulePrelude && inner.selectorText) {
           result.push({
             selectorText: inner.selectorText,
@@ -314,7 +423,11 @@ function walkCSSRules(ruleList) {
       // Rules without nested cssRules and without selectorText (@font-face,
       // @charset, @counter-style, etc.) are skipped — they can't contain
       // interactive pseudos.
-      result.push({ selectorText: rule.selectorText, style: rule.style, wrapper: null });
+      result.push({
+        selectorText: resolveNestedSelector(rule.selectorText, parentSelector),
+        style: rule.style,
+        wrapper: null
+      });
     }
   }
   return result;
@@ -341,25 +454,11 @@ function collectStyleSheets(doc) {
 
 function extractPseudoClassRules(ctx) {
   const sheetEntries = collectStyleSheets(ctx.dom);
-  const rulesByOwner = new Map();
 
-  // Short-circuit per pseudo: when markInteractiveStates ran first (the
-  // production path via markPseudoClassElements), `ctx._stampedInteractive`
-  // records which interactive states were actually observed. Rules for
-  // `:checked` / `:disabled` selectors that found no live elements can't
-  // match anything in the clone after rewriting, so we drop them from the
-  // filter and avoid the rewrite cost. When the marker is absent (unit
-  // tests that call serializePseudoClasses directly), fall back to the
-  // full pseudo list to preserve prior behavior. `:focus`, `:focus-within`,
-  // `:hover`, `:active` are kept regardless either way.
-  const activePseudos = ctx._stampedInteractive
-    ? ALL_INTERACTIVE_PSEUDO.filter(p => {
-      if (p === ':checked') return ctx._stampedInteractive.has('checked');
-      if (p === ':disabled') return ctx._stampedInteractive.has('disabled');
-      return true;
-    })
-    : ALL_INTERACTIVE_PSEUDO;
-
+  // Collect rewritten rules PER SOURCE SHEET (not merged per owner scope) so
+  // each sheet's copies can be anchored back at that sheet's cascade position.
+  // Discovery order is document order, which is also the order we inject in.
+  const perSheet = [];
   for (const { sheet, owner } of sheetEntries) {
     let rules;
     try {
@@ -370,26 +469,29 @@ function extractPseudoClassRules(ctx) {
     }
     if (!rules) continue;
 
+    let rewrittenRules = null;
     for (const rule of walkCSSRules(rules)) {
       // Cheapest possible filter: a selector with no `:` can't contain any
       // interactive pseudo. Skips most rules on most stylesheets without
       // touching the regex bank.
       if (!rule.selectorText.includes(':')) continue;
-      if (!selectorContainsPseudo(rule.selectorText, activePseudos)) continue;
 
-      const rewrittenSelector = rewritePseudoSelector(rule.selectorText);
+      const rewrittenSelector = rewritePseudoSelectorList(rule.selectorText, ALL_INTERACTIVE_PSEUDO);
+      if (!rewrittenSelector) continue;
 
       const cssText = `${rewrittenSelector} { ${rule.style.cssText} }`;
       const wrapped = rule.wrapper ? `${rule.wrapper} { ${cssText} }` : cssText;
-      if (!rulesByOwner.has(owner)) rulesByOwner.set(owner, []);
-      rulesByOwner.get(owner).push(wrapped);
+      (rewrittenRules ||= []).push(wrapped);
     }
+    if (rewrittenRules) perSheet.push({ sheet, owner, rewrittenRules });
   }
 
-  // Build a percyId → cloneEl index once for shadow-host injection — only
-  // when there is at least one non-null owner in the collected rules.
+  if (!perSheet.length) return;
+
+  // Build a percyId → cloneEl index once for shadow-host injection — only when
+  // at least one collected sheet lives inside a shadow root.
   let cloneByPercyId = null;
-  for (const owner of rulesByOwner.keys()) {
+  for (const { owner } of perSheet) {
     if (owner !== null) {
       cloneByPercyId = new Map();
       for (const el of ctx.clone.querySelectorAll('[data-percy-element-id]')) {
@@ -399,7 +501,7 @@ function extractPseudoClassRules(ctx) {
     }
   }
 
-  for (const [owner, rewrittenRules] of rulesByOwner) {
+  for (const { sheet, owner, rewrittenRules } of perSheet) {
     const styleElement = ctx.clone.createElement
       ? ctx.clone.createElement('style')
       : ctx.dom.createElement('style');
@@ -408,23 +510,43 @@ function extractPseudoClassRules(ctx) {
     styleElement.textContent = rewrittenRules.join('\n');
 
     if (owner === null) {
-      const head = ctx.clone.head || ctx.clone.querySelector('head');
-      if (head) head.appendChild(styleElement);
+      injectAtSheetPosition(ctx, ctx.clone, sheet, styleElement, ctx.clone.head || ctx.clone.querySelector('head'));
     } else {
-      const percyId = owner.getAttribute('data-percy-element-id');
-      const cloneHost = cloneByPercyId.get(percyId);
+      const cloneHost = cloneByPercyId.get(owner.getAttribute('data-percy-element-id'));
       if (cloneHost && cloneHost.shadowRoot) {
-        cloneHost.shadowRoot.appendChild(styleElement);
+        injectAtSheetPosition(ctx, cloneHost.shadowRoot, sheet, styleElement, cloneHost.shadowRoot);
       }
     }
   }
 }
 
+// Insert an interactive-states <style> immediately AFTER its source sheet's
+// clone element so the copy keeps the sheet's original source-order rank —
+// later stylesheets still win equal-specificity ties, exactly as on the live
+// page (PER-10077).
+function injectAtSheetPosition(ctx, scopeRoot, sheet, styleElement, fallbackTarget) {
+  const ownerNode = sheet.ownerNode;
+  let anchor = ownerNode ? ctx.styleSheetClones?.get(ownerNode) : null;
+
+  if (!anchor?.parentNode && ownerNode) {
+    const anchorId = ownerNode.getAttribute('data-percy-element-id');
+    anchor = anchorId ? scopeRoot.querySelector(`[data-percy-element-id="${anchorId}"]`) : null;
+  }
+
+  const anchorParent = anchor ? anchor.parentNode : null;
+  if (anchorParent) {
+    anchorParent.insertBefore(styleElement, anchor.nextSibling);
+  } else if (fallbackTarget) {
+    fallbackTarget.appendChild(styleElement);
+  }
+}
+
 export function serializePseudoClasses(ctx) {
-  // Auto-detect path runs unconditionally so `:focus`/`:checked`/`:disabled`
-  // rules are rewritten regardless of whether the user configured a
-  // pseudoClassEnabledElements list (and regardless of whether that list
-  // matched anything on this page).
+  if (!ctx.pseudoClassSerialization) return;
+
+  // Auto-detect path rewrites `:focus`/`:focus-within` rules whether or not
+  // a pseudoClassEnabledElements list was configured (and regardless of
+  // whether that list matched anything on this page).
   extractPseudoClassRules(ctx);
 
   if (!ctx.pseudoClassEnabledElements) return;

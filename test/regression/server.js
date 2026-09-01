@@ -28,6 +28,34 @@ const MIME_TYPES = {
 const wrongMimeFont = existsSync(join(assetsDir, 'fonts/test-font.woff2'))
   ? readFileSync(join(assetsDir, 'fonts/test-font.woff2'))
   : Buffer.alloc(0);
+const logoPng = existsSync(join(assetsDir, 'images/logo.png'))
+  ? readFileSync(join(assetsDir, 'images/logo.png'))
+  : Buffer.alloc(0);
+
+// ── Track F (functional) observation state ───────────────────────────────────
+// The functional regression harness asserts on what the servers actually
+// observed during a real `percy snapshot` discovery run, rather than on Percy's
+// internal debug-log text. resetObservations() is called before each run; the
+// /gated/* routes below populate this as discovery fetches their resources.
+let observations = {};
+function freshObservations() {
+  return {
+    requestHeader: null, // value of the configured discovery.requestHeaders entry
+    authorization: null, // Authorization header sent for discovery.authorization
+    cookie: null, // Cookie header sent for discovery.cookies
+    userAgent: null, // User-Agent sent for discovery.userAgent
+    srcset: [], // srcset candidate paths fetched (discovery.captureSrcset)
+    disallowedProbeRequested: false // true if the disallowed 9101 host was hit
+  };
+}
+observations = freshObservations();
+export function getObservations() { return observations; }
+export function resetObservations() { observations = freshObservations(); }
+
+const css = (res, body = '/* gated regression resource */') => {
+  res.writeHead(200, { 'content-type': 'text/css' });
+  res.end(body);
+};
 
 // Special routes for the main server (add new entries to extend)
 const mainRoutes = {
@@ -44,6 +72,45 @@ const mainRoutes = {
     // Tests Percy's font MIME detection (magic byte sniffing)
     res.writeHead(200, { 'content-type': 'text/html' });
     res.end(wrongMimeFont);
+  },
+
+  // ── Track F gated resources — record the request, then serve ───────────────
+  // discovery.requestHeaders — records the custom header Percy injected.
+  '/gated/header.css': (req, res) => {
+    observations.requestHeader = req.headers['x-percy-regression'] ?? null;
+    css(res);
+  },
+  // discovery.authorization — 401 without Basic auth so a missing header is a
+  // hard failure; records the Authorization header Percy sent.
+  '/gated/auth.css': (req, res) => {
+    observations.authorization = req.headers.authorization ?? null;
+    if (!req.headers.authorization) {
+      res.writeHead(401, { 'WWW-Authenticate': 'Basic realm="regression"' });
+      res.end('Unauthorized');
+      return;
+    }
+    css(res);
+  },
+  // discovery.cookies — records the Cookie header Percy sent.
+  '/gated/cookie.css': (req, res) => {
+    observations.cookie = req.headers.cookie ?? null;
+    css(res);
+  },
+  // discovery.userAgent — records the User-Agent Percy sent.
+  '/gated/ua.css': (req, res) => {
+    observations.userAgent = req.headers['user-agent'] ?? null;
+    css(res);
+  },
+  // discovery.captureSrcset — records which srcset candidates were fetched.
+  '/gated/srcset-1x.png': (req, res) => {
+    observations.srcset.push('1x');
+    res.writeHead(200, { 'content-type': 'image/png' });
+    res.end(logoPng);
+  },
+  '/gated/srcset-2x.png': (req, res) => {
+    observations.srcset.push('2x');
+    res.writeHead(200, { 'content-type': 'image/png' });
+    res.end(logoPng);
   }
 };
 
@@ -116,6 +183,16 @@ function createCorsServer() {
         'Access-Control-Allow-Headers': '*'
       });
       res.end();
+      return;
+    }
+
+    // Track F: discovery.disallowedHostnames probe. If this 9101 resource is
+    // requested at all, the disallowed-hostname block did NOT take effect. The
+    // functional harness asserts this stays false when the host is disallowed.
+    if (pathname === '/disallowed-probe.css') {
+      observations.disallowedProbeRequested = true;
+      res.writeHead(200, { 'content-type': 'text/css', ...corsHeaders });
+      res.end('/* disallowed probe */');
       return;
     }
 

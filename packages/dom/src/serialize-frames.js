@@ -67,7 +67,7 @@ function clampIframeDepth(raw) {
 // is the current nesting level (0 at the top-level document, +1 per recursion).
 // The default fires for direct callers that don't set it (e.g. tests, or
 // any future caller that doesn't go through serializeDOM).
-export function serializeFrames({ dom, clone, warnings, resources, enableJavaScript, disableShadowDOM, ignoreIframeSelectors, forceShadowAsLightDOM, maxIframeDepth, iframeDepth = 0 }) {
+export function serializeFrames({ dom, clone, warnings, resources, enableJavaScript, disableShadowDOM, ignoreIframeSelectors, forceShadowAsLightDOM, maxIframeDepth, iframeDepth = 0, pseudoClassEnabledElements, pseudoClassSerialization }) {
   maxIframeDepth = clampIframeDepth(maxIframeDepth);
 
   for (let frame of dom.querySelectorAll('iframe')) {
@@ -131,7 +131,9 @@ export function serializeFrames({ dom, clone, warnings, resources, enableJavaScr
         forceShadowAsLightDOM,
         ignoreIframeSelectors,
         maxIframeDepth,
-        iframeDepth: iframeDepth + 1
+        iframeDepth: iframeDepth + 1,
+        pseudoClassEnabledElements,
+        enablePseudoClassSerialization: pseudoClassSerialization
       });
 
       // append serialized warnings and resources

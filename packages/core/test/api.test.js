@@ -1,9 +1,11 @@
+import os from 'os';
 import path from 'path';
 import PercyConfig from '@percy/config';
-import { logger, setupTest, fs } from './helpers/index.js';
+import { logger, api, setupTest, fs } from './helpers/index.js';
 import Percy from '@percy/core';
 import WebdriverUtils from '@percy/webdriver-utils';
 import { getPercyDomPath, _applyHttpReadOnlyStripping } from '../src/api.js';
+import { appAutomateTmpDir, bsScopeRootOverride } from '../src/maestro-screenshot-file.js';
 
 describe('API Server', () => {
   let percy;
@@ -17,7 +19,13 @@ describe('API Server', () => {
   beforeEach(async () => {
     process.env.PERCY_FORCE_PKG_VALUE = JSON.stringify({ name: '@percy/client', version: '1.0.0' });
     jasmine.DEFAULT_TIMEOUT_INTERVAL = 150000;
-    await setupTest();
+    // The self-hosted maestro tests exercise a recursive `**` + `dot:true`
+    // fast-glob against a `.maestro/` directory. fast-glob's recursive-dot
+    // traversal is unreliable against memfs across volume resets in the full
+    // suite (works in isolation; returns [] mid-suite), so route the
+    // self-hosted root to the REAL filesystem — this also tests the true
+    // production glob path. Only paths under this unique root are affected.
+    await setupTest({ filesystem: { $bypass: [p => typeof p === 'string' && (p.includes('percy-self-hosted-real') || p.includes('percy-bs-tmp-real') || p.includes('percy-bs-scope-'))] } });
 
     percy = new Percy({
       token: 'PERCY_TOKEN',
@@ -70,6 +78,29 @@ describe('API Server', () => {
         url: 'https://percy.io/test/test/123'
       },
       type: percy.client.tokenType()
+    });
+  });
+
+  it('includes the server-decided build source in /healthcheck when present', async () => {
+    api.reply('/builds', () => [201, {
+      data: {
+        id: '123',
+        attributes: {
+          'build-number': 1,
+          'web-url': 'https://percy.io/test/test/123',
+          source: 'playwright-dropin-baseline'
+        }
+      }
+    }]);
+
+    await percy.start();
+
+    let [data] = await request('/percy/healthcheck', true);
+    expect(data.build).toEqual({
+      id: '123',
+      number: 1,
+      url: 'https://percy.io/test/test/123',
+      source: 'playwright-dropin-baseline'
     });
   });
 
@@ -160,6 +191,76 @@ describe('API Server', () => {
       jasmine.stringMatching(/Ignoring `discovery\.launchOptions\.executable`/),
       jasmine.stringMatching(/Ignoring `discovery\.launchOptions\.args`/)
     ]));
+  });
+
+  it('rejects /config POST carrying a cross-origin Origin header (PER-8601)', async () => {
+    await percy.start();
+    let before = percy.config;
+
+    await expectAsync(request('/percy/config', {
+      method: 'POST',
+      body: { snapshot: { widths: [1234] } },
+      headers: { Origin: 'https://evil.example' }
+    })).toBeRejected();
+
+    // live config was not mutated by the cross-origin request
+    expect(percy.config).toEqual(before);
+  });
+
+  it('allows /config POST from a loopback origin', async () => {
+    await percy.start();
+
+    await expectAsync(request('/percy/config', {
+      method: 'POST',
+      body: { snapshot: { widths: [1000] } },
+      headers: { Origin: 'http://localhost:6006' }
+    })).toBeResolved();
+
+    expect(percy.config.snapshot.widths).toEqual([1000]);
+  });
+
+  it('rejects /stop carrying a cross-origin Origin header (PER-8600)', async () => {
+    await percy.start();
+    let stopSpy = spyOn(percy, 'stop').and.resolveTo();
+
+    await expectAsync(request('/percy/stop', {
+      method: 'POST',
+      headers: { Origin: 'https://evil.example' }
+    })).toBeRejected();
+
+    expect(stopSpy).not.toHaveBeenCalled();
+  });
+
+  it('does not stop Percy on a GET to /stop (no-Origin CSRF vector, PER-8600)', async () => {
+    await percy.start();
+    let stopSpy = spyOn(percy, 'stop').and.resolveTo();
+
+    // A browser can issue a cross-origin GET (e.g. via <img>) with no Origin
+    // header; the endpoint is POST-only so this must not reach the handler.
+    await expectAsync(request('/percy/stop', 'GET')).toBeRejected();
+
+    expect(stopSpy).not.toHaveBeenCalled();
+  });
+
+  it('blocks cross-origin POSTs to every state-changing endpoint at the middleware choke point (PER-8600/8601)', async () => {
+    await percy.start();
+
+    // CORS-safelisted content types reach these handlers with no preflight, but
+    // a cross-origin request always carries an Origin, so the general-middleware
+    // choke point must reject all of them before any side effect runs.
+    let endpoints = [
+      '/percy/snapshot', '/percy/comparison', '/percy/comparison/upload',
+      '/percy/maestro-screenshot', '/percy/flush', '/percy/automateScreenshot',
+      '/percy/events', '/percy/log'
+    ];
+
+    for (let path of endpoints) {
+      await expectAsync(request(path, {
+        method: 'POST',
+        body: { name: 'x' },
+        headers: { Origin: 'https://evil.example' }
+      })).toBeRejectedWithError(/Cross-origin requests are not allowed/);
+    }
   });
 
   it('has an /idle endpoint that calls #idle()', async () => {
@@ -329,31 +430,50 @@ describe('API Server', () => {
     expect(percy.client.getComparisonDetails).toHaveBeenCalled();
   });
 
-  // Cross-consumer drain canary for /percy/comparison. Mirrors the maestro-screenshot
-  // canary at the bottom of this file. See docs/solutions/best-practices/
-  // 2026-05-20-maestro-sync-promise-bug-investigation.md.
-  it('/comparison sync mode: drains the upload generator (real return shape, no mock)', async () => {
-    let iterCount = 0;
+  // Regression: percy.upload() is the generatePromise-wrapped method and returns a Promise,
+  // not an async iterable. The relay must drive it and let the sync queue resolve the
+  // attached callback — it must never `for await` the return value (that throws
+  // "upload is not async iterable"). Modelled with the real shape: a Promise return whose
+  // callback is resolved asynchronously, so a `for await` over it would reject first.
+  it('/comparison sync mode: resolves via the upload callback, not by iterating the return value', async () => {
     spyOn(percy.client, 'getComparisonDetails').and.returnValue(getSnapshotDetailsResponse);
     spyOn(percy, 'upload').and.callFake((_, callback) => {
-      return (async function*() {
-        iterCount++;
-        callback.resolve();
-        yield;
-      })();
+      let promise = Promise.resolve();
+      promise.then(() => callback.resolve());
+      return promise;
     });
     await percy.start();
 
     await expectAsync(request('/percy/comparison', {
       method: 'POST',
       body: {
-        name: 'Drain canary',
+        name: 'Sync regression',
         sync: true,
         tag: { name: 'Tag', osName: 'OS', osVersion: '1', width: 1, height: 1, orientation: 'portrait' }
       }
     })).toBeResolvedTo(jasmine.objectContaining({ data: getSnapshotDetailsResponse }));
 
-    expect(iterCount).toBeGreaterThan(0);
+    expect(percy.upload).toHaveBeenCalledOnceWith(
+      jasmine.objectContaining({ name: 'Sync regression' }), jasmine.objectContaining({}), 'app');
+    // Proves handleSyncJob ran to completion rather than the request resolving early.
+    expect(percy.client.getComparisonDetails).toHaveBeenCalled();
+  });
+
+  // A generator-level failure that bypasses the sync-queue callback (the upload Promise
+  // rejects without resolve/reject being invoked) must surface as data.error via the
+  // route's .catch(reject), not hang the request.
+  it('/comparison sync mode: surfaces a rejected upload Promise as data.error', async () => {
+    spyOn(percy, 'upload').and.callFake(() => Promise.reject(new Error('generator boom')));
+    await percy.start();
+
+    await expectAsync(request('/percy/comparison', {
+      method: 'POST',
+      body: {
+        name: 'Sync reject',
+        sync: true,
+        tag: { name: 'Tag', osName: 'OS', osVersion: '1', width: 1, height: 1, orientation: 'portrait' }
+      }
+    })).toBeResolvedTo(jasmine.objectContaining({ data: { error: 'generator boom' } }));
   });
 
   it('includes links in the /comparison endpoint response', async () => {
@@ -600,33 +720,32 @@ describe('API Server', () => {
     resolve();
   });
 
-  // Cross-consumer drain canary for /percy/automateScreenshot. Mirrors the
-  // maestro-screenshot and /comparison canaries elsewhere in this file. See
-  // docs/solutions/best-practices/2026-05-20-maestro-sync-promise-bug-investigation.md.
-  it('/automateScreenshot sync mode: drains the upload generator (real return shape, no mock)', async () => {
-    let iterCount = 0;
+  // Regression mirror of the /comparison case for the Percy-on-Automate sync route:
+  // percy.upload() returns a Promise, so the relay must resolve through the sync callback
+  // rather than `for await`-ing the return value ("upload is not async iterable").
+  it('/automateScreenshot sync mode: resolves via the upload callback, not by iterating the return value', async () => {
     spyOn(percy.client, 'getComparisonDetails').and.returnValue(getSnapshotDetailsResponse);
     spyOn(WebdriverUtils, 'captureScreenshot').and.returnValue({ sync: true });
     spyOn(percy, 'upload').and.callFake((_, callback) => {
-      return (async function*() {
-        iterCount++;
-        callback.resolve();
-        yield;
-      })();
+      let promise = Promise.resolve();
+      promise.then(() => callback.resolve());
+      return promise;
     });
     await percy.start();
 
     await expectAsync(request('/percy/automateScreenshot', {
       method: 'post',
       body: {
-        name: 'Drain canary',
+        name: 'Sync regression',
         client_info: 'client',
         environment_info: 'environment',
         options: { sync: true }
       }
     })).toBeResolvedTo(jasmine.objectContaining({ data: getSnapshotDetailsResponse }));
 
-    expect(iterCount).toBeGreaterThan(0);
+    expect(percy.upload).toHaveBeenCalledOnceWith({ sync: true }, jasmine.objectContaining({}), 'automate');
+    // Proves handleSyncJob ran to completion rather than the request resolving early.
+    expect(percy.client.getComparisonDetails).toHaveBeenCalled();
   });
 
   it('has a /events endpoint that calls #sendBuildEvents() async with provided options with clientInfo present', async () => {
@@ -1174,11 +1293,14 @@ describe('API Server', () => {
   describe('/percy/maestro-screenshot', () => {
     const SID = 'testsession';
     const SS_NAME = 'HomeScreen';
-    const ANDROID_DIR = `/tmp/${SID}_test_suite/logs/run1/screenshots`;
-    const IOS_DIR = `/tmp/${SID}/emu_maestro_debug_abc/flow_x`;
-    // New SDK convention (filePath path): /tmp/<sid>{_test_suite}/percy/<name>.png
-    const ANDROID_FILEPATH_DIR = `/tmp/${SID}_test_suite/percy`;
-    const IOS_FILEPATH_DIR = `/tmp/${SID}/percy`;
+    // Default BS App Automate tmp root when PERCY_APP_AUTOMATE_TMP_DIR is
+    // unset (the legacy /tmp convention)
+    const TMP_ROOT = '/tmp';
+    const ANDROID_DIR = `${TMP_ROOT}/${SID}_test_suite/logs/run1/screenshots`;
+    const IOS_DIR = `${TMP_ROOT}/${SID}/emu_maestro_debug_abc/flow_x`;
+    // New SDK convention (filePath path): {TMP_ROOT}/<sid>{_test_suite}/percy/<name>.png
+    const ANDROID_FILEPATH_DIR = `${TMP_ROOT}/${SID}_test_suite/percy`;
+    const IOS_FILEPATH_DIR = `${TMP_ROOT}/${SID}/percy`;
     const FILEPATH_NAME = 'FromFilePath';
 
     beforeEach(async () => {
@@ -1203,6 +1325,12 @@ describe('API Server', () => {
       fs.writeFileSync(path.join(ANDROID_FILEPATH_DIR, `${FILEPATH_NAME}.png`), 'PNGBYTES-FILEPATH-ANDROID');
       fs.mkdirSync(IOS_FILEPATH_DIR, { recursive: true });
       fs.writeFileSync(path.join(IOS_FILEPATH_DIR, `${FILEPATH_NAME}.png`), 'PNGBYTES-FILEPATH-IOS');
+
+      // Short-circuit device system-bar inset derivation in the unit env (no
+      // real device/adb): seeding the per-session cache makes the relay skip
+      // deriveDeviceInsets and fall back to the request's statusBarHeight/
+      // navBarHeight. Tests that assert derived behavior override this seed.
+      percy.maestroInsetCache.set(SID, null);
     });
 
     async function postMaestro(body) {
@@ -1214,9 +1342,21 @@ describe('API Server', () => {
       await expectAsync(postMaestro({ sessionId: SID })).toBeRejectedWithError(/Missing required field: name/);
     });
 
-    it('rejects missing sessionId with 400', async () => {
-      await percy.start();
-      await expectAsync(postMaestro({ name: SS_NAME })).toBeRejectedWithError(/Missing required field: sessionId/);
+    it('400s missing sessionId + missing PERCY_MAESTRO_SCREENSHOT_DIR (self-hosted mode requires the env var)', async () => {
+      // `sessionId` absent is the self-hosted detection signal. Without
+      // PERCY_MAESTRO_SCREENSHOT_DIR set, the relay 400s with actionable
+      // guidance rather than 404'ing on a glob it cannot scope. The
+      // self-hosted happy path is covered in the dedicated describe below.
+      let prior = process.env.PERCY_MAESTRO_SCREENSHOT_DIR;
+      delete process.env.PERCY_MAESTRO_SCREENSHOT_DIR;
+      try {
+        await percy.start();
+        await expectAsync(postMaestro({ name: SS_NAME }))
+          .toBeRejectedWithError(/Missing required env: PERCY_MAESTRO_SCREENSHOT_DIR/);
+      } finally {
+        if (prior === undefined) delete process.env.PERCY_MAESTRO_SCREENSHOT_DIR;
+        else process.env.PERCY_MAESTRO_SCREENSHOT_DIR = prior;
+      }
     });
 
     it('rejects invalid platform with 400', async () => {
@@ -1549,11 +1689,9 @@ describe('API Server', () => {
       expect(payload.sync).toBe(true);
     });
 
-    // Sync mode bug fix coverage — see docs/solutions/best-practices/
-    // 2026-05-20-maestro-sync-promise-bug-investigation.md.
-    // Before the fix, the relay's `new Promise(executor => percy.upload(...))`
-    // returned an async generator that was never iterated, so #snapshots.push
-    // never ran and the promise hung forever. The fix drains the generator.
+    // Sync mode: a rejected upload is surfaced as data.error in a 200 response. The relay
+    // wires the sync queue's reject to the snapshot promise, which handleSyncJob converts
+    // into { error } rather than failing the request.
     it('sync mode: surfaces upload reject error as data.error (200 with error field)', async () => {
       spyOn(percy, 'upload').and.callFake((_, callback) => callback.reject(new Error('boom')));
       await percy.start();
@@ -1568,19 +1706,15 @@ describe('API Server', () => {
       }));
     });
 
-    it('sync mode: drains the upload generator (real percy.upload return shape, no mock)', async () => {
-      // Canary for the structural bug: spy on percy.upload but have it return a real
-      // async generator-shaped object that records whether it gets iterated.
-      // Before the fix, this iteration count would stay at 0 and the test would time out.
-      let iterCount = 0;
+    // Regression mirror of the /comparison and /automateScreenshot cases: percy.upload()
+    // returns a Promise, so the relay must resolve through the sync callback rather than
+    // `for await`-ing the return value ("upload is not async iterable").
+    it('sync mode: resolves via the upload callback, not by iterating the return value', async () => {
       spyOn(percy.client, 'getComparisonDetails').and.returnValue(getSnapshotDetailsResponse);
       spyOn(percy, 'upload').and.callFake((options, callback) => {
-        return (async function*() {
-          iterCount++;
-          // Simulate the queue-task path: the syncQueue would invoke callback.resolve.
-          callback.resolve();
-          yield;
-        })();
+        let promise = Promise.resolve();
+        promise.then(() => callback.resolve());
+        return promise;
       });
       await percy.start();
 
@@ -1591,9 +1725,10 @@ describe('API Server', () => {
         sync: true
       })).toBeResolvedTo(jasmine.objectContaining({ data: getSnapshotDetailsResponse }));
 
-      // Iteration count > 0 proves the relay drained the generator (vs the old
-      // bug where the generator was discarded).
-      expect(iterCount).toBeGreaterThan(0);
+      expect(percy.upload).toHaveBeenCalledOnceWith(
+        jasmine.objectContaining({ sync: true }), jasmine.objectContaining({}), 'app');
+      // Proves handleSyncJob ran to completion rather than the request resolving early.
+      expect(percy.client.getComparisonDetails).toHaveBeenCalled();
     });
 
     it('returns 404 when the screenshot file is missing', async () => {
@@ -1678,19 +1813,20 @@ describe('API Server', () => {
     });
 
     it('returns 404 when filePath resolves outside the session root', async () => {
-      // File exists, but lives at /tmp/<other>.png — not under /tmp/<sid>_test_suite/.
-      fs.writeFileSync('/tmp/percy-outside.png', 'OUTSIDE');
+      // File exists, but lives at the tmp root — not under {TMP_ROOT}/<sid>_test_suite/.
+      fs.mkdirSync(TMP_ROOT, { recursive: true });
+      fs.writeFileSync(`${TMP_ROOT}/percy-outside.png`, 'OUTSIDE');
       await percy.start();
       await expectAsync(postMaestro({
         name: SS_NAME,
         sessionId: SID,
         platform: 'android',
-        filePath: '/tmp/percy-outside.png'
+        filePath: `${TMP_ROOT}/percy-outside.png`
       })).toBeRejectedWithError(/Screenshot not found/);
     });
 
     it('returns 404 when filePath is in a different sessionId\'s subtree', async () => {
-      const otherDir = '/tmp/othersession_test_suite/percy';
+      const otherDir = `${TMP_ROOT}/othersession_test_suite/percy`;
       fs.mkdirSync(otherDir, { recursive: true });
       fs.writeFileSync(`${otherDir}/Foo.png`, 'OTHER-SID');
       await percy.start();
@@ -1716,6 +1852,347 @@ describe('API Server', () => {
       let [payload] = percy.upload.calls.mostRecent().args;
       // Glob found the legacy fixture, not the filePath fixture
       expect(payload.tiles[0].content).toBe(Buffer.from('PNGBYTES-ANDROID').toString('base64'));
+    });
+
+    // PERCY_APP_AUTOMATE_TMP_DIR override — BS hosts that relocate the
+    // session tmp root away from /tmp inject the new root via this env var,
+    // so the location is never hardcoded in the CLI.
+    // Real-fs root (matched by the top-level $bypass) — fast-glob caches its
+    // fs bindings on first import, so a memfs-only root created in a later
+    // test is invisible to it; real-fs fixtures sidestep the staleness.
+    describe('PERCY_APP_AUTOMATE_TMP_DIR override', () => {
+      const CUSTOM_ROOT = path.join(os.tmpdir(), 'percy-bs-tmp-real-root');
+      let priorEnv;
+
+      beforeEach(() => {
+        priorEnv = process.env.PERCY_APP_AUTOMATE_TMP_DIR;
+        process.env.PERCY_APP_AUTOMATE_TMP_DIR = CUSTOM_ROOT;
+        fs.rmSync(CUSTOM_ROOT, { recursive: true, force: true });
+        const customAndroidDir = path.join(CUSTOM_ROOT, `${SID}_test_suite`, 'logs', 'run1', 'screenshots');
+        fs.mkdirSync(customAndroidDir, { recursive: true });
+        fs.writeFileSync(path.join(customAndroidDir, `${SS_NAME}.png`), 'PNGBYTES-CUSTOM-ROOT');
+      });
+
+      afterEach(() => {
+        if (priorEnv === undefined) delete process.env.PERCY_APP_AUTOMATE_TMP_DIR;
+        else process.env.PERCY_APP_AUTOMATE_TMP_DIR = priorEnv;
+        fs.rmSync(CUSTOM_ROOT, { recursive: true, force: true });
+      });
+
+      it('404s when a globbed file resolves outside the session root (symlink escape)', async () => {
+        const dir = path.join(CUSTOM_ROOT, `${SID}_test_suite`, 'logs', 'run1', 'screenshots');
+        const outside = path.join(os.tmpdir(), 'percy-bs-tmp-real-OUTSIDE.png');
+        const link = path.join(dir, 'EscapeScreen.png');
+        try { fs.unlinkSync(link); } catch {}
+        fs.writeFileSync(outside, 'OUTSIDE');
+        fs.symlinkSync(outside, link);
+        await percy.start();
+
+        await expectAsync(postMaestro({ name: 'EscapeScreen', sessionId: SID, platform: 'android' }))
+          .toBeRejectedWithError(/resolved outside session dir/);
+
+        fs.rmSync(outside, { force: true });
+      });
+
+      it('globs under the overridden tmp root instead of the default', async () => {
+        spyOn(percy, 'upload').and.resolveTo();
+        await percy.start();
+
+        await expectAsync(postMaestro({ name: SS_NAME, sessionId: SID, platform: 'android' }))
+          .toBeResolvedTo(jasmine.objectContaining({ success: true }));
+
+        let [payload] = percy.upload.calls.mostRecent().args;
+        expect(payload.tiles[0].content).toBe(Buffer.from('PNGBYTES-CUSTOM-ROOT').toString('base64'));
+      });
+
+      it('tolerates a trailing slash on the override', async () => {
+        process.env.PERCY_APP_AUTOMATE_TMP_DIR = `${CUSTOM_ROOT}/`;
+        spyOn(percy, 'upload').and.resolveTo();
+        await percy.start();
+
+        await expectAsync(postMaestro({ name: SS_NAME, sessionId: SID, platform: 'android' }))
+          .toBeResolvedTo(jasmine.objectContaining({ success: true }));
+
+        let [payload] = percy.upload.calls.mostRecent().args;
+        expect(payload.tiles[0].content).toBe(Buffer.from('PNGBYTES-CUSTOM-ROOT').toString('base64'));
+      });
+
+      it('falls back to /tmp when the override is not an absolute path', async () => {
+        process.env.PERCY_APP_AUTOMATE_TMP_DIR = 'relative/path';
+        spyOn(percy, 'upload').and.resolveTo();
+        await percy.start();
+
+        await expectAsync(postMaestro({ name: SS_NAME, sessionId: SID, platform: 'android' }))
+          .toBeResolvedTo(jasmine.objectContaining({ success: true }));
+
+        let [payload] = percy.upload.calls.mostRecent().args;
+        // Found the fixture under the default /tmp root, not a cwd-relative glob
+        expect(payload.tiles[0].content).toBe(Buffer.from('PNGBYTES-ANDROID').toString('base64'));
+      });
+
+      it('pins the trim + fallback semantics of the exported helper', () => {
+        process.env.PERCY_APP_AUTOMATE_TMP_DIR = `${CUSTOM_ROOT}///`;
+        expect(appAutomateTmpDir()).toBe(CUSTOM_ROOT);
+        process.env.PERCY_APP_AUTOMATE_TMP_DIR = '/';
+        expect(appAutomateTmpDir()).toBe('/tmp');
+        delete process.env.PERCY_APP_AUTOMATE_TMP_DIR;
+        expect(appAutomateTmpDir()).toBe('/tmp');
+      });
+
+      it('scopes filePath containment to the overridden root — default-root files 404', async () => {
+        // Fixture exists under the DEFAULT root (created by the outer
+        // beforeEach), but with the override active the session scopeRoot
+        // moved — the default-root file now resolves outside it.
+        await percy.start();
+        await expectAsync(postMaestro({
+          name: FILEPATH_NAME,
+          sessionId: SID,
+          platform: 'android',
+          filePath: `${ANDROID_FILEPATH_DIR}/${FILEPATH_NAME}.png`
+        })).toBeRejectedWithError(/Screenshot not found/);
+      });
+    });
+
+    describe('PERCY_MAESTRO_BS_SCOPE_ROOT override', () => {
+      const SCOPE_ROOT = path.join(os.tmpdir(), 'percy-bs-scope-real-root');
+      const REALMOBILE_DIR = path.join(SCOPE_ROOT, 'maestro_debug_LoginFlow_LoginFlow_0');
+      let priorScope, priorTmp;
+
+      beforeEach(() => {
+        priorScope = process.env.PERCY_MAESTRO_BS_SCOPE_ROOT;
+        priorTmp = process.env.PERCY_APP_AUTOMATE_TMP_DIR;
+        process.env.PERCY_MAESTRO_BS_SCOPE_ROOT = SCOPE_ROOT;
+        fs.rmSync(SCOPE_ROOT, { recursive: true, force: true });
+        fs.mkdirSync(REALMOBILE_DIR, { recursive: true });
+        fs.writeFileSync(path.join(REALMOBILE_DIR, `${SS_NAME}.png`), 'PNGBYTES-SCOPE-ROOT');
+      });
+
+      afterEach(() => {
+        if (priorScope === undefined) delete process.env.PERCY_MAESTRO_BS_SCOPE_ROOT;
+        else process.env.PERCY_MAESTRO_BS_SCOPE_ROOT = priorScope;
+        if (priorTmp === undefined) delete process.env.PERCY_APP_AUTOMATE_TMP_DIR;
+        else process.env.PERCY_APP_AUTOMATE_TMP_DIR = priorTmp;
+        fs.rmSync(SCOPE_ROOT, { recursive: true, force: true });
+      });
+
+      it('finds a screenshot the platform convention cannot reach', async () => {
+        spyOn(percy, 'upload').and.resolveTo();
+        await percy.start();
+
+        await expectAsync(postMaestro({ name: SS_NAME, sessionId: SID, platform: 'ios' }))
+          .toBeResolvedTo(jasmine.objectContaining({ success: true }));
+
+        let [payload] = percy.upload.calls.mostRecent().args;
+        expect(payload.tiles[0].content).toBe(Buffer.from('PNGBYTES-SCOPE-ROOT').toString('base64'));
+      });
+
+      it('applies to android too — the root is the whole convention', async () => {
+        spyOn(percy, 'upload').and.resolveTo();
+        await percy.start();
+
+        await expectAsync(postMaestro({ name: SS_NAME, sessionId: SID, platform: 'android' }))
+          .toBeResolvedTo(jasmine.objectContaining({ success: true }));
+
+        let [payload] = percy.upload.calls.mostRecent().args;
+        expect(payload.tiles[0].content).toBe(Buffer.from('PNGBYTES-SCOPE-ROOT').toString('base64'));
+      });
+
+      it('wins over PERCY_APP_AUTOMATE_TMP_DIR when both are set', async () => {
+        process.env.PERCY_APP_AUTOMATE_TMP_DIR = '/tmp';
+        spyOn(percy, 'upload').and.resolveTo();
+        await percy.start();
+
+        await expectAsync(postMaestro({ name: SS_NAME, sessionId: SID, platform: 'ios' }))
+          .toBeResolvedTo(jasmine.objectContaining({ success: true }));
+
+        let [payload] = percy.upload.calls.mostRecent().args;
+        expect(payload.tiles[0].content).toBe(Buffer.from('PNGBYTES-SCOPE-ROOT').toString('base64'));
+      });
+
+      it('tolerates a trailing slash on the override', async () => {
+        process.env.PERCY_MAESTRO_BS_SCOPE_ROOT = `${SCOPE_ROOT}/`;
+        spyOn(percy, 'upload').and.resolveTo();
+        await percy.start();
+
+        await expectAsync(postMaestro({ name: SS_NAME, sessionId: SID, platform: 'ios' }))
+          .toBeResolvedTo(jasmine.objectContaining({ success: true }));
+
+        let [payload] = percy.upload.calls.mostRecent().args;
+        expect(payload.tiles[0].content).toBe(Buffer.from('PNGBYTES-SCOPE-ROOT').toString('base64'));
+      });
+
+      it('ignores a non-absolute override and keeps the composed convention', async () => {
+        process.env.PERCY_MAESTRO_BS_SCOPE_ROOT = 'relative/path';
+        spyOn(percy, 'upload').and.resolveTo();
+        await percy.start();
+
+        await expectAsync(postMaestro({ name: SS_NAME, sessionId: SID, platform: 'android' }))
+          .toBeResolvedTo(jasmine.objectContaining({ success: true }));
+
+        let [payload] = percy.upload.calls.mostRecent().args;
+        expect(payload.tiles[0].content).toBe(Buffer.from('PNGBYTES-ANDROID').toString('base64'));
+      });
+
+      it('re-anchors filePath containment on the overridden root', async () => {
+        fs.writeFileSync(path.join(REALMOBILE_DIR, `${FILEPATH_NAME}.png`), 'PNGBYTES-SCOPE-FILEPATH');
+        spyOn(percy, 'upload').and.resolveTo();
+        await percy.start();
+
+        await expectAsync(postMaestro({
+          name: FILEPATH_NAME,
+          sessionId: SID,
+          platform: 'ios',
+          filePath: path.join(REALMOBILE_DIR, `${FILEPATH_NAME}.png`)
+        })).toBeResolvedTo(jasmine.objectContaining({ success: true }));
+
+        let [payload] = percy.upload.calls.mostRecent().args;
+        expect(payload.tiles[0].content).toBe(Buffer.from('PNGBYTES-SCOPE-FILEPATH').toString('base64'));
+
+        await expectAsync(postMaestro({
+          name: FILEPATH_NAME,
+          sessionId: SID,
+          platform: 'ios',
+          filePath: `${IOS_FILEPATH_DIR}/${FILEPATH_NAME}.png`
+        })).toBeRejectedWithError(/Screenshot not found/);
+      });
+
+      it('404s when a globbed file resolves outside the overridden root (symlink escape)', async () => {
+        const outside = path.join(os.tmpdir(), 'percy-bs-scope-real-OUTSIDE.png');
+        const link = path.join(REALMOBILE_DIR, 'EscapeScreen.png');
+        try { fs.unlinkSync(link); } catch {}
+        fs.writeFileSync(outside, 'OUTSIDE');
+        fs.symlinkSync(outside, link);
+        await percy.start();
+
+        await expectAsync(postMaestro({ name: 'EscapeScreen', sessionId: SID, platform: 'ios' }))
+          .toBeRejectedWithError(/resolved outside PERCY_MAESTRO_BS_SCOPE_ROOT/);
+
+        fs.rmSync(outside, { force: true });
+      });
+
+      it('404s when the overridden root does not exist', async () => {
+        process.env.PERCY_MAESTRO_BS_SCOPE_ROOT = path.join(os.tmpdir(), 'percy-bs-scope-missing');
+        await percy.start();
+
+        await expectAsync(postMaestro({ name: SS_NAME, sessionId: SID, platform: 'ios' }))
+          .toBeRejectedWithError(/Screenshot not found/);
+      });
+
+      it('narrows to the session subtree when the root contains one', async () => {
+        const SCOPED_SID = 'scopedsession';
+        const MINE = `${SCOPE_ROOT}/${SCOPED_SID}/maestro_debug_Flow`;
+        const THEIRS = path.join(SCOPE_ROOT, 'othersession', 'maestro_debug_Flow');
+        fs.mkdirSync(MINE, { recursive: true });
+        fs.mkdirSync(THEIRS, { recursive: true });
+        const mineFile = path.join(MINE, 'Isolated.png');
+        const theirsFile = path.join(THEIRS, 'Isolated.png');
+        fs.writeFileSync(mineFile, 'PNGBYTES-MINE');
+        fs.writeFileSync(theirsFile, 'PNGBYTES-THEIRS');
+        const now = Date.now() / 1000;
+        fs.utimesSync(mineFile, now - 60, now - 60);
+        fs.utimesSync(theirsFile, now, now);
+        percy.maestroInsetCache.set(SCOPED_SID, null);
+        spyOn(percy, 'upload').and.resolveTo();
+        await percy.start();
+
+        await expectAsync(postMaestro({ name: 'Isolated', sessionId: SCOPED_SID, platform: 'ios' }))
+          .toBeResolvedTo(jasmine.objectContaining({ success: true }));
+
+        let [payload] = percy.upload.calls.mostRecent().args;
+        expect(payload.tiles[0].content).toBe(Buffer.from('PNGBYTES-MINE').toString('base64'));
+      });
+
+      it('rejects a filePath from another session subtree once narrowed', async () => {
+        const SCOPED_SID = 'scopedsession';
+        const MINE = `${SCOPE_ROOT}/${SCOPED_SID}/maestro_debug_Flow`;
+        const THEIRS = path.join(SCOPE_ROOT, 'othersession', 'maestro_debug_Flow');
+        fs.mkdirSync(MINE, { recursive: true });
+        fs.mkdirSync(THEIRS, { recursive: true });
+        fs.writeFileSync(path.join(MINE, `${FILEPATH_NAME}.png`), 'PNGBYTES-MINE');
+        fs.writeFileSync(path.join(THEIRS, `${FILEPATH_NAME}.png`), 'PNGBYTES-THEIRS');
+        percy.maestroInsetCache.set(SCOPED_SID, null);
+        await percy.start();
+
+        await expectAsync(postMaestro({
+          name: FILEPATH_NAME,
+          sessionId: SCOPED_SID,
+          platform: 'ios',
+          filePath: path.join(THEIRS, `${FILEPATH_NAME}.png`)
+        })).toBeRejectedWithError(/resolved outside PERCY_MAESTRO_BS_SCOPE_ROOT/);
+      });
+
+      it('ignores a session-named entry that is not a directory', async () => {
+        const FILE_SID = 'filesession';
+        fs.writeFileSync(`${SCOPE_ROOT}/${FILE_SID}`, 'not-a-directory');
+        percy.maestroInsetCache.set(FILE_SID, null);
+        spyOn(percy, 'upload').and.resolveTo();
+        await percy.start();
+
+        await expectAsync(postMaestro({ name: SS_NAME, sessionId: FILE_SID, platform: 'ios' }))
+          .toBeResolvedTo(jasmine.objectContaining({ success: true }));
+
+        let [payload] = percy.upload.calls.mostRecent().args;
+        expect(payload.tiles[0].content).toBe(Buffer.from('PNGBYTES-SCOPE-ROOT').toString('base64'));
+      });
+
+      it('finds a screenshot under a dot-prefixed directory beneath the root', async () => {
+        const DOT_DIR = path.join(SCOPE_ROOT, '.maestro', 'maestro_debug_DotFlow');
+        fs.mkdirSync(DOT_DIR, { recursive: true });
+        fs.writeFileSync(path.join(DOT_DIR, 'DotScreen.png'), 'PNGBYTES-DOT');
+        spyOn(percy, 'upload').and.resolveTo();
+        await percy.start();
+
+        await expectAsync(postMaestro({ name: 'DotScreen', sessionId: SID, platform: 'ios' }))
+          .toBeResolvedTo(jasmine.objectContaining({ success: true }));
+
+        let [payload] = percy.upload.calls.mostRecent().args;
+        expect(payload.tiles[0].content).toBe(Buffer.from('PNGBYTES-DOT').toString('base64'));
+      });
+
+      it('resolves a name shared by two session subtrees to the newest file', async () => {
+        const pngOf = (w, h) => {
+          const buf = Buffer.alloc(24);
+          Buffer.from([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]).copy(buf, 0);
+          buf.writeUInt32BE(13, 8);
+          Buffer.from('IHDR', 'ascii').copy(buf, 12);
+          buf.writeUInt32BE(w, 16);
+          buf.writeUInt32BE(h, 20);
+          return buf;
+        };
+
+        const OLDER = path.join(SCOPE_ROOT, 'session-a', 'maestro_debug_Flow');
+        const NEWER = path.join(SCOPE_ROOT, 'session-b', 'maestro_debug_Flow');
+        fs.mkdirSync(OLDER, { recursive: true });
+        fs.mkdirSync(NEWER, { recursive: true });
+        const olderFile = path.join(OLDER, 'SharedName.png');
+        const newerFile = path.join(NEWER, 'SharedName.png');
+        fs.writeFileSync(olderFile, pngOf(720, 1280));
+        fs.writeFileSync(newerFile, pngOf(1080, 2400));
+        const now = Date.now() / 1000;
+        fs.utimesSync(olderFile, now - 60, now - 60);
+        fs.utimesSync(newerFile, now, now);
+
+        spyOn(percy, 'upload').and.resolveTo();
+        await percy.start();
+
+        await expectAsync(postMaestro({ name: 'SharedName', sessionId: SID, platform: 'ios' }))
+          .toBeResolvedTo(jasmine.objectContaining({ success: true }));
+
+        let [payload] = percy.upload.calls.mostRecent().args;
+        expect(payload.tag.width).toBe(1080);
+        expect(payload.tag.height).toBe(2400);
+      });
+
+      it('pins the trim + null semantics of the exported helper', () => {
+        process.env.PERCY_MAESTRO_BS_SCOPE_ROOT = `${SCOPE_ROOT}///`;
+        expect(bsScopeRootOverride()).toBe(SCOPE_ROOT);
+        process.env.PERCY_MAESTRO_BS_SCOPE_ROOT = '/';
+        expect(bsScopeRootOverride()).toBeNull();
+        process.env.PERCY_MAESTRO_BS_SCOPE_ROOT = '';
+        expect(bsScopeRootOverride()).toBeNull();
+        delete process.env.PERCY_MAESTRO_BS_SCOPE_ROOT;
+        expect(bsScopeRootOverride()).toBeNull();
+      });
     });
 
     // PNG-header fill: relay reads IHDR from the screenshot and populates
@@ -1850,6 +2327,263 @@ describe('API Server', () => {
       let [payload] = percy.upload.calls.mostRecent().args;
       expect(payload.tag.width).toBe(1179);
       expect(payload.tag.height).toBe(2556);
+    });
+
+    // ─────────────────────────────────────────────────────────────────────
+    // Self-hosted mode: `sessionId` absent triggers PERCY_MAESTRO_SCREENSHOT_DIR
+    // resolution. The BS path (sessionId present) is byte-identical and
+    // covered above; these tests lock the new branches.
+    // ─────────────────────────────────────────────────────────────────────
+    describe('self-hosted (sessionId absent)', () => {
+      // Real-fs root (matched by the $bypass registered in the top-level
+      // beforeEach) so the recursive `**` + `dot:true` glob runs against the
+      // real filesystem — the production path — rather than memfs.
+      // Use os.tmpdir() (not hardcoded `/tmp/`) so the fixtures work on
+      // Windows runners too — Windows has no `/tmp/`; the CI fails 404 on
+      // every glob when the root never gets created.
+      const SELF_HOSTED_ROOT = path.join(os.tmpdir(), 'percy-self-hosted-real-root');
+      const NESTED_SUBDIR = path.join(SELF_HOSTED_ROOT, '.maestro', 'run-x', 'screenshots');
+      const SELF_HOSTED_NAME = 'SelfHostedScreen';
+      let priorEnv;
+
+      beforeEach(() => {
+        priorEnv = process.env.PERCY_MAESTRO_SCREENSHOT_DIR;
+        process.env.PERCY_MAESTRO_SCREENSHOT_DIR = SELF_HOSTED_ROOT;
+        fs.rmSync(SELF_HOSTED_ROOT, { recursive: true, force: true });
+        fs.mkdirSync(NESTED_SUBDIR, { recursive: true });
+        // Valid 24-byte PNG header (1080 x 2400) exercises PNG-fill on the
+        // self-hosted path too.
+        const pngHeader = Buffer.alloc(24);
+        Buffer.from([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]).copy(pngHeader, 0);
+        pngHeader.writeUInt32BE(13, 8);
+        Buffer.from('IHDR', 'ascii').copy(pngHeader, 12);
+        pngHeader.writeUInt32BE(1080, 16);
+        pngHeader.writeUInt32BE(2400, 20);
+        fs.writeFileSync(path.join(NESTED_SUBDIR, `${SELF_HOSTED_NAME}.png`), pngHeader);
+      });
+
+      afterEach(() => {
+        if (priorEnv === undefined) delete process.env.PERCY_MAESTRO_SCREENSHOT_DIR;
+        else process.env.PERCY_MAESTRO_SCREENSHOT_DIR = priorEnv;
+        // Clean up the real-fs fixture root (see beforeEach / top-level $bypass).
+        fs.rmSync(SELF_HOSTED_ROOT, { recursive: true, force: true });
+      });
+
+      it('finds screenshot via recursive glob under PERCY_MAESTRO_SCREENSHOT_DIR and uploads without sessionId', async () => {
+        await percy.start();
+        spyOn(percy, 'upload').and.resolveTo();
+        let res = await postMaestro({ name: SELF_HOSTED_NAME, platform: 'android' });
+        expect(res.success).toBe(true);
+        let [payload] = percy.upload.calls.mostRecent().args;
+        expect(payload.name).toBe(SELF_HOSTED_NAME);
+        expect(payload.tag.width).toBe(1080);
+        expect(payload.tag.height).toBe(2400);
+        expect(payload.tiles[0].content).toBeDefined();
+        // sessionId is never forwarded into the upload payload (relay only
+        // used it for scoping; self-hosted has no equivalent).
+        expect(payload.sessionId).toBeUndefined();
+      });
+
+      it('400s when PERCY_MAESTRO_SCREENSHOT_DIR is not absolute', async () => {
+        process.env.PERCY_MAESTRO_SCREENSHOT_DIR = 'relative/path';
+        await percy.start();
+        await expectAsync(postMaestro({ name: SELF_HOSTED_NAME }))
+          .toBeRejectedWithError(/PERCY_MAESTRO_SCREENSHOT_DIR must be an absolute path/);
+      });
+
+      it('400s when PERCY_MAESTRO_SCREENSHOT_DIR does not exist', async () => {
+        process.env.PERCY_MAESTRO_SCREENSHOT_DIR = path.join(os.tmpdir(), 'this-path-does-not-exist-percy-self-hosted');
+        await percy.start();
+        await expectAsync(postMaestro({ name: SELF_HOSTED_NAME }))
+          .toBeRejectedWithError(/PERCY_MAESTRO_SCREENSHOT_DIR is not an existing directory/);
+      });
+
+      it('400s when PERCY_MAESTRO_SCREENSHOT_DIR points to a file, not a directory', async () => {
+        const notADir = path.join(os.tmpdir(), 'percy-self-hosted-not-a-dir');
+        fs.writeFileSync(notADir, 'plain-file');
+        process.env.PERCY_MAESTRO_SCREENSHOT_DIR = notADir;
+        await percy.start();
+        await expectAsync(postMaestro({ name: SELF_HOSTED_NAME }))
+          .toBeRejectedWithError(/PERCY_MAESTRO_SCREENSHOT_DIR is not an existing directory/);
+      });
+
+      it('rejects a supplied filePath in self-hosted mode (security invariant)', async () => {
+        // The SDK never emits filePath self-hosted; honoring it against a
+        // caller-influenceable root would re-open arbitrary in-root reads.
+        await percy.start();
+        await expectAsync(postMaestro({
+          name: SELF_HOSTED_NAME,
+          filePath: `${NESTED_SUBDIR}/${SELF_HOSTED_NAME}.png`
+        })).toBeRejectedWithError(/filePath is not accepted in self-hosted mode/);
+      });
+
+      it('404s when the screenshot is missing under the configured root', async () => {
+        await percy.start();
+        await expectAsync(postMaestro({ name: 'NoSuchScreenshot' }))
+          .toBeRejectedWithError(/Screenshot not found/);
+      });
+
+      it('404s when a globbed file resolves outside the root (symlink escape)', async () => {
+        // A symlink inside the root that points outside it must not exfiltrate
+        // the target — the realpath + prefix check rejects it (self-hosted arm
+        // of the "resolved outside" guard). Uses real fs via the $bypass.
+        const outside = path.join(os.tmpdir(), 'percy-self-hosted-real-OUTSIDE.png');
+        fs.writeFileSync(outside, 'OUTSIDE');
+        fs.symlinkSync(outside, path.join(NESTED_SUBDIR, 'EscapeScreen.png'));
+        await percy.start();
+        await expectAsync(postMaestro({ name: 'EscapeScreen', platform: 'android' }))
+          .toBeRejectedWithError(/resolved outside PERCY_MAESTRO_SCREENSHOT_DIR/);
+        fs.rmSync(outside, { force: true });
+      });
+
+      it('rejects name with traversal characters (SAFE_ID is load-bearing for the recursive glob)', async () => {
+        await percy.start();
+        await expectAsync(postMaestro({ name: '../etc/passwd' }))
+          .toBeRejectedWithError(/Invalid screenshot name/);
+      });
+
+      it('coordinate regions still pass through on the self-hosted path', async () => {
+        await percy.start();
+        spyOn(percy, 'upload').and.resolveTo();
+        await postMaestro({
+          name: SELF_HOSTED_NAME,
+          platform: 'android',
+          regions: [{ top: 10, bottom: 50, left: 0, right: 100, algorithm: 'ignore' }]
+        });
+        let [payload] = percy.upload.calls.mostRecent().args;
+        expect(payload.regions).toBeDefined();
+        expect(payload.regions.length).toBe(1);
+        expect(payload.regions[0].elementSelector.boundingBox)
+          .toEqual({ x: 0, y: 10, width: 100, height: 40 });
+        expect(payload.regions[0].algorithm).toBe('ignore');
+      });
+
+      // Multi-match mtime selection — Maestro re-runs in the same root leave
+      // older fixtures behind under different timestamped sub-dirs. The relay
+      // picks the most-recently-modified match. This locks that determinism
+      // for the self-hosted code path (the BS arm has been exercising this
+      // branch via integration tests).
+      it('selects the most-recently-modified PNG when multiple matches exist under the root', async () => {
+        // Two PNG fixtures at different depths with distinct dimensions and
+        // mtimes. The newer one (larger size) must win.
+        const OLD_DIR = path.join(SELF_HOSTED_ROOT, '.maestro', 'run-old', 'screenshots');
+        const NEW_DIR = path.join(SELF_HOSTED_ROOT, '.maestro', 'run-new', 'screenshots');
+        fs.mkdirSync(OLD_DIR, { recursive: true });
+        fs.mkdirSync(NEW_DIR, { recursive: true });
+
+        // Helper: a valid 24-byte PNG header with the supplied dimensions.
+        const pngOf = (w, h) => {
+          const buf = Buffer.alloc(24);
+          Buffer.from([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]).copy(buf, 0);
+          buf.writeUInt32BE(13, 8);
+          Buffer.from('IHDR', 'ascii').copy(buf, 12);
+          buf.writeUInt32BE(w, 16);
+          buf.writeUInt32BE(h, 20);
+          return buf;
+        };
+
+        // Same `name` under both — recursive glob will find both.
+        const NAME = 'MultiMatch';
+        const oldFile = path.join(OLD_DIR, `${NAME}.png`);
+        const newFile = path.join(NEW_DIR, `${NAME}.png`);
+        fs.writeFileSync(oldFile, pngOf(720, 1280));
+        fs.writeFileSync(newFile, pngOf(1080, 2400));
+
+        // Stamp explicit mtimes so the assertion doesn't depend on fs write
+        // order. The 60-second gap is chosen to survive CI filesystems with
+        // 1-second mtime resolution (ext4 without `relatime`, common older
+        // CI images) — at that floor the two writes could otherwise round
+        // to the same mtime and the ordering assertion would be racy.
+        // `fs.utimesSync` takes atime/mtime in SECONDS (POSIX `time_t`).
+        const now = Date.now() / 1000;
+        fs.utimesSync(oldFile, now - 60, now - 60);
+        fs.utimesSync(newFile, now, now);
+
+        await percy.start();
+        spyOn(percy, 'upload').and.resolveTo();
+        let res = await postMaestro({ name: NAME, platform: 'android' });
+        expect(res.success).toBe(true);
+        let [payload] = percy.upload.calls.mostRecent().args;
+        // Newer fixture's dimensions reach the payload.
+        expect(payload.tag.width).toBe(1080);
+        expect(payload.tag.height).toBe(2400);
+      });
+    });
+
+    describe('device system-bar inset derivation (relay wiring)', () => {
+      it('CLI-derived insets are authoritative over the SDK-sent defaults (Android)', async () => {
+        // Override the beforeEach null seed with a derived result.
+        percy.maestroInsetCache.set(SID, { statusBarHeight: 141, navBarHeight: 168 });
+        spyOn(percy, 'upload').and.resolveTo();
+        await percy.start();
+
+        await expectAsync(postMaestro({
+          name: SS_NAME,
+          sessionId: SID,
+          platform: 'android',
+          statusBarHeight: 50,
+          navBarHeight: 48
+        })).toBeResolvedTo(jasmine.objectContaining({ success: true }));
+
+        let [payload] = percy.upload.calls.mostRecent().args;
+        expect(payload.tiles[0]).toEqual(jasmine.objectContaining({ statusBarHeight: 141, navBarHeight: 168 }));
+      });
+
+      it('falls back to the SDK-sent values when derivation yields null (Android)', async () => {
+        percy.maestroInsetCache.set(SID, null);
+        spyOn(percy, 'upload').and.resolveTo();
+        await percy.start();
+
+        await expectAsync(postMaestro({
+          name: SS_NAME,
+          sessionId: SID,
+          platform: 'android',
+          statusBarHeight: 50,
+          navBarHeight: 48
+        })).toBeResolvedTo(jasmine.objectContaining({ success: true }));
+
+        let [payload] = percy.upload.calls.mostRecent().args;
+        expect(payload.tiles[0]).toEqual(jasmine.objectContaining({ statusBarHeight: 50, navBarHeight: 48 }));
+      });
+
+      it('iOS navBarHeight is always 0, even when the SDK sends a value', async () => {
+        percy.maestroInsetCache.set(SID, { statusBarHeight: 141, navBarHeight: 0 });
+        spyOn(percy, 'upload').and.resolveTo();
+        await percy.start();
+
+        await expectAsync(postMaestro({
+          name: SS_NAME,
+          sessionId: SID,
+          platform: 'ios',
+          statusBarHeight: 47,
+          navBarHeight: 80
+        })).toBeResolvedTo(jasmine.objectContaining({ success: true }));
+
+        let [payload] = percy.upload.calls.mostRecent().args;
+        expect(payload.tiles[0].statusBarHeight).toBe(141);
+        expect(payload.tiles[0].navBarHeight).toBe(0);
+      });
+
+      it('derives once and caches the outcome (incl. null) per session', async () => {
+        // Cache miss → derive. iOS with no PERCY_IOS_DRIVER_HOST_PORT env yields
+        // null deterministically (no transport spawn). Outcome is cached.
+        percy.maestroInsetCache.delete(SID);
+        spyOn(percy, 'upload').and.resolveTo();
+        await percy.start();
+
+        await expectAsync(postMaestro({
+          name: SS_NAME,
+          sessionId: SID,
+          platform: 'ios',
+          statusBarHeight: 47
+        })).toBeResolvedTo(jasmine.objectContaining({ success: true }));
+
+        // Null outcome cached, and the tile fell back to the SDK-sent value.
+        expect(percy.maestroInsetCache.has(SID)).toBe(true);
+        expect(percy.maestroInsetCache.get(SID)).toBeNull();
+        let [payload] = percy.upload.calls.mostRecent().args;
+        expect(payload.tiles[0].statusBarHeight).toBe(47);
+      });
     });
   });
 });

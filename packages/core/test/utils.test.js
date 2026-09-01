@@ -1,4 +1,4 @@
-import { decodeAndEncodeURLWithLogging, waitForSelectorInsideBrowser, compareObjectTypes, isGzipped, checkSDKVersion, percyAutomateRequestHandler, detectFontMimeType, handleIncorrectFontMimeType, computeResponsiveWidths, appendUrlSearchParam, processCorsIframesInDomSnapshot, processCorsIframes } from '../src/utils.js';
+import { decodeAndEncodeURLWithLogging, waitForSelectorInsideBrowser, compareObjectTypes, isGzipped, checkSDKVersion, percyAutomateRequestHandler, detectFontMimeType, handleIncorrectFontMimeType, computeResponsiveWidths, appendUrlSearchParam, processCorsIframesInDomSnapshot, processCorsIframes, isHttpOrHttpsUrl, rewriteLocalhostURL, buildSyntheticFrameResourceUrl, isMetadataTarget, isMetadataIP, assertNotMetadataTarget } from '../src/utils.js';
 import { logger, setupTest, mockRequests } from './helpers/index.js';
 import percyLogger from '@percy/logger';
 import Percy from '@percy/core';
@@ -808,6 +808,188 @@ describe('utils', () => {
     });
   });
 
+  describe('isHttpOrHttpsUrl', () => {
+    it('returns true for http and https URLs', () => {
+      expect(isHttpOrHttpsUrl('http://example.com')).toBe(true);
+      expect(isHttpOrHttpsUrl('https://example.com/path?q=1')).toBe(true);
+    });
+
+    it('returns false for blob, data, about and other schemes', () => {
+      expect(isHttpOrHttpsUrl('blob:https://example.com/abc-123')).toBe(false);
+      expect(isHttpOrHttpsUrl('data:text/html,<p>hi</p>')).toBe(false);
+      expect(isHttpOrHttpsUrl('about:blank')).toBe(false);
+      expect(isHttpOrHttpsUrl('file:///tmp/x.html')).toBe(false);
+    });
+
+    it('returns false for malformed or non-string URLs', () => {
+      expect(isHttpOrHttpsUrl('not a url')).toBe(false);
+      expect(isHttpOrHttpsUrl('')).toBe(false);
+      expect(isHttpOrHttpsUrl(undefined)).toBe(false);
+    });
+  });
+
+  describe('isMetadataTarget', () => {
+    it('blocks literal cloud metadata IPs', () => {
+      expect(isMetadataTarget('http://169.254.169.254/latest/meta-data/')).toBe('169.254.169.254');
+      expect(isMetadataTarget('http://169.254.170.2/v2/credentials')).toBe('169.254.170.2');
+      expect(isMetadataTarget('http://100.100.100.200/latest/meta-data/')).toBe('100.100.100.200');
+    });
+
+    it('blocks the AWS IMDS IPv6 endpoint regardless of formatting', () => {
+      // compressed and fully-expanded IPv6 forms must both be blocked; assert the
+      // decision rather than the exact canonical rendering (see the dedicated
+      // canonicalization test below for the one place we pin the format)
+      expect(isMetadataTarget('http://[fd00:ec2::254]/latest/meta-data/')).toBeTruthy();
+      expect(isMetadataTarget('http://[fd00:ec2:0:0:0:0:0:254]/')).toBeTruthy();
+    });
+
+    it('blocks IPv4-mapped IPv6 forms of metadata IPs across equivalent inputs', () => {
+      // ::ffff:a.b.c.d maps to the IPv4 service at the socket layer, so every
+      // equivalent spelling must be blocked. Assert the decision (truthy host
+      // returned), not the exact canonical string, so a WHATWG-URL normalization
+      // change can't fail this without a real behavior regression.
+      expect(isMetadataTarget('http://[::ffff:169.254.169.254]/latest/meta-data/')).toBeTruthy();
+      expect(isMetadataTarget('http://[::ffff:169.254.170.2]/')).toBeTruthy();
+      expect(isMetadataTarget('http://[0:0:0:0:0:ffff:100.100.100.200]/')).toBeTruthy();
+    });
+
+    it('pins the canonical form of an IPv4-mapped IPv6 metadata host', () => {
+      // The single test that locks the exact canonicalization output, so an
+      // accidental change to canonicalHost's rendering is caught deliberately.
+      expect(isMetadataTarget('http://[::ffff:169.254.169.254]/latest/meta-data/')).toBe('[::ffff:a9fe:a9fe]');
+    });
+
+    it('allows a non-metadata IPv4-mapped IPv6 host', () => {
+      expect(isMetadataTarget('http://[::ffff:93.184.216.34]/')).toBeNull();
+    });
+
+    it('blocks known metadata hostnames case-insensitively and with a trailing dot', () => {
+      expect(isMetadataTarget('http://metadata.google.internal/computeMetadata/v1/')).toBe('metadata.google.internal');
+      // the URL parser lowercases and preserves the trailing dot in the returned hostname
+      expect(isMetadataTarget('http://Metadata.Google.Internal./')).toBe('metadata.google.internal.');
+      expect(isMetadataTarget('http://metadata.goog/')).toBe('metadata.goog');
+    });
+
+    it('does NOT resolve DNS — a benign-looking hostname passes the literal pre-check', () => {
+      // The request-time pre-check is literal-only by design; a hostname that
+      // could rebind to a metadata IP is intentionally NOT blocked here (it is
+      // caught at the response stage via isMetadataIP on the connected IP).
+      expect(isMetadataTarget('http://rebind.attacker.example/')).toBeNull();
+    });
+
+    it('allows loopback hosts', () => {
+      expect(isMetadataTarget('http://localhost:3000/')).toBeNull();
+      expect(isMetadataTarget('http://127.0.0.1:8080/')).toBeNull();
+      expect(isMetadataTarget('http://[::1]/')).toBeNull();
+    });
+
+    it('allows RFC1918 private hosts and normal public hosts', () => {
+      expect(isMetadataTarget('http://192.168.1.10:3000/')).toBeNull();
+      expect(isMetadataTarget('http://10.0.0.5/')).toBeNull();
+      expect(isMetadataTarget('https://example.com/index.html')).toBeNull();
+    });
+
+    it('returns null for unparseable URLs', () => {
+      expect(isMetadataTarget('not a url')).toBeNull();
+    });
+  });
+
+  describe('isMetadataIP', () => {
+    it('blocks the literal connected metadata IPs (no DNS needed)', () => {
+      // This is the authoritative response/connection-stage gate: it inspects the
+      // IP actually connected to, so it closes the DNS-rebinding leg that the
+      // literal pre-check cannot.
+      expect(isMetadataIP('169.254.169.254')).toBe('169.254.169.254');
+      expect(isMetadataIP('169.254.170.2')).toBe('169.254.170.2');
+      expect(isMetadataIP('100.100.100.200')).toBe('100.100.100.200');
+      expect(isMetadataIP('fd00:ec2::254')).toBeTruthy();
+    });
+
+    it('blocks an IPv4-mapped IPv6 connected address for a metadata IP', () => {
+      // Chromium/Node can report the connected IP in IPv4-mapped IPv6 form; it
+      // routes to the IPv4 metadata service and must still be blocked.
+      expect(isMetadataIP('::ffff:169.254.169.254')).toBeTruthy();
+    });
+
+    it('allows loopback, RFC1918 and public connected IPs', () => {
+      expect(isMetadataIP('127.0.0.1')).toBeNull();
+      expect(isMetadataIP('::1')).toBeNull();
+      expect(isMetadataIP('10.0.0.5')).toBeNull();
+      expect(isMetadataIP('192.168.1.10')).toBeNull();
+      expect(isMetadataIP('93.184.216.34')).toBeNull();
+    });
+
+    it('tolerates a colon-containing host that is not parseable IPv6 (falls back to the raw value)', () => {
+      // canonicalHost wraps the value in http://[...] to normalize IPv6; an
+      // unparseable value must fall back to the raw string, not throw.
+      expect(isMetadataIP('fd00:zz::254')).toBeNull();
+    });
+
+    it('returns null for an empty/absent connected address', () => {
+      expect(isMetadataIP('')).toBeNull();
+      expect(isMetadataIP(undefined)).toBeNull();
+    });
+
+    it('allows a colon-containing address that is not a valid IPv6 literal', () => {
+      // canonicalHost wraps any colon-containing host in new URL('http://[..]/')
+      // to normalize IPv6. A malformed address (colon present but not valid
+      // IPv6) makes the URL parser throw; the catch falls back to the bare
+      // host, which is not a metadata target, so the connection is allowed.
+      expect(isMetadataIP('gg::1')).toBeNull();
+    });
+  });
+
+  describe('assertNotMetadataTarget', () => {
+    it('throws a clear error for a metadata endpoint', () => {
+      expect(() => assertNotMetadataTarget('http://169.254.169.254/'))
+        .toThrowError('Refusing to navigate to cloud metadata endpoint: 169.254.169.254');
+    });
+
+    it('does not throw for a normal host', () => {
+      expect(() => assertNotMetadataTarget('https://example.com/')).not.toThrow();
+    });
+  });
+
+  describe('rewriteLocalhostURL', () => {
+    it('rewrites localhost and 127.0.0.1 origins to render.percy.local', () => {
+      expect(rewriteLocalhostURL('http://localhost:8000/a.html')).toBe('http://render.percy.local/a.html');
+      expect(rewriteLocalhostURL('https://127.0.0.1/a.html')).toBe('https://render.percy.local/a.html');
+    });
+
+    it('leaves non-localhost origins untouched', () => {
+      expect(rewriteLocalhostURL('https://example.com/a.html')).toBe('https://example.com/a.html');
+    });
+  });
+
+  describe('buildSyntheticFrameResourceUrl', () => {
+    it('returns null when percyElementId is missing', () => {
+      expect(buildSyntheticFrameResourceUrl('https://example.com', undefined)).toBeNull();
+      expect(buildSyntheticFrameResourceUrl('https://example.com', '')).toBeNull();
+    });
+
+    it('builds a /__serialized__ URL against the page origin', () => {
+      expect(buildSyntheticFrameResourceUrl('https://example.com/page', 'frame1'))
+        .toBe('https://example.com/__serialized__/cors-iframe-frame1.html');
+    });
+
+    it('rewrites a localhost page origin to render.percy.local', () => {
+      expect(buildSyntheticFrameResourceUrl('http://localhost:3000/page', 'frame1'))
+        .toBe('http://render.percy.local/__serialized__/cors-iframe-frame1.html');
+    });
+
+    it('falls back to render.percy.local when rootUrl is missing or non-http(s)', () => {
+      expect(buildSyntheticFrameResourceUrl(undefined, 'frame1'))
+        .toBe('https://render.percy.local/__serialized__/cors-iframe-frame1.html');
+      expect(buildSyntheticFrameResourceUrl('blob:https://example.com/x', 'frame1'))
+        .toBe('https://render.percy.local/__serialized__/cors-iframe-frame1.html');
+    });
+
+    it('url-encodes the percyElementId', () => {
+      expect(buildSyntheticFrameResourceUrl('https://example.com', 'a/b c'))
+        .toBe('https://example.com/__serialized__/cors-iframe-a%2Fb%20c.html');
+    });
+  });
+
   describe('processCorsIframesInDomSnapshot', () => {
     it('returns domSnapshot unchanged when corsIframes is not present', () => {
       const domSnapshot = {
@@ -1145,6 +1327,106 @@ describe('utils', () => {
       const result = processCorsIframesInDomSnapshot(domSnapshot);
 
       expect(result.resources.length).toBe(0);
+    });
+
+    it('re-hosts a blob frameUrl under a synthetic http(s) resource URL', () => {
+      const domSnapshot = {
+        html: '<html><body><iframe data-percy-element-id="frame1" src="blob:https://example.com/abc"></iframe></body></html>',
+        width: 1280,
+        resources: [],
+        corsIframes: [{
+          frameUrl: 'blob:https://example.com/abc-123',
+          iframeData: { percyElementId: 'frame1' },
+          iframeSnapshot: { html: 'iframe-content' }
+        }]
+      };
+
+      const result = processCorsIframesInDomSnapshot(domSnapshot, 'https://example.com/page');
+
+      // The blob URL is replaced with a synthetic http(s) URL on both the
+      // resource and the iframe src, so the content is preserved and uploads
+      // pass the API's http(s)-only validation.
+      const expectedUrl = 'https://example.com/__serialized__/cors-iframe-frame1.html?percy_width=1280';
+      expect(result.resources.length).toBe(1);
+      expect(result.resources[0]).toEqual({
+        url: expectedUrl,
+        content: 'iframe-content',
+        mimetype: 'text/html'
+      });
+      expect(result.html).toContain(`src="${expectedUrl}"`);
+      expect(result.html).not.toContain('blob:');
+    });
+
+    it('re-hosts blob/data frames against render.percy.local when rootUrl is absent', () => {
+      const domSnapshot = {
+        html: '<html><body></body></html>',
+        resources: [],
+        corsIframes: [
+          {
+            frameUrl: 'data:text/html,<p>hi</p>',
+            iframeData: { percyElementId: 'frame1' },
+            iframeSnapshot: { html: 'data-content' }
+          },
+          {
+            frameUrl: 'about:blank',
+            iframeData: { percyElementId: 'frame2' },
+            iframeSnapshot: { html: 'about-content' }
+          }
+        ]
+      };
+
+      const result = processCorsIframesInDomSnapshot(domSnapshot);
+
+      expect(result.resources.map(r => r.url)).toEqual([
+        'https://render.percy.local/__serialized__/cors-iframe-frame1.html',
+        'https://render.percy.local/__serialized__/cors-iframe-frame2.html'
+      ]);
+    });
+
+    it('skips a non-http(s) frame that has no percyElementId (cannot rewrite src)', () => {
+      const domSnapshot = {
+        html: '<html><body><iframe src="blob:https://example.com/abc"></iframe></body></html>',
+        width: 1280,
+        resources: [],
+        corsIframes: [{
+          frameUrl: 'blob:https://example.com/abc-123',
+          iframeData: {},
+          iframeSnapshot: { html: 'iframe-content' }
+        }]
+      };
+
+      const result = processCorsIframesInDomSnapshot(domSnapshot, 'https://example.com/page');
+
+      // No percyElementId means we cannot point the iframe at the synthetic
+      // URL, so the frame is skipped rather than orphaning a resource.
+      expect(result.resources.length).toBe(0);
+      expect(result.html).toContain('src="blob:https://example.com/abc"');
+    });
+
+    it('processes valid http(s) entries and re-hosts blob ones in a mixed array', () => {
+      const domSnapshot = {
+        html: '<html><body><iframe data-percy-element-id="frame1"></iframe></body></html>',
+        width: 1280,
+        resources: [],
+        corsIframes: [
+          {
+            frameUrl: 'https://example.com/iframe1',
+            iframeData: { percyElementId: 'frame1' },
+            iframeSnapshot: { html: 'valid-content' }
+          },
+          {
+            frameUrl: 'blob:https://example.com/blob-123',
+            iframeData: { percyElementId: 'frame2' },
+            iframeSnapshot: { html: 'blob-content' }
+          }
+        ]
+      };
+
+      const result = processCorsIframesInDomSnapshot(domSnapshot, 'https://example.com/page');
+
+      expect(result.resources.length).toBe(2);
+      expect(result.resources[0].url).toBe('https://example.com/iframe1?percy_width=1280');
+      expect(result.resources[1].url).toBe('https://example.com/__serialized__/cors-iframe-frame2.html?percy_width=1280');
     });
 
     it('processes valid entries and skips invalid ones in mixed array', () => {

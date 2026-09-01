@@ -44,8 +44,161 @@ export function appendUrlSearchParam(urlString, key, value) {
   }
 }
 
-// Process CORS iframes in a single domSnapshot object
-export function processCorsIframesInDomSnapshot(domSnapshot) {
+// Returns true when the URL has an http or https scheme. Percy can only fetch
+// and serve http(s) resources, so a frame URL with another scheme (blob:,
+// data:, about:, etc.) cannot be used as-is for an upload resource — its
+// captured content is re-hosted under a synthetic http(s) URL instead.
+export function isHttpOrHttpsUrl(urlString) {
+  try {
+    const { protocol } = new URL(urlString);
+    return protocol === 'http:' || protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
+// Cloud instance-metadata endpoints. These are never legitimate snapshot
+// targets, but they hand out short-lived cloud credentials to anything that
+// can reach them — so a page (or a subresource it requests) that navigates
+// Chromium to one of these can exfiltrate credentials via SSRF. We block
+// these specific targets only; loopback and general RFC1918 hosts stay
+// allowed so that snapshotting http://localhost:3000 and internal staging
+// hosts keeps working.
+const METADATA_IPS = new Set([
+  '169.254.169.254', // AWS/Azure/GCP IMDS
+  '169.254.170.2', // AWS ECS task metadata
+  '100.100.100.200', // Alibaba Cloud
+  'fd00:ec2::254' // AWS IMDS over IPv6
+].map(canonicalHost));
+
+const METADATA_HOSTNAMES = new Set([
+  'metadata.google.internal',
+  'metadata.goog'
+]);
+
+// Canonicalizes a host for comparison: lowercases, strips a trailing dot and
+// IPv6 brackets, normalizes IPv6 addresses to their compressed form (so e.g.
+// fd00:ec2:0:0:0:0:0:254 and fd00:ec2::254 compare equal), and unwraps
+// IPv4-mapped IPv6 addresses to their dotted-quad form (so e.g.
+// ::ffff:169.254.169.254 compares equal to the literal 169.254.169.254 — the
+// OS routes it to the IPv4 service, so it must not slip past the IP set).
+function canonicalHost(host) {
+  /* istanbul ignore next -- @preserve: defensive guard; the sole caller
+     matchMetadataHost already returns on a falsy host before calling this,
+     so this branch is unreachable via the public API and cannot be exercised
+     without widening the export surface. */
+  if (!host) return host;
+  let h = String(host).toLowerCase().replace(/\.$/, '');
+  let bare = h.replace(/^\[/, '').replace(/\]$/, '');
+
+  if (bare.includes(':')) {
+    try {
+      let canon = new URL(`http://[${bare}]/`).hostname.replace(/^\[/, '').replace(/\]$/, '');
+      // The URL parser renders IPv4-mapped IPv6 as ::ffff:wwww:xxxx (hex);
+      // fold those 32 bits back into dotted-quad so mapped metadata IPs match.
+      let mapped = /^::ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/.exec(canon);
+      if (mapped) {
+        let hi = parseInt(mapped[1], 16);
+        let lo = parseInt(mapped[2], 16);
+        return `${hi >> 8}.${hi & 0xff}.${lo >> 8}.${lo & 0xff}`;
+      }
+      return canon;
+    } catch {
+      return bare;
+    }
+  }
+
+  return bare;
+}
+
+// The single decision point for the metadata block: returns the given host
+// (hostname or IP literal) when it canonicalizes to a known cloud
+// instance-metadata endpoint, otherwise null. Purely synchronous and DNS-free —
+// every outbound path (the request-time literal pre-check, the response-stage
+// remoteIPAddress gate, and the direct-fetch socket-address gate) funnels
+// through here so the block behaves identically everywhere.
+function matchMetadataHost(host) {
+  if (!host) return null;
+  let canon = canonicalHost(host);
+  return (METADATA_IPS.has(canon) || METADATA_HOSTNAMES.has(canon)) ? host : null;
+}
+
+// Cheap, synchronous first-line pre-check on a URL's literal host: blocks only
+// literal metadata IPs and metadata hostnames. It does NOT resolve DNS and so
+// cannot defend against DNS rebinding on its own — an attacker's hostname can
+// resolve benignly here and then to a metadata IP for the actual connection.
+// The DNS-rebinding leg is closed at the response stage by isMetadataIP, which
+// gates on response.remoteIPAddress — the IP the request actually connected to.
+export function isMetadataTarget(rawUrl) {
+  let host;
+
+  try {
+    host = new URL(rawUrl).hostname;
+  } catch {
+    // Unparseable URLs are handled elsewhere; they are not our concern here.
+    return null;
+  }
+
+  return matchMetadataHost(host);
+}
+
+// Response/connection-stage gate: given the IP a request actually connected to
+// (response.remoteIPAddress from CDP, or a direct fetch's socket.remoteAddress),
+// returns the offending IP when it is a metadata target, otherwise null. This
+// is the authoritative enforcement point — it inspects the real connected IP,
+// so a hostname that rebinds to a metadata IP after the request-time pre-check
+// is still blocked here. No DNS needed: the input is already an IP literal.
+export function isMetadataIP(remoteIP) {
+  return matchMetadataHost(remoteIP);
+}
+
+// Throws when the URL points at a cloud instance-metadata endpoint. Used to
+// refuse navigating the top-level snapshot URL to such a target.
+export function assertNotMetadataTarget(rawUrl) {
+  let host = isMetadataTarget(rawUrl);
+  if (host) {
+    throw new Error(`Refusing to navigate to cloud metadata endpoint: ${host}`);
+  }
+}
+
+// Rewrites localhost/127.0.0.1 origins to Percy's internal render host so
+// serialized resources resolve consistently during rendering. Mirrors the
+// rewrite applied to serialized DOM resources in @percy/dom (serialize-cssom).
+export function rewriteLocalhostURL(url) {
+  return url.replace(/(http[s]{0,1}:\/\/)(localhost|127.0.0.1)[:\d+]*/, '$1render.percy.local');
+}
+
+// Builds a synthetic, renderable http(s) URL for a CORS iframe whose own URL is
+// not http(s) (e.g. a blob: iframe). The captured iframe HTML is re-hosted at a
+// `/__serialized__/` path resolved against the page origin — the same scheme
+// @percy/dom uses for blob stylesheets — so Percy's renderer can serve it and
+// the API's http(s)-only URL validation passes. Returns null when there is no
+// percyElementId, since without it the iframe `src` cannot be rewritten to point
+// at the synthetic URL and the resource would be orphaned.
+export function buildSyntheticFrameResourceUrl(rootUrl, percyElementId) {
+  if (!percyElementId) return null;
+
+  const path = `/__serialized__/cors-iframe-${encodeURIComponent(percyElementId)}.html`;
+  const base = rootUrl && isHttpOrHttpsUrl(rootUrl) ? rootUrl : 'https://render.percy.local';
+
+  try {
+    return rewriteLocalhostURL(new URL(path, base).toString());
+  } catch {
+    /* istanbul ignore next: base is always a valid absolute URL, kept as a defensive guard */
+    return rewriteLocalhostURL(`https://render.percy.local${path}`);
+  }
+}
+
+// Returns a URL encoded string of nested query params
+export function encodeURLSearchParams(subj, prefix) {
+  return typeof subj === 'object' ? Object.entries(subj).map(([key, value]) => (
+    encodeURLSearchParams(value, prefix ? `${prefix}[${key}]` : key)
+  )).join('&') : `${prefix}=${encodeURIComponent(subj)}`;
+}
+
+// Process CORS iframes in a single domSnapshot object. `rootUrl` is the page
+// URL of the snapshot, used as the base for synthetic resource URLs.
+export function processCorsIframesInDomSnapshot(domSnapshot, rootUrl) {
   if (!domSnapshot?.corsIframes?.length) {
     return domSnapshot;
   }
@@ -66,11 +219,30 @@ export function processCorsIframesInDomSnapshot(domSnapshot) {
       continue;
     }
 
-    // width is only passed in case of responsiveSnapshotCapture
-    // Build frame URL with width parameter if available
-    const frameUrlWithWidth = domSnapshot.width
-      ? appendUrlSearchParam(frameUrl, 'percy_width', domSnapshot.width)
-      : frameUrl;
+    // Determine the URL used for both the uploaded resource and the rewritten
+    // iframe src. For http(s) frames this is the frame URL (plus width); for
+    // non-http(s) frames (e.g. blob:) the frame URL cannot be served or
+    // validated by Percy, so the captured iframe HTML is re-hosted under a
+    // synthetic http(s) URL instead — mirroring blob stylesheet handling in
+    // @percy/dom. Frames we cannot re-host (no percyElementId) are skipped so a
+    // bad URL never reaches upload validation and fails the whole snapshot.
+    let resourceUrl;
+    if (isHttpOrHttpsUrl(frameUrl)) {
+      // width is only passed in case of responsiveSnapshotCapture
+      resourceUrl = domSnapshot.width
+        ? appendUrlSearchParam(frameUrl, 'percy_width', domSnapshot.width)
+        : frameUrl;
+    } else {
+      const syntheticUrl = buildSyntheticFrameResourceUrl(rootUrl, iframeData?.percyElementId);
+      if (!syntheticUrl) {
+        logger('core:utils').debug(`Skipping corsIframes entry with non-http(s) frameUrl and no percyElementId: ${frameUrl}`);
+        continue;
+      }
+      resourceUrl = domSnapshot.width
+        ? appendUrlSearchParam(syntheticUrl, 'percy_width', domSnapshot.width)
+        : syntheticUrl;
+      logger('core:utils').debug(`Re-hosting non-http(s) corsIframes frameUrl ${frameUrl} as ${resourceUrl}`);
+    }
 
     // Add iframe snapshot resources to main resources
     if (iframeSnapshot?.resources) {
@@ -79,7 +251,7 @@ export function processCorsIframesInDomSnapshot(domSnapshot) {
 
     // Create a new resource for the iframe's HTML
     const iframeResource = {
-      url: frameUrlWithWidth,
+      url: resourceUrl,
       content: iframeSnapshot.html,
       mimetype: 'text/html'
     };
@@ -97,7 +269,7 @@ export function processCorsIframesInDomSnapshot(domSnapshot) {
       /* istanbul ignore next: iframe matching logic depends on DOM structure */
       if (match) {
         const iframeTag = match[1];
-        const newIframeTag = iframeTag.replace(/src="[^"]*"/i, `src="${frameUrlWithWidth}"`);
+        const newIframeTag = iframeTag.replace(/src="[^"]*"/i, `src="${resourceUrl}"`);
         domSnapshot.html = domSnapshot.html.replace(iframeTag, newIframeTag);
       }
     }
@@ -106,15 +278,16 @@ export function processCorsIframesInDomSnapshot(domSnapshot) {
   return domSnapshot;
 }
 
-// Process CORS iframes - handles both single object and array of domSnapshots
-export function processCorsIframes(domSnapshot) {
+// Process CORS iframes - handles both single object and array of domSnapshots.
+// `rootUrl` is the snapshot's page URL, used as the base for synthetic URLs.
+export function processCorsIframes(domSnapshot, rootUrl) {
   if (!domSnapshot) return domSnapshot;
 
   if (Array.isArray(domSnapshot)) {
-    return domSnapshot.map(snap => processCorsIframesInDomSnapshot(snap));
+    return domSnapshot.map(snap => processCorsIframesInDomSnapshot(snap, rootUrl));
   }
 
-  return processCorsIframesInDomSnapshot(domSnapshot);
+  return processCorsIframesInDomSnapshot(domSnapshot, rootUrl);
 }
 
 /**
@@ -553,33 +726,50 @@ export async function withRetries(fn, { count, onRetry, signal, throwOn }) {
   }
 }
 
-// Parsed and compiled once. redactSecrets recurses per log entry and the
-// pattern file holds ~1750 rules, so re-reading the YAML and recompiling every
-// regex on each call dominates the cost of sending build logs.
-let compiledSecretPatterns;
-
-function secretPatterns() {
-  if (!compiledSecretPatterns) {
+// Lazily load and compile the secret patterns once. The pattern file holds
+// ~1.7k regexes; parsing the YAML and compiling every RegExp on each call made
+// redactSecrets O(patterns) per string and re-read the file for every recursive
+// call. Since redactSecrets now runs over the full CLI log array on egress
+// (sendBuildLogs), that per-call cost is paid hundreds of times and could blow
+// past test/runtime timeouts. Compile once and reuse.
+let _compiledSecretPatterns;
+function getSecretPatterns() {
+  if (!_compiledSecretPatterns) {
     const filepath = path.resolve(url.fileURLToPath(import.meta.url), '../secretPatterns.yml');
-    const { patterns } = YAML.parse(readFileSync(filepath, 'utf-8'));
-    compiledSecretPatterns = patterns.map(p => new RegExp(p.pattern.regex, 'g'));
+    const secretPatterns = YAML.parse(readFileSync(filepath, 'utf-8'));
+    // Regex sources come from the first-party, bundled secretPatterns.yml that
+    // ships in this package - never from remote or attacker-controlled input.
+    // nosemgrep: javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp
+    _compiledSecretPatterns = secretPatterns.patterns.map(p => new RegExp(p.pattern.regex, 'g'));
   }
-  return compiledSecretPatterns;
+  return _compiledSecretPatterns;
 }
 
 export function redactSecrets(data) {
-  if (Array.isArray(data)) {
-    // Process each item in the array
-    return data.map(item => redactSecrets(item));
-  } else if (typeof data === 'object' && data !== null) {
-    // Process each key-value pair in the object
-    data.message = redactSecrets(data.message);
-  }
+  // Strings are redacted against every compiled secret pattern.
   if (typeof data === 'string') {
-    for (const regex of secretPatterns()) {
-      data = data.replace(regex, '[REDACTED]');
+    for (const pattern of getSecretPatterns()) {
+      data = data.replace(pattern, '[REDACTED]');
     }
+    return data;
   }
+  // Arrays (the CLI-log entry list) are redacted element-wise, in place.
+  if (Array.isArray(data)) {
+    for (let i = 0; i < data.length; i++) data[i] = redactSecrets(data[i]);
+    return data;
+  }
+  // Log entries: redact the human-readable `message` in place and return the
+  // same reference (sendBuildLogs reads the return value; the CI-log path reads
+  // the same memory-mode entry back — both see the redacted message). We do NOT
+  // recurse over `meta`: it holds structured instrumentation (e.g. a numeric
+  // `size`, ids) and a broad secret pattern matches plain digit strings, so a
+  // blanket meta sweep clobbers legitimate diagnostic data. Log-line secrets
+  // surface in `message`.
+  if (typeof data === 'object' && data !== null) {
+    data.message = redactSecrets(data.message);
+    return data;
+  }
+  // Any other primitive (number, boolean, null, undefined) passes through.
   return data;
 }
 
@@ -788,6 +978,12 @@ export async function* maybeScrollToBottom(page, discovery) {
   }
 }
 
+// How long the (purely informational) SDK version check may spend talking to
+// api.github.com before it gives up. Kept short deliberately: the check now runs
+// detached, so its socket is a live handle that would otherwise hold the event
+// loop open at shutdown for as long as the peer stays silent.
+const SDK_VERSION_CHECK_TIMEOUT = 5000;
+
 // Package to GitHub repo mapping
 const PACKAGE_TO_REPO = {
   '@percy/selenium-webdriver': 'percy-selenium-js',
@@ -832,9 +1028,13 @@ export async function checkSDKVersion(clientInfo) {
       return;
     }
 
-    // Fetch latest version from GitHub releases
+    // Fetch latest version from GitHub releases. api.github.com is a third
+    // party we don't control and networks routinely black-hole it (proxies,
+    // egress firewalls, rate limiting), so this is bounded — without a timeout
+    // the socket stays open for the life of the CLI process.
     const githubData = await request(`https://api.github.com/repos/percy/${repoName}/releases?page=1`, {
       headers: { 'User-Agent': '@percy/cli' },
+      timeout: SDK_VERSION_CHECK_TIMEOUT,
       retries: 0
     });
 

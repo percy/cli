@@ -49,7 +49,7 @@ function cloneElementWithoutLifecycle(element) {
 }
 
 export function cloneNodeAndShadow(ctx) {
-  let { dom, disableShadowDOM, forceShadowAsLightDOM, resources, cache, enableJavaScript } = ctx;
+  let { dom, disableShadowDOM, forceShadowAsLightDOM, resources, cache, enableJavaScript, styleSheetClones } = ctx;
   // clones shadow DOM and light DOM for a given node
   let cloneNode = (node, parent) => {
     try {
@@ -73,27 +73,30 @@ export function cloneNodeAndShadow(ctx) {
 
       let clone = cloneElementWithoutLifecycle(node);
 
+      if (styleSheetClones && (node.nodeName === 'LINK' || node.nodeName === 'STYLE')) {
+        styleSheetClones.set(node, clone);
+      }
+
       // Custom-element :state() is captured by the fallback path in
       // serialize-custom-states.js (live el.matches against state names
       // discovered in CSS) — no clone-time fast path remains.
 
       // Handle <style> tag specifically for media queries
       if (node.nodeName === 'STYLE' && !enableJavaScript) {
-        let cssText = node.textContent?.trim() || '';
-        if (!cssText && node.sheet) {
+        let ownText = node.textContent?.trim() || '';
+        if (!ownText && node.sheet) {
           try {
             const cssRules = node.sheet.cssRules;
             if (cssRules && cssRules.length > 0) {
-              cssText = Array.from(cssRules).map(rule => rule.cssText).join('\n');
+              let cssText = Array.from(cssRules).map(rule => rule.cssText).join('\n');
+              if (cssText) {
+                clone.textContent = cssText;
+                clone.setAttribute('data-percy-cssom-serialized', 'true');
+              }
             }
           } catch (_) {
             // ignore errors
           }
-        }
-
-        if (cssText) {
-          clone.textContent = cssText;
-          clone.setAttribute('data-percy-cssom-serialized', 'true');
         }
       }
 

@@ -9,6 +9,25 @@ import {
   compile as makeToPath
 } from 'path-to-regexp';
 
+// Returns true when an Origin header value resolves to a loopback host. The
+// local Percy server is only ever legitimately reached by Node SDK clients
+// (which send no Origin) or by loopback browser tooling (e.g. the Storybook
+// manager on localhost:<port>). Treating non-loopback origins as untrusted lets
+// us scope CORS and reject cross-origin state changes (CWE-942 / CWE-352).
+export function isLoopbackOrigin(origin) {
+  if (!origin || typeof origin !== 'string') return false;
+  try {
+    // URL.hostname KEEPS the brackets around an IPv6 literal, so `[::1]`
+    // stays `[::1]` here and must be unwrapped before matching `::1`.
+    let host = new URL(origin).hostname.toLowerCase();
+    if (host.startsWith('[') && host.endsWith(']')) host = host.slice(1, -1);
+    return host === 'localhost' || host === '127.0.0.1' ||
+      host === '::1' || host.endsWith('.localhost');
+  } catch {
+    return false;
+  }
+}
+
 // custom incoming message adds a `url` and `body` properties containing the parsed URL and message
 // buffer respectively; both available after the 'end' event is emitted
 export class IncomingMessage extends http.IncomingMessage {
@@ -218,19 +237,36 @@ export class Server extends http.Server {
   #routes = [{
     priority: -1,
     handle: (req, res, next) => {
-      res.setHeader('Access-Control-Allow-Origin', '*');
+      // Only echo a loopback Origin back as Access-Control-Allow-Origin. The
+      // previous wildcard `*` let any website the user visited read responses
+      // from the local Percy server (build data, config) cross-origin (CWE-942).
+      let origin = req.headers.origin;
+      let originAllowed = isLoopbackOrigin(origin);
+      // The response branches on Origin on every path (ACAO is emitted only for
+      // loopback origins), so Vary: Origin must be set unconditionally —
+      // otherwise a cache/intermediary could serve a no-ACAO body to a loopback
+      // origin, or a loopback body to another origin.
+      res.setHeader('Vary', 'Origin');
+      if (originAllowed) {
+        // `origin` is validated against a loopback-only allowlist above, so it
+        // is not attacker-controlled here.
+        // nosemgrep: javascript.express.security.cors-misconfiguration.cors-misconfiguration
+        res.setHeader('Access-Control-Allow-Origin', origin);
+      }
 
       if (req.method === 'OPTIONS') {
-        let allowHeaders = req.headers['access-control-request-headers'] || '*';
-        let allowMethods = [...new Set(this.#routes.flatMap(route => (
-          (!route.match || route.match(req.url.pathname)) && route.methods
-        ) || []))].join(', ');
+        if (originAllowed) {
+          let allowHeaders = req.headers['access-control-request-headers'] || '*';
+          let allowMethods = [...new Set(this.#routes.flatMap(route => (
+            (!route.match || route.match(req.url.pathname)) && route.methods
+          ) || []))].join(', ');
 
-        res.setHeader('Access-Control-Allow-Headers', allowHeaders);
-        res.setHeader('Access-Control-Allow-Methods', allowMethods);
+          res.setHeader('Access-Control-Allow-Headers', allowHeaders);
+          res.setHeader('Access-Control-Allow-Methods', allowMethods);
+        }
         res.writeHead(204).end();
       } else {
-        res.setHeader('Access-Control-Expose-Headers', '*');
+        if (originAllowed) res.setHeader('Access-Control-Expose-Headers', '*');
         return next();
       }
     }

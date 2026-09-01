@@ -748,42 +748,201 @@ describe('serializeDOM', () => {
   });
 
   describe('interactive state CSS capture', () => {
-    it('marks checked inputs with data-percy-checked', () => {
+    // :checked and :disabled serialize natively — `disabled` is a reflected
+    // content attribute and serialize-inputs syncs checked/selected to
+    // attributes on the clone. They are neither stamped nor rewritten;
+    // copying their rules to the end of <head> flipped !important cascade
+    // ties against equal-specificity rules from later stylesheets (PER-10077).
+    it('does not mark checked inputs with data-percy-checked', () => {
       withExample('<input type="checkbox" id="cb" checked>', { withShadow: false });
       let result = serializeDOM();
-      expect(result.html).toContain('data-percy-checked="true"');
+      expect(result.html).not.toContain('data-percy-checked');
     });
 
-    it('marks disabled inputs with data-percy-disabled', () => {
+    it('does not mark disabled inputs with data-percy-disabled', () => {
       withExample('<input type="text" id="dis" disabled>', { withShadow: false });
       let result = serializeDOM();
-      expect(result.html).toContain('data-percy-disabled="true"');
+      expect(result.html).not.toContain('data-percy-disabled');
     });
 
-    it('extracts :checked CSS rules and injects as attribute selectors', () => {
+    it('does not copy or rewrite :checked CSS rules', () => {
       withExample('<label><input type="checkbox" checked><span>text</span></label>', { withShadow: false });
-      // Add a CSS rule with :checked
       let style = document.createElement('style');
       style.textContent = 'input:checked + span { color: green; }';
       document.head.appendChild(style);
 
       let result = serializeDOM();
-      expect(result.html).toContain('data-percy-interactive-states');
-      expect(result.html).toContain('[data-percy-checked]');
+      expect(result.html).not.toContain('[data-percy-checked]');
 
       style.remove();
     });
 
-    it('extracts :disabled CSS rules', () => {
+    it('does not copy or rewrite :disabled CSS rules (PER-10077)', () => {
       withExample('<input type="text" disabled>', { withShadow: false });
       let style = document.createElement('style');
       style.textContent = 'input:disabled { opacity: 0.5; }';
       document.head.appendChild(style);
 
       let result = serializeDOM();
-      expect(result.html).toContain('[data-percy-disabled]');
+      expect(result.html).not.toContain('[data-percy-disabled]');
 
       style.remove();
+    });
+
+    it('injects a rewritten :hover copy after its source sheet, not at end of head (PER-10077)', () => {
+      // The copy must keep its source sheet's cascade rank: it sits AFTER the
+      // sheet it came from but BEFORE any later sheet, so a later equal-
+      // specificity rule still wins the tie exactly as in the live browser.
+      withExample(
+        '<style>.cbtn:hover { color: red }</style>' +
+        '<style>.cbtn.later { color: blue }</style>' +
+        '<button class="cbtn later">go</button>',
+        { withShadow: false }
+      );
+      let html = serializeDOM({ enablePseudoClassSerialization: true }).html;
+      let sourceIdx = html.indexOf('.cbtn:hover');
+      let copyIdx = html.indexOf('[data-percy-hover]');
+      let laterIdx = html.indexOf('.cbtn.later');
+      expect(copyIdx).toBeGreaterThan(-1);
+      expect(copyIdx).toBeGreaterThan(sourceIdx); // after its own sheet
+      expect(copyIdx).toBeLessThan(laterIdx); // before the later sheet
+    });
+  });
+
+  describe('interactive-state serialization opt-in gate (PER-10588)', () => {
+    const HOVER_PAGE =
+      '<style>.gbtn:hover { color: red }</style>' +
+      '<button id="gbtn" class="gbtn">go</button>';
+
+    it('is off by default — no rewritten copy and no state stamps', () => {
+      withExample(HOVER_PAGE, { withShadow: false });
+      let html = serializeDOM().html;
+      expect(html).not.toContain('data-percy-interactive-states');
+      expect(html).not.toContain('[data-percy-hover]');
+      expect(html).not.toContain('data-percy-focus');
+    });
+
+    it('is on when enablePseudoClassSerialization is set', () => {
+      withExample(HOVER_PAGE, { withShadow: false });
+      let html = serializeDOM({ enablePseudoClassSerialization: true }).html;
+      expect(html).toContain('data-percy-interactive-states');
+      expect(html).toContain('[data-percy-hover]');
+    });
+
+    it('accepts the snake_case option name', () => {
+      withExample(HOVER_PAGE, { withShadow: false });
+      let html = serializeDOM({ enable_pseudo_class_serialization: true }).html;
+      expect(html).toContain('[data-percy-hover]');
+    });
+
+    it('is on when pseudoClassEnabledElements is configured, without the flag', () => {
+      withExample(HOVER_PAGE, { withShadow: false });
+      let html = serializeDOM({ pseudoClassEnabledElements: { id: ['gbtn'] } }).html;
+      expect(html).toContain('[data-percy-hover]');
+      expect(html).toContain('data-percy-pseudo-element-id');
+    });
+
+    it('stays on for configured elements even when the flag is materialized false', () => {
+      withExample(HOVER_PAGE, { withShadow: false });
+      let html = serializeDOM({
+        enablePseudoClassSerialization: false,
+        pseudoClassEnabledElements: { id: ['gbtn'] }
+      }).html;
+      expect(html).toContain('[data-percy-hover]');
+    });
+
+    it('still stamps open popovers while disabled — the renderer requires it', () => {
+      withExample(
+        '<div id="gpop" popover="manual">hi</div>',
+        { withShadow: false }
+      );
+      let popover = document.getElementById('gpop');
+      if (typeof popover.showPopover !== 'function') return;
+      popover.showPopover();
+
+      let html = serializeDOM().html;
+      expect(html).not.toContain('data-percy-interactive-states');
+      expect(html).toContain('data-percy-popover-open');
+    });
+
+    it('still rewrites custom element :state() while disabled', () => {
+      withExample(
+        '<style>.gstate:state(checked) { color: red }</style><div class="gstate"></div>',
+        { withShadow: false }
+      );
+      let html = serializeDOM().html;
+      expect(html).not.toContain('data-percy-interactive-states');
+      expect(html).toContain('[data-percy-custom-state~="checked"]');
+    });
+
+    it('leaves no data-percy-* state attributes on the live DOM either way', () => {
+      withExample(HOVER_PAGE, { withShadow: false });
+      serializeDOM({ enablePseudoClassSerialization: true });
+      expect(document.querySelector('[data-percy-hover]')).toBeNull();
+      expect(document.querySelector('[data-percy-focus]')).toBeNull();
+    });
+  });
+
+  describe('stylesheet <link> handling (PER-10610)', () => {
+    it('leaves a live stylesheet <link> equal to what a head manager rendered', () => {
+      withExample('<link rel="stylesheet" href="data:text/css,.lx{color:red}">', { withShadow: false });
+      let link = document.querySelector('link[rel="stylesheet"][href^="data:text/css,.lx"]');
+      let rendered = link.cloneNode();
+
+      serializeDOM();
+
+      expect(link.isEqualNode(rendered)).toBe(true);
+    });
+
+    it('does not stamp stylesheet <link>s in the serialized output', () => {
+      withExample(
+        '<link rel="stylesheet" href="data:text/css,.lx{color:red}">' +
+        '<link rel="preload" as="style" href="data:text/css,.ly{color:red}">' +
+        '<link href="data:text/css,.lz{color:red}">',
+        { withShadow: false }
+      );
+      let $ = parseDOM(serializeDOM().html, 'plain');
+      expect($('link[rel="stylesheet"]')[0].getAttribute('data-percy-element-id')).toBeNull();
+      expect($('link[rel="preload"]')[0].getAttribute('data-percy-element-id')).toBeNull();
+      expect($('link:not([rel])')[0].getAttribute('data-percy-element-id')).toBeNull();
+    });
+
+    it('does not accumulate <link>s when a head manager reconciles between snapshots', () => {
+      withExample('<link rel="stylesheet" href="data:text/css,.lrec{color:red}">', { withShadow: false });
+      let link = document.querySelector('link[rel="stylesheet"][href^="data:text/css,.lrec"]');
+      let rendered = link.cloneNode();
+      let reconcile = () => {
+        if (!link.isEqualNode(rendered)) link.after(rendered.cloneNode());
+      };
+
+      serializeDOM();
+      reconcile();
+      let html = serializeDOM().html;
+
+      expect(html.split('data:text/css,.lrec{').length - 1).toEqual(1);
+    });
+
+    it('still anchors a rewritten copy after its source <link>, not at end of head (PER-10077)', async () => {
+      withExample(
+        '<link rel="stylesheet" href="base/test/assets/hover-anchor.css">' +
+        '<style>.lbtn.later { color: blue }</style>' +
+        '<button class="lbtn later">go</button>',
+        { withShadow: false }
+      );
+      let link = document.querySelector('link[href="base/test/assets/hover-anchor.css"]');
+      await new Promise((resolve, reject) => {
+        if (link.sheet) return resolve();
+        link.addEventListener('load', resolve, { once: true });
+        link.addEventListener('error', () => reject(new Error('hover-anchor.css failed to load')), { once: true });
+      });
+
+      let html = serializeDOM({ enablePseudoClassSerialization: true }).html;
+      let sourceIdx = html.indexOf('hover-anchor.css');
+      let copyIdx = html.indexOf('.lbtn[data-percy-hover]');
+      let laterIdx = html.indexOf('.lbtn.later');
+      expect(copyIdx).toBeGreaterThan(-1);
+      expect(copyIdx).toBeGreaterThan(sourceIdx);
+      expect(copyIdx).toBeLessThan(laterIdx);
     });
   });
 

@@ -8,6 +8,7 @@ import {
   runAndroidGrpcDump,
   classifyGrpcFailure,
   closeGrpcClientCache,
+  deriveDeviceInsets,
   __testing
 } from '../../src/maestro-hierarchy.js';
 import { logger, setupTest } from '../helpers/index.js';
@@ -476,27 +477,103 @@ describe('Unit / maestro-hierarchy', () => {
   });
 
   describe('iOS dispatch — env handling', () => {
-    it('returns env-missing when PERCY_IOS_DEVICE_UDID is unset', async () => {
+    // Self-hosted-with-explicit-port-but-no-UDID: enters the EXPLICIT branch
+    // (port present), runs the HTTP primary. With UDID absent, the CLI
+    // fallback is unavailable — on HTTP success the dump returns; on HTTP
+    // failure (connection-fail here), warn-skip with the new
+    // `self-hosted-no-udid` reason.
+    it('warn-skips with self-hosted-no-udid when port is set, udid is unset, and HTTP primary fails', async () => {
       const getEnv = key => {
         if (key === 'PERCY_IOS_DRIVER_HOST_PORT') return '11100';
         return undefined;
       };
-      const res = await dump({ platform: 'ios', getEnv });
-      expect(res).toEqual({ kind: 'unavailable', reason: 'env-missing' });
+      const httpRequest = async () => { throw Object.assign(new Error('econnrefused'), { code: 'ECONNREFUSED' }); };
+      const res = await dump({ platform: 'ios', getEnv, httpRequest });
+      expect(res).toEqual({ kind: 'unavailable', reason: 'self-hosted-no-udid' });
     });
 
-    it('returns env-missing when PERCY_IOS_DRIVER_HOST_PORT is unset', async () => {
+    // Self-hosted env-absent path: with PERCY_IOS_DRIVER_HOST_PORT unset, the
+    // relay probes Maestro 2.4.0's documented single-simulator default port
+    // (127.0.0.1:7001) before degrading. When the probe finds a live Maestro
+    // driver, element regions resolve through the same `runIosHttpDump`
+    // transport the BS path uses. When the probe fails, we warn-skip with
+    // env-missing — coordinate regions and the snapshot itself still upload.
+    // Maestro 2.6+ (ephemeral port) customers set PERCY_IOS_DRIVER_HOST_PORT
+    // explicitly to bypass the probe.
+
+    it('probes 127.0.0.1:7001 when env is unset, returns the dump on hit', async () => {
+      let observedPort = null;
+      const minimalAxElement = JSON.stringify({
+        axElement: {
+          elementType: 1,
+          identifier: 'com.example.app',
+          frame: { X: 0, Y: 0, Width: 100, Height: 100 },
+          children: []
+        }
+      });
+      const httpRequest = async opts => {
+        observedPort = opts.port;
+        return { statusCode: 200, headers: { 'content-type': 'application/json' }, body: minimalAxElement };
+      };
+      const res = await dump({ platform: 'ios', getEnv: () => undefined, httpRequest });
+      expect(observedPort).toBe(7001);
+      expect(res.kind).toBe('hierarchy');
+    });
+
+    it('warn-skips with env-missing when port is unset and the 7001 probe finds no driver', async () => {
       const getEnv = key => {
         if (key === 'PERCY_IOS_DEVICE_UDID') return '00008110-000065081404401E';
         return undefined;
       };
-      const res = await dump({ platform: 'ios', getEnv });
+      const httpRequest = jasmine.createSpy('httpRequest').and.callFake(async () => {
+        throw Object.assign(new Error('econnrefused'), { code: 'ECONNREFUSED' });
+      });
+      const res = await dump({ platform: 'ios', getEnv, httpRequest });
       expect(res).toEqual({ kind: 'unavailable', reason: 'env-missing' });
+      // The probe must have been attempted exactly once (port 7001).
+      expect(httpRequest).toHaveBeenCalledTimes(1);
+      expect(httpRequest.calls.mostRecent().args[0].port).toBe(7001);
     });
 
-    it('returns env-missing when both env vars are unset', async () => {
-      const res = await dump({ platform: 'ios', getEnv: () => undefined });
+    it('warn-skips with env-missing when both env vars are unset and the 7001 probe finds no driver', async () => {
+      const httpRequest = jasmine.createSpy('httpRequest').and.callFake(async () => {
+        throw Object.assign(new Error('econnrefused'), { code: 'ECONNREFUSED' });
+      });
+      const res = await dump({ platform: 'ios', getEnv: () => undefined, httpRequest });
       expect(res).toEqual({ kind: 'unavailable', reason: 'env-missing' });
+      expect(httpRequest).toHaveBeenCalledTimes(1);
+      expect(httpRequest.calls.mostRecent().args[0].port).toBe(7001);
+    });
+
+    // When env is unset but the 7001 probe responds with a SpringBoard-only
+    // hierarchy (no AUT subtree — the user app isn't foregrounded), the dump
+    // returns kind: 'no-aut-tree'. The dispatch records a final failure with
+    // the classified reason and returns the probe result directly so the
+    // caller surfaces the actionable AUT-not-running diagnostic instead of
+    // the generic env-missing warn-skip.
+    it('returns no-aut-tree via the 7001 probe when env is unset and the driver reports SpringBoard-only', async () => {
+      // findAxAutRoot returns null when it walks an axElement tree that
+      // contains only the SpringBoard application (identifier
+      // 'com.apple.springboard') with no AUT child — i.e. the user app
+      // isn't foregrounded. runIosHttpDump then returns kind: 'no-aut-tree'
+      // and the dispatch's self-hosted-probe branch returns that result
+      // directly after recording the classified failure (line 1305).
+      const httpRequest = jasmine.createSpy('httpRequest').and.callFake(async () => ({
+        statusCode: 200,
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          axElement: {
+            elementType: 1,
+            identifier: 'com.apple.springboard',
+            children: []
+          }
+        })
+      }));
+      const res = await dump({ platform: 'ios', getEnv: () => undefined, httpRequest });
+      expect(res.kind).toBe('no-aut-tree');
+      expect(res.reason).toBe('springboard-only');
+      expect(httpRequest).toHaveBeenCalledTimes(1);
+      expect(httpRequest.calls.mostRecent().args[0].port).toBe(7001);
     });
 
     it('does not invoke adb on iOS dispatch', async () => {
@@ -1998,6 +2075,192 @@ describe('Unit / maestro-hierarchy', () => {
         });
         expect(res.kind).toBe('hierarchy');
         expect(factory.created.length).toBe(0);
+      });
+    });
+  });
+
+  describe('deriveDeviceInsets', () => {
+    const iosFixtureDir = path.resolve(url.fileURLToPath(import.meta.url), '../../fixtures/maestro-ios-hierarchy');
+    const loadIosFixture = name => fs.readFileSync(path.join(iosFixtureDir, name), 'utf8');
+
+    const iosEnv = key => (key === 'PERCY_IOS_DRIVER_HOST_PORT' ? '11100' : undefined);
+
+    const makeHttp = handler => {
+      const fn = async opts => handler(opts);
+      return fn;
+    };
+    const httpOk = body => makeHttp(() => ({ statusCode: 200, headers: { 'content-type': 'application/json' }, body }));
+
+    // Build a minimal cli-2.0.7-shape wrap: AUT app (elementType 1) at
+    // children[0] with the given root point-height, and a statusBars sibling
+    // (elementType 0) at children[1] whose child is the status bar
+    // (elementType 26) with the given point-height.
+    const makeIosBody = (rootPt, statusBarPt) => {
+      const statusBar = { identifier: '', frame: { X: 0, Y: 0, Width: 390, Height: statusBarPt }, elementType: 26 };
+      const statusContainer = { identifier: '', frame: { X: 0, Y: 0, Width: 0, Height: 0 }, elementType: 0, children: [statusBar] };
+      const aut = { identifier: 'com.example.app', frame: { X: 0, Y: 0, Width: 390, Height: rootPt }, elementType: 1, children: [] };
+      const root = { identifier: '', frame: { X: 0, Y: 0, Width: 0, Height: 0 }, elementType: 0, children: [aut, statusContainer] };
+      return JSON.stringify({ axElement: root });
+    };
+
+    describe('iOS', () => {
+      it('derives status bar in pixels from the statusBars frame and PNG scale (iPhone 14 → 141px)', async () => {
+        const httpRequest = httpOk(loadIosFixture('viewHierarchy-response.json')); // 844pt root, 47pt SB
+        const res = await deriveDeviceInsets({ platform: 'ios', sessionId: 'sid', pngDims: { width: 1170, height: 2532 }, httpRequest, getEnv: iosEnv });
+        expect(res).toEqual({ statusBarHeight: 141, navBarHeight: 0 });
+      });
+
+      it('snaps a 2x device scale correctly', async () => {
+        const httpRequest = httpOk(makeIosBody(800, 20)); // 1600/800 = 2 → 20*2
+        const res = await deriveDeviceInsets({ platform: 'ios', pngDims: { width: 750, height: 1600 }, httpRequest, getEnv: iosEnv });
+        expect(res).toEqual({ statusBarHeight: 40, navBarHeight: 0 });
+      });
+
+      it('returns null when the derived scale is out of the plausible range', async () => {
+        const httpRequest = httpOk(makeIosBody(844, 47)); // 4220/844 = 5 → reject
+        const res = await deriveDeviceInsets({ platform: 'ios', pngDims: { width: 1170, height: 4220 }, httpRequest, getEnv: iosEnv });
+        expect(res).toBeNull();
+      });
+
+      it('returns null when the PNG/point ratio is too far from an integer (unreliable root frame)', async () => {
+        const httpRequest = httpOk(makeIosBody(844, 47)); // 2279/844 = 2.70 → 0.30 off → reject
+        const res = await deriveDeviceInsets({ platform: 'ios', pngDims: { width: 1170, height: 2279 }, httpRequest, getEnv: iosEnv });
+        expect(res).toBeNull();
+      });
+
+      it('returns null when no status-bar element is present', async () => {
+        const aut = { identifier: 'com.example.app', frame: { X: 0, Y: 0, Width: 390, Height: 844 }, elementType: 1, children: [] };
+        const body = JSON.stringify({ axElement: { identifier: '', frame: { X: 0, Y: 0, Width: 0, Height: 0 }, elementType: 0, children: [aut] } });
+        const httpRequest = httpOk(body);
+        const res = await deriveDeviceInsets({ platform: 'ios', pngDims: { width: 1170, height: 2532 }, httpRequest, getEnv: iosEnv });
+        expect(res).toBeNull();
+      });
+
+      it('returns null on a SpringBoard-only response (no AUT root)', async () => {
+        const httpRequest = httpOk(loadIosFixture('viewHierarchy-response-springboard-only.json'));
+        const res = await deriveDeviceInsets({ platform: 'ios', pngDims: { width: 1170, height: 2532 }, httpRequest, getEnv: iosEnv });
+        expect(res).toBeNull();
+      });
+
+      it('returns null on non-JSON body', async () => {
+        const httpRequest = httpOk('<html>not json</html>');
+        const res = await deriveDeviceInsets({ platform: 'ios', pngDims: { width: 1170, height: 2532 }, httpRequest, getEnv: iosEnv });
+        expect(res).toBeNull();
+      });
+
+      it('returns null on a missing axElement root', async () => {
+        const httpRequest = httpOk(JSON.stringify({ depth: 1 }));
+        const res = await deriveDeviceInsets({ platform: 'ios', pngDims: { width: 1170, height: 2532 }, httpRequest, getEnv: iosEnv });
+        expect(res).toBeNull();
+      });
+
+      it('returns null when the parsed body is the JSON literal null', async () => {
+        const httpRequest = httpOk('null');
+        const res = await deriveDeviceInsets({ platform: 'ios', pngDims: { width: 1170, height: 2532 }, httpRequest, getEnv: iosEnv });
+        expect(res).toBeNull();
+      });
+
+      it('returns null on a non-200 response', async () => {
+        const httpRequest = makeHttp(() => ({ statusCode: 500, headers: {}, body: '' }));
+        const res = await deriveDeviceInsets({ platform: 'ios', pngDims: { width: 1170, height: 2532 }, httpRequest, getEnv: iosEnv });
+        expect(res).toBeNull();
+      });
+
+      it('returns null on a transport throw', async () => {
+        const httpRequest = makeHttp(() => { throw Object.assign(new Error('refused'), { code: 'ECONNREFUSED' }); });
+        const res = await deriveDeviceInsets({ platform: 'ios', pngDims: { width: 1170, height: 2532 }, httpRequest, getEnv: iosEnv });
+        expect(res).toBeNull();
+      });
+
+      it('returns null when pngDims is missing', async () => {
+        const httpRequest = httpOk(loadIosFixture('viewHierarchy-response.json'));
+        const res = await deriveDeviceInsets({ platform: 'ios', pngDims: null, httpRequest, getEnv: iosEnv });
+        expect(res).toBeNull();
+      });
+
+      it('returns null when the driver-host-port env is absent', async () => {
+        const httpRequest = httpOk(loadIosFixture('viewHierarchy-response.json'));
+        const res = await deriveDeviceInsets({ platform: 'ios', pngDims: { width: 1170, height: 2532 }, httpRequest, getEnv: () => undefined });
+        expect(res).toBeNull();
+      });
+
+      it('returns null (never throws) when a transport throws unexpectedly', async () => {
+        const res = await deriveDeviceInsets({
+          platform: 'ios',
+          pngDims: { width: 1170, height: 2532 },
+          getEnv: () => { throw new Error('boom'); }
+        });
+        expect(res).toBeNull();
+      });
+    });
+
+    describe('Android', () => {
+      const dumpsysOut = (top, bottom) => `WINDOW MANAGER WINDOWS\n  Display: mStableInsets=Rect(0, ${top} - 0, ${bottom})\n`;
+
+      it('derives status + nav insets via dumpsys (3-button nav)', async () => {
+        const execAdb = makeFakeExecAdb([
+          { match: args => args.includes('dumpsys'), result: { stdout: dumpsysOut(132, 168), stderr: '', exitCode: 0 } }
+        ]);
+        const res = await deriveDeviceInsets({ platform: 'android', execAdb, getEnv: k => (k === 'ANDROID_SERIAL' ? 'serial-1' : undefined) });
+        expect(res).toEqual({ statusBarHeight: 132, navBarHeight: 168 });
+      });
+
+      it('derives a small bottom inset for gesture nav', async () => {
+        const execAdb = makeFakeExecAdb([
+          { match: args => args.includes('dumpsys'), result: { stdout: dumpsysOut(72, 63), stderr: '', exitCode: 0 } }
+        ]);
+        const res = await deriveDeviceInsets({ platform: 'android', execAdb, getEnv: k => (k === 'ANDROID_SERIAL' ? 'serial-1' : undefined) });
+        expect(res).toEqual({ statusBarHeight: 72, navBarHeight: 63 });
+      });
+
+      it('targets the resolved serial with -s', async () => {
+        const execAdb = makeFakeExecAdb([
+          { match: args => args.includes('dumpsys'), result: { stdout: dumpsysOut(72, 144), stderr: '', exitCode: 0 } }
+        ]);
+        await deriveDeviceInsets({ platform: 'android', execAdb, getEnv: k => (k === 'ANDROID_SERIAL' ? 'env-serial-9' : undefined) });
+        const dumpsysCall = execAdb.calls.find(a => a.includes('dumpsys'));
+        expect(dumpsysCall.slice(0, 2)).toEqual(['-s', 'env-serial-9']);
+      });
+
+      it('resolves the serial via `adb devices` when ANDROID_SERIAL is unset', async () => {
+        const execAdb = makeFakeExecAdb([
+          { match: args => args[0] === 'devices', result: okDevices },
+          { match: args => args.includes('dumpsys'), result: { stdout: dumpsysOut(72, 144), stderr: '', exitCode: 0 } }
+        ]);
+        const res = await deriveDeviceInsets({ platform: 'android', execAdb, getEnv: () => undefined });
+        expect(res).toEqual({ statusBarHeight: 72, navBarHeight: 144 });
+      });
+
+      it('returns null when no device is available', async () => {
+        const execAdb = makeFakeExecAdb([
+          { match: args => args[0] === 'devices', result: { stdout: 'List of devices attached\n\n', stderr: '', exitCode: 0 } }
+        ]);
+        const res = await deriveDeviceInsets({ platform: 'android', execAdb, getEnv: () => undefined });
+        expect(res).toBeNull();
+      });
+
+      it('returns null on an adb spawn error', async () => {
+        const execAdb = makeFakeExecAdb([
+          { match: args => args.includes('dumpsys'), result: { spawnError: Object.assign(new Error('nope'), { code: 'ENOENT' }) } }
+        ]);
+        const res = await deriveDeviceInsets({ platform: 'android', execAdb, getEnv: k => (k === 'ANDROID_SERIAL' ? 'serial-1' : undefined) });
+        expect(res).toBeNull();
+      });
+
+      it('returns null on a non-zero dumpsys exit', async () => {
+        const execAdb = makeFakeExecAdb([
+          { match: args => args.includes('dumpsys'), result: { stdout: '', stderr: '', exitCode: 1 } }
+        ]);
+        const res = await deriveDeviceInsets({ platform: 'android', execAdb, getEnv: k => (k === 'ANDROID_SERIAL' ? 'serial-1' : undefined) });
+        expect(res).toBeNull();
+      });
+
+      it('returns null when dumpsys output has no mStableInsets line', async () => {
+        const execAdb = makeFakeExecAdb([
+          { match: args => args.includes('dumpsys'), result: { stdout: 'WINDOW MANAGER WINDOWS\n  (no insets here)\n', stderr: '', exitCode: 0 } }
+        ]);
+        const res = await deriveDeviceInsets({ platform: 'android', execAdb, getEnv: k => (k === 'ANDROID_SERIAL' ? 'serial-1' : undefined) });
+        expect(res).toBeNull();
       });
     });
   });

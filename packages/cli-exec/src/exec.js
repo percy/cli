@@ -5,10 +5,12 @@ import stop from './stop.js';
 import ping from './ping.js';
 import replay from './replay.js';
 import { waitForTimeout } from '@percy/client/utils';
+import { yieldTo } from '@percy/cli-command/utils';
+import { findBaselineProvider, maybeSeedBaseline } from './baseline.js';
 
 export const exec = command('exec', {
   description: 'Start and stop Percy around a supplied command',
-  usage: '[options] -- <command>',
+  usage: '[options] [--] <command>',
   commands: [start, stop, ping, replay],
 
   flags: [{
@@ -76,6 +78,26 @@ export const exec = command('exec', {
       } else {
         log.debug('Skipping percy project attribute calculation');
       }
+
+      // Drop-in baseline seeding: when an installed SDK declares a baseline provider and the
+      // Percy project is empty, committed baseline screenshots are uploaded as an auto-approved
+      // build #1 before the head build starts. Never throws. Automate projects get the head-build
+      // source tag only — their captures happen on the remote BrowserStack browser, so committed
+      // local screenshots can never pair with them and the baseline comes from the first run.
+      if (['web', 'app', 'automate'].includes(percy.projectType)) {
+        let provider = await findBaselineProvider({ log });
+
+        if (provider) {
+          // Tag the head build so the API can key drop-in behavior on its source.
+          if (provider.buildSource && !process.env.PERCY_BUILD_SOURCE) {
+            process.env.PERCY_BUILD_SOURCE = provider.buildSource;
+          }
+          // yieldTo keeps the runner tick-responsive — a bare yield would make the up-to-10min
+          // seed wait the one place Ctrl-C can't unwind until the promise settles.
+          yield* yieldTo(maybeSeedBaseline(percy, provider, { log }));
+        }
+      }
+
       yield* percy.yield.start();
     } catch (error) {
       if (error.name === 'AbortError') throw error;

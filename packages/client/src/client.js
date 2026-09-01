@@ -23,6 +23,10 @@ const { PERCY_CLIENT_API_URL = 'https://percy.io/api/v1' } = process.env;
 let pkg = getPackageJSON(import.meta.url);
 // minimum polling interval milliseconds
 const MIN_POLLING_INTERVAL = 1_000;
+// Allow-listed drop-in build sources. The API keys drop-in behavior (baseline auto-approval,
+// telemetry) on these; anything else keeps the computed default so a stray env var can't
+// inject an arbitrary source.
+export const DROPIN_BUILD_SOURCES = ['playwright-dropin', 'playwright-dropin-baseline'];
 const INVALID_TOKEN_ERROR_MESSAGE = 'Unable to retrieve snapshot details with write access token. Kindly use a full access token for retrieving snapshot details with Synchronous CLI.';
 
 // Validate ID arguments
@@ -313,7 +317,21 @@ export class PercyClient {
   // Creates a build with optional build resources. Only one build can be
   // created at a time per instance so snapshots and build finalization can be
   // done more seamlessly without manually tracking build ids
-  async createBuild({ resources = [], projectType, cliStartTime = null } = {}) {
+  //
+  // Drop-in baseline options (Playwright drop-in):
+  //   source — override the build source with an allow-listed drop-in value.
+  //   dropinBaselineCandidate — ask the API to treat the build as the project's baseline IF it is
+  //     the project's first build (the server decides; a no-op on established projects).
+  //   dropinBaselineSetup — explicit `percy playwright:setup-baseline`: the build IS the baseline
+  //     regardless of build number (deliberate user-triggered re-baseline).
+  async createBuild({
+    resources = [],
+    projectType,
+    cliStartTime = null,
+    source: sourceOverride,
+    dropinBaselineCandidate,
+    dropinBaselineSetup
+  } = {}) {
     this.log.debug('Creating a new build...');
     let visualConfig = parseVisualConfigFromEnv(this.log);
     let source = 'user_created';
@@ -322,9 +340,23 @@ export class PercyClient {
       source = 'bstack_sdk_created';
     } else if (process.env.PERCY_AUTO_ENABLED_GROUP_BUILD === 'true') {
       source = 'auto_enabled_group';
+    } else if (DROPIN_BUILD_SOURCES.includes(process.env.PERCY_BUILD_SOURCE)) {
+      source = process.env.PERCY_BUILD_SOURCE;
     }
 
+    // Allow-listed explicit override (used by the baseline seeding flows).
+    if (DROPIN_BUILD_SOURCES.includes(sourceOverride)) source = sourceOverride;
+
+    dropinBaselineCandidate ??= process.env.PERCY_DROPIN_BASELINE_CANDIDATE === 'true';
+    dropinBaselineSetup ??= process.env.PERCY_DROPIN_BASELINE_SETUP === 'true';
+
     let tagsArr = tagsList(this.labels);
+
+    // PER-9724: internal-only priority request. Set by internal product
+    // orchestration (e.g. Scanner / LCA) via PERCY_PRIORITY; mirrors the
+    // PERCY_ORIGINATED_SOURCE internal signal above. percy-api only honors this
+    // for eligible internal build types, so it is a no-op for customer builds.
+    let priority = process.env.PERCY_PRIORITY === 'true';
 
     return this.post('builds', {
       data: {
@@ -351,7 +383,10 @@ export class PercyClient {
           'skip-base-build': this.config.percy?.skipBaseBuild,
           'testhub-build-uuid': this.env.testhubBuildUuid,
           'testhub-build-run-id': this.env.testhubBuildRunId,
-          ...(visualConfig ? { 'visual-config': visualConfig } : {})
+          ...(dropinBaselineCandidate ? { 'dropin-baseline-candidate': true } : {}),
+          ...(dropinBaselineSetup ? { 'dropin-baseline-setup': true } : {}),
+          ...(visualConfig ? { 'visual-config': visualConfig } : {}),
+          ...(priority ? { priority: true } : {})
         },
         relationships: {
           resources: {
@@ -413,62 +448,45 @@ export class PercyClient {
   }
 
   // Retrieves snapshot/comparison data by id. Requires a read access token.
-  // For `smartsnap_graph`, the API blocks (sync=true) until the graph job
-  // finishes and returns the graph payload directly in the response — there
-  // is no separate "data" endpoint to fetch after polling.
   async getStatus(type, ids) {
-    if (!['snapshot', 'comparison', 'smartsnap_graph'].includes(type)) throw new Error('Invalid type passed');
+    if (!['snapshot', 'comparison', 'intelli_story_graph'].includes(type)) throw new Error('Invalid type passed');
     this.log.debug(`Getting ${type} status for ids ${ids}`);
     return this.get(`job_status?sync=true&type=${type}&id=${ids.join()}`);
   }
 
-  // SmartSnap endpoints authenticate against the project attached to the
-  // current Percy token (via the Authorization header). `generate-graph`
-  // takes a `build_id` (sourced from the bundler-emitted stats file) so
-  // multiple concurrent storybook builds for the same project don't share
-  // Redis state. `snapshot-name-to-commit` is project-scoped only.
-  // Graph status is polled through the shared `getStatus()` helper with
-  // type `smartsnap_graph` — the sync response returns the graph payload
-  // directly on completion.
-
-  async getSmartsnapSnapshotNameToCommit() {
-    this.log.debug('Smartsnap: looking up baselines...');
+  async getIntelliStorySnapshotNameToCommit(buildId) {
+    this.log.debug('IntelliStory: looking up baselines...');
+    // `build_id` is the only input. The build already exists by the time this is
+    // called, so its base build has been selected server-side and the endpoint
+    // reads through to that base build's commit — there is nothing to predict
+    // from git/PR context any more.
     const qs = new URLSearchParams();
 
-    // Same git/PR context `createBuild` sends — the API uses these to predict
-    // the base build that *would* be selected if we called createBuild now,
-    // without actually creating one. Any missing field means the API falls
-    // back through the same strategy chain it would on real build creation.
-    if (this.env.git?.branch) qs.append('branch', this.env.git.branch);
-    if (this.env.target?.branch) qs.append('target_branch', this.env.target.branch);
-    if (this.env.git?.sha) qs.append('commit_sha', this.env.git.sha);
-    if (this.env.target?.commit) qs.append('target_commit_sha', this.env.target.commit);
-    if (this.env.pullRequest != null) qs.append('pull_request_number', String(this.env.pullRequest));
-    if (this.env.partial) qs.append('partial', 'true');
+    if (buildId) qs.append('build_id', buildId);
 
     const query = qs.toString();
     return this.get(
-      query ? `smartsnap/snapshot-name-to-commit?${query}` : 'smartsnap/snapshot-name-to-commit',
-      { identifier: 'smartsnap.snapshot_name_to_commit' }
+      query ? `intelli_story/snapshot-name-to-commit?${query}` : 'intelli_story/snapshot-name-to-commit',
+      { identifier: 'intelli_story.snapshot_name_to_commit' }
     );
   }
 
-  async generateSmartsnapGraph(buildId, {
+  async generateIntelliStoryGraph(buildId, {
     files,
     modules,
     storybookPaths,
     affectedNodes,
     affectedFileLocations
   } = {}) {
-    this.log.debug(`Smartsnap: enqueueing graph build for build ${buildId}...`);
-    return this.post('smartsnap/generate-graph', {
+    this.log.debug(`IntelliStory: enqueueing graph build for build ${buildId}...`);
+    return this.post('intelli_story/generate-graph', {
       build_id: buildId,
       files,
       modules,
       storybook_paths: storybookPaths,
       affected_nodes: affectedNodes,
       affected_file_locations: affectedFileLocations
-    }, { identifier: 'smartsnap.generate_graph' });
+    }, { identifier: 'intelli_story.generate_graph' });
   }
 
   // Returns device details enabled on project associated with given token
@@ -633,6 +651,8 @@ export class PercyClient {
     regions,
     algorithm,
     algorithmConfiguration,
+    intelliStory,
+    storybookPath,
     resources = [],
     meta
   } = {}) {
@@ -671,7 +691,11 @@ export class PercyClient {
           'enable-javascript': enableJavaScript || null,
           'enable-layout': enableLayout || false,
           'th-test-case-execution-id': thTestCaseExecutionId || null,
-          browsers: normalizeBrowsers(browsers) || null
+          browsers: normalizeBrowsers(browsers) || null,
+          // IntelliStory: when enabled, the API selects affected snapshots
+          // server-side using the story's source path.
+          'intelli-story': intelliStory || null,
+          'storybook-path': storybookPath || null
         },
         relationships: {
           resources: {
@@ -703,15 +727,28 @@ export class PercyClient {
   async sendSnapshot(buildId, options) {
     let { meta = {} } = options;
     let snapshot = await this.createSnapshot(buildId, options);
+
+    // The API always creates the snapshot record now; when server-side SmartSnap
+    // selection skips it, the response carries `skipped-via-smartsnap: true` and
+    // there are no resources to upload. Tally kept vs skipped so the storybook
+    // flow can print an IntelliStory summary.
+    let skipped = !!snapshot?.data?.attributes?.['skipped-via-smartsnap'];
+    if (typeof options.intelliStory === 'boolean') {
+      this.intelliStoryStats ??= { kept: 0, skipped: 0 };
+      this.intelliStoryStats[skipped ? 'skipped' : 'kept'] += 1;
+    }
+
     meta.snapshotId = snapshot.data.id;
 
     let missing = snapshot.data.relationships?.['missing-resources']?.data;
     this.log.debug(`${missing?.length || 0} Missing resources: ${options.name}...`, meta);
-    if (missing?.length) {
+    if (skipped) {
+      this.log.debug('skipping resource upload because this is a intellistory skip build', meta);
+    } else if (missing?.length) {
       let resources = options.resources.reduce((acc, r) => Object.assign(acc, { [r.sha]: r }), {});
       await this.uploadResources(buildId, missing.map(({ id }) => resources[id]), meta);
+      this.log.debug(`Resources uploaded: ${options.name}...`, meta);
     }
-    this.log.debug(`Resources uploaded: ${options.name}...`, meta);
 
     await this.finalizeSnapshot(snapshot.data.id, meta);
 

@@ -337,6 +337,10 @@ export const configSchema = {
           minLength: 1
         }
       },
+      enablePseudoClassSerialization: {
+        type: 'boolean',
+        default: false
+      },
       pseudoClassEnabledElements: {
         type: 'object',
         additionalProperties: false,
@@ -557,6 +561,11 @@ export const snapshotSchema = {
         testCase: { $ref: '/config/snapshot#/properties/testCase' },
         labels: { $ref: '/config/snapshot#/properties/labels' },
         thTestCaseExecutionId: { $ref: '/config/snapshot#/properties/thTestCaseExecutionId' },
+        // IntelliStory: injected per-snapshot by @percy/storybook so the API can
+        // do affected-story selection server-side. `storybookPath` is the
+        // project-relative path of the story's source module.
+        intelliStory: { type: 'boolean' },
+        storybookPath: { type: 'string' },
         browsers: { $ref: '/config/snapshot#/properties/browsers' },
         reshuffleInvalidTags: { $ref: '/config/snapshot#/properties/reshuffleInvalidTags' },
         regions: { $ref: '/config/snapshot#/properties/regions' },
@@ -566,6 +575,7 @@ export const snapshotSchema = {
         ignoreCanvasSerializationErrors: { $ref: '/config/snapshot#/properties/ignoreCanvasSerializationErrors' },
         ignoreStyleSheetSerializationErrors: { $ref: '/config/snapshot#/properties/ignoreStyleSheetSerializationErrors' },
         ignoreIframeSelectors: { $ref: '/config/snapshot#/properties/ignoreIframeSelectors' },
+        enablePseudoClassSerialization: { $ref: '/config/snapshot#/properties/enablePseudoClassSerialization' },
         pseudoClassEnabledElements: { $ref: '/config/snapshot#/properties/pseudoClassEnabledElements' },
         discovery: {
           type: 'object',
