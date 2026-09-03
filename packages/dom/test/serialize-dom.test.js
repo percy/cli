@@ -596,6 +596,70 @@ describe('serializeDOM', () => {
 
       expect(warnings).toEqual(['Could not transform the dom: test error']);
     });
+
+    // A domTransformation runs after serializeElements() has already collected
+    // ctx.shadowRootElements, so a shadow root attached here is invisible to
+    // that array. getOuterHTML must not take its no-shadow-roots fast path for
+    // these snapshots, or the shadow content is silently dropped.
+    it('serializes a shadow root attached during the transformation', () => {
+      let { html } = serializeDOM({
+        domTransformation(dom) {
+          let host = dom.querySelector('.delete-me');
+          let shadow = host.attachShadow({ mode: 'open', serializable: true });
+          shadow.innerHTML = '<p>shadow added by transformation</p>';
+        }
+      });
+
+      expect(html).toContain('shadow added by transformation');
+      expect(html).toContain('<template shadowrootmode="open"');
+    });
+  });
+
+  describe('marker un-mangling', () => {
+    it('restores both the tag and attribute markers in one pass', () => {
+      if (getTestBrowser() !== chromeBrowser) {
+        return;
+      }
+
+      // Both markers have to land in the SAME tag for this to exercise the
+      // single-pass replacer's branch discrimination. That needs a custom
+      // element that cloneElementWithoutLifecycle proxies — i.e. one with an
+      // attributeChangedCallback — carrying a `src`, which is the attribute it
+      // rewrites to data-percy-serialized-attribute-src. A plain undefined
+      // element takes the cloneNode() branch and emits no markers at all.
+      class MarkerWidget extends window.HTMLElement {
+        static get observedAttributes() {
+          return ['src'];
+        }
+
+        attributeChangedCallback() {}
+      }
+
+      if (!window.customElements.get('marker-widget')) {
+        window.customElements.define('marker-widget', MarkerWidget);
+      }
+
+      withExample('<marker-widget src="/img.png"></marker-widget>', { withShadow: false });
+
+      let { html } = serializeDOM();
+
+      expect(html).toContain('<marker-widget src="/img.png"');
+      expect(html).not.toContain('data-percy-custom-element-');
+      expect(html).not.toContain('data-percy-serialized-attribute-');
+    });
+
+    it('restores the attribute marker written by canvas serialization', () => {
+      // serialize-canvas sets data-percy-serialized-attribute-src; if the
+      // attribute branch of the merged regex regressed, the marker would ship.
+      withExample('<canvas id="canvas" width="10" height="10"></canvas>', { withShadow: false });
+      let ctx = document.getElementById('canvas').getContext('2d');
+      ctx.fillRect(0, 0, 10, 10);
+
+      let { html } = serializeDOM();
+
+      expect(html).not.toContain('data-percy-serialized-attribute-');
+      expect(html).toMatch(/<img[^>]+src="[^"]+"/);
+    });
   });
 
   describe('with `reshuffleInvalidTags`', () => {

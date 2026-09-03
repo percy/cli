@@ -158,12 +158,38 @@ export function cloneNodeAndShadow(ctx) {
 /**
  * Use `getInnerHTML()` to serialize shadow dom as <template> tags. `innerHTML` and `outerHTML` don't do this. Buzzword: "declarative shadow dom"
  */
-export function getOuterHTML(docElement, { shadowRootElements, forceShadowAsLightDOM }) {
+export function getOuterHTML(docElement, { shadowRootElements, forceShadowAsLightDOM, cloneMayHaveUncountedShadowRoots }) {
   // chromium gives us declarative shadow DOM serialization API
   let innerHTML = '';
   // When forceShadowAsLightDOM is true, treat shadow DOM as normal HTML
   if (forceShadowAsLightDOM) {
     return docElement.outerHTML;
+  }
+  // With no shadow roots to embed, the getHTML()+textContent=''+outerHTML
+  // .replace() reassembly below just reproduces `docElement.outerHTML` while
+  // allocating a full-size intermediate string + replace copy. Skip it to cut
+  // this step's transient footprint (GC pressure) on heavy pages.
+  //
+  // The guard is deliberately two-part. An empty shadowRootElements is NOT by
+  // itself proof that the clone has no shadow roots to serialize: getHTML's
+  // `serializableShadowRoots: true` also picks up any root attached with
+  // `serializable: true` (which is how cloneNodeAndShadow attaches them) even
+  // when it is absent from the explicit `shadowRoots` array. What makes the
+  // array authoritative is that serializeElements() pushes every clone shadow
+  // root into it (serialize-dom.js) before serializeHTML runs. A caller-supplied
+  // domTransformation breaks that: it runs AFTER serializeElements and can
+  // attach a serializable root to the clone, so cloneMayHaveUncountedShadowRoots
+  // sends those snapshots down the full reassembly path instead of dropping the
+  // shadow content on the floor.
+  if (!cloneMayHaveUncountedShadowRoots && !shadowRootElements?.length) {
+    // Release the clone's node graph before the caller builds the doctype
+    // concatenation (and, with stringifyResponse, a full JSON copy) on top of
+    // this string — the reassembly path below gets that for free via its own
+    // `textContent = ''`, and on a heavy page the retained tree dwarfs the one
+    // string copy this fast path saves.
+    let html = docElement.outerHTML;
+    docElement.textContent = '';
+    return html;
   }
   /* istanbul ignore else if: Only triggered in chrome <= 128 and tests runs on latest */
   if (docElement.getHTML) {
