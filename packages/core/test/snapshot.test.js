@@ -26,8 +26,9 @@ describe('uploadSnapshotLog', () => {
     expect(client.sendSnapshotLog).not.toHaveBeenCalled();
   });
 
-  it('does not upload when there are no matching log entries', async () => {
-    await uploadSnapshotLog(percy, '123', '4567', meta);
+  it('does not upload when there are no matching log entries (meta defaults)', async () => {
+    // called without meta -> defaults to {}, so nothing matches and nothing uploads
+    await uploadSnapshotLog(percy, '123', '4567');
     expect(client.sendSnapshotLog).not.toHaveBeenCalled();
   });
 
