@@ -1377,6 +1377,51 @@ describe('Percy', () => {
       ]);
     });
 
+    it('reports the out-of-range tile offset it replaced', async () => {
+      await percy.start();
+
+      // An App Automate fullpage capture returning a negative header height (PER-10200): the
+      // upload is repaired rather than rejected, so the received value is only ever visible here.
+      await percy.upload({
+        name: 'Snapshot',
+        tag: { name: 'device' },
+        tiles: [
+          { sha: 'a'.repeat(64), headerHeight: 0, footerHeight: 879 },
+          { sha: 'b'.repeat(64), headerHeight: -318, footerHeight: 0 }
+        ]
+      });
+
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
+        '[percy] - tiles[1].headerHeight: must be >= 0 (received -318, continuing with 0)'
+      ]));
+
+      // The snapshot is still uploaded — the warning is the only signal that it is misstitched.
+      expect(api.requests['/snapshots/4567/comparisons']).toHaveSize(1);
+      expect(logger.stdout).toEqual([
+        '[percy] Percy has started!',
+        '[percy] Snapshot taken: Snapshot'
+      ]);
+    });
+
+    it('attributes upload validation warnings to their snapshot', async () => {
+      await percy.start();
+
+      await percy.upload({
+        name: 'Snapshot',
+        tag: { name: 'device' },
+        tiles: [{ sha: 'a'.repeat(64), headerHeight: -1 }]
+      });
+
+      // Without meta these lines are anonymous, so a run warning about several snapshots gives no
+      // way to tell which page each `tiles[n]` came from.
+      let warnings = logger.instance.query(log => (
+        log.level === 'warn' && log.message.includes('headerHeight')
+      ));
+
+      expect(warnings).toHaveSize(1);
+      expect(warnings[0].meta.snapshot.name).toEqual('Snapshot');
+    });
+
     it('can cancel pending pushed snapshots', async () => {
       percy = await Percy.start({
         token: 'PERCY_TOKEN',

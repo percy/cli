@@ -78,7 +78,9 @@ describe('PercyConfig', () => {
         message: 'unknown property'
       }, {
         path: 'test.cov',
-        message: 'must be >= 100'
+        message: 'must be >= 100',
+        received: 99,
+        clampedTo: 100
       }]);
     });
 
@@ -301,12 +303,18 @@ describe('PercyConfig', () => {
 
       let conf = { min: 5, max: 50 };
 
+      // A clamp substitutes a value rather than rejecting it, so the error carries both halves —
+      // callers report them to explain why the accepted config differs from what was supplied.
       expect(PercyConfig.validate(conf)).toEqual([{
         path: 'min',
-        message: 'must be >= 10'
+        message: 'must be >= 10',
+        received: 5,
+        clampedTo: 10
       }, {
         path: 'max',
-        message: 'must be <= 20'
+        message: 'must be <= 20',
+        received: 50,
+        clampedTo: 20
       }]);
 
       expect(conf).toEqual({ min: 10, max: 20 });
