@@ -2682,6 +2682,31 @@ describe('PercyClient', () => {
     });
   });
 
+  describe('#sendSnapshotLog', () => {
+    it('should send the snapshot log to the logs API with service_name snapshot', async () => {
+      await expectAsync(client.sendSnapshotLog(1234, 5678, 'abcd')).toBeResolved();
+
+      expect(api.requests['/logs']).toBeDefined();
+      expect(api.requests['/logs'][0].method).toBe('POST');
+      expect(api.requests['/logs'][0].body).toEqual({
+        data: {
+          content: 'abcd',
+          build_id: 1234,
+          reference_id: 5678,
+          service_name: 'snapshot',
+          base64encoded: true
+        }
+      });
+    });
+
+    it('validates the build and snapshot ids', async () => {
+      await expectAsync(client.sendSnapshotLog(null, 5678, 'abcd'))
+        .toBeRejectedWithError('Missing build ID');
+      await expectAsync(client.sendSnapshotLog(1234, null, 'abcd'))
+        .toBeRejectedWithError('Missing snapshot ID');
+    });
+  });
+
   describe('#getErrorAnalysis', () => {
     const sharedTest = (reqBody, expectedBody) => {
       it('should send error logs to API', async () => {
