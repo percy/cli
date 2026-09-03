@@ -212,6 +212,68 @@ describe('percy exec', () => {
     ]));
   });
 
+  describe('--fail-on-error', () => {
+    afterEach(() => {
+      delete process.env.PERCY_FAIL_ON_ERROR;
+    });
+
+    it('exits non-zero when percy fails to start', async () => {
+      delete process.env.PERCY_TOKEN;
+
+      await expectAsync(
+        exec(['--fail-on-error', '--', 'node', '--eval', ''])
+      ).toBeRejectedWithError(
+        'Percy failed to start and --fail-on-error was set; no visual tests ran'
+      );
+
+      // the wrapped command still runs — only the exit code changes
+      expect(logger.stdout).toEqual(jasmine.arrayContaining([
+        '[percy] Running "node --eval "'
+      ]));
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
+        '[percy] Skipping visual tests'
+      ]));
+    });
+
+    it('exits non-zero when PERCY_FAIL_ON_ERROR is set without the flag', async () => {
+      delete process.env.PERCY_TOKEN;
+      process.env.PERCY_FAIL_ON_ERROR = 'true';
+
+      await expectAsync(
+        exec(['--', 'node', '--eval', ''])
+      ).toBeRejectedWithError(
+        'Percy failed to start and --fail-on-error was set; no visual tests ran'
+      );
+    });
+
+    it('exits zero when percy starts successfully', async () => {
+      await exec(['--fail-on-error', '--', 'node', '--eval', '']);
+
+      expect(logger.stdout).toEqual(jasmine.arrayContaining([
+        '[percy] Command "node --eval " exited with status: 0'
+      ]));
+    });
+
+    it('forwards the command status ahead of a percy start failure', async () => {
+      delete process.env.PERCY_TOKEN;
+
+      // the wrapped command's own status is the more specific signal, so it wins
+      await expectAsync(
+        exec(['--fail-on-error', '--', 'node', '--eval', 'process.exit(3)'])
+      ).toBeRejectedWithError('EEXIT: 3');
+    });
+
+    it('does not affect the exit code when the flag is not set', async () => {
+      delete process.env.PERCY_TOKEN;
+
+      await exec(['--', 'node', '--eval', '']);
+
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
+        '[percy] Skipping visual tests'
+      ]));
+    });
+  });
+
   it('forwards the command status', async () => {
     await expectAsync(
       exec(['--', 'node', '--eval', 'process.exit(3)'])
