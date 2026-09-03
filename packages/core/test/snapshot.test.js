@@ -2,7 +2,49 @@ import { sha256hash, base64encode } from '@percy/client/utils';
 import { logger, api, setupTest, createTestServer, dedent } from './helpers/index.js';
 import { waitFor } from '@percy/core/utils';
 import Percy from '@percy/core';
-import { handleSyncJob } from '../src/snapshot.js';
+import PercyLogger from '@percy/logger';
+import { handleSyncJob, uploadSnapshotLog } from '../src/snapshot.js';
+
+describe('uploadSnapshotLog', () => {
+  let client, percy, meta;
+
+  // seed a log entry matching a snapshot's meta so logger.query finds it
+  const seedLog = (name = 'Home') =>
+    PercyLogger.instance.messages.add({ message: 'x', meta: { snapshot: { name } } });
+
+  beforeEach(async () => {
+    await logger.mock();
+    client = { sendSnapshotLog: jasmine.createSpy('sendSnapshotLog').and.resolveTo() };
+    percy = { client, log: { debug: jasmine.createSpy('debug') } };
+    meta = { snapshot: { name: 'Home', testCase: undefined } };
+  });
+
+  it('is a no-op without a build or snapshot id', async () => {
+    seedLog();
+    await uploadSnapshotLog(percy, null, '4567', meta);
+    await uploadSnapshotLog(percy, '123', null, meta);
+    expect(client.sendSnapshotLog).not.toHaveBeenCalled();
+  });
+
+  it('does not upload when there are no matching log entries', async () => {
+    await uploadSnapshotLog(percy, '123', '4567', meta);
+    expect(client.sendSnapshotLog).not.toHaveBeenCalled();
+  });
+
+  it('uploads the matching logs to the client keyed by the snapshot id', async () => {
+    seedLog('Home');
+    seedLog('Other');
+    await uploadSnapshotLog(percy, '123', '4567', meta);
+    expect(client.sendSnapshotLog).toHaveBeenCalledWith('123', '4567', jasmine.any(String), meta);
+  });
+
+  it('is best-effort: a client failure does not throw', async () => {
+    seedLog();
+    client.sendSnapshotLog.and.rejectWith(new Error('boom'));
+    await expectAsync(uploadSnapshotLog(percy, '123', '4567', meta)).toBeResolved();
+    expect(percy.log.debug).toHaveBeenCalled();
+  });
+});
 
 describe('Snapshot', () => {
   let percy, server, testDOM;

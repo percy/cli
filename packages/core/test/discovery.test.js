@@ -87,6 +87,28 @@ describe('Discovery', () => {
     jasmine.DEFAULT_TIMEOUT_INTERVAL = originalTimeout;
   });
 
+  it('uploads the snapshot log to the logs endpoint instead of as a resource', async () => {
+    await percy.snapshot({
+      name: 'test snapshot',
+      url: 'http://localhost:8000',
+      domSnapshot: testDOM
+    });
+
+    await percy.idle();
+
+    // the per-snapshot log is no longer one of the captured resources
+    expect(captured[0].map(r => r.attributes['resource-url']))
+      .not.toContain(jasmine.stringMatching(/\/percy\.\d+\.log$/));
+
+    // it is uploaded via POST /logs with service_name 'snapshot' keyed by snapshot id
+    let snapshotLogReq = (api.requests['/logs'] || [])
+      .find(r => r.body?.data?.service_name === 'snapshot');
+    expect(snapshotLogReq).toBeDefined();
+    expect(snapshotLogReq.body.data.reference_id).toEqual('4567');
+    expect(snapshotLogReq.body.data.build_id).toEqual('123');
+    expect(snapshotLogReq.body.data.base64encoded).toBe(true);
+  });
+
   it('gathers resources for a snapshot in GZIP format', async () => {
     process.env.PERCY_GZIP = true;
 
@@ -105,11 +127,6 @@ describe('Discovery', () => {
     expect(paths).toContain('/img.gif');
 
     expect(captured[0]).toEqual([
-      jasmine.objectContaining({
-        attributes: jasmine.objectContaining({
-          'resource-url': jasmine.stringMatching(/^\/percy\.\d+\.log$/)
-        })
-      }),
       jasmine.objectContaining({
         id: sha256hash(Pako.gzip(testDOM)),
         attributes: jasmine.objectContaining({
@@ -147,11 +164,6 @@ describe('Discovery', () => {
     expect(paths).toContain('/img.gif');
 
     expect(captured[0]).toEqual([
-      jasmine.objectContaining({
-        attributes: jasmine.objectContaining({
-          'resource-url': jasmine.stringMatching(/^\/percy\.\d+\.log$/)
-        })
-      }),
       jasmine.objectContaining({
         id: sha256hash(testDOM),
         attributes: jasmine.objectContaining({
@@ -413,11 +425,6 @@ describe('Discovery', () => {
 
     expect(captured[0]).toEqual([
       jasmine.objectContaining({
-        attributes: jasmine.objectContaining({
-          'resource-url': jasmine.stringMatching(/^\/percy\.\d+\.log$/)
-        })
-      }),
-      jasmine.objectContaining({
         id: sha256hash(prefetchDOM),
         attributes: jasmine.objectContaining({
           'resource-url': 'http://localhost:8000/'
@@ -626,11 +633,6 @@ describe('Discovery', () => {
     expect(captured[0]).toEqual([
       jasmine.objectContaining({
         attributes: jasmine.objectContaining({
-          'resource-url': jasmine.stringMatching(/^\/percy\.\d+\.log$/)
-        })
-      }),
-      jasmine.objectContaining({
-        attributes: jasmine.objectContaining({
           'resource-url': 'http://localhost:8000/'
         })
       }),
@@ -659,11 +661,6 @@ describe('Discovery', () => {
     await percy.idle();
 
     expect(captured[0]).toEqual([
-      jasmine.objectContaining({
-        attributes: jasmine.objectContaining({
-          'resource-url': jasmine.stringMatching(/^\/percy\.\d+\.log$/)
-        })
-      }),
       jasmine.objectContaining({
         attributes: jasmine.objectContaining({
           'resource-url': 'http://localhost:8000/'
@@ -695,11 +692,6 @@ describe('Discovery', () => {
     expect(captured[0]).toEqual([
       jasmine.objectContaining({
         attributes: jasmine.objectContaining({
-          'resource-url': jasmine.stringMatching(/^\/percy\.\d+\.log$/)
-        })
-      }),
-      jasmine.objectContaining({
-        attributes: jasmine.objectContaining({
           'resource-url': 'http://localhost:8000/'
         })
       }),
@@ -728,11 +720,6 @@ describe('Discovery', () => {
       await percy.idle();
 
       expect(captured[0]).toEqual([
-        jasmine.objectContaining({
-          attributes: jasmine.objectContaining({
-            'resource-url': jasmine.stringMatching(/^\/percy\.\d+\.log$/)
-          })
-        }),
         jasmine.objectContaining({
           attributes: jasmine.objectContaining({
             'resource-url': 'http://localhost:8000/'
@@ -770,11 +757,6 @@ describe('Discovery', () => {
     await percy.idle();
 
     expect(captured[0]).toEqual([
-      jasmine.objectContaining({
-        attributes: jasmine.objectContaining({
-          'resource-url': jasmine.stringMatching(/^\/percy\.\d+\.log$/)
-        })
-      }),
       jasmine.objectContaining({
         attributes: jasmine.objectContaining({
           'resource-url': 'http://localhost:8000/'
@@ -927,11 +909,6 @@ describe('Discovery', () => {
     await percy.idle();
 
     expect(captured[0]).toEqual([
-      jasmine.objectContaining({
-        attributes: jasmine.objectContaining({
-          'resource-url': jasmine.stringMatching(/^\/percy\.\d+\.log$/)
-        })
-      }),
       jasmine.objectContaining({
         attributes: jasmine.objectContaining({
           'resource-url': 'http://localhost:8000/',
@@ -1317,7 +1294,6 @@ describe('Discovery', () => {
 
     expect(captured).toHaveSize(1);
     expect(captured[0].map(r => r.attributes['resource-url'])).toEqual([
-      jasmine.stringMatching(/\/percy\.\d+\.log$/),
       'http://localhost:8000/'
     ]);
 
@@ -2275,10 +2251,9 @@ describe('Discovery', () => {
       expect(paths.sort()).toEqual(['/img.gif', '/style.css']);
 
       // both snapshots' captured resources should match
-      // the first captured resource is the log file which is dynamic
+      expect(captured[0][0]).toEqual(captured[1][0]);
       expect(captured[0][1]).toEqual(captured[1][1]);
       expect(captured[0][2]).toEqual(captured[1][2]);
-      expect(captured[0][3]).toEqual(captured[1][3]);
     });
 
     it('does not cache resource requests when disabled', async () => {
@@ -2292,11 +2267,10 @@ describe('Discovery', () => {
       let paths = server.requests.map(r => r[0]);
       expect(paths.sort()).toEqual(['/img.gif', '/img.gif', '/style.css', '/style.css']);
 
-      // bot snapshots' captured resources should match
-      // the first captured resource is the log file which is dynamic
+      // both snapshots' captured resources should match
+      expect(captured[0][0]).toEqual(captured[1][0]);
       expect(captured[0][1]).toEqual(captured[1][1]);
       expect(captured[0][2]).toEqual(captured[1][2]);
-      expect(captured[0][3]).toEqual(captured[1][3]);
     });
 
     it('does not cache root resource', async () => {
@@ -2408,11 +2382,6 @@ describe('Discovery', () => {
       expect(captured[0]).toEqual([
         jasmine.objectContaining({
           attributes: jasmine.objectContaining({
-            'resource-url': jasmine.stringMatching(/^\/percy\.\d+\.log$/)
-          })
-        }),
-        jasmine.objectContaining({
-          attributes: jasmine.objectContaining({
             'resource-url': 'http://localhost:8000/'
           })
         }),
@@ -2518,11 +2487,6 @@ describe('Discovery', () => {
       expect(captured[0]).toEqual([
         jasmine.objectContaining({
           attributes: jasmine.objectContaining({
-            'resource-url': jasmine.stringMatching(/^\/percy\.\d+\.log$/)
-          })
-        }),
-        jasmine.objectContaining({
-          attributes: jasmine.objectContaining({
             'resource-url': 'http://localhost:8000/'
           })
         }),
@@ -2557,11 +2521,6 @@ describe('Discovery', () => {
       await percy.idle();
 
       expect(captured[0]).toEqual([
-        jasmine.objectContaining({
-          attributes: jasmine.objectContaining({
-            'resource-url': jasmine.stringMatching(/^\/percy\.\d+\.log$/)
-          })
-        }),
         jasmine.objectContaining({
           attributes: jasmine.objectContaining({
             'resource-url': 'http://localhost:8000/'

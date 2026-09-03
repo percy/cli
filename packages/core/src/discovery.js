@@ -7,7 +7,6 @@ import {
   createResource,
   createRootResource,
   createPercyCSSResource,
-  createLogResource,
   yieldAll,
   snapshotLogName,
   waitForTimeout,
@@ -216,10 +215,9 @@ function processSnapshotResources({ domSnapshot, resources, ...snapshot }) {
   // For multi dom root resources are stored as array
   resources = resources.flat();
 
-  // include associated snapshot logs matched by meta information
-  resources.push(createLogResource(logger.query(log => (
-    log.meta.snapshot?.testCase === snapshot.meta.snapshot.testCase && log.meta.snapshot?.name === snapshot.meta.snapshot.name
-  ))));
+  // The per-snapshot CLI log is no longer shipped as a resource; it is uploaded
+  // directly to the logs endpoint after the snapshot is created (see
+  // uploadSnapshotLog in snapshot.js), keyed by the snapshot id.
 
   if (process.env.PERCY_GZIP) {
     for (let index = 0; index < resources.length; index++) {
