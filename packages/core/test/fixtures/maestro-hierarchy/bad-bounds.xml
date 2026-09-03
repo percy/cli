@@ -1,0 +1,6 @@
+<?xml version='1.0' encoding='UTF-8' standalone='yes' ?>
+<hierarchy rotation="0">
+  <node class="android.widget.FrameLayout" bounds="junk" resource-id="com.example:id/broken" text="" content-desc=""/>
+  <node class="android.widget.TextView" bounds="[500,500][500,500]" resource-id="com.example:id/zero_area" text="" content-desc=""/>
+  <node class="android.widget.TextView" bounds="[-50,-100][200,300]" resource-id="com.example:id/clipped" text="" content-desc=""/>
+</hierarchy>

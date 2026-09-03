@@ -7,6 +7,9 @@ export const configSchema = {
       deferUploads: {
         type: 'boolean'
       },
+      archiveDir: {
+        type: 'string'
+      },
       useSystemProxy: {
         type: 'boolean',
         default: false
@@ -131,6 +134,48 @@ export const configSchema = {
       },
       sync: {
         type: 'boolean'
+      },
+      readiness: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          preset: { type: 'string', enum: ['balanced', 'strict', 'fast', 'disabled'] },
+          stabilityWindowMs: { type: 'integer', minimum: 50, maximum: 30000 },
+          jsIdleWindowMs: { type: 'integer', minimum: 50, maximum: 30000 },
+          networkIdleWindowMs: { type: 'integer', minimum: 50, maximum: 10000 },
+          timeoutMs: { type: 'integer', minimum: 1000, maximum: 60000 },
+          domStability: { type: 'boolean' },
+          imageReady: { type: 'boolean' },
+          fontReady: { type: 'boolean' },
+          jsIdle: { type: 'boolean' },
+          readySelectors: {
+            type: 'array',
+            items: {
+              oneOf: [
+                { type: 'string' },
+                {
+                  type: 'object',
+                  additionalProperties: false,
+                  properties: { css: { type: 'string' }, xpath: { type: 'string' } }
+                }
+              ]
+            }
+          },
+          notPresentSelectors: {
+            type: 'array',
+            items: {
+              oneOf: [
+                { type: 'string' },
+                {
+                  type: 'object',
+                  additionalProperties: false,
+                  properties: { css: { type: 'string' }, xpath: { type: 'string' } }
+                }
+              ]
+            }
+          },
+          maxTimeoutMs: { type: 'integer', minimum: 1000, maximum: 60000 }
+        }
       },
       responsiveSnapshotCapture: {
         type: 'boolean',
@@ -284,6 +329,18 @@ export const configSchema = {
         type: 'boolean',
         default: false
       },
+      ignoreIframeSelectors: {
+        type: 'array',
+        default: [],
+        items: {
+          type: 'string',
+          minLength: 1
+        }
+      },
+      enablePseudoClassSerialization: {
+        type: 'boolean',
+        default: false
+      },
       pseudoClassEnabledElements: {
         type: 'object',
         additionalProperties: false,
@@ -369,6 +426,13 @@ export const configSchema = {
       disableCache: {
         type: 'boolean'
       },
+      maxCacheRam: {
+        // 0 has no meaningful semantics — it's neither "unbounded" (use null)
+        // nor "disabled" (use --disable-cache). Reject it at schema time so the
+        // discovery clamp doesn't silently bump it to 25MB.
+        type: ['integer', 'null'],
+        minimum: 1
+      },
       captureMockedServiceWorker: {
         type: 'boolean',
         default: false
@@ -429,9 +493,12 @@ export const configSchema = {
         type: 'object',
         additionalProperties: false,
         properties: {
-          executable: { type: 'string' },
+          // httpReadOnly: never settable over /percy/config — accepting these would let any
+          // local process execute arbitrary code as the Percy user via flags like
+          // --renderer-cmd-prefix / --gpu-launcher. Must be set via static config or CLI.
+          executable: { type: 'string', httpReadOnly: true },
           timeout: { type: 'integer' },
-          args: { type: 'array', items: { type: 'string' } },
+          args: { type: 'array', items: { type: 'string' }, httpReadOnly: true },
           headless: { type: 'boolean' },
           closeBrowser: { type: 'boolean', default: true }
         }
@@ -489,10 +556,16 @@ export const snapshotSchema = {
         domTransformation: { $ref: '/config/snapshot#/properties/domTransformation' },
         enableLayout: { $ref: '/config/snapshot#/properties/enableLayout' },
         sync: { $ref: '/config/snapshot#/properties/sync' },
+        readiness: { $ref: '/config/snapshot#/properties/readiness' },
         responsiveSnapshotCapture: { $ref: '/config/snapshot#/properties/responsiveSnapshotCapture' },
         testCase: { $ref: '/config/snapshot#/properties/testCase' },
         labels: { $ref: '/config/snapshot#/properties/labels' },
         thTestCaseExecutionId: { $ref: '/config/snapshot#/properties/thTestCaseExecutionId' },
+        // IntelliStory: injected per-snapshot by @percy/storybook so the API can
+        // do affected-story selection server-side. `storybookPath` is the
+        // project-relative path of the story's source module.
+        intelliStory: { type: 'boolean' },
+        storybookPath: { type: 'string' },
         browsers: { $ref: '/config/snapshot#/properties/browsers' },
         reshuffleInvalidTags: { $ref: '/config/snapshot#/properties/reshuffleInvalidTags' },
         regions: { $ref: '/config/snapshot#/properties/regions' },
@@ -501,6 +574,8 @@ export const snapshotSchema = {
         scopeOptions: { $ref: '/config/snapshot#/properties/scopeOptions' },
         ignoreCanvasSerializationErrors: { $ref: '/config/snapshot#/properties/ignoreCanvasSerializationErrors' },
         ignoreStyleSheetSerializationErrors: { $ref: '/config/snapshot#/properties/ignoreStyleSheetSerializationErrors' },
+        ignoreIframeSelectors: { $ref: '/config/snapshot#/properties/ignoreIframeSelectors' },
+        enablePseudoClassSerialization: { $ref: '/config/snapshot#/properties/enablePseudoClassSerialization' },
         pseudoClassEnabledElements: { $ref: '/config/snapshot#/properties/pseudoClassEnabledElements' },
         discovery: {
           type: 'object',
@@ -681,6 +756,13 @@ export const snapshotSchema = {
               hints: {
                 type: 'array',
                 items: { type: 'string' }
+              },
+              readiness_diagnostics: {
+                type: 'object',
+                normalize: false,
+                description: 'Diagnostics from readiness checks run before serialization. ' +
+                  'normalize: false preserves the snake_case wire format the SDKs send (timed_out, ' +
+                  'total_duration_ms, etc.) instead of camelCasing inner keys at validate time.'
               },
               corsIframes: {
                 type: 'array',

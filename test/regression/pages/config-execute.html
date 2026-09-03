@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Execute Regression Test</title>
+  <link rel="stylesheet" href="/assets/css/base.css">
+  <style>
+    #panel { display: none; background: #def7ec; border: 2px solid #0e9f6e; padding: 20px; margin-top: 12px; }
+    #counter { margin-top: 12px; font-family: monospace; font-size: 18px; }
+  </style>
+</head>
+<body>
+  <h1>Execute</h1>
+  <p>The panel below is hidden by default. The <code>execute</code> capture hook
+     reveals it (and mutates the counter) before the snapshot is serialized.</p>
+
+  <button id="reveal">Reveal</button>
+
+  <div id="panel">
+    <h2>Revealed Panel</h2>
+    <p>Shown by the execute hook prior to capture.</p>
+  </div>
+
+  <div id="counter">state: initial</div>
+</body>
+</html>

@@ -1,0 +1,11 @@
+<?xml version='1.0' encoding='UTF-8' standalone='yes' ?>
+<hierarchy rotation="0">
+  <node class="android.widget.FrameLayout" bounds="[0,0][1080,2400]" resource-id="" text="" content-desc="" hintText="" NAF="false" visible-to-user="true">
+    <node class="android.widget.LinearLayout" bounds="[0,0][1080,200]" resource-id="com.example:id/header" text="" content-desc="Header" hintText="" NAF="false" visible-to-user="true">
+      <node class="android.widget.TextView" bounds="[40,50][500,150]" resource-id="com.example:id/clock" text="12:34" content-desc="Current time" hintText="" NAF="false" visible-to-user="true"/>
+      <node class="android.widget.Button" bounds="[900,50][1040,150]" resource-id="com.example:id/settings_btn" text="Settings" content-desc="Open settings" hintText="" NAF="false" visible-to-user="true"/>
+    </node>
+    <node class="android.widget.TextView" bounds="[0,200][1080,400]" resource-id="" text="Submit" content-desc="" hintText="" NAF="false" visible-to-user="true"/>
+    <node class="android.widget.TextView" bounds="[0,400][1080,600]" resource-id="" text="Submit" content-desc="" hintText="" NAF="false" visible-to-user="true"/>
+  </node>
+</hierarchy>

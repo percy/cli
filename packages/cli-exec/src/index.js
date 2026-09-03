@@ -2,3 +2,7 @@ export { default, exec } from './exec.js';
 export { start } from './start.js';
 export { stop } from './stop.js';
 export { ping } from './ping.js';
+export { replay } from './replay.js';
+// Baseline seeding building blocks, reused by SDK-contributed setup commands
+// (e.g. @percy/playwright's `percy playwright:setup-baseline`).
+export { findBaselineProvider, maybeSeedBaseline, uploadBaselines } from './baseline.js';

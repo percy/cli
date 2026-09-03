@@ -104,6 +104,7 @@ describe('Built-in flags:', () => {
         --disallowed-hostname <hostname>   Disallowed hostnames to abort in asset discovery
         -t, --network-idle-timeout <ms>    Asset discovery network idle timeout
         --disable-cache                    Disable asset discovery caches
+        --max-cache-ram <integer>          Cap asset-discovery cache memory in MB (e.g. 300)
         --debug                            Debug asset discovery and do not upload snapshots
     `);
 

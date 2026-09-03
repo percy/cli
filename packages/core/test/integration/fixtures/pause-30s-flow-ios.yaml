@@ -1,0 +1,21 @@
+# iOS Maestro flow that holds the device active for ~30s while the
+# concurrent-access harness (../maestro-hierarchy-ios-http-concurrent.harness.js)
+# repeatedly calls runIosHttpDump against Maestro's iOS XCTestRunner
+# /viewHierarchy endpoint. Exercises the realistic concurrent scenario: an
+# active Maestro flow running while Percy CLI probes the runner.
+#
+# Pause primitive: extendedWaitUntil with an impossible selector. Maestro's
+# iOS driver implements extendedWaitUntil as a polling loop that calls
+# viewHierarchy() repeatedly. With an unmatched selector the loop runs the
+# full configured timeout — every iteration calls the runner.
+#
+# Maestro's expected behavior: assertion fails on timeout, flow exits non-zero.
+# The harness treats that exit as "pause window ended" and swallows it.
+
+appId: com.example.calculator   # Override at runtime via --env appId=<bundleId>
+---
+- runScript: scripts/percy-pause-sentinel.js
+- extendedWaitUntil:
+    visible:
+      id: "__percy_harness_never_matches__"
+    timeout: 30000

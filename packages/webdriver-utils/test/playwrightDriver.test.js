@@ -86,6 +86,18 @@ describe('PlaywrightDriver', () => {
       expect(response).toEqual({ value: 'mockVal' });
     });
 
+    it('should use PERCY_CDP_DOMAIN when set', async () => {
+      process.env.PERCY_CDP_DOMAIN = 'cdp-k8s-devpercyplat.bsstag.com';
+      try {
+        const command = { script: 'console.log("Hello, World!")', args: [] };
+        await driver.executeScript(command);
+        const baseUrl = `https://cdp-k8s-devpercyplat.bsstag.com/wd/hub/session/${sessionId}/execute`;
+        expect(requestSpy).toHaveBeenCalledWith(baseUrl, jasmine.any(Object));
+      } finally {
+        delete process.env.PERCY_CDP_DOMAIN;
+      }
+    });
+
     it('should handle request error and re-throw', async () => {
       requestSpy.and.returnValue(Promise.reject(new Error('Request failed')));
       const command = { script: 'console.log("Hello, World!")', args: [] };

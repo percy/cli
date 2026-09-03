@@ -1,14 +1,26 @@
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
+import { execFileSync } from 'child_process';
 import spawn from 'cross-spawn';
 import EventEmitter from 'events';
 import WebSocket from 'ws';
 import rimraf from 'rimraf';
 import logger from '@percy/logger';
 import install from './install.js';
-import Session from './session.js';
+import { MAX_CDP_PAYLOAD } from './network.js';
+import Session, { cdpTimeout, cdpTimeoutMessage } from './session.js';
 import Page from './page.js';
+
+// Chrome features Percy disables for v143 new-headless asset discovery.
+const DISABLED_FEATURES = [
+  'Translate', // suppress translate prompt overlay
+  'OptimizationGuideModelDownloading', // suppress background model fetches
+  'IsolateOrigins', // [headless-only] keep cross-origin sub-resources on the page session for CDP capture
+  'site-per-process', // companion to IsolateOrigins
+  'HttpsFirstBalancedModeAutoEnable', // allow HTTP customer URLs (CI / local dev / staging)
+  'LocalNetworkAccessChecks' // allow loopback/RFC1918 sub-resources (Chrome 143 LNA gating)
+];
 
 export class Browser extends EventEmitter {
   log = logger('core:browser');
@@ -20,8 +32,7 @@ export class Browser extends EventEmitter {
   #lastid = 0;
 
   args = [
-    // disable the translate popup and optimization downloads
-    '--disable-features=Translate,OptimizationGuideModelDownloading',
+    `--disable-features=${DISABLED_FEATURES.join(',')}`,
     // disable several subsystems which run network requests in the background
     '--disable-background-networking',
     // disable task throttling of timer tasks from background pages
@@ -102,8 +113,15 @@ export class Browser extends EventEmitter {
     for (let a of args) if (!this.args.includes(a)) this.args.push(a);
     this.args.push(`--user-data-dir=${this.profile}`);
 
-    // spawn the browser process and connect a websocket to the devtools address
-    this.ws = new WebSocket(await this.spawn(timeout), { perMessageDeflate: false });
+    // spawn the browser process and connect a websocket to the devtools address.
+    // Bump maxPayload above the ws default (100 MB) — Network.getResponseBody
+    // returns binary bodies as base64 (+33%), so a 50 MB raw body becomes ~67 MB
+    // on the wire; framing pushes it close to the default. MAX_CDP_PAYLOAD leaves
+    // headroom for the PERCY_GZIP raw ceiling (see MAX_RAW_RESOURCE_SIZE_WITH_GZIP).
+    this.ws = new WebSocket(await this.spawn(timeout), {
+      perMessageDeflate: false,
+      maxPayload: MAX_CDP_PAYLOAD
+    });
 
     // wait until the websocket has connected
     await new Promise(resolve => this.ws.once('open', resolve));
@@ -134,6 +152,7 @@ export class Browser extends EventEmitter {
     // Reset state for fresh launch
     this.readyState = null;
     this._closed = null;
+    // close() above already cleared every pending callback and its deadline
     this.#callbacks.clear();
     this.sessions.clear();
 
@@ -186,6 +205,7 @@ export class Browser extends EventEmitter {
 
     // reject any pending callbacks
     for (let callback of this.#callbacks.values()) {
+      clearTimeout(callback.timer);
       callback.reject(Object.assign(callback.error, {
         message: `Protocol error (${callback.method}): Browser closed.`
       }));
@@ -203,9 +223,32 @@ export class Browser extends EventEmitter {
     /* istanbul ignore next:
      *   difficult to test failure here without mocking private properties */
     if (this.process?.pid && !this.process.killed) {
-      // always force close the browser process
-      try { this.process.kill('SIGKILL'); } catch (error) {
-        throw new Error(`Unable to close the browser: ${error.stack}`);
+      // Force-close the entire browser process tree, not just the lead
+      // pid. Chromium spawns
+      // renderer/utility/zygote children; targeting only the lead pid
+      // (the previous behavior) leaked them on every kill.
+      //
+      // Convention matches Puppeteer / Playwright: shell out to
+      // `taskkill /T /F` on Windows; on POSIX the spawn at line ~266
+      // sets `detached: true` so child.pid === pgid and a negative
+      // pid signals the entire process group.
+      try {
+        if (process.platform === 'win32') {
+          // Use execFileSync (no shell) so the pid argument is passed
+          // directly without interpolation — defense-in-depth against
+          // any future drift where this.process.pid isn't a clean int.
+          execFileSync('taskkill', ['/pid', String(this.process.pid), '/T', '/F'], { stdio: 'ignore' });
+        } else {
+          process.kill(-this.process.pid, 'SIGKILL');
+        }
+      } catch (error) {
+        // taskkill returns 128 if the process is already gone; the
+        // POSIX branch may also throw ESRCH for the same reason. Fall
+        // back to the lead-pid kill so a missing process doesn't
+        // wedge `_closed`.
+        try { this.process.kill('SIGKILL'); } catch (fallbackErr) {
+          throw new Error(`Unable to close the browser: ${error.stack}`);
+        }
       }
     }
 
@@ -253,9 +296,26 @@ export class Browser extends EventEmitter {
       // send the message payload
       this.ws.send(JSON.stringify({ id, method, params }));
 
-      // will resolve or reject when a matching response is received
+      // will resolve or reject when a matching response is received, or when
+      // the deadline below expires because no response is ever coming. The
+      // browser process can go silent the same way a renderer can - target
+      // creation and attachment strand here otherwise, before any page exists.
       return new Promise((resolve, reject) => {
-        this.#callbacks.set(id, { error: new Error(), resolve, reject, method });
+        let callback = { error: new Error(), resolve, reject, method };
+        let timeout = cdpTimeout();
+
+        if (timeout > 0) {
+          callback.timer = setTimeout(() => {
+            this.#callbacks.delete(id);
+            this.log.debug(`Protocol timeout (${method}) after ${timeout}ms`);
+
+            reject(Object.assign(callback.error, {
+              message: cdpTimeoutMessage(method, timeout)
+            }));
+          }, timeout);
+        }
+
+        this.#callbacks.set(id, callback);
       });
     }
   }
@@ -276,9 +336,11 @@ export class Browser extends EventEmitter {
         if (match) cleanup(() => resolve(match[1]));
       };
 
-      let handleExitClose = () => handleError();
+      let handleExitClose = () => handleError(
+        new Error('Browser exited before devtools address')
+      );
       let handleError = error => cleanup(() => reject(new Error(
-        `Failed to launch browser. ${error?.message ?? ''}\n${stderr}'\n\n`
+        `Failed to launch browser. ${error.message}\n${stderr}'\n\n`
       )));
 
       let cleanup = callback => {
@@ -325,6 +387,7 @@ export class Browser extends EventEmitter {
       // resolve or reject a pending promise created with #send()
       let callback = this.#callbacks.get(data.id);
       this.#callbacks.delete(data.id);
+      clearTimeout(callback.timer);
 
       /* istanbul ignore next: races with page._handleMessage() */
       if (data.error) {

@@ -1,3 +1,63 @@
 packages/core/src/secretPatterns.yml
 packages/dom/test/serialize-pseudo-classes.test.js
 test/regression/server.js
+
+# PER-7855 Phase 2: lock.js builds a per-port path of shape
+# ~/.percy/agent-<port>.lock after validating that <port> is an
+# integer in the TCP range [0, 65535]. semgrep's
+# javascript.lang.security.audit.path-traversal.path-join-resolve-traversal
+# rule does not follow the Number.isInteger validation chain and
+# flags the resulting path.join() as a sink. The guard is in place
+# upstream of the join — suppress at the file level with this
+# rationale.
+packages/core/src/lock.js
+
+# archive.js owns its own path-traversal guard: validateArchiveDir
+# resolves and normalizes the input then rejects any `..` segments
+# before the join/resolve calls in archiveSnapshot/readArchivedSnapshots
+# run. The path-join-resolve-traversal rule does not follow the guard
+# (the resolve happens *inside* validateArchiveDir itself) so it flags
+# every join. Suppress at the file level with this rationale.
+packages/core/src/archive.js
+
+# maestro-screenshot-file.js owns the screenshot-location path joins. The
+# handleMaestroScreenshot handler validates `name`/`sessionId` against
+# /^[a-zA-Z0-9_-]+$/ (SAFE_ID) and rejects traversal sequences with 400 BEFORE
+# calling locateScreenshot(); the fallback walker (manualScreenshotWalk) is
+# additionally depth-capped at 15 levels, and the realpath + scopeRoot prefix
+# check enforces containment. semgrep's path-join-resolve-traversal rule cannot
+# follow that validation chain across the module boundary, so it flags the joins
+# inside manualScreenshotWalk. Inline `// nosemgrep` is not honored by the CI
+# semgrep version — suppress at the file level with this rationale.
+packages/core/src/maestro-screenshot-file.js
+
+# api.js: createStaticServer builds an automatic sitemap by joining the
+# operator-provided `baseUrl` config with locally-globbed `*.html` filenames via
+# `path.posix.join('/', baseUrl, …)` (sitemap-URL construction, not a filesystem
+# read of external request input). semgrep's path-join-resolve-traversal rule
+# flags the join regardless of the trusted sources. Inline `// nosemgrep` is not
+# honored by the CI semgrep version — suppress at the file level with this
+# rationale.
+packages/core/src/api.js
+
+# Test files load fixtures from hardcoded subpaths under
+# test/fixtures/maestro-{hierarchy,ios-hierarchy}. The fixture filenames
+# are static literals in each test; semgrep flags the path.join() used
+# in the file-load helper anyway. No user input flows here.
+packages/core/test/unit/maestro-hierarchy.test.js
+packages/core/test/unit/maestro-hierarchy.parity.test.js
+
+# intelliStory.js joins/resolves paths for the affected-story graph from
+# trusted, locally-derived sources: buildDir/manifestDir come from the CLI
+# config, projectRoot from `git rev-parse --show-toplevel`, and the stats
+# filename is validated to a bare `.json` basename (/^[\w.-]+\.json$/) before
+# any join. No external request input reaches these paths. semgrep's
+# path-join-resolve-traversal rule cannot follow those validations, and inline
+# `// nosemgrep` is not honored by the CI semgrep version — suppress at the
+# file level with this rationale.
+packages/cli-command/src/intelliStory.js
+
+# noRequireBinding.test.js walks repo source files by hardcoded relative paths
+# to assert no `require()` bindings leak in; the traversal roots are static
+# literals, no user input flows here. semgrep flags the path.join() anyway.
+packages/cli-command/test/noRequireBinding.test.js

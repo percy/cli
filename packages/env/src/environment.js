@@ -23,6 +23,8 @@ export class PercyEnv {
       return 'circle';
     } else if (this.vars.CI_NAME === 'codeship') {
       return 'codeship';
+    } else if (this.vars.CI_SYSTEM_NAME === 'woodpecker' || this.vars.CI === 'woodpecker') {
+      return 'woodpecker';
     } else if (this.vars.DRONE === 'true') {
       return 'drone';
     } else if (this.vars.SEMAPHORE === 'true') {
@@ -47,6 +49,28 @@ export class PercyEnv {
       return 'netlify';
     } else if (this.vars.HARNESS_PROJECT_ID) {
       return 'harness';
+    } else if (this.vars.TEAMCITY_VERSION) {
+      return 'teamcity';
+    } else if (this.vars.CODEBUILD_BUILD_ID) {
+      return 'aws-codebuild';
+    } else if (this.vars.bamboo_buildKey) {
+      return 'bamboo';
+    } else if (this.vars.BITRISE_IO === 'true') {
+      return 'bitrise';
+    } else if (this.vars.CM_BUILD_ID) {
+      return 'codemagic';
+    } else if (this.vars.VERCEL === '1') {
+      return 'vercel';
+    } else if (this.vars.CF_PAGES === '1') {
+      return 'cloudflare-pages';
+    } else if (this.vars.GO_PIPELINE_NAME && this.vars.GO_SERVER_URL) {
+      return 'gocd';
+    } else if (this.vars.BUILD_ID && this.vars.PROJECT_ID && !this.vars.JENKINS_URL) {
+      return 'gcb';
+    } else if (this.vars.TEKTON_PIPELINE_RUN) {
+      return 'tekton';
+    } else if (this.vars.ARGO_WORKFLOW_NAME) {
+      return 'argo-workflows';
     } else if (this.vars.CI) {
       return 'CI/unknown';
     } else {
@@ -109,6 +133,30 @@ export class PercyEnv {
           return github(this.vars).pull_request?.head.sha || this.vars.GITHUB_SHA;
         case 'harness':
           return this.vars.DRONE_COMMIT_SHA;
+        case 'woodpecker':
+          return this.vars.CI_COMMIT_SHA;
+        case 'teamcity':
+          return this.vars.BUILD_VCS_NUMBER;
+        case 'aws-codebuild':
+          return this.vars.CODEBUILD_RESOLVED_SOURCE_VERSION;
+        case 'bamboo':
+          return this.vars.bamboo_planRepository_revision;
+        case 'bitrise':
+          return this.vars.BITRISE_GIT_COMMIT;
+        case 'codemagic':
+          return this.vars.CM_COMMIT;
+        case 'vercel':
+          return this.vars.VERCEL_GIT_COMMIT_SHA;
+        case 'cloudflare-pages':
+          return this.vars.CF_PAGES_COMMIT_SHA;
+        case 'gocd':
+          return this.vars.GO_REVISION;
+        case 'gcb':
+          return this.vars.COMMIT_SHA;
+        case 'tekton':
+          return this.vars.TEKTON_COMMIT_SHA;
+        case 'argo-workflows':
+          return this.vars.ARGO_COMMIT_SHA;
       }
     })();
 
@@ -157,6 +205,26 @@ export class PercyEnv {
           return this.vars.HEAD;
         case 'harness':
           return this.vars.DRONE_SOURCE_BRANCH || this.vars.DRONE_COMMIT_BRANCH;
+        case 'woodpecker':
+          return this.vars.CI_COMMIT_BRANCH;
+        case 'aws-codebuild':
+          return this.vars.CODEBUILD_WEBHOOK_HEAD_REF;
+        case 'bamboo':
+          return this.vars.bamboo_planRepository_branchName;
+        case 'bitrise':
+          return this.vars.BITRISE_GIT_BRANCH;
+        case 'codemagic':
+          return this.vars.CM_BRANCH;
+        case 'vercel':
+          return this.vars.VERCEL_GIT_COMMIT_REF;
+        case 'cloudflare-pages':
+          return this.vars.CF_PAGES_BRANCH;
+        case 'gcb':
+          return this.vars.BRANCH_NAME;
+        case 'tekton':
+          return this.vars.TEKTON_BRANCH;
+        case 'argo-workflows':
+          return this.vars.ARGO_BRANCH;
       }
     })();
 
@@ -203,6 +271,24 @@ export class PercyEnv {
           return github(this.vars).pull_request?.number;
         case 'harness':
           return this.vars.DRONE_BUILD_EVENT === 'pull_request' && this.vars.DRONE_COMMIT_LINK?.split('/').slice(-1)[0];
+        case 'woodpecker':
+          return this.vars.CI_PIPELINE_EVENT === 'pull_request' && this.vars.CI_COMMIT_PULL_REQUEST;
+        case 'aws-codebuild':
+          return this.vars.CODEBUILD_WEBHOOK_TRIGGER?.match(/^pr\/(\d+)$/)?.[1];
+        case 'bamboo':
+          return this.vars.bamboo_repository_pr_key;
+        case 'bitrise':
+          return this.vars.BITRISE_PULL_REQUEST;
+        case 'codemagic':
+          return this.vars.CM_PULL_REQUEST === 'true' && this.vars.CM_PULL_REQUEST_NUMBER;
+        case 'vercel':
+          return this.vars.VERCEL_GIT_PULL_REQUEST_ID;
+        case 'gcb':
+          return this.vars._PR_NUMBER;
+        case 'tekton':
+          return this.vars.TEKTON_PULL_REQUEST;
+        case 'argo-workflows':
+          return this.vars.ARGO_PULL_REQUEST;
       }
     })();
 
@@ -261,6 +347,32 @@ export class PercyEnv {
           return this.vars.GITHUB_RUN_ID;
         case 'harness':
           return this.vars.HARNESS_BUILD_ID;
+        case 'woodpecker':
+          return this.vars.CI_PIPELINE_NUMBER;
+        case 'teamcity':
+          return this.vars.BUILD_NUMBER;
+        case 'aws-codebuild':
+          return this.vars.CODEBUILD_BUILD_ID;
+        case 'bamboo':
+          return this.vars.bamboo_buildResultKey;
+        case 'bitrise':
+          return this.vars.BITRISE_BUILD_NUMBER;
+        case 'codemagic':
+          return this.vars.CM_BUILD_ID;
+        case 'vercel':
+          return this.vars.VERCEL_DEPLOYMENT_ID;
+        case 'cloudflare-pages':
+          return this.vars.CF_PAGES_COMMIT_SHA || null;
+        case 'gocd':
+          return this.vars.GO_PIPELINE_COUNTER && this.vars.GO_STAGE_COUNTER
+            ? `${this.vars.GO_PIPELINE_COUNTER}.${this.vars.GO_STAGE_COUNTER}`
+            : this.vars.GO_PIPELINE_COUNTER;
+        case 'gcb':
+          return this.vars.BUILD_ID;
+        case 'tekton':
+          return this.vars.TEKTON_PIPELINE_RUN;
+        case 'argo-workflows':
+          return this.vars.ARGO_WORKFLOW_UID || this.vars.ARGO_WORKFLOW_NAME;
       }
     })();
 

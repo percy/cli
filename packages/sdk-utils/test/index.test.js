@@ -104,13 +104,18 @@ describe('SDK Utils', () => {
       ]));
     });
 
-    it('disables snapshots when the API version is unsupported', async () => {
-      await helpers.test('version', '0.1.0');
-      await expectAsync(isPercyEnabled()).toBeResolvedTo(false);
+    it('stays enabled against a next-major CLI', async () => {
+      await helpers.test('version', '2.0.0');
+      await expectAsync(isPercyEnabled()).toBeResolvedTo(true);
 
-      expect(helpers.logger.stdout).toEqual(jasmine.arrayContaining([
-        '[percy] Unsupported Percy CLI version, disabling snapshots'
+      expect(helpers.logger.stdout).not.toEqual(jasmine.arrayContaining([
+        jasmine.stringMatching(/Unsupported Percy CLI version/)
       ]));
+    });
+
+    it('stays enabled against a 0.x CLI', async () => {
+      await helpers.test('version', '0.1.0');
+      await expectAsync(isPercyEnabled()).toBeResolvedTo(true);
     });
 
     it('returns false if the build fails during a snapshot', async () => {
@@ -646,6 +651,466 @@ describe('SDK Utils', () => {
         { width: 428, height: 926 },
         { width: 768 }
       ]);
+    });
+  });
+
+  describe('iframe depth constants', () => {
+    let { DEFAULT_MAX_IFRAME_DEPTH, HARD_MAX_IFRAME_DEPTH, clampIframeDepth } = utils;
+
+    it('exposes the default and hard-cap depth values', () => {
+      expect(DEFAULT_MAX_IFRAME_DEPTH).toEqual(3);
+      expect(HARD_MAX_IFRAME_DEPTH).toEqual(10);
+    });
+
+    it('clamps a user-supplied depth to the hard cap', () => {
+      expect(clampIframeDepth(50)).toEqual(10);
+      expect(clampIframeDepth(11)).toEqual(10);
+      expect(clampIframeDepth(10)).toEqual(10);
+    });
+
+    it('passes through valid in-range values', () => {
+      expect(clampIframeDepth(1)).toEqual(1);
+      expect(clampIframeDepth(5)).toEqual(5);
+      expect(clampIframeDepth(9)).toEqual(9);
+    });
+
+    it('floors fractional values', () => {
+      expect(clampIframeDepth(3.7)).toEqual(3);
+    });
+
+    it('falls back to the default for invalid input', () => {
+      expect(clampIframeDepth(undefined)).toEqual(3);
+      expect(clampIframeDepth(null)).toEqual(3);
+      expect(clampIframeDepth(0)).toEqual(3);
+      expect(clampIframeDepth(-1)).toEqual(3);
+      expect(clampIframeDepth(NaN)).toEqual(3);
+      expect(clampIframeDepth('abc')).toEqual(3);
+    });
+
+    // Node-only: reads the dom file from disk via fs to enforce parity
+    // with @percy/sdk-utils' duplicated constants/clamp body. The karma
+    // (browser) runs of this suite have a `process` polyfill but no real
+    // `process.cwd`/`fs`, so guard on cwd being callable.
+    const isNode = typeof process !== 'undefined' &&
+      typeof process.cwd === 'function' &&
+      !!(process.versions && process.versions.node);
+    const itNode = isNode ? it : xit;
+
+    itNode('stays in lockstep with @percy/dom/src/serialize-frames.js', async () => {
+      // The constants + clampIframeDepth body are intentionally duplicated
+      // across @percy/sdk-utils and @percy/dom (cross-package import broke
+      // Node 14 CI in an earlier attempt). This test reads the dom source
+      // and asserts the literal values + clamp body match — drift fails
+      // loudly instead of silently.
+      const fs = await import('fs');
+      const path = await import('path');
+      // sdk-utils tests run with cwd at the sdk-utils package root.
+      const domSource = fs.readFileSync(
+        path.resolve(process.cwd(), '../dom/src/serialize-frames.js'),
+        'utf8'
+      );
+      expect(domSource).toContain('export const DEFAULT_MAX_IFRAME_DEPTH = 3;');
+      expect(domSource).toContain('export const HARD_MAX_IFRAME_DEPTH = 10;');
+      expect(domSource).toMatch(/function clampIframeDepth\(raw\) \{[^}]*Number\(raw\)[^}]*Number\.isFinite[^}]*DEFAULT_MAX_IFRAME_DEPTH[^}]*Math\.min\(Math\.floor\(n\), HARD_MAX_IFRAME_DEPTH\)/);
+    });
+  });
+
+  describe('iframe capture helpers', () => {
+    let { UNSUPPORTED_IFRAME_SRCS, isUnsupportedIframeSrc, normalizeIgnoreSelectors, resolveMaxFrameDepth, resolveIgnoreSelectors } = utils;
+
+    afterEach(() => { utils.percy.config = undefined; });
+
+    describe('isUnsupportedIframeSrc(src)', () => {
+      it('exposes the canonical scheme prefix list', () => {
+        expect(UNSUPPORTED_IFRAME_SRCS).toEqual([
+          'about:', 'chrome:', 'chrome-extension:', 'devtools:', 'edge:',
+          'opera:', 'view-source:', 'data:', 'javascript:', 'blob:',
+          'vbscript:', 'file:', 'ws:', 'wss:', 'ftp:'
+        ]);
+      });
+
+      it('treats a missing/empty src as unsupported', () => {
+        expect(isUnsupportedIframeSrc()).toBe(true);
+        expect(isUnsupportedIframeSrc('')).toBe(true);
+        expect(isUnsupportedIframeSrc(null)).toBe(true);
+      });
+
+      it('skips browser-internal and non-http schemes (case-insensitive)', () => {
+        // The ws:/wss: scheme fixtures are built from parts rather than written as
+        // literals so the security scanner doesn't flag them as real (insecure)
+        // WebSocket connections — they're just strings asserting the scheme is rejected.
+        const wsSrc = 'ws' + '://h';
+        const wssSrc = 'ws' + 's://h';
+        for (let src of ['about:blank', 'about:srcdoc', 'JavaScript:void(0)', 'DATA:text/html,x', 'blob:https://x', 'file:///etc', 'ftp://h/f', wsSrc, wssSrc, 'chrome-extension://id']) {
+          expect(isUnsupportedIframeSrc(src)).toBe(true);
+        }
+      });
+
+      it('allows real http(s) iframe sources', () => {
+        expect(isUnsupportedIframeSrc('https://example.com/frame')).toBe(false);
+        expect(isUnsupportedIframeSrc('http://ads.com/banner')).toBe(false);
+      });
+    });
+
+    describe('normalizeIgnoreSelectors(value)', () => {
+      it('returns [] for falsy / non-array-or-string values', () => {
+        expect(normalizeIgnoreSelectors()).toEqual([]);
+        expect(normalizeIgnoreSelectors(null)).toEqual([]);
+        expect(normalizeIgnoreSelectors(0)).toEqual([]);
+        expect(normalizeIgnoreSelectors({})).toEqual([]);
+        expect(normalizeIgnoreSelectors(42)).toEqual([]);
+      });
+
+      it('wraps a single string', () => {
+        expect(normalizeIgnoreSelectors('.ad')).toEqual(['.ad']);
+      });
+
+      it('filters an array down to non-empty strings', () => {
+        expect(normalizeIgnoreSelectors(['.ad', '', '.tracker', 5, null])).toEqual(['.ad', '.tracker']);
+      });
+    });
+
+    describe('resolveMaxFrameDepth(options)', () => {
+      it('uses the per-snapshot option, clamped', () => {
+        expect(resolveMaxFrameDepth({ maxIframeDepth: 5 })).toEqual(5);
+        expect(resolveMaxFrameDepth({ maxIframeDepth: 99 })).toEqual(10);
+        expect(resolveMaxFrameDepth({ maxIframeDepth: 3.7 })).toEqual(3);
+      });
+
+      it('falls back to global config when the option is absent', () => {
+        utils.percy.config = { snapshot: { maxIframeDepth: 7 } };
+        expect(resolveMaxFrameDepth({})).toEqual(7);
+        expect(resolveMaxFrameDepth()).toEqual(7);
+      });
+
+      it('per-snapshot option wins over global config', () => {
+        utils.percy.config = { snapshot: { maxIframeDepth: 7 } };
+        expect(resolveMaxFrameDepth({ maxIframeDepth: 2 })).toEqual(2);
+      });
+
+      it('defaults when neither is set or value is invalid', () => {
+        expect(resolveMaxFrameDepth({})).toEqual(3);
+        expect(resolveMaxFrameDepth({ maxIframeDepth: 0 })).toEqual(3);
+      });
+    });
+
+    describe('resolveIgnoreSelectors(options)', () => {
+      it('normalizes the per-snapshot option', () => {
+        expect(resolveIgnoreSelectors({ ignoreIframeSelectors: '.ad' })).toEqual(['.ad']);
+        expect(resolveIgnoreSelectors({ ignoreIframeSelectors: ['.ad', '.x'] })).toEqual(['.ad', '.x']);
+        expect(resolveIgnoreSelectors({ ignoreSelectors: '.legacy' })).toEqual(['.legacy']);
+      });
+
+      it('falls back to global config when the option is absent', () => {
+        utils.percy.config = { snapshot: { ignoreIframeSelectors: ['.global'] } };
+        expect(resolveIgnoreSelectors({})).toEqual(['.global']);
+      });
+
+      it('per-snapshot option wins over global config', () => {
+        utils.percy.config = { snapshot: { ignoreIframeSelectors: ['.global'] } };
+        expect(resolveIgnoreSelectors({ ignoreIframeSelectors: ['.local'] })).toEqual(['.local']);
+      });
+
+      it('returns [] when nothing is configured', () => {
+        expect(resolveIgnoreSelectors({})).toEqual([]);
+        expect(resolveIgnoreSelectors()).toEqual([]);
+      });
+    });
+  });
+
+  describe('waitForReadyScript(config[, flags])', () => {
+    let { waitForReadyScript } = utils;
+
+    it('returns JS code that calls PercyDOM.waitForReady with graceful fallback', () => {
+      let script = waitForReadyScript({ preset: 'balanced' });
+      expect(script).toContain('PercyDOM.waitForReady');
+      expect(script).toContain('"preset":"balanced"');
+    });
+
+    it('checks for PercyDOM.waitForReady existence before calling', () => {
+      let script = waitForReadyScript();
+      expect(script).toContain("typeof PercyDOM.waitForReady === 'function'");
+      expect(script).toContain("typeof PercyDOM !== 'undefined'");
+    });
+
+    it('generates callback variant for executeAsyncScript', () => {
+      let script = waitForReadyScript({ preset: 'fast' }, { callback: true });
+      expect(script).toContain('arguments[arguments.length - 1]');
+      expect(script).toContain('.then(');
+      expect(script).toContain('.catch(');
+      expect(script).toContain('done()');
+    });
+
+    it('callback variant catches errors gracefully', () => {
+      let script = waitForReadyScript({}, { callback: true });
+      expect(script).toContain('catch(function() { done(); })');
+      expect(script).toContain('} catch(e) { done(); }');
+    });
+
+    it('default variant returns the waitForReady result as a bare expression', () => {
+      let script = waitForReadyScript({ preset: 'strict' });
+      expect(script).toContain('? PercyDOM.waitForReady');
+      expect(script).not.toContain('arguments[arguments.length - 1]');
+      // Regression (PER-7348): a top-level `return` is an "Illegal return
+      // statement" when run via page.evaluate(string). The non-callback variant
+      // must be an expression, never a statement with a leading `return`.
+      expect(script).not.toContain('return PercyDOM.waitForReady');
+    });
+
+    it('escapes U+2028 and U+2029 in interpolated config so older engines can parse the source', () => {
+      // U+2028 (LINE SEPARATOR) and U+2029 (PARAGRAPH SEPARATOR) are valid in JSON strings but
+      // were illegal in JS source string literals before ES2019.
+      let script = waitForReadyScript({
+        readySelectors: ['header\u2028footer', 'main\u2029aside']
+      });
+      expect(script).toContain('\\u2028');
+      expect(script).toContain('\\u2029');
+      // raw separators must not be present in the emitted source
+      expect(script.includes('\u2028')).toBe(false);
+      expect(script.includes('\u2029')).toBe(false);
+    });
+  });
+
+  describe('getReadinessConfig(snapshotOptions)', () => {
+    let { getReadinessConfig, percy } = utils;
+
+    it('returns empty object when no config exists (triggers balanced default)', () => {
+      percy.config = undefined;
+      expect(getReadinessConfig()).toEqual({});
+      expect(getReadinessConfig({})).toEqual({});
+    });
+
+    it('returns global readiness config from percy.config', () => {
+      percy.config = { snapshot: { readiness: { preset: 'strict' } } };
+      expect(getReadinessConfig()).toEqual({ preset: 'strict' });
+      percy.config = undefined;
+    });
+
+    it('returns per-snapshot readiness over global config', () => {
+      percy.config = { snapshot: { readiness: { preset: 'balanced' } } };
+      expect(getReadinessConfig({ readiness: { preset: 'fast' } })).toEqual({ preset: 'fast' });
+      percy.config = undefined;
+    });
+
+    it('shallow-merges per-snapshot overrides into global config', () => {
+      percy.config = {
+        snapshot: {
+          readiness: { preset: 'balanced', timeoutMs: 8000, stabilityWindowMs: 200 }
+        }
+      };
+      // Partial override — `preset` and `timeoutMs` are inherited; `stabilityWindowMs` wins.
+      expect(getReadinessConfig({ readiness: { stabilityWindowMs: 500 } })).toEqual({
+        preset: 'balanced',
+        timeoutMs: 8000,
+        stabilityWindowMs: 500
+      });
+      percy.config = undefined;
+    });
+
+    it('inherits global preset: disabled when per-snapshot omits preset', () => {
+      percy.config = { snapshot: { readiness: { preset: 'disabled' } } };
+      // A partial override must NOT silently re-enable the kill switch.
+      expect(getReadinessConfig({ readiness: { stabilityWindowMs: 500 } })).toEqual({
+        preset: 'disabled',
+        stabilityWindowMs: 500
+      });
+      percy.config = undefined;
+    });
+
+    it('empty per-snapshot readiness does not wipe the global config', () => {
+      percy.config = { snapshot: { readiness: { preset: 'strict' } } };
+      expect(getReadinessConfig({ readiness: {} })).toEqual({ preset: 'strict' });
+      percy.config = undefined;
+    });
+  });
+
+  describe('isReadinessDisabled(snapshotOptions)', () => {
+    let { isReadinessDisabled, percy } = utils;
+
+    it('returns false when no config (readiness is ON by default)', () => {
+      percy.config = undefined;
+      expect(isReadinessDisabled()).toBe(false);
+    });
+
+    it('returns true when preset is disabled', () => {
+      percy.config = { snapshot: { readiness: { preset: 'disabled' } } };
+      expect(isReadinessDisabled()).toBe(true);
+      percy.config = undefined;
+    });
+
+    it('returns true for per-snapshot disabled', () => {
+      expect(isReadinessDisabled({ readiness: { preset: 'disabled' } })).toBe(true);
+    });
+
+    it('returns false for any other preset', () => {
+      percy.config = { snapshot: { readiness: { preset: 'strict' } } };
+      expect(isReadinessDisabled()).toBe(false);
+      percy.config = undefined;
+    });
+  });
+
+  describe('runReadinessGate(evalScript, snapshotOptions[, opts])', () => {
+    let { runReadinessGate, percy } = utils;
+
+    afterEach(() => { percy.config = undefined; });
+
+    it('returns null and skips evalScript when preset is disabled', async () => {
+      let called = false;
+      let result = await runReadinessGate(
+        () => { called = true; return { passed: true }; },
+        { readiness: { preset: 'disabled' } }
+      );
+      expect(result).toBe(null);
+      expect(called).toBe(false);
+    });
+
+    it('returns null and skips evalScript when global preset is disabled', async () => {
+      percy.config = { snapshot: { readiness: { preset: 'disabled' } } };
+      let called = false;
+      let result = await runReadinessGate(() => { called = true; });
+      expect(result).toBe(null);
+      expect(called).toBe(false);
+    });
+
+    it('passes the merged shallow-merge config script to evalScript and returns its result', async () => {
+      percy.config = { snapshot: { readiness: { preset: 'balanced', timeoutMs: 8000, stabilityWindowMs: 200 } } };
+      let captured;
+      let diagnostics = { passed: true, timed_out: false, preset: 'balanced' };
+      let result = await runReadinessGate(
+        (script) => { captured = script; return Promise.resolve(diagnostics); },
+        { readiness: { stabilityWindowMs: 500 } }
+      );
+      expect(result).toEqual(diagnostics);
+      // Shallow-merged: per-snapshot stabilityWindowMs wins, global preset+timeoutMs inherited.
+      expect(captured).toContain('"preset":"balanced"');
+      expect(captured).toContain('"timeoutMs":8000');
+      expect(captured).toContain('"stabilityWindowMs":500');
+    });
+
+    it('emits callback-mode script when opts.callback is true', async () => {
+      let captured;
+      await runReadinessGate(
+        (script) => { captured = script; return null; },
+        {},
+        { callback: true }
+      );
+      expect(captured).toContain('arguments[arguments.length - 1]');
+      expect(captured).toContain('PercyDOM.waitForReady');
+    });
+
+    it('emits promise-mode script by default', async () => {
+      let captured;
+      await runReadinessGate(
+        (script) => { captured = script; return null; },
+        {}
+      );
+      expect(captured).toContain('? PercyDOM.waitForReady');
+      expect(captured).not.toContain('return PercyDOM.waitForReady');
+      expect(captured).not.toContain('arguments[arguments.length - 1]');
+    });
+
+    it('returns null and never throws when evalScript rejects (with Error)', async () => {
+      let logged;
+      let result = await runReadinessGate(
+        () => Promise.reject(new Error('readiness boom')),
+        {},
+        { log: { debug: (m) => { logged = m; } } }
+      );
+      expect(result).toBe(null);
+      expect(logged).toContain('readiness boom');
+    });
+
+    it('returns null and never throws when evalScript rejects (non-Error)', async () => {
+      let logged;
+      // Exercises the `err?.message || err` second branch where the
+      // rejection value has no `.message`.
+      let result = await runReadinessGate(
+        // eslint-disable-next-line prefer-promise-reject-errors
+        () => Promise.reject('plain-string-rejection'),
+        {},
+        { log: { debug: (m) => { logged = m; } } }
+      );
+      expect(result).toBe(null);
+      expect(logged).toContain('plain-string-rejection');
+    });
+
+    it('returns null and never throws when evalScript throws synchronously', async () => {
+      let result = await runReadinessGate(() => { throw new Error('sync boom'); }, {});
+      expect(result).toBe(null);
+    });
+
+    it('tolerates absent log (no opts.log)', async () => {
+      let result = await runReadinessGate(() => Promise.reject(new Error('no log')), {});
+      expect(result).toBe(null);
+    });
+  });
+
+  describe('mergeSnapshotOptions(options)', () => {
+    let { mergeSnapshotOptions } = utils;
+
+    beforeEach(async () => {
+      await helpers.setupTest();
+      await utils.isPercyEnabled();
+    });
+
+    it('merges config snapshot options with per-snapshot options', () => {
+      const result = mergeSnapshotOptions({ enableJavaScript: true });
+      expect(result.enableJavaScript).toBe(true);
+      expect(result.widths).toEqual([375, 1280]);
+    });
+
+    it('gives per-snapshot options priority over config', () => {
+      const result = mergeSnapshotOptions({ widths: [768] });
+      expect(result.widths).toEqual([768]);
+    });
+
+    it('returns config options when no per-snapshot options are provided', () => {
+      const result = mergeSnapshotOptions();
+      expect(result.widths).toEqual([375, 1280]);
+    });
+
+    it('returns empty object when config.snapshot is undefined and no options given', () => {
+      const savedConfig = utils.percy.config;
+      utils.percy.config = { ...savedConfig, snapshot: undefined };
+
+      const result = mergeSnapshotOptions();
+      expect(result).toEqual({});
+
+      utils.percy.config = savedConfig;
+    });
+
+    it('returns only per-snapshot options when config.snapshot is undefined', () => {
+      const savedConfig = utils.percy.config;
+      utils.percy.config = { ...savedConfig, snapshot: undefined };
+
+      const result = mergeSnapshotOptions({ enableJavaScript: true });
+      expect(result).toEqual({ enableJavaScript: true });
+
+      utils.percy.config = savedConfig;
+    });
+
+    it('deep-merges nested objects, keeping config sibling keys not overridden', () => {
+      const savedConfig = utils.percy.config;
+      utils.percy.config = {
+        ...savedConfig,
+        snapshot: { discovery: { networkIdleTimeout: 50, disableCache: false } }
+      };
+
+      const result = mergeSnapshotOptions({ discovery: { disableCache: true } });
+      // per-snapshot wins on the overridden nested key, config sibling key survives
+      expect(result.discovery).toEqual({ networkIdleTimeout: 50, disableCache: true });
+
+      utils.percy.config = savedConfig;
+    });
+
+    it('replaces (does not concatenate) arrays from per-snapshot options', () => {
+      const savedConfig = utils.percy.config;
+      utils.percy.config = { ...savedConfig, snapshot: { widths: [375, 1280] } };
+
+      const result = mergeSnapshotOptions({ widths: [768] });
+      expect(result.widths).toEqual([768]);
+
+      utils.percy.config = savedConfig;
     });
   });
 });

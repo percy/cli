@@ -7,6 +7,13 @@ const pixel = Buffer.from((
   'R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw=='
 ), 'base64').toString();
 
+// An ICNS header whose first entry declares a length of zero — the
+// CVE-2025-71330 proof of concept. `image-size` chose its parser from these
+// magic bytes regardless of the file's extension, and its ICNS loop never
+// advanced past a zero-length entry. Every byte here is below 0x80 so the
+// buffer survives being written as a string.
+const craftedIcns = 'icns\0\0\0\x40ic09\0\0\0\0'.padEnd(64, '\0');
+
 describe('percy upload', () => {
   beforeEach(async () => {
     upload.packageInformation = { name: '@percy/cli-upload' };
@@ -97,7 +104,9 @@ describe('percy upload', () => {
           regions: null,
           'enable-layout': false,
           'th-test-case-execution-id': null,
-          browsers: null
+          browsers: null,
+          'intelli-story': null,
+          'storybook-path': null
         },
         relationships: {
           resources: {
@@ -155,6 +164,19 @@ describe('percy upload', () => {
     ]));
   });
 
+  // Regression for CVE-2025-71330: this file used to hang the run indefinitely.
+  it('skips a file whose contents are not a readable image', async () => {
+    fs.writeFileSync('images/crafted.png', craftedIcns);
+    await upload(['./images']);
+
+    expect(logger.stderr).toEqual([]);
+    expect(logger.stdout).toEqual(jasmine.arrayContaining([
+      '[percy] Skipping file with unreadable image data: crafted.png',
+      '[percy] Uploading 3 snapshots...',
+      '[percy] Finalized build #1: https://percy.io/test/test/123'
+    ]));
+  });
+
   it('does not upload snapshots and prints matching files with --dry-run', async () => {
     await upload(['./images', '--dry-run']);
 
@@ -201,20 +223,25 @@ describe('percy upload', () => {
     process.emit('SIGTERM');
     await up;
 
-    expect(logger.stderr).toEqual([
-      '[percy] AbortError: SIGTERM',
+    // Drain announcement is logged on stderr; the legacy
+    // AbortError-as-error log no longer fires because the runner now
+    // suppresses log.error for signal-driven aborts (err.signal truthy).
+    expect(logger.stderr).toEqual(jasmine.arrayContaining([
+      jasmine.stringContaining('SIGTERM received, draining'),
       '[percy] Detected error for percy build',
       '[percy] Failure: Snapshot command was not called',
       '[percy] Failure Reason: Snapshot Command was not called. please check your CI for errors',
       '[percy] Suggestion: Try using percy snapshot command to take snapshots',
       '[percy] Refer to the below Doc Links for the same',
       '[percy] * https://www.browserstack.com/docs/percy/take-percy-snapshots/'
-    ]);
+    ]));
 
+    // A single SIGTERM is now graceful (force=false), so the legacy
+    // "Stopping percy..." log — which fires only on Percy.stop(true) —
+    // no longer appears here.
     expect(logger.stdout).toEqual(jasmine.arrayContaining([
       '[percy] Percy has started!',
       '[percy] Uploading 3 snapshots...',
-      '[percy] Stopping percy...',
       '[percy] Snapshot uploaded: test-1.png',
       '[percy] Finalized build #1: https://percy.io/test/test/123'
     ]));

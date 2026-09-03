@@ -1,6 +1,6 @@
 {
   "name": "@percy/cli-command",
-  "version": "1.31.11",
+  "version": "1.32.8",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -27,6 +27,7 @@
     ".": "./dist/index.js",
     "./flags": "./dist/flags.js",
     "./utils": "./dist/utils.js",
+    "./intelliStory": "./dist/intelliStory.js",
     "./test/helpers": "./test/helpers.js"
   },
   "scripts": {
@@ -36,8 +37,12 @@
     "test:coverage": "yarn test --coverage"
   },
   "dependencies": {
-    "@percy/config": "1.31.11",
-    "@percy/core": "1.31.11",
-    "@percy/logger": "1.31.11"
+    "@percy/config": "1.32.8",
+    "@percy/core": "1.32.8",
+    "@percy/logger": "1.32.8",
+    "glob-to-regexp": "^0.4.1"
+  },
+  "optionalDependencies": {
+    "snyk-nodejs-lockfile-parser": "2.7.1"
   }
 }

@@ -1,0 +1,17 @@
+# Cross-platform parity flow — Android half (Unit 5).
+#
+# See parity-flow-ios.yaml for the iOS pair. Both flows resolve the same
+# logical element via `id` selector. On Android, `id` aliases `resource-id`
+# per R1 vocabulary parity, so the Android view's `resource-id="submitBtn"`
+# matches `{id: "submitBtn"}` in PERCY_REGIONS.
+
+appId: com.example.calculator
+---
+- launchApp
+- assertVisible:
+    id: "submitBtn"
+- runFlow:
+    file: ../../../../../../../percy-maestro/percy/flows/percy-screenshot.yaml
+    env:
+      SCREENSHOT_NAME: ParityAndroid
+      PERCY_REGIONS: '[{"element":{"id":"submitBtn"},"algorithm":"ignore"}]'

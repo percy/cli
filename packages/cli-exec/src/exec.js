@@ -3,12 +3,15 @@ import logger from '@percy/logger';
 import start from './start.js';
 import stop from './stop.js';
 import ping from './ping.js';
+import replay from './replay.js';
 import { waitForTimeout } from '@percy/client/utils';
+import { yieldTo } from '@percy/cli-command/utils';
+import { findBaselineProvider, maybeSeedBaseline } from './baseline.js';
 
 export const exec = command('exec', {
   description: 'Start and stop Percy around a supplied command',
-  usage: '[options] -- <command>',
-  commands: [start, stop, ping],
+  usage: '[options] [--] <command>',
+  commands: [start, stop, ping, replay],
 
   flags: [{
     name: 'parallel',
@@ -18,6 +21,12 @@ export const exec = command('exec', {
     name: 'partial',
     description: 'Marks the build as a partial build',
     parse: () => !!(process.env.PERCY_PARTIAL_BUILD ||= '1')
+  }, {
+    name: 'archive-dir',
+    description: 'Save snapshot data to an archive directory for deferred upload',
+    percyrc: 'percy.archiveDir',
+    type: 'string',
+    group: 'Percy'
   }, {
     name: 'testing',
     percyrc: 'testing',
@@ -38,7 +47,7 @@ export const exec = command('exec', {
     server: true,
     projectType: 'web'
   }
-}, async function*({ flags, argv, env, percy, log, exit }) {
+}, async function*({ flags, argv, env, percy, log, exit, shutdown }) {
   let [command, ...args] = argv;
 
   // command is required
@@ -69,6 +78,26 @@ export const exec = command('exec', {
       } else {
         log.debug('Skipping percy project attribute calculation');
       }
+
+      // Drop-in baseline seeding: when an installed SDK declares a baseline provider and the
+      // Percy project is empty, committed baseline screenshots are uploaded as an auto-approved
+      // build #1 before the head build starts. Never throws. Automate projects get the head-build
+      // source tag only — their captures happen on the remote BrowserStack browser, so committed
+      // local screenshots can never pair with them and the baseline comes from the first run.
+      if (['web', 'app', 'automate'].includes(percy.projectType)) {
+        let provider = await findBaselineProvider({ log });
+
+        if (provider) {
+          // Tag the head build so the API can key drop-in behavior on its source.
+          if (provider.buildSource && !process.env.PERCY_BUILD_SOURCE) {
+            process.env.PERCY_BUILD_SOURCE = provider.buildSource;
+          }
+          // yieldTo keeps the runner tick-responsive — a bare yield would make the up-to-10min
+          // seed wait the one place Ctrl-C can't unwind until the promise settles.
+          yield* yieldTo(maybeSeedBaseline(percy, provider, { log }));
+        }
+      }
+
       yield* percy.yield.start();
     } catch (error) {
       if (error.name === 'AbortError') throw error;
@@ -87,8 +116,12 @@ export const exec = command('exec', {
   log.info(`Running "${[command, ...args].join(' ')}"`);
   let [status, error] = yield* spawn(command, args, percy);
 
-  // stop percy if running (force stop if there is an error);
-  await percy?.stop(!!error);
+  // stop percy if running. When the spawn child was signaled
+  // (error.signal truthy from cross-spawn), respect the
+  // graceful drain budget exposed via ctx.shutdown; otherwise, the
+  // legacy "force-stop on any error" rule still applies.
+  let force = error?.signal ? !!shutdown?.forced : !!error;
+  await percy?.stop(force);
 
   log.info(`Command "${[command, ...args].join(' ')}" exited with status: ${status}`);
   // forward any returned status code

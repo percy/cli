@@ -198,6 +198,11 @@ describe('PercyClient', () => {
     beforeEach(() => {
       delete process.env.PERCY_AUTO_ENABLED_GROUP_BUILD;
       delete process.env.PERCY_ORIGINATED_SOURCE;
+      delete process.env.PERCY_VISUAL_CONFIG;
+      delete process.env.PERCY_BUILD_SOURCE;
+      delete process.env.PERCY_DROPIN_BASELINE_CANDIDATE;
+      delete process.env.PERCY_DROPIN_BASELINE_SETUP;
+      delete process.env.PERCY_PRIORITY;
     });
 
     it('creates a new build', async () => {
@@ -235,6 +240,21 @@ describe('PercyClient', () => {
             tags: []
           }
         }));
+    });
+
+    it('sends priority: true when PERCY_PRIORITY is set (internal signal)', async () => {
+      process.env.PERCY_PRIORITY = 'true';
+
+      await client.createBuild();
+
+      expect(api.requests['/builds'][0].body.data.attributes)
+        .toEqual(jasmine.objectContaining({ priority: true }));
+    });
+
+    it('does not send a priority attribute when PERCY_PRIORITY is unset', async () => {
+      await client.createBuild();
+
+      expect(api.requests['/builds'][0].body.data.attributes.priority).toBeUndefined();
     });
 
     it('creates a new build with projectType passed as null', async () => {
@@ -604,6 +624,198 @@ describe('PercyClient', () => {
           }
         }));
     });
+
+    it('tags an allow-listed drop-in source from PERCY_BUILD_SOURCE', async () => {
+      process.env.PERCY_BUILD_SOURCE = 'playwright-dropin';
+      await expectAsync(client.createBuild({ projectType: 'web' })).toBeResolved();
+
+      let attrs = api.requests['/builds'][0].body.data.attributes;
+      expect(attrs.source).toEqual('playwright-dropin');
+      expect(attrs['dropin-baseline-candidate']).toBeUndefined();
+      expect(attrs['dropin-baseline-setup']).toBeUndefined();
+    });
+
+    it('ignores a non-allow-listed PERCY_BUILD_SOURCE', async () => {
+      process.env.PERCY_BUILD_SOURCE = 'not-a-dropin-source';
+      await expectAsync(client.createBuild({ projectType: 'web' })).toBeResolved();
+
+      expect(api.requests['/builds'][0].body.data.attributes.source)
+        .toEqual('user_created');
+    });
+
+    it('sends the drop-in baseline candidate attribute from the env', async () => {
+      process.env.PERCY_DROPIN_BASELINE_CANDIDATE = 'true';
+      await expectAsync(client.createBuild({ projectType: 'web' })).toBeResolved();
+
+      expect(api.requests['/builds'][0].body.data.attributes['dropin-baseline-candidate'])
+        .toEqual(true);
+    });
+
+    it('sends the drop-in baseline setup attribute from the env', async () => {
+      process.env.PERCY_DROPIN_BASELINE_SETUP = 'true';
+      await expectAsync(client.createBuild({ projectType: 'web' })).toBeResolved();
+
+      expect(api.requests['/builds'][0].body.data.attributes['dropin-baseline-setup'])
+        .toEqual(true);
+    });
+
+    it('accepts explicit drop-in baseline options (used by the seeding flows)', async () => {
+      await expectAsync(client.createBuild({
+        projectType: 'web',
+        source: 'playwright-dropin-baseline',
+        dropinBaselineCandidate: true,
+        dropinBaselineSetup: true
+      })).toBeResolved();
+
+      let attrs = api.requests['/builds'][0].body.data.attributes;
+      expect(attrs.source).toEqual('playwright-dropin-baseline');
+      expect(attrs['dropin-baseline-candidate']).toEqual(true);
+      expect(attrs['dropin-baseline-setup']).toEqual(true);
+    });
+
+    it('ignores a non-allow-listed explicit source option', async () => {
+      await expectAsync(client.createBuild({
+        projectType: 'web',
+        source: 'design'
+      })).toBeResolved();
+
+      expect(api.requests['/builds'][0].body.data.attributes.source)
+        .toEqual('user_created');
+    });
+
+    it('creates a new build with visual-config from PERCY_VISUAL_CONFIG', async () => {
+      process.env.PERCY_VISUAL_CONFIG = JSON.stringify({
+        diffSensitivity: 3,
+        compareWithPreviousRun: false,
+        intelliIgnore: {
+          enabled: true,
+          dynamic: true,
+          ignoreCustomElementsClasses: '.ad;.promo'
+        }
+      });
+
+      await expectAsync(client.createBuild({ projectType: 'web' })).toBeResolved();
+
+      expect(api.requests['/builds'][0].body.data.attributes['visual-config'])
+        .toEqual({
+          diffSensitivity: 3,
+          compareWithPreviousRun: false,
+          intelliIgnore: {
+            enabled: true,
+            dynamic: true,
+            ignoreCustomElementsClasses: '.ad;.promo'
+          }
+        });
+    });
+
+    it('warns and strips unknown visual-config keys before build creation', async () => {
+      process.env.PERCY_VISUAL_CONFIG = JSON.stringify({
+        diffSensitivity: 2,
+        unknownTopLevel: true,
+        intelliIgnore: {
+          enabled: true,
+          unknownNested: true
+        }
+      });
+
+      await expectAsync(client.createBuild({ projectType: 'web' })).toBeResolved();
+
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
+        "[percy:client] Ignoring unknown PERCY_VISUAL_CONFIG key: 'unknownTopLevel'",
+        "[percy:client] Ignoring unknown PERCY_VISUAL_CONFIG intelliIgnore key: 'unknownNested'"
+      ]));
+      expect(api.requests['/builds'][0].body.data.attributes['visual-config'])
+        .toEqual({
+          diffSensitivity: 2,
+          intelliIgnore: {
+            enabled: true
+          }
+        });
+    });
+
+    it('throws when PERCY_VISUAL_CONFIG is invalid JSON', async () => {
+      process.env.PERCY_VISUAL_CONFIG = '{ invalid json }';
+
+      await expectAsync(client.createBuild({ projectType: 'web' }))
+        .toBeRejectedWithError('Invalid PERCY_VISUAL_CONFIG: value must be valid JSON');
+    });
+
+    it('throws when PERCY_VISUAL_CONFIG contains invalid types', async () => {
+      process.env.PERCY_VISUAL_CONFIG = JSON.stringify({
+        diffSensitivity: 'high'
+      });
+
+      await expectAsync(client.createBuild({ projectType: 'web' })).toBeRejectedWithError(
+        "Invalid PERCY_VISUAL_CONFIG: 'diffSensitivity' must be an integer between 1 and 5"
+      );
+    });
+
+    it('throws when PERCY_VISUAL_CONFIG is not a JSON object', async () => {
+      process.env.PERCY_VISUAL_CONFIG = '"just a string"';
+
+      await expectAsync(client.createBuild({ projectType: 'web' }))
+        .toBeRejectedWithError('Invalid PERCY_VISUAL_CONFIG: value must be a JSON object');
+    });
+
+    it('throws when PERCY_VISUAL_CONFIG boolean field has non-boolean value', async () => {
+      process.env.PERCY_VISUAL_CONFIG = JSON.stringify({ enableLayout: 'yes' });
+
+      await expectAsync(client.createBuild({ projectType: 'web' }))
+        .toBeRejectedWithError("Invalid PERCY_VISUAL_CONFIG: 'enableLayout' must be a boolean");
+    });
+
+    it('throws when PERCY_VISUAL_CONFIG percyCssValue is not a string', async () => {
+      process.env.PERCY_VISUAL_CONFIG = JSON.stringify({ percyCssValue: 123 });
+
+      await expectAsync(client.createBuild({ projectType: 'web' }))
+        .toBeRejectedWithError("Invalid PERCY_VISUAL_CONFIG: 'percyCssValue' must be a string");
+    });
+
+    it('throws when PERCY_VISUAL_CONFIG diffIgnorePercentage is out of range', async () => {
+      process.env.PERCY_VISUAL_CONFIG = JSON.stringify({ diffIgnorePercentage: 5 });
+
+      await expectAsync(client.createBuild({ projectType: 'web' }))
+        .toBeRejectedWithError("Invalid PERCY_VISUAL_CONFIG: 'diffIgnorePercentage' must be a number between 0 and 1");
+    });
+
+    it('creates a new build with valid diffIgnorePercentage', async () => {
+      process.env.PERCY_VISUAL_CONFIG = JSON.stringify({ diffIgnorePercentage: 0.5 });
+
+      await expectAsync(client.createBuild({ projectType: 'web' })).toBeResolved();
+
+      expect(api.requests['/builds'][0].body.data.attributes['visual-config'])
+        .toEqual(jasmine.objectContaining({ diffIgnorePercentage: 0.5 }));
+    });
+
+    it('throws when PERCY_VISUAL_CONFIG browsers is not an array of strings', async () => {
+      process.env.PERCY_VISUAL_CONFIG = JSON.stringify({ browsers: 'chrome' });
+
+      await expectAsync(client.createBuild({ projectType: 'web' }))
+        .toBeRejectedWithError("Invalid PERCY_VISUAL_CONFIG: 'browsers' must be an array of strings");
+    });
+
+    it('creates a new build with visual-config browsers array', async () => {
+      process.env.PERCY_VISUAL_CONFIG = JSON.stringify({ browsers: ['chrome', 'firefox'] });
+
+      await expectAsync(client.createBuild({ projectType: 'web' })).toBeResolved();
+
+      expect(api.requests['/builds'][0].body.data.attributes['visual-config'])
+        .toEqual(jasmine.objectContaining({ browsers: jasmine.any(Array) }));
+    });
+
+    it('throws when PERCY_VISUAL_CONFIG intelliIgnore is not an object', async () => {
+      process.env.PERCY_VISUAL_CONFIG = JSON.stringify({ intelliIgnore: [] });
+
+      await expectAsync(client.createBuild({ projectType: 'web' }))
+        .toBeRejectedWithError("Invalid PERCY_VISUAL_CONFIG: 'intelliIgnore' must be an object");
+    });
+
+    it('throws when PERCY_VISUAL_CONFIG intelliIgnore.ignoreCustomElementsClasses is not a string', async () => {
+      process.env.PERCY_VISUAL_CONFIG = JSON.stringify({ intelliIgnore: { ignoreCustomElementsClasses: 123 } });
+
+      await expectAsync(client.createBuild({ projectType: 'web' }))
+        .toBeRejectedWithError("Invalid PERCY_VISUAL_CONFIG: 'intelliIgnore.ignoreCustomElementsClasses' must be a string");
+    });
   });
 
   describe('#getBuild()', () => {
@@ -675,6 +887,119 @@ describe('PercyClient', () => {
       await expectAsync(client.getStatus('snapshot', [1, 2])).toBeResolvedTo({ data: '<<status-data-snapshot>>' });
       await expectAsync(client.getStatus('comparison', [3, 4])).toBeResolvedTo({ data: '<<status-data-comparison>>' });
       await expectAsync(client.getStatus('comparison', [5])).toBeResolvedTo({ data: '<<status-data-comparison-2>>' });
+    });
+
+    it('gets intelli_story_graph status (sync response carries graph payload on completion)', async () => {
+      const path = '/job_status?sync=true&type=intelli_story_graph&id=build-1';
+      const body = {
+        status: 'done',
+        data: {
+          affected_stories: ['src/Foo.stories.tsx'],
+          vertices: [{ kind: 'story', file_path: 'src/Foo.stories.tsx', changed: true }],
+          edges: [],
+          transitive_closure_matrix_sparse: []
+        }
+      };
+      api.reply(path, () => [200, body]);
+
+      await expectAsync(client.getStatus('intelli_story_graph', ['build-1'])).toBeResolvedTo(body);
+      expect(api.requests[path][0].method).toBe('GET');
+    });
+  });
+
+  describe('#getIntelliStorySnapshotNameToCommit()', () => {
+    const stubEnv = (overrides = {}) => {
+      Object.defineProperty(client.env, 'git', { value: overrides.git ?? {}, configurable: true });
+      Object.defineProperty(client.env, 'target', { value: overrides.target ?? {}, configurable: true });
+      Object.defineProperty(client.env, 'pullRequest', { value: overrides.pullRequest ?? null, configurable: true });
+      Object.defineProperty(client.env, 'partial', { value: overrides.partial ?? false, configurable: true });
+    };
+
+    beforeEach(() => stubEnv());
+
+    it('issues a GET with no query params when no build id is given', async () => {
+      const path = '/intelli_story/snapshot-name-to-commit';
+      api.reply(path, () => [200, { data: { foo: 'sha-foo' } }]);
+
+      await expectAsync(
+        client.getIntelliStorySnapshotNameToCommit()
+      ).toBeResolvedTo({ data: { foo: 'sha-foo' } });
+
+      expect(api.requests[path]).toBeDefined();
+      expect(api.requests[path][0].method).toBe('GET');
+    });
+
+    it('includes the build_id when provided', async () => {
+      const expectedPath = '/intelli_story/snapshot-name-to-commit?build_id=bld-123';
+      api.reply(expectedPath, () => [200, { data: { b: 'sha-b' } }]);
+
+      await expectAsync(
+        client.getIntelliStorySnapshotNameToCommit('bld-123')
+      ).toBeResolvedTo({ data: { b: 'sha-b' } });
+
+      expect(api.requests[expectedPath]).toBeDefined();
+      expect(api.requests[expectedPath][0].method).toBe('GET');
+    });
+
+    // The endpoint resolves the base build from the build id alone, so git/PR
+    // context is no longer sent — build_id must be the only query param even
+    // when the environment has a full git context to offer.
+    it('does not send git/target/PR/partial context even when present in env', async () => {
+      stubEnv({
+        git: { branch: 'feature/x', sha: 'commit-sha-1' },
+        target: { branch: 'main', commit: 'commit-sha-2' },
+        pullRequest: 42,
+        partial: true
+      });
+
+      const expectedPath = '/intelli_story/snapshot-name-to-commit?build_id=bld-456';
+      api.reply(expectedPath, () => [200, { data: { a: 'sha-a' } }]);
+
+      await expectAsync(
+        client.getIntelliStorySnapshotNameToCommit('bld-456')
+      ).toBeResolvedTo({ data: { a: 'sha-a' } });
+
+      expect(Object.keys(api.requests)).toEqual([expectedPath]);
+    });
+  });
+
+  describe('#generateIntelliStoryGraph()', () => {
+    it('POSTs build_id and graph payload to intelli_story/generate-graph', async () => {
+      api.reply('/intelli_story/generate-graph', () => [202, { status: 'queued' }]);
+
+      await expectAsync(client.generateIntelliStoryGraph('build-1', {
+        files: ['a.js', 'b.js'],
+        modules: [{ id: 1, name: 'mod' }],
+        storybookPaths: ['stories/a.js'],
+        affectedNodes: ['node-1'],
+        affectedFileLocations: { 0: [[3, 3], [6, 7]], 1: [[1, 1]] }
+      })).toBeResolvedTo({ status: 'queued' });
+
+      expect(api.requests['/intelli_story/generate-graph']).toBeDefined();
+      expect(api.requests['/intelli_story/generate-graph'][0].method).toBe('POST');
+      expect(api.requests['/intelli_story/generate-graph'][0].body).toEqual({
+        build_id: 'build-1',
+        files: ['a.js', 'b.js'],
+        modules: [{ id: 1, name: 'mod' }],
+        storybook_paths: ['stories/a.js'],
+        affected_nodes: ['node-1'],
+        affected_file_locations: { 0: [[3, 3], [6, 7]], 1: [[1, 1]] }
+      });
+    });
+
+    it('sends undefined fields when called without payload', async () => {
+      api.reply('/intelli_story/generate-graph', () => [202, { status: 'queued' }]);
+
+      await expectAsync(client.generateIntelliStoryGraph('build-2')).toBeResolvedTo({ status: 'queued' });
+
+      expect(api.requests['/intelli_story/generate-graph'][0].body).toEqual({ build_id: 'build-2' });
+    });
+
+    it('rejects when API returns an error', async () => {
+      api.reply('/intelli_story/generate-graph', () => [500, { error: 'boom' }]);
+
+      await expectAsync(client.generateIntelliStoryGraph('build-3', {}))
+        .toBeRejected();
     });
   });
 
@@ -1076,7 +1401,9 @@ describe('PercyClient', () => {
             'enable-javascript': true,
             'enable-layout': true,
             'th-test-case-execution-id': 'random-uuid',
-            browsers: null
+            browsers: null,
+            'intelli-story': null,
+            'storybook-path': null
           },
           relationships: {
             resources: {
@@ -1168,7 +1495,9 @@ describe('PercyClient', () => {
               'enable-javascript': true,
               'enable-layout': true,
               'th-test-case-execution-id': 'random-uuid',
-              browsers: ['chrome', 'firefox', 'safari_on_iphone']
+              browsers: ['chrome', 'firefox', 'safari_on_iphone'],
+              'intelli-story': null,
+              'storybook-path': null
             },
             relationships: {
               resources: {
@@ -1219,7 +1548,9 @@ describe('PercyClient', () => {
             'enable-layout': false,
             regions: null,
             'th-test-case-execution-id': null,
-            browsers: null
+            browsers: null,
+            'intelli-story': null,
+            'storybook-path': null
           },
           relationships: {
             resources: {
@@ -1292,7 +1623,9 @@ describe('PercyClient', () => {
             regions: null,
             'enable-layout': false,
             'th-test-case-execution-id': null,
-            browsers: null
+            browsers: null,
+            'intelli-story': null,
+            'storybook-path': null
           },
           relationships: {
             resources: {
@@ -1339,6 +1672,56 @@ describe('PercyClient', () => {
     it('finalizes a snapshot', async () => {
       await expectAsync(client.sendSnapshot(123, { name: 'test snapshot name' })).toBeResolved();
       expect(api.requests['/snapshots/4567/finalize']).toBeDefined();
+    });
+
+    it('tallies IntelliStory kept snapshots and still finalizes them', async () => {
+      await expectAsync(
+        client.sendSnapshot(123, { name: 'kept one', intelliStory: true })
+      ).toBeResolved();
+      await expectAsync(
+        client.sendSnapshot(123, { name: 'kept two', intelliStory: false })
+      ).toBeResolved();
+
+      expect(api.requests['/snapshots/4567/finalize']).toBeDefined();
+      expect(client.intelliStoryStats).toEqual({ kept: 2, skipped: 0 });
+    });
+
+    it('tallies IntelliStory skipped snapshots and skips the resource upload', async () => {
+      // the API reports the resources as missing, but the skip flag wins:
+      // there is nothing to capture, so nothing is uploaded.
+      api.reply('/builds/123/snapshots', ({ body }) => [201, {
+        data: {
+          id: '4567',
+          attributes: { 'skipped-via-smartsnap': true },
+          relationships: {
+            'missing-resources': {
+              data: body.data.relationships.resources.data.map(({ id }) => ({ id }))
+            }
+          }
+        }
+      }]);
+
+      await expectAsync(
+        client.sendSnapshot(123, {
+          name: 'skipped one',
+          intelliStory: true,
+          resources: [{
+            sha: sha256hash(testDOM),
+            mimetype: 'text/html',
+            content: testDOM,
+            root: true
+          }]
+        })
+      ).toBeResolved();
+
+      expect(api.requests['/builds/123/resources']).toBeUndefined();
+      expect(api.requests['/snapshots/4567/finalize']).toBeDefined();
+      expect(client.intelliStoryStats).toEqual({ kept: 0, skipped: 1 });
+    });
+
+    it('does not tally when intelliStory is not set', async () => {
+      await expectAsync(client.sendSnapshot(123, { name: 'plain' })).toBeResolved();
+      expect(client.intelliStoryStats).toBeUndefined();
     });
   });
 
@@ -2070,7 +2453,9 @@ describe('PercyClient', () => {
               regions: null,
               'enable-layout': false,
               'th-test-case-execution-id': null,
-              browsers: null
+              browsers: null,
+              'intelli-story': null,
+              'storybook-path': null
             },
             relationships: {
               resources: {
@@ -2158,6 +2543,25 @@ describe('PercyClient', () => {
         })).toBeRejectedWithError('sha, filepath or content should be present in tiles object');
       });
     });
+
+    describe('when labels are provided on a POA comparison', () => {
+      beforeEach(async () => {
+        await client.sendComparison(123, {
+          name: 'test snapshot name',
+          tag: { name: 'test tag' },
+          tiles: [{ content: base64encode('tile') }],
+          labels: 'qa, smoke,release'
+        });
+      });
+
+      it('forwards labels as tags onto the snapshot', () => {
+        expect(api.requests['/builds/123/snapshots'][0].body.data.attributes.tags).toEqual([
+          { id: null, name: 'qa' },
+          { id: null, name: 'smoke' },
+          { id: null, name: 'release' }
+        ]);
+      });
+    });
   });
 
   describe('#tokenType', () => {
@@ -2235,6 +2639,21 @@ describe('PercyClient', () => {
           cliVersion: '1.27.3',
           message: 'some error'
         }
+      });
+    });
+
+    it('includes event_name and category when provided', async () => {
+      await expectAsync(client.sendBuildEvents(123, [
+        { message: 'some event' }
+      ], {}, {
+        eventName: 'percy_cli_vra_recommendation_emitted',
+        category: 'percy:cli'
+      })).toBeResolved();
+
+      expect(api.requests['/builds/123/send-events'][0].body).toEqual({
+        event_name: 'percy_cli_vra_recommendation_emitted',
+        category: 'percy:cli',
+        data: [{ message: 'some event' }]
       });
     });
   });

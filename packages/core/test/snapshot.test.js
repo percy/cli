@@ -1,5 +1,5 @@
 import { sha256hash, base64encode } from '@percy/client/utils';
-import { logger, api, setupTest, createTestServer, dedent } from './helpers/index.js';
+import { logger, api, setupTest, createTestServer, dedent, mockRequests } from './helpers/index.js';
 import { waitFor } from '@percy/core/utils';
 import Percy from '@percy/core';
 import PercyLogger from '@percy/logger';
@@ -8,9 +8,9 @@ import { handleSyncJob, uploadSnapshotLog } from '../src/snapshot.js';
 describe('uploadSnapshotLog', () => {
   let client, percy, meta;
 
-  // seed a log entry matching a snapshot's meta so logger.query finds it
+  // seed a log entry for a snapshot so logger.snapshotLogs returns it
   const seedLog = (name = 'Home') =>
-    PercyLogger.instance.messages.add({ message: 'x', meta: { snapshot: { name } } });
+    PercyLogger('core:snapshot').debug('x', { snapshot: { name, testCase: undefined } });
 
   beforeEach(async () => {
     await logger.mock();
@@ -89,6 +89,34 @@ describe('Snapshot', () => {
   it('errors when not running', async () => {
     await percy.stop();
     expect(() => percy.snapshot({})).toThrowError('Not running');
+  });
+
+  // PER-10514: POST /percy/snapshot does not answer until percy.snapshot()
+  // resolves, so anything the generator awaits stalls the SDK. The version
+  // check talks to api.github.com — a third party that proxies and egress
+  // firewalls routinely leave hanging — and it must never gate a snapshot.
+  it('does not wait on the SDK version check to take a snapshot', async () => {
+    let ghAPI = await mockRequests('https://api.github.com');
+    // accept the request and never answer, the way a black-holing proxy does
+    ghAPI.and.returnValue(new Promise(() => {}));
+
+    let tooSlow = new Promise((resolve, reject) => setTimeout(() => {
+      reject(new Error('percy.snapshot() blocked on the SDK version check'));
+    }, 10000));
+
+    await expectAsync(Promise.race([
+      percy.snapshot({
+        name: 'test snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot: testDOM,
+        clientInfo: '@percy/cypress/3.1.9'
+      }),
+      tooSlow
+    ])).toBeResolved();
+
+    await percy.idle();
+    expect(api.requests['/builds/123/snapshots'][0].body.data.attributes.name)
+      .toEqual('test snapshot');
   });
 
   it('errors when missing a url', () => {
@@ -922,7 +950,20 @@ describe('Snapshot', () => {
       errors: [{ detail: 'unexpected upload error' }]
     }]);
 
+    // Use a setter so a no-op catch is attached the moment percy.snapshot assigns
+    // the promise (percy.js:495). Without this, the upload can reject before the
+    // next line runs and Node reports an unhandled rejection.
     const promise = {};
+    let testSnapshotPromise;
+    Object.defineProperty(promise, 'test snapshot', {
+      configurable: true,
+      enumerable: true,
+      get() { return testSnapshotPromise; },
+      set(p) {
+        testSnapshotPromise = p;
+        p.catch(() => {});
+      }
+    });
     await percy.snapshot({
       name: 'test snapshot',
       url: 'http://localhost:8000',
@@ -1077,6 +1118,115 @@ describe('Snapshot', () => {
     // domSnapshot.resources are also uploaded
     expect(uploads[1]).toEqual(resource.content);
     expect(uploads[2]).toEqual(Buffer.from(textResource.content).toString('base64'));
+  });
+
+  it('warns when readiness diagnostics indicate a timeout', async () => {
+    // domSnapshot is sent as a JSON string by SDKs, which preserves snake_case
+    // keys like readiness_diagnostics through option normalization.
+    await percy.snapshot({
+      name: 'Readiness Timed Out',
+      url: 'http://localhost:8000/',
+      domSnapshot: JSON.stringify({
+        html: testDOM,
+        readiness_diagnostics: {
+          timed_out: true,
+          total_duration_ms: 12345,
+          preset: 'balanced'
+        }
+      })
+    });
+
+    expect(logger.stderr).toEqual(jasmine.arrayContaining([
+      '[percy] Readiness timed out after 12345ms (preset: balanced)'
+    ]));
+    expect(logger.stdout).toEqual(jasmine.arrayContaining([
+      '[percy] Snapshot taken: Readiness Timed Out'
+    ]));
+  });
+
+  it('falls back to "custom" preset label when readiness timeout omits the preset', async () => {
+    await percy.snapshot({
+      name: 'Readiness Timed Out Custom',
+      url: 'http://localhost:8000/',
+      domSnapshot: JSON.stringify({
+        html: testDOM,
+        readiness_diagnostics: {
+          timed_out: true,
+          total_duration_ms: 9999
+        }
+      })
+    });
+
+    expect(logger.stderr).toEqual(jasmine.arrayContaining([
+      '[percy] Readiness timed out after 9999ms (preset: custom)'
+    ]));
+  });
+
+  it('debug logs readiness diagnostics when readiness passes', async () => {
+    percy.loglevel('debug');
+
+    await percy.snapshot({
+      name: 'Readiness Passed',
+      url: 'http://localhost:8000/',
+      domSnapshot: JSON.stringify({
+        html: testDOM,
+        readiness_diagnostics: {
+          timed_out: false,
+          total_duration_ms: 250
+        }
+      })
+    });
+
+    expect(logger.stderr).toEqual(jasmine.arrayContaining([
+      '[percy:core:snapshot] Readiness passed in 250ms (preset: custom)'
+    ]));
+  });
+
+  // The previous three tests pass `domSnapshot` as a JSON-stringified string —
+  // a path that bypasses PercyConfig.migrate's recursive case-conversion of
+  // nested keys. Real SDKs (post-PR2184) submit `domSnapshot` as an OBJECT in
+  // the snapshot post body, so the normalize layer rewrites snake_case nested
+  // keys to camelCase. The schema marks readiness_diagnostics with
+  // `normalize: false` to preserve the wire shape; these regression tests
+  // pin both the schema flag and the snapshot.js dual-read fallback.
+  it('logs readiness timeout when domSnapshot is submitted as an object (real SDK wire shape)', async () => {
+    await percy.snapshot({
+      name: 'Readiness Timeout Object',
+      url: 'http://localhost:8000/',
+      domSnapshot: {
+        html: testDOM,
+        readiness_diagnostics: {
+          timed_out: true,
+          total_duration_ms: 4321,
+          preset: 'balanced'
+        }
+      }
+    });
+
+    expect(logger.stderr).toEqual(jasmine.arrayContaining([
+      '[percy] Readiness timed out after 4321ms (preset: balanced)'
+    ]));
+  });
+
+  it('logs readiness pass when domSnapshot is submitted as an object', async () => {
+    percy.loglevel('debug');
+
+    await percy.snapshot({
+      name: 'Readiness Passed Object',
+      url: 'http://localhost:8000/',
+      domSnapshot: {
+        html: testDOM,
+        readiness_diagnostics: {
+          timed_out: false,
+          total_duration_ms: 175,
+          preset: 'fast'
+        }
+      }
+    });
+
+    expect(logger.stderr).toEqual(jasmine.arrayContaining([
+      '[percy:core:snapshot] Readiness passed in 175ms (preset: fast)'
+    ]));
   });
 
   it('handles duplicate snapshots when testCase is not passed', async () => {
@@ -1579,10 +1729,13 @@ describe('Snapshot', () => {
 
       await percy.idle();
 
+      // Chrome >=128 entity-escapes `<`/`>` inside attribute values per HTML5
+      // spec; pre-128 left them literal. Accept either form (e.g.
+      // `srcdoc="<p>Foo</p>"` or `srcdoc="&lt;p&gt;Foo&lt;/p&gt;"`).
       expect(Buffer.from((
         api.requests['/builds/123/resources'][0]
           .body.data.attributes['base64-content']
-      ), 'base64').toString()).toMatch(/<iframe.*srcdoc=".*<p>Foo<\/p>/);
+      ), 'base64').toString()).toMatch(/<iframe.*srcdoc=".*(?:<p>Foo<\/p>|&lt;p&gt;Foo&lt;\/p&gt;)/);
     });
 
     it('errors if execute cannot be serialized', async () => {
@@ -2111,6 +2264,110 @@ describe('Snapshot', () => {
           ]));
         });
       });
+    });
+  });
+
+  describe('VRA layout tip', () => {
+    let tip = '[percy] Tip: VRA is Percy\'s recommended visual review mode — more accurate and adaptable than Layout. Learn more: https://www.browserstack.com/docs/percy/ai-agents/visual-review-agent/overview.';
+
+    it('logs a VRA tip before finalizing when a snapshot has layout enabled', async () => {
+      await percy.snapshot({
+        name: 'test snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot: '<html></html>',
+        enableLayout: true
+      });
+
+      await percy.stop();
+
+      expect(logger.stderr).toContain(tip);
+      expect(logger.stdout).toContain(
+        '[percy] Finalized build #1: https://percy.io/test/test/123'
+      );
+
+      // the recommendation is instrumented with the newer send-events params
+      let vraEvents = (api.requests['/builds/123/send-events'] || [])
+        .filter(r => r.body.event_name === 'percy_cli_vra_recommendation_emitted');
+      expect(vraEvents.length).toEqual(1);
+      expect(vraEvents[0].body).toEqual({
+        event_name: 'percy_cli_vra_recommendation_emitted',
+        category: 'percy:cli',
+        data: {
+          message: 'VRA recommendation shown for a build using Layout review mode'
+        }
+      });
+    });
+
+    it('logs the VRA tip when enableLayout is set globally in config', async () => {
+      percy.config.snapshot.enableLayout = true;
+
+      await percy.snapshot({
+        name: 'test snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot: '<html></html>'
+      });
+
+      await percy.stop();
+
+      expect(logger.stderr).toContain(tip);
+    });
+
+    it('logs the VRA tip only once when multiple snapshots have layout enabled', async () => {
+      await percy.snapshot({
+        name: 'snapshot one',
+        url: 'http://localhost:8000',
+        domSnapshot: '<html></html>',
+        enableLayout: true
+      });
+      await percy.snapshot({
+        name: 'snapshot two',
+        url: 'http://localhost:8000',
+        domSnapshot: '<html></html>',
+        enableLayout: true
+      });
+
+      await percy.stop();
+
+      expect(logger.stderr.filter(l => l === tip).length).toEqual(1);
+    });
+
+    it('still finalizes the build when recommendation telemetry fails', async () => {
+      percy.loglevel('debug');
+      spyOn(percy.client, 'sendBuildEvents').and.rejectWith(new Error('network down'));
+
+      await percy.snapshot({
+        name: 'test snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot: '<html></html>',
+        enableLayout: true
+      });
+
+      await percy.stop();
+
+      // telemetry failure is swallowed and logged at debug; build still finalizes
+      expect(logger.stderr).toContain('[percy:core] VRA recommendation telemetry failed');
+      expect(logger.stdout).toContain(
+        '[percy:core] Finalized build #1: https://percy.io/test/test/123'
+      );
+    });
+
+    it('does not log the VRA tip when no snapshot has layout enabled', async () => {
+      await percy.snapshot({
+        name: 'test snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot: '<html></html>'
+      });
+
+      await percy.stop();
+
+      expect(logger.stderr).not.toContain(tip);
+      expect(logger.stdout).toContain(
+        '[percy] Finalized build #1: https://percy.io/test/test/123'
+      );
+      // no recommendation event is sent when Layout is not used
+      let vraEvents = (api.requests['/builds/123/send-events'] || [])
+        .filter(r => r.body.event_name === 'percy_cli_vra_recommendation_emitted');
+      expect(vraEvents.length).toEqual(0);
     });
   });
 });

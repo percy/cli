@@ -1,3 +1,12 @@
+// Custom element names are required by spec to contain a hyphen. Returns
+// false for text/comment nodes (which don't have a tagName). This is the
+// single source of truth used across prepare-dom, clone-dom, and the
+// serializers — keep checks consistent by importing this rather than
+// inlining `tagName?.includes('-')`.
+export function isCustomElement(element) {
+  return !!element?.tagName?.includes('-');
+}
+
 // Creates a resource object from an element's unique ID and data URL
 export function resourceFromDataURL(uid, dataURL) {
   // split dataURL into desired parts

@@ -13,12 +13,15 @@ import {
   withRetries,
   waitForSelectorInsideBrowser,
   isGzipped,
-  maybeScrollToBottom
+  maybeScrollToBottom,
+  assertNotMetadataTarget
 } from './utils.js';
+import { ByteLRU, entrySize, DiskSpillStore, createSpillDir } from './cache/byte-lru.js';
 import {
   sha256hash
 } from '@percy/client/utils';
 import Pako from 'pako';
+import { MAX_RESOURCE_SIZE, logAssetInstrumentation } from './network.js';
 
 // Logs verbose debug logs detailing various snapshot options.
 function debugSnapshotOptions(snapshot) {
@@ -75,6 +78,7 @@ function debugSnapshotOptions(snapshot) {
   debugProp(snapshot, 'ignoreCanvasSerializationErrors');
   debugProp(snapshot, 'ignoreStyleSheetSerializationErrors');
   debugProp(snapshot, 'pseudoClassEnabledElements', JSON.stringify);
+  debugProp(snapshot, 'enablePseudoClassSerialization');
   debugProp(snapshot, 'discovery.autoConfigureAllowedHostnames');
 
   if (Array.isArray(snapshot.domSnapshot)) {
@@ -216,14 +220,46 @@ function processSnapshotResources({ domSnapshot, resources, ...snapshot }) {
   resources = resources.flat();
 
   if (process.env.PERCY_GZIP) {
+    const kept = [];
     for (let index = 0; index < resources.length; index++) {
-      const alreadyZipped = isGzipped(resources[index].content);
-      /* istanbul ignore next: very hard to mock true */
-      if (!alreadyZipped) {
-        resources[index].content = Pako.gzip(resources[index].content);
-        resources[index].sha = sha256hash(resources[index].content);
+      const resource = resources[index];
+      // Never compress in place: these objects are shared with the resource
+      // cache, which must keep replaying the original bytes to the browser.
+      let uploaded = resource;
+      try {
+        /* istanbul ignore else: an already-gzipped resource is very hard to mock */
+        if (!isGzipped(resource.content)) {
+          const content = Pako.gzip(resource.content);
+          uploaded = { ...resource, content, sha: sha256hash(content) };
+          log.debug(`- Gzipped resource: ${resource.url}`);
+        }
+      } catch (error) {
+        // One bad resource must not fail the whole snapshot.
+        logAssetInstrumentation(log, 'asset_load_missing', 'network_error', {
+          url: resource.url, snapshot: snapshot.meta?.snapshot, error: error.message
+        });
+        log.warn(`- Skipping resource: gzip failed for ${resource.url} - ${error.message}`);
+        continue;
       }
+
+      // Either the gzipped copy or, when already gzipped, the resource itself.
+      const size = uploaded.content.length;
+      // Root (DOM HTML) and log resources are required for a valid snapshot;
+      // shipping an oversized one and letting the API surface a clear error
+      // is better than silently dropping it here.
+      if (size > MAX_RESOURCE_SIZE && !resource.root && !resource.log) {
+        logAssetInstrumentation(log, 'asset_not_uploaded', 'resource_too_large', {
+          url: resource.url, size, snapshot: snapshot.meta?.snapshot
+        });
+        log.debug(
+          `- Skipping resource larger than allowed size after gzip (${size} bytes)`,
+          { url: resource.url }
+        );
+        continue;
+      }
+      kept.push(uploaded);
     }
+    resources = kept;
   }
 
   return { ...snapshot, resources };
@@ -277,6 +313,8 @@ async function* captureSnapshotResources(page, snapshot, options) {
 
   // navigate to the url
   yield resizePage(snapshot.widths[0]);
+  // refuse to navigate the top-level snapshot URL to a cloud metadata endpoint
+  assertNotMetadataTarget(snapshot.url);
   yield page.goto(snapshot.url, { cookies, forceReload: discovery.captureResponsiveAssetsEnabled });
 
   // wait for any specified timeout
@@ -385,8 +423,79 @@ export async function* discoverSnapshotResources(queue, options, callback) {
   }, []));
 }
 
-// Used to cache resources across core instances
 export const RESOURCE_CACHE_KEY = Symbol('resource-cache');
+export const CACHE_STATS_KEY = Symbol('resource-cache-stats');
+export const DISK_SPILL_KEY = Symbol('resource-cache-disk-spill');
+
+const BYTES_PER_MB = 1_000_000;
+// MAX_RESOURCE_SIZE in network.js is 25MB; caps below that would skip every
+// resource, so we clamp. MIN_REASONABLE_CAP_MB warns on near-useless caps.
+const MAX_RESOURCE_SIZE_MB = 25;
+const MIN_REASONABLE_CAP_MB = 50;
+const DEFAULT_WARN_THRESHOLD_BYTES = 500 * BYTES_PER_MB;
+
+function makeCacheStats() {
+  return {
+    effectiveMaxCacheRamMB: null,
+    oversizeSkipped: 0,
+    firstEvictionEventFired: false,
+    warningFired: false,
+    unsetModeBytes: 0
+  };
+}
+
+function readWarnThresholdBytes() {
+  const raw = Number(process.env.PERCY_CACHE_WARN_THRESHOLD_BYTES);
+  return Number.isFinite(raw) && raw > 0 ? raw : DEFAULT_WARN_THRESHOLD_BYTES;
+}
+
+// Cache lookup shared by the network intercept path. RAM miss falls through
+// to the disk tier; read failures return undefined so the browser refetches.
+// Also resolves the array-valued root-resource shape used for multi-width
+// DOM snapshots, regardless of which tier returned it.
+//
+// Disk hits are promoted back to RAM so a hot URL that was evicted once does
+// not pay the readFileSync cost on every subsequent access — the typical
+// two-tier-cache promotion pattern. ByteLRU's own eviction will then re-spill
+// the actual coldest entry if needed. DISK_SPILL_KEY is only set when the
+// ByteLRU tier is active (see createDiscoveryQueue 'start' handler), so the
+// cache here is guaranteed to be a ByteLRU when we enter this branch.
+export function lookupCacheResource(percy, snapshotResources, cache, url, width) {
+  let resource = snapshotResources.get(url) || cache.get(url);
+  const disk = percy[DISK_SPILL_KEY];
+  if (!resource && disk) {
+    resource = disk.get(url);
+    if (resource) {
+      percy.log.debug(
+        `cache disk-hit: ${url} (disk=${disk.size}/` +
+        `${Math.round(disk.bytes / BYTES_PER_MB)}MB)`
+      );
+      // Promote back to RAM and drop the disk copy. cache.set may itself
+      // evict the LRU entry (which spills back to disk) — that's the
+      // intended LRU dance, not a bug.
+      cache.set(url, resource, entrySize(resource));
+      disk.delete(url);
+    }
+  }
+  if (resource && Array.isArray(resource) && resource[0].root) {
+    const rootResource = resource.find(r => r.widths?.includes(width));
+    resource = rootResource || resource[0];
+  }
+  return resource;
+}
+
+// Fire-and-forget wrapper around the shared telemetry egress on Percy.
+// onEvict callbacks are sync; the microtask hop keeps even sendCacheTelemetry's
+// pre-await synchronous work (header construction, payload serialization) off
+// the eviction-loop hot path.
+function fireCacheEventSafe(percy, message, extra) {
+  // sendCacheTelemetry already swallows pager errors. The trailing .catch is
+  // belt-and-suspenders against Node 14's unhandled-rejection-as-fatal mode
+  // if the catch arm itself ever throws (e.g. log.debug stub explodes).
+  Promise.resolve()
+    .then(() => percy.sendCacheTelemetry(message, extra))
+    .catch(() => {});
+}
 
 // Creates an asset discovery queue that uses the percy browser instance to create a page for each
 // snapshot which is used to intercept and capture snapshot resource requests.
@@ -394,21 +503,109 @@ export function createDiscoveryQueue(percy) {
   let { concurrency } = percy.config.discovery;
   let queue = new Queue('discovery');
   let cache;
+  let capBytes = null;
+  // Read once: saveResource consults this on every call.
+  const warnThreshold = readWarnThresholdBytes();
 
   return queue
     .set({ concurrency })
-  // on start, launch the browser and run the queue
     .handle('start', async () => {
-      cache = percy[RESOURCE_CACHE_KEY] = new Map();
+      const configuredMaxCacheRamMB = percy.config.discovery.maxCacheRam;
+      let effectiveMaxCacheRamMB = configuredMaxCacheRamMB;
+      // Cache stores raw bodies; under PERCY_GZIP individual resources can
+      // exceed the default 25MB floor, so the floor must track the active cap.
+      const minCacheRamMB = process.env.PERCY_GZIP ? 50 : MAX_RESOURCE_SIZE_MB;
 
-      // If browser.launch() fails it will get captured in
-      // *percy.start()
+      // User's config is not mutated; the post-clamp value lives on stats.
+      if (configuredMaxCacheRamMB != null) {
+        if (configuredMaxCacheRamMB < minCacheRamMB) {
+          percy.log.warn(
+            `--max-cache-ram=${configuredMaxCacheRamMB}MB is below the ${minCacheRamMB}MB minimum ` +
+            `(individual resources up to ${minCacheRamMB}MB would otherwise be dropped). ` +
+            `Continuing with the minimum: ${minCacheRamMB}MB.`
+          );
+          effectiveMaxCacheRamMB = minCacheRamMB;
+        } else if (configuredMaxCacheRamMB < MIN_REASONABLE_CAP_MB) {
+          percy.log.warn(
+            `--max-cache-ram=${configuredMaxCacheRamMB}MB is very small; ` +
+            'most resources will not fit and hit rate will be near zero.'
+          );
+        }
+        if (percy.config.discovery.disableCache) {
+          percy.log.info('--max-cache-ram is ignored because --disable-cache is set.');
+        }
+        capBytes = effectiveMaxCacheRamMB * BYTES_PER_MB;
+      }
+
+      if (warnThreshold !== DEFAULT_WARN_THRESHOLD_BYTES) {
+        percy.log.debug(
+          `PERCY_CACHE_WARN_THRESHOLD_BYTES override active: ${warnThreshold} bytes ` +
+          `(default ${DEFAULT_WARN_THRESHOLD_BYTES}).`
+        );
+      }
+
+      percy[CACHE_STATS_KEY] = makeCacheStats();
+      percy[CACHE_STATS_KEY].effectiveMaxCacheRamMB = capBytes != null ? effectiveMaxCacheRamMB : null;
+
+      if (capBytes != null) {
+        // Overflow tier: RAM evictions spill here. diskStore.set returns
+        // false on any I/O failure → caller falls back to drop automatically.
+        const diskStore = new DiskSpillStore(createSpillDir(), { log: percy.log });
+        percy[DISK_SPILL_KEY] = diskStore;
+
+        cache = percy[RESOURCE_CACHE_KEY] = new ByteLRU(capBytes, {
+          onEvict: (key, reason, value) => {
+            if (reason === 'too-big') {
+              percy[CACHE_STATS_KEY].oversizeSkipped++;
+              percy.log.debug(`cache skip (oversize): ${key}`);
+              return;
+            }
+            const spilled = diskStore.set(key, value);
+            percy.log.debug(
+              `cache ${spilled ? 'spill' : 'evict'}: ${key} ` +
+              `(cache ${Math.round(cache.calculatedSize / BYTES_PER_MB)}` +
+              `/${effectiveMaxCacheRamMB}MB, entries=${cache.size}, ` +
+              `disk=${diskStore.size}/${Math.round(diskStore.bytes / BYTES_PER_MB)}MB)`
+            );
+            const stats = percy[CACHE_STATS_KEY];
+            if (stats && !stats.firstEvictionEventFired) {
+              stats.firstEvictionEventFired = true;
+              percy.log.info(
+                'Cache eviction active — cap reached, oldest entries spilling to disk.'
+              );
+              fireCacheEventSafe(percy, 'cache_eviction_started', {
+                cache_budget_ram_mb: effectiveMaxCacheRamMB,
+                cache_peak_bytes_seen: cache.stats.peakBytes,
+                eviction_count: cache.stats.evictions,
+                disk_spill_enabled: diskStore.ready
+              });
+            }
+          }
+        });
+      } else {
+        cache = percy[RESOURCE_CACHE_KEY] = new Map();
+      }
+
       await percy.browser.launch();
       queue.run();
     })
-  // on end, close the browser
     .handle('end', async () => {
-      await percy.browser.close();
+      // Disk-spill cleanup must run even if browser.close() throws — otherwise
+      // the per-run temp dir under os.tmpdir() leaks. CACHE_STATS_KEY is set
+      // alongside DISK_SPILL_KEY in 'start', so the snapshot is always safe.
+      try {
+        await percy.browser.close();
+      } finally {
+        const diskStore = percy[DISK_SPILL_KEY];
+        if (diskStore) {
+          percy[CACHE_STATS_KEY].finalDiskStats = {
+            ...diskStore.stats,
+            ready: diskStore.ready
+          };
+          diskStore.destroy();
+          delete percy[DISK_SPILL_KEY];
+        }
+      }
     })
   // snapshots are unique by name and testCase; when deferred also by widths
     .handle('find', ({ name, testCase, widths }, snapshot) => (
@@ -454,14 +651,9 @@ export function createDiscoveryQueue(percy) {
               disableCache: snapshot.discovery.disableCache,
               allowedHostnames: snapshot.discovery.allowedHostnames,
               disallowedHostnames: snapshot.discovery.disallowedHostnames,
-              getResource: (u, width = null) => {
-                let resource = snapshot.resources.get(u) || cache.get(u);
-                if (resource && Array.isArray(resource) && resource[0].root) {
-                  const rootResource = resource.find(r => r.widths?.includes(width));
-                  resource = rootResource || resource[0];
-                }
-                return resource;
-              },
+              getResource: (u, width = null) => (
+                lookupCacheResource(percy, snapshot.resources, cache, u, width)
+              ),
               saveResource: r => {
                 const limitResources = process.env.LIMIT_SNAPSHOT_RESOURCES || false;
                 const MAX_RESOURCES = Number(process.env.MAX_SNAPSHOT_RESOURCES) || 749;
@@ -470,8 +662,36 @@ export function createDiscoveryQueue(percy) {
                   return;
                 }
                 snapshot.resources.set(r.url, r);
-                if (!snapshot.discovery.disableCache) {
+                if (snapshot.discovery.disableCache) return;
+
+                // Fresh write supersedes any prior spill — prevents races
+                // where getResource could serve a stale disk copy.
+                if (percy[DISK_SPILL_KEY]?.has(r.url)) {
+                  percy[DISK_SPILL_KEY].delete(r.url);
+                }
+
+                if (capBytes != null) {
+                  // ByteLRU fires onEvict('too-big') for oversize entries;
+                  // the oversize_skipped stat + debug log live there.
+                  cache.set(r.url, r, entrySize(r));
+                } else {
+                  // Subtract the prior entry's footprint before overwriting so
+                  // the byte counter tracks current cache contents rather than
+                  // cumulative writes. Without this, the same shared CSS saved
+                  // across N snapshots would inflate unsetModeBytes by N×.
+                  const stats = percy[CACHE_STATS_KEY];
+                  const prior = cache.get(r.url);
+                  if (prior) stats.unsetModeBytes -= entrySize(prior);
                   cache.set(r.url, r);
+                  stats.unsetModeBytes += entrySize(r);
+                  if (!stats.warningFired && stats.unsetModeBytes >= warnThreshold) {
+                    stats.warningFired = true;
+                    percy.log.warn(
+                      `Percy cache is using ${(stats.unsetModeBytes / BYTES_PER_MB).toFixed(1)}MB. ` +
+                      'If your CI is memory-constrained, set --max-cache-ram. ' +
+                      'See https://www.browserstack.com/docs/percy/cli/managing-cache-memory'
+                    );
+                  }
                 }
               }
             }

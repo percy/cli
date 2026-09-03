@@ -1,0 +1,31 @@
+{
+  "axElement": {
+    "identifier": "com.apple.springboard",
+    "frame": { "X": 0, "Y": 0, "Width": 390, "Height": 844 },
+    "label": "SpringBoard",
+    "elementType": 1,
+    "enabled": true,
+    "horizontalSizeClass": 1,
+    "verticalSizeClass": 2,
+    "selected": false,
+    "hasFocus": false,
+    "windowContextID": 0,
+    "displayID": 1,
+    "children": [
+      {
+        "identifier": "",
+        "frame": { "X": 16, "Y": 100, "Width": 358, "Height": 64 },
+        "label": "Settings",
+        "elementType": 9,
+        "enabled": true,
+        "horizontalSizeClass": 1,
+        "verticalSizeClass": 2,
+        "selected": false,
+        "hasFocus": false,
+        "windowContextID": 0,
+        "displayID": 1
+      }
+    ]
+  },
+  "depth": 2
+}

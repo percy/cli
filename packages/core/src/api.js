@@ -2,9 +2,13 @@ import fs from 'fs';
 import path, { dirname, resolve } from 'path';
 import logger from '@percy/logger';
 import { normalize } from '@percy/config/utils';
-import { getPackageJSON, Server, percyAutomateRequestHandler, percyBuildEventHandler, computeResponsiveWidths } from './utils.js';
+import { getPackageJSON, Server, percyAutomateRequestHandler, percyBuildEventHandler, computeResponsiveWidths, encodeURLSearchParams } from './utils.js';
+import { ServerError, isLoopbackOrigin } from './server.js';
 import WebdriverUtils from '@percy/webdriver-utils';
 import { handleSyncJob } from './snapshot.js';
+import { getMaestroHierarchyDrift } from './maestro-hierarchy.js';
+import { handleComparisonUpload } from './comparison-upload.js';
+import { handleMaestroScreenshot } from './maestro-screenshot.js';
 // Previously, we used `createRequire(import.meta.url).resolve` to resolve the path to the module.
 // This approach relied on `createRequire`, which is Node.js-specific and less compatible with modern ESM (ECMAScript Module) standards.
 // This was leading to hard coded paths when CLI is used as a dependency in another project.
@@ -12,6 +16,7 @@ import { handleSyncJob } from './snapshot.js';
 // This change ensures better compatibility and avoids relying on Node.js-specific APIs that might cause issues in ESM environments.
 import { fileURLToPath } from 'url';
 import { createRequire } from 'module';
+import { configSchema } from './config.js';
 
 export const getPercyDomPath = (url) => {
   try {
@@ -30,11 +35,66 @@ export const getPercyDomPath = (url) => {
 // Resolved path for PERCY_DOM
 export const PERCY_DOM = getPercyDomPath(import.meta.url);
 
-// Returns a URL encoded string of nested query params
-function encodeURLSearchParams(subj, prefix) {
-  return typeof subj === 'object' ? Object.entries(subj).map(([key, value]) => (
-    encodeURLSearchParams(value, prefix ? `${prefix}[${key}]` : key)
-  )).join('&') : `${prefix}=${encodeURIComponent(subj)}`;
+// Walks the config schema and collects dot-paths of any fields marked `httpReadOnly: true`
+// that are present in `body`. Driving this from the schema means new HTTP-blocked fields
+// only need a one-line annotation next to their definition — no list to keep in sync here.
+function findHttpReadOnlyPaths(body, schema, path = '') {
+  if (!body || typeof body !== 'object' || !schema?.properties) return [];
+  let paths = [];
+  for (let [key, propSchema] of Object.entries(schema.properties)) {
+    if (!Object.prototype.hasOwnProperty.call(body, key)) continue;
+    let childPath = path ? `${path}.${key}` : key;
+    if (propSchema?.httpReadOnly) {
+      paths.push(childPath);
+    } else {
+      paths.push(...findHttpReadOnlyPaths(body[key], propSchema, childPath));
+    }
+  }
+  return paths;
+}
+
+// Top-level configSchema is a map of subschemas keyed by top-level config namespace
+// (`discovery`, `snapshot`, …). Wrap it as a single object schema so the walker can recurse
+// uniformly from the root.
+const ROOT_CONFIG_SCHEMA = { type: 'object', properties: configSchema };
+
+// Removes each dot-path's leaf from a deep clone of `body` and logs a warning per path.
+// Returns the original `body` unchanged when `paths` is empty so we don't pay for a clone
+// on every config request. Exported for unit testing: the `?.` chain in the reduce is a
+// defensive guard for paths whose ancestor is absent from `body`. Through the production
+// caller (stripBlockedConfigFields → findHttpReadOnlyPaths) every intermediate is verified
+// present, so the guard is unreachable in normal use — but the explicit paths parameter
+// lets a unit test exercise it without contorting the schema.
+export function _applyHttpReadOnlyStripping(body, paths, log) {
+  if (!paths.length) return body;
+
+  let stripped = JSON.parse(JSON.stringify(body));
+  for (let p of paths) {
+    let parts = p.split('.');
+    let leaf = parts.pop();
+    let parent = parts.reduce((o, k) => o?.[k], stripped);
+    if (parent && typeof parent === 'object') delete parent[leaf];
+    log.warn(`Ignoring \`${p}\` from /percy/config request: this field can only be set via the config file or CLI at startup.`);
+  }
+  return stripped;
+}
+
+// Returns a body with `httpReadOnly` fields removed. Caller guarantees `body` is truthy.
+function stripBlockedConfigFields(body, log) {
+  return _applyHttpReadOnlyStripping(body, findHttpReadOnlyPaths(body, ROOT_CONFIG_SCHEMA), log);
+}
+
+// Reject state-changing requests that carry a cross-origin (non-loopback) Origin
+// header. The local server is unauthenticated by design (SDKs post to it), so
+// this blocks a malicious website the user is visiting from driving sensitive
+// endpoints — live config mutation or stopping the build — via the browser
+// (CWE-352 / CWE-306, PER-8600/8601). Node SDK clients send no Origin header and
+// are unaffected; loopback browser tooling (any localhost port) is allowed.
+function assertNotCrossOrigin(req) {
+  let origin = req.headers.origin;
+  if (origin && !isLoopbackOrigin(origin)) {
+    throw new ServerError(403, 'Cross-origin requests are not allowed on this endpoint');
+  }
 }
 
 // Create a Percy CLI API server instance
@@ -44,11 +104,19 @@ export function createPercyServer(percy, port) {
   let server = Server.createServer({ port })
   // general middleware
     .route((req, res, next) => {
-      // treat all request bodies as json
-      if (req.body) try { req.body = JSON.parse(req.body); } catch {}
+      // treat all request bodies as json (skip for multipart form data)
+      let contentType = req.headers['content-type'] || '';
+      if (req.body && !contentType.startsWith('multipart/form-data')) {
+        try { req.body = JSON.parse(req.body); } catch {}
+      }
 
-      // add version header
-      res.setHeader('Access-Control-Expose-Headers', '*, X-Percy-Core-Version');
+      // Expose headers only to loopback origins, consistent with the CORS
+      // handler in server.js. Access-Control-Expose-Headers is inert without a
+      // matching Access-Control-Allow-Origin, so gating it here keeps the two
+      // layers aligned rather than emitting it unconditionally.
+      if (isLoopbackOrigin(req.headers.origin)) {
+        res.setHeader('Access-Control-Expose-Headers', '*, X-Percy-Core-Version');
+      }
 
       // skip or change api version header in testing mode
       if (percy.testing?.version !== false) {
@@ -71,12 +139,23 @@ export function createPercyServer(percy, port) {
         next = () => req.connection.destroy();
       }
 
+      // Block cross-origin browser requests to every state-changing route at a
+      // single choke point. CORS-safelisted content types (text/plain, form
+      // data) reach handlers with no preflight, but a cross-origin request
+      // always carries an Origin header, so gating every non-safe method here
+      // covers all present and future mutating routes. Read-only methods and
+      // same-host / no-Origin SDK callers are unaffected.
       // return json errors
-      return next().catch(e => res.json(e.status ?? 500, {
-        build: percy.testing?.build || percy.build,
-        error: e.message,
-        success: false
-      }));
+      return Promise.resolve()
+        .then(() => {
+          if (!['GET', 'HEAD', 'OPTIONS'].includes(req.method)) assertNotCrossOrigin(req);
+          return next();
+        })
+        .catch(e => res.json(e.status ?? 500, {
+          build: percy.testing?.build || percy.build,
+          error: e.message,
+          success: false
+        }));
     })
   // healthcheck returns basic information
     .route('get', '/percy/healthcheck', (req, res) => res.json(200, {
@@ -90,6 +169,12 @@ export function createPercyServer(percy, port) {
         config: percy.config.snapshot.widths
       },
       deviceDetails: percy.deviceDetails || [],
+      // Two-slot drift envelope (Unit 4). Always emitted; both slots null
+      // in steady state. Ops uses this to detect Maestro upstream wire-format
+      // contract drift that would silently degrade element-region resolution.
+      // android slot is reserved for future Android-resolver schema-class
+      // calls (PR #2210's gRPC drift surface retrofits to use this setter).
+      maestroHierarchyDrift: getMaestroHierarchyDrift(),
       success: true,
       type: percy.client.tokenType()
     }))
@@ -113,10 +198,14 @@ export function createPercyServer(percy, port) {
       });
     })
   // get or set config options
-    .route(['get', 'post'], '/percy/config', async (req, res) => res.json(200, {
-      config: req.body ? percy.set(req.body) : percy.config,
-      success: true
-    }))
+    .route(['get', 'post'], '/percy/config', async (req, res) => {
+      // POST mutation is blocked cross-origin by the general middleware above.
+      let body = req.body && stripBlockedConfigFields(req.body, logger('core:server'));
+      return res.json(200, {
+        config: body ? percy.set(body) : percy.config,
+        success: true
+      });
+    })
   // responds once idle (may take a long time)
     .route('get', '/percy/idle', async (req, res) => res.json(200, {
       success: await percy.idle().then(() => true)
@@ -152,7 +241,17 @@ export function createPercyServer(percy, port) {
     .route('post', '/percy/comparison', async (req, res) => {
       let data;
       if (percy.syncMode(req.body)) {
-        const snapshotPromise = new Promise((resolve, reject) => percy.upload(req.body, { resolve, reject }, 'app'));
+        // percy.upload() is the generatePromise-wrapped method: calling it drives the
+        // underlying async generator to completion (enqueuing #snapshots) and the sync
+        // queue resolves/rejects the attached callback. Do NOT `for await` the return
+        // value — it is a Promise, not an async iterable. The raw generator lives at
+        // percy.yield.upload() if direct iteration is ever needed. The trailing
+        // .catch(reject) surfaces generator errors that bypass the sync-queue callback
+        // (e.g. a throw before the queue task runs) instead of leaking an unhandled
+        // rejection and hanging the request.
+        const snapshotPromise = new Promise((resolve, reject) => {
+          percy.upload(req.body, { resolve, reject }, 'app').catch(reject);
+        });
         data = await handleSyncJob(snapshotPromise, percy, 'comparison');
       } else {
         let upload = percy.upload(req.body, null, 'app');
@@ -177,6 +276,10 @@ export function createPercyServer(percy, port) {
       }
       return res.json(200, response);
     })
+  // post a comparison via multipart file upload
+    .route('post', '/percy/comparison/upload', /* istanbul ignore next */ (req, res) => handleComparisonUpload(req, res, percy))
+  // post a comparison by reading a Maestro screenshot from disk
+    .route('post', '/percy/maestro-screenshot', (req, res) => handleMaestroScreenshot(req, res, percy))
   // flushes one or more snapshots from the internal queue
     .route('post', '/percy/flush', async (req, res) => res.json(200, {
       success: await percy.flush(req.body).then(() => true)
@@ -187,7 +290,12 @@ export function createPercyServer(percy, port) {
       let comparisonData = await WebdriverUtils.captureScreenshot(req.body);
 
       if (percy.syncMode(comparisonData)) {
-        const snapshotPromise = new Promise((resolve, reject) => percy.upload(comparisonData, { resolve, reject }, 'automate'));
+        // See the /percy/comparison route: percy.upload() is the Promise-wrapped method;
+        // calling it drives the generator and the sync queue resolves/rejects the callback.
+        // The .catch(reject) surfaces generator errors that bypass that callback.
+        const snapshotPromise = new Promise((resolve, reject) => {
+          percy.upload(comparisonData, { resolve, reject }, 'automate').catch(reject);
+        });
         data = await handleSyncJob(snapshotPromise, percy, 'comparison');
       } else {
         percy.upload(comparisonData, null, 'automate');
@@ -215,8 +323,10 @@ export function createPercyServer(percy, port) {
 
       res.json(200, { success: true });
     })
-  // stops percy at the end of the current event loop
-    .route('/percy/stop', (req, res) => {
+  // stops percy at the end of the current event loop; POST-only so a browser
+  // cannot trigger it via a no-Origin GET (e.g. an <img> tag). Cross-origin
+  // POSTs are blocked by the general middleware's single choke point above.
+    .route('post', '/percy/stop', (req, res) => {
       setImmediate(() => percy.stop());
       return res.json(200, { success: true });
     });
@@ -230,7 +340,7 @@ export function createPercyServer(percy, port) {
       if (cmd === 'reset') {
         // the reset command will reset testing mode and clear any logs
         percy.testing = {};
-        logger.instance.messages.clear();
+        logger.instance.reset();
       } else if (cmd === 'version') {
         // the version command will update the api version header for testing
         percy.testing.version = body;
@@ -262,7 +372,7 @@ export function createPercyServer(percy, port) {
     }))
   // returns an array of raw logs from the logger
     .route('get', '/test/logs', (req, res) => res.json(200, {
-      logs: Array.from(logger.instance.messages)
+      logs: logger.instance.query(() => true)
     }))
   // serves a very basic html page for testing snapshots
     .route('get', '/test/snapshot', (req, res) => {

@@ -1,7 +1,52 @@
 import EventEmitter from 'events';
 import logger from '@percy/logger';
 
+// Node-side ceiling on a single CDP round trip. Chrome does not always answer:
+// a renderer that is frozen, starved of CPU, or swapped out keeps its target
+// attached and simply never replies. In-page deadlines cannot rescue that case
+// — their timers live in the very renderer that stopped running — so with no
+// deadline here `send()` never settles and the whole CLI blocks forever with
+// no error, no log and an unfinalized build. Reproducible by freezing the
+// renderer (`Page.setWebLifecycleState`) or descheduling it (SIGSTOP), both of
+// which a small, memory-pressured CI agent can do on its own.
+export const DEFAULT_CDP_TIMEOUT = 120000;
+
+// The longest wait a caller could legitimately be running *inside* the page,
+// doubled. Keeps the deadline above those so raising one of them can never
+// turn into a spurious protocol timeout.
+function inPageCeiling() {
+  return Math.max(
+    parseInt(process.env.PERCY_PAGE_LOAD_TIMEOUT, 10) || 0,
+    parseInt(process.env.PERCY_STORY_RENDER_TIMEOUT, 10) || 0
+  ) * 2;
+}
+
+// Resolved once per process, and memoized so a mid-run env change cannot make
+// concurrent sessions disagree. `PERCY_CDP_TIMEOUT=0` disables the deadline.
+export function cdpTimeout() {
+  if (Session.TIMEOUT !== undefined) return Session.TIMEOUT;
+  let configured = parseInt(process.env.PERCY_CDP_TIMEOUT, 10);
+
+  Session.TIMEOUT = Number.isNaN(configured)
+    ? Math.max(DEFAULT_CDP_TIMEOUT, inPageCeiling())
+    : Math.max(0, configured);
+
+  return Session.TIMEOUT;
+}
+
+// Shared by both CDP deadlines - the session-scoped one below and the
+// browser-scoped one in browser.js.
+export function cdpTimeoutMessage(method, timeout) {
+  return `Protocol error (${method}): Timed out after ${timeout}ms ` +
+    'waiting for a response from the browser. The browser stopped responding — a ' +
+    'renderer or browser process that is frozen, starved of CPU, or swapped out ' +
+    'never replies and never runs its own timers. Raise PERCY_CDP_TIMEOUT if this ' +
+    'command is legitimately slower than that, or set it to 0 to disable the deadline.';
+}
+
 export class Session extends EventEmitter {
+  static TIMEOUT = undefined;
+
   #callbacks = new Map();
 
   log = logger('core:session');
@@ -45,9 +90,24 @@ export class Session extends EventEmitter {
     // send a raw message to the browser so we can provide a sessionId
     let id = await this.browser.send({ sessionId: this.sessionId, method, params });
 
-    // will resolve or reject when a matching response is received
+    // will resolve or reject when a matching response is received, or when the
+    // deadline below expires because no response is ever coming
     return new Promise((resolve, reject) => {
-      this.#callbacks.set(id, { error: new Error(), resolve, reject, method });
+      let callback = { error: new Error(), resolve, reject, method };
+      let timeout = cdpTimeout();
+
+      if (timeout > 0) {
+        callback.timer = setTimeout(() => {
+          this.#callbacks.delete(id);
+          this.log.debug(`Protocol timeout (${method}) after ${timeout}ms`);
+
+          reject(Object.assign(callback.error, {
+            message: cdpTimeoutMessage(method, timeout)
+          }));
+        }, timeout);
+      }
+
+      this.#callbacks.set(id, callback);
     });
   }
 
@@ -56,6 +116,7 @@ export class Session extends EventEmitter {
       // resolve or reject a pending promise created with #send()
       let callback = this.#callbacks.get(data.id);
       this.#callbacks.delete(data.id);
+      clearTimeout(callback.timer);
 
       /* istanbul ignore next: races with browser._handleMessage() */
       if (data.error) {
@@ -77,6 +138,7 @@ export class Session extends EventEmitter {
 
     // reject any pending callbacks
     for (let callback of this.#callbacks.values()) {
+      clearTimeout(callback.timer);
       callback.reject(Object.assign(callback.error, {
         message: `Protocol error (${callback.method}): ${this.closedReason}`
       }));

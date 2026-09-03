@@ -49,6 +49,22 @@ describe('PlaywrightProvider', () => {
         'https://automate.browserstack.com/builds/buildHash/sessions/sessionHash'
       );
     });
+
+    it('uses PERCY_AUTOMATE_DOMAIN when set', async () => {
+      process.env.PERCY_AUTOMATE_DOMAIN = 'automate-k8s-mobile.bsstag.com';
+      try {
+        provider.automateResults = {
+          buildHash: 'buildHash',
+          sessionHash: 'sessionHash'
+        };
+        await provider.setDebugUrl();
+        expect(provider.debugUrl).toBe(
+          'https://automate-k8s-mobile.bsstag.com/builds/buildHash/sessions/sessionHash'
+        );
+      } finally {
+        delete process.env.PERCY_AUTOMATE_DOMAIN;
+      }
+    });
   });
 
   describe('screenshot', () => {

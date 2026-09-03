@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Sandboxed Iframes & Nested Depth</title>
+  <link rel="stylesheet" href="/assets/css/base.css">
+</head>
+<body>
+  <h1>Sandboxed Iframes & Nested Depth</h1>
+
+  <!-- Fully-permissive sandbox: should capture without warnings. -->
+  <div class="section">
+    <div class="section-title">Sandbox: allow-scripts + allow-same-origin (no warning)</div>
+    <iframe id="frame-permissive"
+            sandbox="allow-scripts allow-same-origin"
+            srcdoc="<p style='padding:12px;'>Permissive sandbox content</p>"
+            width="400" height="80"></iframe>
+  </div>
+
+  <!-- Empty sandbox: warns with "has no permissions". -->
+  <div class="section">
+    <div class="section-title">Sandbox: empty (warns "no permissions")</div>
+    <iframe id="frame-empty-sandbox"
+            sandbox=""
+            srcdoc="<p style='padding:12px;color:#cc3333;'>Empty sandbox content</p>"
+            width="400" height="80"></iframe>
+  </div>
+
+  <!-- Sandbox missing allow-scripts: warns "scripts disabled". -->
+  <div class="section">
+    <div class="section-title">Sandbox: missing allow-scripts (warns)</div>
+    <iframe id="frame-no-scripts"
+            sandbox="allow-same-origin"
+            srcdoc="<p style='padding:12px;color:#cc3333;'>JS-dependent content will not render</p>"
+            width="400" height="80"></iframe>
+  </div>
+
+  <!-- Sandbox missing allow-same-origin: warns about styles/resources. -->
+  <div class="section">
+    <div class="section-title">Sandbox: missing allow-same-origin (warns)</div>
+    <iframe id="frame-no-origin"
+            sandbox="allow-scripts"
+            srcdoc="<p style='padding:12px;color:#cc3333;'>Styles and resources may not load</p>"
+            width="400" height="80"></iframe>
+  </div>
+
+  <!-- Nested iframes: depth 0 → 1 → 2 → 3. With default maxIframeDepth=3,
+       the inner-most iframe at depth 3 is excluded. -->
+  <div class="section">
+    <div class="section-title">Nested iframes (depth limit boundary)</div>
+    <iframe id="depth-1"
+            srcdoc="<iframe id='depth-2' srcdoc=&quot;<iframe id='depth-3' srcdoc=&apos;<p>Innermost</p>&apos;></iframe>&quot;></iframe>"
+            width="600" height="200"></iframe>
+  </div>
+</body>
+</html>

@@ -1,8 +1,12 @@
 import { sha256hash } from '@percy/client/utils';
+import { waitFor } from '@percy/core/utils';
 import { logger, api, setupTest, createTestServer, dedent, mockRequests } from './helpers/index.js';
 import Percy from '@percy/core';
-import { RESOURCE_CACHE_KEY } from '../src/discovery.js';
+import { RESOURCE_CACHE_KEY, CACHE_STATS_KEY, DISK_SPILL_KEY } from '../src/discovery.js';
+import { ByteLRU, DiskSpillStore } from '../src/cache/byte-lru.js';
+import fs from 'fs';
 import Session from '../src/session.js';
+import Network from '../src/network.js';
 import Pako from 'pako';
 import * as CoreConfig from '@percy/core/config';
 import PercyConfig from '@percy/config';
@@ -84,6 +88,7 @@ describe('Discovery', () => {
     await percy?.stop(true);
     await server.close();
     delete process.env.PERCY_FORCE_PKG_VALUE;
+    delete process.env.PERCY_GZIP;
     jasmine.DEFAULT_TIMEOUT_INTERVAL = originalTimeout;
   });
 
@@ -464,6 +469,48 @@ describe('Discovery', () => {
     ]));
   });
 
+  it('captures favicon when the server provides one', async () => {
+    server.reply('/favicon.ico', () => [200, 'image/x-icon', pixel]);
+    let faviconDOM = testDOM.replace('</head>', '<link rel="icon" href="/favicon.ico"></head>');
+
+    await percy.snapshot({
+      name: 'favicon snapshot',
+      url: 'http://localhost:8000',
+      domSnapshot: faviconDOM
+    });
+
+    await percy.idle();
+
+    expect(captured[0]).toEqual(jasmine.arrayContaining([
+      jasmine.objectContaining({
+        attributes: jasmine.objectContaining({
+          'resource-url': 'http://localhost:8000/favicon.ico'
+        })
+      })
+    ]));
+  });
+
+  it('captures auto-fetched favicon when the page does not declare one', async () => {
+    percy.set({ discovery: { networkIdleTimeout: 1000 } });
+    server.reply('/favicon.ico', () => [200, 'image/x-icon', pixel]);
+
+    await percy.snapshot({
+      name: 'auto-fetch favicon snapshot',
+      url: 'http://localhost:8000',
+      domSnapshot: testDOM
+    });
+
+    await percy.idle();
+
+    expect(captured[0]).toEqual(jasmine.arrayContaining([
+      jasmine.objectContaining({
+        attributes: jasmine.objectContaining({
+          'resource-url': 'http://localhost:8000/favicon.ico'
+        })
+      })
+    ]));
+  });
+
   it('does not capture event-stream requests', async () => {
     let eventStreamDOM = dedent`<!DOCTYPE html><html><head></head><body><script>
       new EventSource('/event-stream').onmessage = event => {
@@ -644,7 +691,7 @@ describe('Discovery', () => {
     ]);
 
     expect(logger.stderr).toContain(
-      '[percy:core:discovery] - Skipping resource larger than 25MB'
+      '[percy:core:discovery] - Skipping resource larger than allowed size'
     );
   });
 
@@ -702,7 +749,7 @@ describe('Discovery', () => {
       })
     ]);
     expect(logger.stderr).toContain(
-      '[percy:core:discovery] - Skipping resource larger than 25MB'
+      '[percy:core:discovery] - Skipping resource larger than allowed size'
     );
   });
 
@@ -733,7 +780,7 @@ describe('Discovery', () => {
       ]);
 
       expect(logger.stderr).toContain(
-        '[percy:core:discovery] - Skipping resource larger than 25MB'
+        '[percy:core:discovery] - Skipping resource larger than allowed size'
       );
     });
   }
@@ -770,8 +817,204 @@ describe('Discovery', () => {
     ]);
 
     expect(logger.stderr).toContain(
-      '[percy:core:discovery] - Skipping resource larger than 25MB'
+      '[percy:core:discovery] - Skipping resource larger than allowed size'
     );
+  });
+
+  it('keeps cached resources uncompressed when PERCY_GZIP is enabled', async () => {
+    // A cached stylesheet compressed in place is replayed as gzip bytes under its
+    // original text/css type, so the browser never parses it or its @font-face.
+    process.env.PERCY_GZIP = true;
+
+    server.reply('/style.css', () => [200, 'text/css', [
+      '@font-face { font-family: "test"; src: url("/font.woff") format("woff"); }',
+      'body { font-family: "test", "sans-serif"; }'
+    ].join('')]);
+
+    await percy.snapshot({ name: 'one', url: 'http://localhost:8000', domSnapshot: testDOM });
+    await percy.snapshot({ name: 'two', url: 'http://localhost:8000', domSnapshot: testDOM });
+
+    await percy.idle();
+
+    let font = jasmine.objectContaining({
+      id: sha256hash(Pako.gzip('<font>')),
+      attributes: jasmine.objectContaining({
+        'resource-url': 'http://localhost:8000/font.woff'
+      })
+    });
+
+    expect(captured[0]).toEqual(jasmine.arrayContaining([font]));
+    // snapshot two's stylesheet comes from the cache and must still be parseable
+    expect(captured[1]).toEqual(jasmine.arrayContaining([font]));
+  });
+
+  it('captures resource larger than 25MB raw when PERCY_GZIP is enabled', async () => {
+    process.env.PERCY_GZIP = true;
+    const largeCSS = 'A'.repeat(30_000_000);
+    server.reply('/large.css', () => [200, 'text/css', largeCSS]);
+    percy.loglevel('debug');
+
+    await percy.snapshot({
+      name: 'test snapshot',
+      url: 'http://localhost:8000',
+      domSnapshot: testDOM.replace('style.css', 'large.css')
+    });
+
+    await percy.idle();
+
+    expect(captured[0]).toEqual([
+      jasmine.objectContaining({
+        id: sha256hash(Pako.gzip(testDOM.replace('style.css', 'large.css'))),
+        attributes: jasmine.objectContaining({
+          'resource-url': 'http://localhost:8000/'
+        })
+      }),
+      jasmine.objectContaining({
+        id: sha256hash(Pako.gzip(pixel)),
+        attributes: jasmine.objectContaining({
+          'resource-url': 'http://localhost:8000/img.gif'
+        })
+      }),
+      jasmine.objectContaining({
+        id: sha256hash(Pako.gzip(largeCSS)),
+        attributes: jasmine.objectContaining({
+          'resource-url': 'http://localhost:8000/large.css'
+        })
+      })
+    ]);
+
+    expect(logger.stderr).not.toContain(
+      '[percy:core:discovery] - Skipping resource larger than allowed size'
+    );
+  });
+
+  it('still skips resource above PERCY_GZIP raw-size ceiling', async () => {
+    process.env.PERCY_GZIP = true;
+    // 60MB > MAX_RAW_RESOURCE_SIZE_WITH_GZIP (50MB) → still rejected at capture
+    server.reply('/huge.css', () => [200, 'text/css', 'A'.repeat(60 * 1024 * 1024)]);
+    percy.loglevel('debug');
+
+    await percy.snapshot({
+      name: 'test snapshot',
+      url: 'http://localhost:8000',
+      domSnapshot: testDOM.replace('style.css', 'huge.css')
+    });
+
+    await percy.idle();
+
+    expect(captured[0]).toEqual([
+      jasmine.objectContaining({
+        attributes: jasmine.objectContaining({
+          'resource-url': 'http://localhost:8000/'
+        })
+      }),
+      jasmine.objectContaining({
+        attributes: jasmine.objectContaining({
+          'resource-url': 'http://localhost:8000/img.gif'
+        })
+      })
+    ]);
+
+    expect(logger.stderr).toContain(
+      '[percy:core:discovery] - Skipping resource larger than allowed size'
+    );
+  });
+
+  it('drops resource post-gzip when gzipped size still exceeds the cap', async () => {
+    // Random bytes do not compress under gzip; raw size ~20MB lets the resource
+    // pass shouldSkipForSize (under the PERCY_GZIP 50MB raw ceiling) but its
+    // gzipped size still exceeds MAX_RESOURCE_SIZE (~15.75MB) so the post-gzip
+    // check in discovery.js drops it. This exercises the new branch directly.
+    const crypto = await import('crypto');
+    const incompressible = crypto.randomBytes(20 * 1024 * 1024);
+    process.env.PERCY_GZIP = true;
+    server.reply('/incompressible.css', () => [200, 'text/css', incompressible]);
+    percy.loglevel('debug');
+
+    await percy.snapshot({
+      name: 'test snapshot',
+      url: 'http://localhost:8000',
+      domSnapshot: testDOM.replace('style.css', 'incompressible.css')
+    });
+
+    await percy.idle();
+
+    expect(captured[0]).toEqual([
+      jasmine.objectContaining({
+        attributes: jasmine.objectContaining({
+          'resource-url': 'http://localhost:8000/'
+        })
+      }),
+      jasmine.objectContaining({
+        attributes: jasmine.objectContaining({
+          'resource-url': 'http://localhost:8000/img.gif'
+        })
+      })
+    ]);
+
+    expect(logger.stderr).toContain(
+      jasmine.stringMatching(/Skipping resource larger than allowed size after gzip/)
+    );
+  });
+
+  it('skips resource and continues when Pako.gzip throws', async () => {
+    process.env.PERCY_GZIP = true;
+    const originalGzip = Pako.gzip;
+    let callCount = 0;
+    spyOn(Pako, 'gzip').and.callFake((data) => {
+      // Throw on the first non-root resource (the style.css) so we exercise
+      // the defensive catch without breaking the rest of the snapshot.
+      callCount += 1;
+      if (callCount === 2) throw new Error('boom');
+      return originalGzip(data);
+    });
+    percy.loglevel('debug');
+
+    await percy.snapshot({
+      name: 'test snapshot',
+      url: 'http://localhost:8000',
+      domSnapshot: testDOM
+    });
+
+    await percy.idle();
+
+    expect(logger.stderr).toContain(
+      jasmine.stringMatching(/Skipping resource: gzip failed for .* - boom/)
+    );
+  });
+
+  it('uses the longer direct-fetch timeout when PERCY_GZIP is set', async () => {
+    process.env.PERCY_GZIP = true;
+    percy.loglevel('debug');
+    // Drop Network.responseReceived to force the direct-fetch fallback, then make
+    // the direct fetch return 400 so the timeout-selection branch executes.
+    spyOn(percy.browser, '_handleMessage').and.callFake(function(data) {
+      let parsed; try { parsed = JSON.parse(data); } catch { /* binary */ }
+      if (parsed?.method === 'Network.responseReceived' &&
+          parsed?.params?.response?.url?.endsWith('/direct-gzip.css')) {
+        return;
+      }
+      this._handleMessage.and.originalFn.call(this, data);
+    });
+
+    let hits = 0;
+    server.reply('/direct-gzip.css', () => {
+      hits += 1;
+      if (hits === 1) return [200, 'text/css', 'p{}'];
+      return [400, 'text/plain', 'bad'];
+    });
+
+    let dom = '<html><head><link href="direct-gzip.css" rel="stylesheet"/></head><body>x</body></html>';
+    await percy.snapshot({
+      name: 'direct-fetch gzip snapshot',
+      url: 'http://localhost:8000',
+      domSnapshot: dom
+    });
+    await percy.idle();
+
+    expect(logger.stderr).toEqual(jasmine.arrayContaining([
+      jasmine.stringMatching(/Direct fetch failed for http:\/\/localhost:8000\/direct-gzip\.css -/)
+    ]));
   });
 
   describe('asset instrumentation', () => {
@@ -859,6 +1102,164 @@ describe('Discovery', () => {
       const emptyLogs = notUploadedLogs.filter(l => l.meta && l.meta.reason === 'empty_response');
       expect(emptyLogs.length).toBeGreaterThan(0, 'No empty_response logs found');
       expect(emptyLogs[0].message).toContain('[ASSET_NOT_UPLOADED]');
+    });
+
+    it('blocks and logs instrumentation for cloud metadata endpoints', async () => {
+      await percy.snapshot({
+        name: 'test snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot: testDOM.replace('img.gif', 'http://169.254.169.254/latest/meta-data/'),
+        discovery: { disableCache: true }
+      });
+
+      await percy.idle();
+
+      const logs = logger.instance.query(log => log.debug === 'core:discovery');
+      expect(logs.length).toBeGreaterThan(0, 'No core:discovery logs found');
+
+      const notUploadedLogs = logs.filter(l => l.meta && l.meta.instrumentationCategory === 'asset_not_uploaded');
+      const metadataLogs = notUploadedLogs.filter(l => l.meta && l.meta.reason === 'metadata_endpoint_blocked');
+      expect(metadataLogs.length).toBeGreaterThan(0, 'No metadata_endpoint_blocked logs found');
+      expect(metadataLogs[0].meta.hostname).toBe('169.254.169.254');
+      expect(metadataLogs[0].message).toContain('[ASSET_NOT_UPLOADED]');
+
+      // the metadata subresource must never be captured/uploaded
+      expect(captured[0]).not.toContain(
+        jasmine.objectContaining({
+          attributes: jasmine.objectContaining({
+            'resource-url': 'http://169.254.169.254/latest/meta-data/'
+          })
+        })
+      );
+    });
+
+    it('blocks a resource that redirects to a cloud metadata endpoint', async () => {
+      // an open redirect on an allowed host must not be able to smuggle a
+      // request through to the metadata endpoint — the redirect hop target
+      // (not just the original URL) has to be checked
+      server.reply('/redirect-meta', () => [301, { Location: 'http://169.254.169.254/latest/meta-data/' }]);
+
+      await percy.snapshot({
+        name: 'test snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot: testDOM.replace('img.gif', 'redirect-meta'),
+        discovery: { disableCache: true }
+      });
+
+      await percy.idle();
+
+      const logs = logger.instance.query(log => log.debug === 'core:discovery');
+      const notUploadedLogs = logs.filter(l => l.meta && l.meta.instrumentationCategory === 'asset_not_uploaded');
+      const metadataLogs = notUploadedLogs.filter(l => l.meta && l.meta.reason === 'metadata_endpoint_blocked');
+      expect(metadataLogs.length).toBeGreaterThan(0, 'No metadata_endpoint_blocked logs found for redirect');
+      expect(metadataLogs[0].meta.hostname).toBe('169.254.169.254');
+
+      // the redirect target must never be captured/uploaded
+      expect(captured[0]).not.toContain(
+        jasmine.objectContaining({
+          attributes: jasmine.objectContaining({
+            'resource-url': 'http://169.254.169.254/latest/meta-data/'
+          })
+        })
+      );
+    });
+
+    it('blocks a subresource whose connection rebinds to a metadata IP (response-stage gate)', async () => {
+      // DNS rebinding: the request-time literal pre-check sees only the benign
+      // host (localhost) and lets the request through, but Chromium's actual
+      // connection is to a cloud metadata IP. We simulate that by rewriting the
+      // connected remoteIPAddress reported on Network.responseReceived for the
+      // subresources — one plain IPv4 metadata IP, one IPv4-mapped IPv6 form.
+      // The response-stage gate must block each resource before its body is ever
+      // buffered/uploaded. This is the leg the literal pre-check cannot cover.
+      spyOn(percy.browser, '_handleMessage').and.callFake(function(data) {
+        let parsed; try { parsed = JSON.parse(data); } catch { /* binary frame */ }
+        let url = parsed?.method === 'Network.responseReceived' && parsed.params?.response?.url;
+        if (url && url.endsWith('/img.gif')) {
+          parsed.params.response.remoteIPAddress = '169.254.169.254';
+          return this._handleMessage.and.originalFn.call(this, JSON.stringify(parsed));
+        }
+        if (url && url.endsWith('/style.css')) {
+          parsed.params.response.remoteIPAddress = '::ffff:169.254.169.254';
+          return this._handleMessage.and.originalFn.call(this, JSON.stringify(parsed));
+        }
+        this._handleMessage.and.originalFn.call(this, data);
+      });
+
+      await percy.snapshot({
+        name: 'rebind snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot: testDOM,
+        discovery: { disableCache: true }
+      });
+
+      await percy.idle();
+
+      const logs = logger.instance.query(log => log.debug === 'core:discovery');
+      const notUploadedLogs = logs.filter(l => l.meta && l.meta.instrumentationCategory === 'asset_not_uploaded');
+      const metadataLogs = notUploadedLogs.filter(l => l.meta && l.meta.reason === 'metadata_endpoint_blocked');
+      const blockedHosts = metadataLogs.map(l => l.meta.hostname);
+
+      expect(blockedHosts).toContain('169.254.169.254');
+      expect(blockedHosts).toContain('::ffff:169.254.169.254');
+
+      // neither rebound resource body may be captured/uploaded
+      expect(captured[0]).not.toContain(jasmine.objectContaining({
+        attributes: jasmine.objectContaining({ 'resource-url': 'http://localhost:8000/img.gif' })
+      }));
+      expect(captured[0]).not.toContain(jasmine.objectContaining({
+        attributes: jasmine.objectContaining({ 'resource-url': 'http://localhost:8000/style.css' })
+      }));
+    });
+
+    it('blocks a direct-fetched resource whose connection is a metadata IP', async () => {
+      percy.loglevel('debug');
+
+      // The direct-fetch fallback is a Node-side path that also attaches
+      // cookies/auth and never goes through the request-time continue path. Force
+      // it by dropping the resource's CDP response (so loadingFinished falls back
+      // to captureResourceDirectly, mirroring the PlzDedicatedWorker case), then
+      // stub the transport's reported connected IP to a cloud metadata address.
+      // The direct-fetch choke point (makeDirectRequest → isMetadataIP) must block
+      // it and never save the body.
+      spyOn(percy.browser, '_handleMessage').and.callFake(function(data) {
+        let parsed; try { parsed = JSON.parse(data); } catch { /* binary frame */ }
+        if (parsed?.method === 'Network.responseReceived' &&
+            parsed.params?.response?.url?.endsWith('/direct-meta.css')) {
+          return; // drop → responseReceived times out → captureResourceDirectly
+        }
+        this._handleMessage.and.originalFn.call(this, data);
+      });
+
+      let origDirectFetch = Network.prototype.directFetch;
+      spyOn(Network.prototype, 'directFetch').and.callFake(async function(request, session) {
+        let result = await origDirectFetch.call(this, request, session);
+        if (request.url.endsWith('/direct-meta.css')) {
+          return { ...result, remoteAddresses: ['169.254.169.254'] };
+        }
+        return result;
+      });
+
+      server.reply('/direct-meta.css', () => [200, 'text/css', 'p{}']);
+
+      let dom = '<html><head><link href="direct-meta.css" rel="stylesheet"/></head><body>x</body></html>';
+      await percy.snapshot({
+        name: 'direct-fetch metadata snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot: dom
+      });
+
+      await percy.idle();
+
+      const logs = logger.instance.query(log => log.debug === 'core:discovery');
+      const notUploadedLogs = logs.filter(l => l.meta && l.meta.instrumentationCategory === 'asset_not_uploaded');
+      const metadataLogs = notUploadedLogs.filter(l => l.meta && l.meta.reason === 'metadata_endpoint_blocked');
+      expect(metadataLogs.map(l => l.meta.hostname)).toContain('169.254.169.254');
+
+      // the direct-fetched resource must never be captured/uploaded
+      expect(captured[0]).not.toContain(jasmine.objectContaining({
+        attributes: jasmine.objectContaining({ 'resource-url': 'http://localhost:8000/direct-meta.css' })
+      }));
     });
 
     it('logs instrumentation for network errors', async () => {
@@ -1141,6 +1542,8 @@ describe('Discovery', () => {
   });
 
   it('captures requests from workers', async () => {
+    percy.loglevel('debug');
+
     // Fetch and Network events are inherently racey because they come from different processes. The
     // bug we are testing here happens specifically when the Network event comes after the Fetch
     // event. Using a stub, we can cause Network events to happen a few milliseconds later than they
@@ -1183,6 +1586,21 @@ describe('Discovery', () => {
       jasmine.objectContaining({
         attributes: jasmine.objectContaining({
           'resource-url': 'http://localhost:8000/img.gif'
+        })
+      })
+    ]));
+
+    // Asserts the v143 worker-script timeout fired so a regression of the hang-fix is observable.
+    expect(logger.stderr).toEqual(jasmine.arrayContaining([
+      jasmine.stringMatching(/Skipping resource: responseReceived not received within 2000ms - http:\/\/localhost:8000\/worker\.js/)
+    ]));
+
+    // Worker scripts must still appear in captured resources for enableJavaScript:true,
+    // courtesy of the direct-fetch fallback that runs when the timeout fires.
+    expect(captured).toContain(jasmine.arrayContaining([
+      jasmine.objectContaining({
+        attributes: jasmine.objectContaining({
+          'resource-url': 'http://localhost:8000/worker.js'
         })
       })
     ]));
@@ -1304,11 +1722,7 @@ describe('Discovery', () => {
   });
 
   describe('idle timeout', () => {
-    let Network;
-
     beforeEach(async () => {
-      ({ Network } = await import('../src/network.js'));
-      Network.TIMEOUT = undefined;
       process.env.PERCY_NETWORK_IDLE_WAIT_TIMEOUT = 500;
 
       // some async request that takes a while
@@ -1320,7 +1734,6 @@ describe('Discovery', () => {
     });
 
     afterEach(() => {
-      Network.TIMEOUT = undefined;
       process.env.PERCY_NETWORK_IDLE_WAIT_TIMEOUT = undefined;
       process.env.PERCY_IGNORE_TIMEOUT_ERROR = undefined;
     });
@@ -1332,7 +1745,11 @@ describe('Discovery', () => {
       });
 
       expect(logger.stderr).toContain(
-        '[percy] Error: Timed out waiting for network requests to idle.'
+        jasmine.stringContaining('[percy] Error: Timed out waiting for network requests to idle.')
+      );
+      // R7: actionable hint surfaces in the same error message.
+      expect(logger.stderr).toContain(
+        jasmine.stringContaining('PERCY_NETWORK_IDLE_WAIT_TIMEOUT')
       );
 
       let expectedRequestBody = {
@@ -1343,7 +1760,7 @@ describe('Discovery', () => {
               meta: { build: { id: '123', url: 'https://percy.io/test/test/123', number: 1 }, snapshot: { name: 'test idle' } }
             },
             {
-              message: 'Timed out waiting for network requests to idle.',
+              message: jasmine.stringContaining('Timed out waiting for network requests to idle.'),
               meta: { build: { id: '123', url: 'https://percy.io/test/test/123', number: 1 }, snapshot: { name: 'test idle' } }
             }
           ]
@@ -1377,6 +1794,7 @@ describe('Discovery', () => {
 
       expect(logger.stderr).toContain(jasmine.stringMatching([
         '^\\[percy:core] Error: Timed out waiting for network requests to idle.',
+        'Hint: set PERCY_NETWORK_IDLE_WAIT_TIMEOUT to increase the budget, or allowlist slow domains via the discovery config.',
         'While capturing responsive assets try setting PERCY_DO_NOT_CAPTURE_RESPONSIVE_ASSETS to true.',
         '',
         '  Active requests:',
@@ -1393,7 +1811,7 @@ describe('Discovery', () => {
               meta: { build: { id: '123', url: 'https://percy.io/test/test/123', number: 1 }, snapshot: { name: 'test idle' } }
             },
             {
-              message: 'Timed out waiting for network requests to idle.\nWhile capturing responsive assets try setting PERCY_DO_NOT_CAPTURE_RESPONSIVE_ASSETS to true.\n\n  Active requests:\n  - http://localhost:8000/img-fromsrcset.png\n',
+              message: 'Timed out waiting for network requests to idle.\nHint: set PERCY_NETWORK_IDLE_WAIT_TIMEOUT to increase the budget, or allowlist slow domains via the discovery config.\nWhile capturing responsive assets try setting PERCY_DO_NOT_CAPTURE_RESPONSIVE_ASSETS to true.\n\n  Active requests:\n  - http://localhost:8000/img-fromsrcset.png\n',
               meta: { build: { id: '123', url: 'https://percy.io/test/test/123', number: 1 }, snapshot: { name: 'test idle' } }
             }
           ]
@@ -1472,6 +1890,7 @@ describe('Discovery', () => {
 
         expect(logger.stderr).not.toContain(jasmine.stringMatching([
           '^\\[percy:core] Error: Timed out waiting for network requests to idle.',
+          'Hint: set PERCY_NETWORK_IDLE_WAIT_TIMEOUT to increase the budget, or allowlist slow domains via the discovery config.',
           '',
           '  Active requests:',
           '  - http://localhost:8000/img.gif',
@@ -2288,6 +2707,613 @@ describe('Discovery', () => {
     });
   });
 
+  describe('with --max-cache-ram', () => {
+    async function startPercyWith(discoveryExtras = {}) {
+      await percy.stop(true);
+      percy = await Percy.start({
+        token: 'PERCY_TOKEN',
+        snapshot: { widths: [1000] },
+        discovery: { concurrency: 1, ...discoveryExtras }
+      });
+    }
+
+    afterEach(() => {
+      delete process.env.PERCY_CACHE_WARN_THRESHOLD_BYTES;
+    });
+
+    it('installs a ByteLRU when maxCacheRam is set', async () => {
+      await startPercyWith({ maxCacheRam: 25 });
+      const cache = percy[RESOURCE_CACHE_KEY];
+      expect(cache instanceof ByteLRU).toBe(true);
+      expect(cache.calculatedSize).toEqual(0);
+      expect(cache.stats).toEqual(jasmine.objectContaining({
+        hits: 0, misses: 0, evictions: 0, peakBytes: 0
+      }));
+    });
+
+    it('uses a plain Map when maxCacheRam is unset (backward compat)', () => {
+      // percy was started in beforeEach without maxCacheRam
+      expect(percy[RESOURCE_CACHE_KEY] instanceof Map).toBe(true);
+    });
+
+    it('clamps a cap below the 25MB floor, warns, and leaves user config intact', async () => {
+      await startPercyWith({ maxCacheRam: 10 });
+      expect(percy[RESOURCE_CACHE_KEY] instanceof ByteLRU).toBe(true);
+      // User config is NOT mutated — the effective value lives on stats.
+      expect(percy.config.discovery.maxCacheRam).toEqual(10);
+      expect(percy[CACHE_STATS_KEY].effectiveMaxCacheRamMB).toEqual(25);
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
+        jasmine.stringContaining('--max-cache-ram=10MB is below the 25MB minimum')
+      ]));
+    });
+
+    it('clamps to the 50MB floor when PERCY_GZIP is set', async () => {
+      // Under PERCY_GZIP individual resources can be up to ~50MB raw, so the
+      // cache floor must track that — clamping up to 50, not 25.
+      process.env.PERCY_GZIP = true;
+      await startPercyWith({ maxCacheRam: 30 });
+      expect(percy[CACHE_STATS_KEY].effectiveMaxCacheRamMB).toEqual(50);
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
+        jasmine.stringContaining('--max-cache-ram=30MB is below the 50MB minimum')
+      ]));
+    });
+
+    it('emits an info log when cap and --disable-cache are both set', async () => {
+      await startPercyWith({ maxCacheRam: 50, disableCache: true });
+      expect(logger.stdout).toEqual(jasmine.arrayContaining([
+        jasmine.stringContaining('--max-cache-ram is ignored because --disable-cache is set')
+      ]));
+    });
+
+    it('warns when cap is >= 25MB but below the reasonable floor', async () => {
+      // Between MAX_RESOURCE_SIZE_MB (25) and MIN_REASONABLE_CAP_MB (50).
+      // No clamp, but surface the likely-too-tight hit-rate warning.
+      await startPercyWith({ maxCacheRam: 30 });
+      expect(percy[CACHE_STATS_KEY].effectiveMaxCacheRamMB).toEqual(30);
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
+        jasmine.stringContaining('--max-cache-ram=30MB is very small')
+      ]));
+    });
+
+    it('fires cache_eviction_started info log + sets gate when an LRU eviction happens', async () => {
+      await startPercyWith({ maxCacheRam: 25 });
+      const cache = percy[RESOURCE_CACHE_KEY];
+      // Drive the cache past cap so onEvict fires the lru branch.
+      const capBytes = 25 * 1_000_000;
+      const chunk = Math.floor(capBytes / 3);
+      cache.set('a', { content: Buffer.alloc(chunk) }, chunk + 512);
+      cache.set('b', { content: Buffer.alloc(chunk) }, chunk + 512);
+      cache.set('c', { content: Buffer.alloc(chunk) }, chunk + 512);
+      cache.set('d', { content: Buffer.alloc(chunk) }, chunk + 512);
+      expect(cache.stats.evictions).toBeGreaterThan(0);
+      expect(percy[CACHE_STATS_KEY].firstEvictionEventFired).toBe(true);
+      expect(logger.stdout).toEqual(jasmine.arrayContaining([
+        jasmine.stringContaining('Cache eviction active — cap reached, oldest entries spilling to disk')
+      ]));
+    });
+
+    it('fireCacheEventSafe short-circuits when percy.build is not yet set', async () => {
+      await startPercyWith({ maxCacheRam: 25 });
+      percy.build = undefined;
+      const spy = spyOn(percy.client, 'sendBuildEvents');
+      const cache = percy[RESOURCE_CACHE_KEY];
+      const chunk = Math.floor(25_000_000 / 3);
+      cache.set('a', { content: Buffer.alloc(chunk) }, chunk + 512);
+      cache.set('b', { content: Buffer.alloc(chunk) }, chunk + 512);
+      cache.set('c', { content: Buffer.alloc(chunk) }, chunk + 512);
+      cache.set('d', { content: Buffer.alloc(chunk) }, chunk + 512);
+      expect(spy).not.toHaveBeenCalled();
+    });
+
+    it('fireCacheEventSafe debug-logs and swallows pager rejections', async () => {
+      await logger.mock({ level: 'debug' });
+      await startPercyWith({ maxCacheRam: 25 });
+      percy.build = { id: '123' };
+      spyOn(percy.client, 'sendBuildEvents').and.rejectWith(new Error('pager down'));
+      const cache = percy[RESOURCE_CACHE_KEY];
+      const capBytes = 25 * 1_000_000;
+      const chunk = Math.floor(capBytes / 3);
+      cache.set('a', { content: Buffer.alloc(chunk) }, chunk + 512);
+      cache.set('b', { content: Buffer.alloc(chunk) }, chunk + 512);
+      cache.set('c', { content: Buffer.alloc(chunk) }, chunk + 512);
+      cache.set('d', { content: Buffer.alloc(chunk) }, chunk + 512);
+      // fireCacheEventSafe is fire-and-forget — wait a microtask tick for the
+      // catch handler to run.
+      await new Promise(r => setImmediate(r));
+      expect(percy.client.sendBuildEvents).toHaveBeenCalled();
+    });
+
+    it('fireCacheEventSafe trailing .catch silences sendCacheTelemetry rejections', async () => {
+      // Defensive path: sendCacheTelemetry already catches pager errors, but
+      // if it ever returns a rejected promise (e.g. the inner catch arm
+      // throws on a broken logger), the trailing .catch on the microtask
+      // chain in discovery.js silences it so we never hit Node's
+      // unhandled-rejection fatal mode.
+      await startPercyWith({ maxCacheRam: 25 });
+      percy.build = { id: '123' };
+      spyOn(percy, 'sendCacheTelemetry').and.rejectWith(new Error('boom'));
+      const cache = percy[RESOURCE_CACHE_KEY];
+      const chunk = Math.floor(25_000_000 / 3);
+      cache.set('a', { content: Buffer.alloc(chunk) }, chunk + 512);
+      cache.set('b', { content: Buffer.alloc(chunk) }, chunk + 512);
+      cache.set('c', { content: Buffer.alloc(chunk) }, chunk + 512);
+      cache.set('d', { content: Buffer.alloc(chunk) }, chunk + 512);
+      // Two ticks: one for the Promise.resolve().then microtask (which calls
+      // sendCacheTelemetry), one for the trailing .catch.
+      await new Promise(r => setImmediate(r));
+      await new Promise(r => setImmediate(r));
+      expect(percy.sendCacheTelemetry).toHaveBeenCalled();
+    });
+
+    it('records oversize_skipped in stats and logs when an entry is bigger than cap', async () => {
+      await logger.mock({ level: 'debug' });
+      await startPercyWith({ maxCacheRam: 25 });
+      const cache = percy[RESOURCE_CACHE_KEY];
+      // Oversize path: ByteLRU fires onEvict('too-big') which increments
+      // the stat and logs — upstream network caps at ~16.5MB so this is
+      // the only way to exercise the branch from core code.
+      const saved = cache.set('http://x/huge', { content: Buffer.alloc(26_000_001) }, 26_000_001 + 512);
+      expect(saved).toBe(false);
+      expect(cache.calculatedSize).toEqual(0);
+      expect(percy[CACHE_STATS_KEY].oversizeSkipped).toEqual(1);
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
+        jasmine.stringContaining('cache skip (oversize): http://x/huge')
+      ]));
+    });
+  });
+
+  describe('with --max-cache-ram disk-spill tier', () => {
+    async function startWith(discoveryExtras = {}) {
+      await percy.stop(true);
+      percy = await Percy.start({
+        token: 'PERCY_TOKEN',
+        snapshot: { widths: [1000] },
+        discovery: { concurrency: 1, ...discoveryExtras }
+      });
+    }
+
+    it('installs a DiskSpillStore alongside ByteLRU when cap is set', async () => {
+      await startWith({ maxCacheRam: 25 });
+      expect(percy[DISK_SPILL_KEY] instanceof DiskSpillStore).toBe(true);
+      expect(percy[DISK_SPILL_KEY].ready).toBe(true);
+      expect(fs.existsSync(percy[DISK_SPILL_KEY].dir)).toBe(true);
+    });
+
+    it('does not install a DiskSpillStore when no cap is set', () => {
+      // percy was started in beforeEach without maxCacheRam
+      expect(percy[DISK_SPILL_KEY]).toBeUndefined();
+    });
+
+    it('spills an LRU-evicted resource to disk instead of dropping it', async () => {
+      await logger.mock({ level: 'debug' });
+      await startWith({ maxCacheRam: 25 });
+      const cache = percy[RESOURCE_CACHE_KEY];
+      const disk = percy[DISK_SPILL_KEY];
+      const chunk = Math.floor(25_000_000 / 3);
+      cache.set('http://x/a', { url: 'http://x/a', content: Buffer.alloc(chunk, 0xaa) }, chunk + 512);
+      cache.set('http://x/b', { url: 'http://x/b', content: Buffer.alloc(chunk, 0xbb) }, chunk + 512);
+      cache.set('http://x/c', { url: 'http://x/c', content: Buffer.alloc(chunk, 0xcc) }, chunk + 512);
+      cache.set('http://x/d', { url: 'http://x/d', content: Buffer.alloc(chunk, 0xdd) }, chunk + 512);
+
+      expect(cache.has('http://x/a')).toBe(false);
+      expect(disk.has('http://x/a')).toBe(true);
+      expect(disk.stats.spilled).toBeGreaterThan(0);
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
+        jasmine.stringContaining('cache spill: http://x/a')
+      ]));
+    });
+
+    it('rehydrates a spilled resource byte-for-byte on disk-hit', async () => {
+      await startWith({ maxCacheRam: 25 });
+      const disk = percy[DISK_SPILL_KEY];
+      const content = Buffer.from([0, 1, 2, 3, 254, 255, 128]);
+      disk.set('http://x/spilled', {
+        url: 'http://x/spilled', mimetype: 'image/png', sha: 'abc', content
+      });
+      const got = disk.get('http://x/spilled');
+      expect(got.content.equals(content)).toBe(true);
+      expect(got.sha).toEqual('abc');
+    });
+
+    it('falls back to drop when disk write fails and emits cache evict debug log', async () => {
+      await logger.mock({ level: 'debug' });
+      await startWith({ maxCacheRam: 25 });
+      const cache = percy[RESOURCE_CACHE_KEY];
+      const disk = percy[DISK_SPILL_KEY];
+      spyOn(fs, 'writeFileSync').and.throwError(new Error('ENOSPC'));
+      const chunk = Math.floor(25_000_000 / 3);
+      cache.set('http://x/a', { url: 'http://x/a', content: Buffer.alloc(chunk) }, chunk + 512);
+      cache.set('http://x/b', { url: 'http://x/b', content: Buffer.alloc(chunk) }, chunk + 512);
+      cache.set('http://x/c', { url: 'http://x/c', content: Buffer.alloc(chunk) }, chunk + 512);
+      cache.set('http://x/d', { url: 'http://x/d', content: Buffer.alloc(chunk) }, chunk + 512);
+
+      expect(cache.has('http://x/a')).toBe(false);
+      expect(disk.has('http://x/a')).toBe(false);
+      expect(disk.stats.spillFailures).toBeGreaterThan(0);
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
+        jasmine.stringContaining('cache evict:')
+      ]));
+    });
+
+    it('saveResource clears a stale disk entry so fresh writes are not shadowed', async () => {
+      await startWith({ maxCacheRam: 25 });
+      const disk = percy[DISK_SPILL_KEY];
+      disk.set('http://localhost:8000/style.css', {
+        url: 'http://localhost:8000/style.css',
+        mimetype: 'text/css',
+        content: Buffer.from('STALE')
+      });
+      expect(disk.has('http://localhost:8000/style.css')).toBe(true);
+
+      await percy.snapshot({
+        name: 'stale disk test',
+        url: 'http://localhost:8000',
+        domSnapshot: testDOM
+      });
+      await percy.idle();
+
+      expect(disk.has('http://localhost:8000/style.css')).toBe(false);
+    });
+
+    it('saveResource clears a stale disk entry on the saveResource path itself (race window)', async () => {
+      // The lookup path also clears stale disk entries via promotion, so that
+      // path masks coverage of the saveResource-side guard. Force a lookup
+      // miss while leaving the entry on disk to prove the save-side branch
+      // fires, which is the actual race-window guard the comment describes.
+      await startWith({ maxCacheRam: 25 });
+      const disk = percy[DISK_SPILL_KEY];
+      disk.set('http://localhost:8000/style.css', {
+        url: 'http://localhost:8000/style.css',
+        mimetype: 'text/css',
+        content: Buffer.from('STALE')
+      });
+      // .has stays truthful so the saveResource guard sees the entry; .get
+      // returns undefined so the lookup-side promotion path is bypassed.
+      spyOn(disk, 'get').and.returnValue(undefined);
+      expect(disk.has('http://localhost:8000/style.css')).toBe(true);
+
+      await percy.snapshot({
+        name: 'race window test',
+        url: 'http://localhost:8000',
+        domSnapshot: testDOM
+      });
+      await percy.idle();
+
+      expect(disk.has('http://localhost:8000/style.css')).toBe(false);
+    });
+
+    it('calls diskStore.destroy, snapshots stats.finalDiskStats, and clears the key in the queue end handler', async () => {
+      await startWith({ maxCacheRam: 25 });
+      const disk = percy[DISK_SPILL_KEY];
+      const stats = percy[CACHE_STATS_KEY];
+      const destroySpy = spyOn(disk, 'destroy').and.callThrough();
+      const liveStats = { ...disk.stats };
+      const liveReady = disk.ready;
+      // Force-stop runs the same 'end' handler we care about, but skips
+      // the graceful flush that's slow/flaky on Windows runners.
+      await percy.stop(true);
+      expect(destroySpy).toHaveBeenCalled();
+      expect(percy[DISK_SPILL_KEY]).toBeUndefined();
+      expect(stats.finalDiskStats).toEqual(jasmine.objectContaining({
+        ...liveStats,
+        ready: liveReady
+      }));
+    });
+
+    it('gracefully handles a DiskSpillStore that fails to init', async () => {
+      spyOn(fs, 'mkdirSync').and.throwError(new Error('EACCES'));
+      await startWith({ maxCacheRam: 25 });
+      const disk = percy[DISK_SPILL_KEY];
+      expect(disk.ready).toBe(false);
+      const cache = percy[RESOURCE_CACHE_KEY];
+      const chunk = Math.floor(25_000_000 / 3);
+      expect(() => {
+        cache.set('http://x/a', { url: 'http://x/a', content: Buffer.alloc(chunk) }, chunk + 512);
+        cache.set('http://x/b', { url: 'http://x/b', content: Buffer.alloc(chunk) }, chunk + 512);
+        cache.set('http://x/c', { url: 'http://x/c', content: Buffer.alloc(chunk) }, chunk + 512);
+        cache.set('http://x/d', { url: 'http://x/d', content: Buffer.alloc(chunk) }, chunk + 512);
+      }).not.toThrow();
+      expect(cache.has('http://x/a')).toBe(false);
+      expect(disk.has('http://x/a')).toBe(false);
+    });
+  });
+
+  describe('warning-at-threshold (unset cap)', () => {
+    afterEach(() => {
+      delete process.env.PERCY_CACHE_WARN_THRESHOLD_BYTES;
+    });
+
+    it('emits a debug log when PERCY_CACHE_WARN_THRESHOLD_BYTES is overridden', async () => {
+      process.env.PERCY_CACHE_WARN_THRESHOLD_BYTES = '100';
+      await percy.stop(true);
+      await logger.mock({ level: 'debug' });
+      percy = await Percy.start({
+        token: 'PERCY_TOKEN',
+        snapshot: { widths: [1000] },
+        discovery: { concurrency: 1 }
+      });
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
+        jasmine.stringContaining('PERCY_CACHE_WARN_THRESHOLD_BYTES override active')
+      ]));
+    });
+
+    it('fires a warn-level log once when cache crosses the threshold', async () => {
+      // Override to a tiny threshold so the snapshot's real resources trip it.
+      process.env.PERCY_CACHE_WARN_THRESHOLD_BYTES = '100';
+      await percy.stop(true);
+      percy = await Percy.start({
+        token: 'PERCY_TOKEN',
+        snapshot: { widths: [1000] },
+        discovery: { concurrency: 1 }
+      });
+
+      await percy.snapshot({
+        name: 'warning snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot: testDOM
+      });
+      await percy.idle();
+
+      const warnHits = logger.stderr.filter(line =>
+        line.includes('Percy cache is using') &&
+        line.includes('--max-cache-ram')
+      );
+      expect(warnHits.length).toEqual(1);
+
+      // Trigger another resource save; the gate should stay closed.
+      await percy.snapshot({
+        name: 'warning snapshot second',
+        url: 'http://localhost:8000',
+        domSnapshot: testDOM
+      });
+      await percy.idle();
+
+      const warnHitsAfter = logger.stderr.filter(line =>
+        line.includes('Percy cache is using') &&
+        line.includes('--max-cache-ram')
+      );
+      expect(warnHitsAfter.length).toEqual(1);
+    });
+
+    it('sendCacheSummary swallows telemetry failures (never throws)', async () => {
+      // Ensure sendCacheSummary's early-return guards don't fire so the
+      // sendBuildEvents call actually runs and enters the catch.
+      percy.build = { id: '123' };
+      percy[RESOURCE_CACHE_KEY] = new Map();
+      percy[CACHE_STATS_KEY] = {
+        effectiveMaxCacheRamMB: null,
+        oversizeSkipped: 0,
+        unsetModeBytes: 0
+      };
+      const spy = spyOn(percy.client, 'sendBuildEvents')
+        .and.rejectWith(new Error('pager down'));
+      await expectAsync(percy.sendCacheSummary()).toBeResolved();
+      expect(spy).toHaveBeenCalled();
+    });
+
+    it('sendCacheSummary swallows payload-construction errors', async () => {
+      // The outer try/catch must cover the payload block, not just the
+      // egress — otherwise a throwing getter (e.g. a future stats field
+      // that lazy-computes) could fail percy.stop().
+      percy.build = { id: '123' };
+      percy[CACHE_STATS_KEY] = {
+        effectiveMaxCacheRamMB: 25,
+        oversizeSkipped: 0,
+        unsetModeBytes: 0
+      };
+      const exploding = {
+        get stats() { throw new Error('stats getter failed'); },
+        calculatedSize: 0,
+        size: 0
+      };
+      percy[RESOURCE_CACHE_KEY] = exploding;
+      const debugSpy = spyOn(percy.log, 'debug').and.callThrough();
+      const sendSpy = spyOn(percy.client, 'sendBuildEvents');
+      await expectAsync(percy.sendCacheSummary()).toBeResolved();
+      expect(sendSpy).not.toHaveBeenCalled();
+      expect(debugSpy).toHaveBeenCalledWith('cache_summary build failed', jasmine.any(Error));
+    });
+
+    it('sendCacheSummary short-circuits when the build has not been created', async () => {
+      percy.build = undefined;
+      const spy = spyOn(percy.client, 'sendBuildEvents');
+      await percy.sendCacheSummary();
+      expect(spy).not.toHaveBeenCalled();
+    });
+
+    it('sendCacheSummary short-circuits when the cache or stats are missing', async () => {
+      percy.build = { id: '123' };
+      percy[RESOURCE_CACHE_KEY] = undefined;
+      percy[CACHE_STATS_KEY] = undefined;
+      const spy = spyOn(percy.client, 'sendBuildEvents');
+      await percy.sendCacheSummary();
+      expect(spy).not.toHaveBeenCalled();
+    });
+
+    it('sendCacheSummary falls back to 0 when cache has no size field', async () => {
+      percy.build = { id: '123' };
+      // Defensive-path cache shape with no .size — exercises the `?? 0`
+      // fallback on entry_count.
+      percy[RESOURCE_CACHE_KEY] = { stats: {} };
+      percy[CACHE_STATS_KEY] = {
+        effectiveMaxCacheRamMB: 25,
+        oversizeSkipped: 0,
+        unsetModeBytes: 0
+      };
+      const spy = spyOn(percy.client, 'sendBuildEvents').and.resolveTo();
+      await percy.sendCacheSummary();
+      expect(spy).toHaveBeenCalledWith('123', jasmine.objectContaining({
+        extra: jasmine.objectContaining({ entry_count: 0 })
+      }));
+    });
+
+    it('sendCacheSummary reports disk-tier stats when a DiskSpillStore is present', async () => {
+      percy.build = { id: '123' };
+      percy[RESOURCE_CACHE_KEY] = new Map();
+      percy[CACHE_STATS_KEY] = {
+        effectiveMaxCacheRamMB: 25,
+        oversizeSkipped: 0,
+        unsetModeBytes: 0
+      };
+      // destroy is a no-op so the afterEach percy.stop(true) 'end' handler
+      // does not TypeError when it reaches diskStore.destroy().
+      percy[DISK_SPILL_KEY] = {
+        ready: true,
+        destroy: () => {},
+        stats: {
+          spilled: 3,
+          restored: 2,
+          spillFailures: 1,
+          readFailures: 0,
+          currentBytes: 4096,
+          peakBytes: 8192,
+          entries: 2
+        }
+      };
+      const spy = spyOn(percy.client, 'sendBuildEvents').and.resolveTo();
+      await percy.sendCacheSummary();
+      expect(spy).toHaveBeenCalledWith('123', jasmine.objectContaining({
+        extra: jasmine.objectContaining({
+          disk_spill_enabled: true,
+          disk_spilled_count: 3,
+          disk_restored_count: 2,
+          disk_spill_failures: 1,
+          disk_read_failures: 0,
+          disk_peak_bytes: 8192,
+          disk_final_bytes: 4096,
+          disk_final_entries: 2
+        })
+      }));
+    });
+
+    it('sendCacheSummary falls back to stats.finalDiskStats after discovery.end destroys the diskStore', async () => {
+      // Real-build ordering: discovery 'end' destroys the diskStore and
+      // deletes DISK_SPILL_KEY before sendCacheSummary runs. The discovery
+      // 'end' handler is responsible for snapshotting the disk stats onto
+      // stats.finalDiskStats so sendCacheSummary can still populate the
+      // telemetry payload.
+      percy.build = { id: '123' };
+      percy[RESOURCE_CACHE_KEY] = new Map();
+      percy[CACHE_STATS_KEY] = {
+        effectiveMaxCacheRamMB: 25,
+        oversizeSkipped: 0,
+        unsetModeBytes: 0,
+        finalDiskStats: {
+          ready: true,
+          spilled: 97,
+          restored: 96,
+          spillFailures: 0,
+          readFailures: 0,
+          currentBytes: 0,
+          peakBytes: 36003060,
+          entries: 0
+        }
+      };
+      // DISK_SPILL_KEY intentionally unset — simulates post-destroy state.
+      const spy = spyOn(percy.client, 'sendBuildEvents').and.resolveTo();
+      await percy.sendCacheSummary();
+      expect(spy).toHaveBeenCalledWith('123', jasmine.objectContaining({
+        extra: jasmine.objectContaining({
+          disk_spill_enabled: true,
+          disk_spilled_count: 97,
+          disk_restored_count: 96,
+          disk_peak_bytes: 36003060,
+          disk_final_bytes: 0,
+          disk_final_entries: 0
+        })
+      }));
+    });
+
+    it('sendCacheSummary reports zeroed disk-tier fields when no DiskSpillStore is present', async () => {
+      percy.build = { id: '123' };
+      percy[RESOURCE_CACHE_KEY] = new Map();
+      percy[CACHE_STATS_KEY] = {
+        effectiveMaxCacheRamMB: null,
+        oversizeSkipped: 0,
+        unsetModeBytes: 0
+      };
+      const spy = spyOn(percy.client, 'sendBuildEvents').and.resolveTo();
+      await percy.sendCacheSummary();
+      expect(spy).toHaveBeenCalledWith('123', jasmine.objectContaining({
+        extra: jasmine.objectContaining({
+          disk_spill_enabled: false,
+          disk_spilled_count: 0,
+          disk_restored_count: 0,
+          disk_spill_failures: 0,
+          disk_read_failures: 0,
+          disk_peak_bytes: 0,
+          disk_final_bytes: 0,
+          disk_final_entries: 0
+        })
+      }));
+    });
+
+    it('keeps incrementing unsetModeBytes after the warning has fired', async () => {
+      // Regression: the byte counter used to freeze as soon as the warning
+      // flag flipped, so cache_summary.peak_bytes was always pinned to the
+      // threshold. After the fix it tracks current cache contents (new URLs
+      // grow it; overwrites of the same URL are net-zero).
+      process.env.PERCY_CACHE_WARN_THRESHOLD_BYTES = '100';
+      await percy.stop(true);
+      percy = await Percy.start({
+        token: 'PERCY_TOKEN',
+        snapshot: { widths: [1000] },
+        discovery: { concurrency: 1 }
+      });
+
+      await percy.snapshot({
+        name: 'fires warning',
+        url: 'http://localhost:8000',
+        domSnapshot: testDOM
+      });
+      await percy.idle();
+      const afterFirst = percy[CACHE_STATS_KEY].unsetModeBytes;
+      expect(afterFirst).toBeGreaterThan(100);
+      expect(percy[CACHE_STATS_KEY].warningFired).toBe(true);
+
+      // Inject a brand-new resource directly into the cache to exercise the
+      // grow-after-warning path. Driving this through percy.snapshot would
+      // either fetch the same relative URLs (net-zero overwrite) or depend
+      // on brittle browser-cache behaviour for dom-snapshot-only runs.
+      const cache = percy[RESOURCE_CACHE_KEY];
+      const stats = percy[CACHE_STATS_KEY];
+      const extra = { url: 'http://x/extra', content: Buffer.alloc(500) };
+      cache.set(extra.url, extra);
+      stats.unsetModeBytes += 500 + 512;
+
+      expect(percy[CACHE_STATS_KEY].unsetModeBytes).toBeGreaterThan(afterFirst);
+    });
+
+    it('does not over-count unsetModeBytes when the same URL is saved twice', async () => {
+      // Regression guard for fix #6: shared CSS/JS reused across snapshots
+      // used to inflate the byte counter by N× because every saveResource
+      // call added entrySize without subtracting the prior entry first.
+      process.env.PERCY_CACHE_WARN_THRESHOLD_BYTES = '100';
+      await percy.stop(true);
+      percy = await Percy.start({
+        token: 'PERCY_TOKEN',
+        snapshot: { widths: [1000] },
+        discovery: { concurrency: 1 }
+      });
+      await percy.snapshot({
+        name: 'overwrite snapshot 1',
+        url: 'http://localhost:8000/same',
+        domSnapshot: testDOM
+      });
+      await percy.idle();
+      const after1 = percy[CACHE_STATS_KEY].unsetModeBytes;
+      // Same URL + same DOM = same set of cache entries getting overwritten.
+      await percy.snapshot({
+        name: 'overwrite snapshot 2',
+        url: 'http://localhost:8000/same',
+        domSnapshot: testDOM
+      });
+      await percy.idle();
+      // Counter must not double — overwrites of identical content are net-zero.
+      expect(percy[CACHE_STATS_KEY].unsetModeBytes).toEqual(after1);
+    });
+  });
+
   describe('with resource errors', () => {
     // sabotage this method to trigger unexpected error handling
     async function triggerSessionEventError(event, error) {
@@ -2342,6 +3368,344 @@ describe('Discovery', () => {
         `[percy:core:discovery] ${err.stack}`,
         '[percy:core:discovery] Encountered an error processing resource: http://localhost:8000/img.gif',
         `[percy:core:discovery] ${err.stack}`
+      ]));
+    });
+
+    it('logs gracefully when direct font request fails', async () => {
+      server.reply('/style.css', () => [200, 'text/css', [
+        '@font-face { font-family: "test"; src: url("/font.woff") format("woff"); }',
+        'body { font-family: "test", "sans-serif"; }'
+      ].join('')]);
+
+      // First hit (browser): octet-stream forces font fallback path.
+      // Second hit (makeDirectRequest): 400 makes the direct fetch throw without retrying.
+      let callCount = 0;
+      server.reply('/font.woff', () => {
+        if (++callCount === 1) return [200, 'application/octet-stream', '<font>'];
+        return [400, 'text/plain', 'bad request'];
+      });
+
+      await percy.snapshot({
+        name: 'font error snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot: testDOM
+      });
+
+      await percy.idle();
+
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
+        jasmine.stringMatching('Encountered an error processing resource: http://localhost:8000/font.woff')
+      ]));
+    });
+
+    it('continues responses gracefully when the request is untracked', async () => {
+      let snap = percy.snapshot({
+        name: 'untracked snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot: testDOM
+      });
+
+      await waitFor(() => percy.browser.sessions.size > 0);
+      let [session] = percy.browser.sessions.values();
+      let sentMethods = [];
+      let originalSend = session.send.bind(session);
+      spyOn(session, 'send').and.callFake((method, params) => {
+        sentMethods.push({ method, params });
+        return originalSend(method, params);
+      });
+
+      // Emit a response-stage Fetch.requestPaused for a request that was never
+      // tracked at the request stage — exercises the defensive null-request
+      // branch in _handleResponsePaused.
+      session.emit('Fetch.requestPaused', {
+        networkId: 'untracked-network-id',
+        requestId: 'untracked-intercept-id',
+        responseStatusCode: 200,
+        responseHeaders: [],
+        request: { url: 'http://example.com/orphan' }
+      });
+
+      // The event emitter fires `_handleResponsePaused` without awaiting it,
+      // so `await snap` can resolve before the handler reaches
+      // Fetch.continueResponse. Poll the spy directly for the assertion.
+      await waitFor(() => sentMethods.some(c =>
+        c.method === 'Fetch.continueResponse' &&
+        c.params?.requestId === 'untracked-intercept-id'
+      ), 2000);
+
+      await snap;
+
+      expect(sentMethods.some(c =>
+        c.method === 'Fetch.continueResponse' &&
+        c.params?.requestId === 'untracked-intercept-id'
+      )).toBe(true);
+    });
+
+    it('aborts oversized responses for untracked requests', async () => {
+      let snap = percy.snapshot({
+        name: 'untracked oversized snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot: testDOM
+      });
+
+      await waitFor(() => percy.browser.sessions.size > 0);
+      let [session] = percy.browser.sessions.values();
+      let sentMethods = [];
+      let originalSend = session.send.bind(session);
+      spyOn(session, 'send').and.callFake((method, params) => {
+        sentMethods.push({ method, params });
+        return originalSend(method, params);
+      });
+
+      // Emit a response-stage Fetch.requestPaused with malformed Content-Length
+      // for a request that was never tracked at the request stage — exercises
+      // the `if (request)` false branch inside the oversized/malformed handler.
+      session.emit('Fetch.requestPaused', {
+        networkId: 'untracked-malformed-id',
+        requestId: 'untracked-malformed-intercept',
+        responseStatusCode: 200,
+        responseHeaders: [{ name: 'Content-Length', value: 'NaN' }],
+        request: { url: 'http://example.com/orphan-malformed' }
+      });
+
+      await snap;
+
+      expect(sentMethods.some(c =>
+        c.method === 'Fetch.failRequest' &&
+        c.params?.requestId === 'untracked-malformed-intercept'
+      )).toBe(true);
+    });
+
+    it('logs gracefully when Fetch.failRequest fails during malformed-CL abort', async () => {
+      spyOn(Session.prototype, 'send').and.callFake(function(method, params) {
+        if (method === 'Fetch.failRequest' && params?.requestId === 'fail-request-intercept') {
+          return Promise.reject(new Error('Target closed'));
+        }
+        return Session.prototype.send.and.originalFn.call(this, method, params);
+      });
+
+      let snap = percy.snapshot({
+        name: 'fail-request error snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot: testDOM
+      });
+
+      await waitFor(() => percy.browser.sessions.size > 0);
+      let [session] = percy.browser.sessions.values();
+
+      session.emit('Fetch.requestPaused', {
+        networkId: 'fail-request-id',
+        requestId: 'fail-request-intercept',
+        responseStatusCode: 200,
+        responseHeaders: [{ name: 'Content-Length', value: 'NaN' }],
+        request: { url: 'http://example.com/orphan-fail-request' }
+      });
+
+      await snap;
+
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
+        jasmine.stringMatching(/Failed to abort oversized response for http:\/\/example\.com\/orphan-fail-request: Target closed/)
+      ]));
+    });
+
+    it('silently swallows Fetch.continueResponse benign races (ABORTED_MESSAGE)', async () => {
+      spyOn(Session.prototype, 'send').and.callFake(function(method, params) {
+        if (method === 'Fetch.continueResponse' && params?.requestId === 'continue-aborted-intercept') {
+          return Promise.reject(new Error('Request was aborted by browser'));
+        }
+        return Session.prototype.send.and.originalFn.call(this, method, params);
+      });
+
+      let snap = percy.snapshot({
+        name: 'continue-response aborted snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot: testDOM
+      });
+
+      await waitFor(() => percy.browser.sessions.size > 0);
+      let [session] = percy.browser.sessions.values();
+
+      session.emit('Fetch.requestPaused', {
+        networkId: 'continue-aborted-id',
+        requestId: 'continue-aborted-intercept',
+        responseStatusCode: 200,
+        responseHeaders: [],
+        request: { url: 'http://example.com/orphan-continue-aborted' }
+      });
+
+      await snap;
+
+      expect(logger.stderr).not.toEqual(jasmine.arrayContaining([
+        jasmine.stringMatching(/Failed to continue response for http:\/\/example\.com\/orphan-continue-aborted/)
+      ]));
+    });
+
+    it('logs gracefully when Fetch.continueResponse fails with unexpected error', async () => {
+      spyOn(Session.prototype, 'send').and.callFake(function(method, params) {
+        if (method === 'Fetch.continueResponse' && params?.requestId === 'continue-error-intercept') {
+          return Promise.reject(new Error('Target closed'));
+        }
+        return Session.prototype.send.and.originalFn.call(this, method, params);
+      });
+
+      let snap = percy.snapshot({
+        name: 'continue-response error snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot: testDOM
+      });
+
+      await waitFor(() => percy.browser.sessions.size > 0);
+      let [session] = percy.browser.sessions.values();
+
+      session.emit('Fetch.requestPaused', {
+        networkId: 'continue-error-id',
+        requestId: 'continue-error-intercept',
+        responseStatusCode: 200,
+        responseHeaders: [],
+        request: { url: 'http://example.com/orphan-continue-error' }
+      });
+
+      await snap;
+
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
+        jasmine.stringMatching(/Failed to continue response for http:\/\/example\.com\/orphan-continue-error: Target closed/)
+      ]));
+    });
+
+    it('logs gracefully when the direct-fetch fallback fails', async () => {
+      // Drop Network.responseReceived for one asset so it enters the
+      // RESPONSE_RECEIVED_TIMEOUT path that calls captureResourceDirectly,
+      // then make the direct fetch return 400 so the catch logs.
+      spyOn(percy.browser, '_handleMessage').and.callFake(function(data) {
+        let parsed; try { parsed = JSON.parse(data); } catch { /* binary */ }
+        if (parsed?.method === 'Network.responseReceived' &&
+            parsed?.params?.response?.url?.endsWith('/direct-fetch-target.css')) {
+          return;
+        }
+        this._handleMessage.and.originalFn.call(this, data);
+      });
+
+      let assetHits = 0;
+      server.reply('/direct-fetch-target.css', () => {
+        assetHits += 1;
+        if (assetHits === 1) return [200, 'text/css', 'p { color: blue; }'];
+        return [400, 'text/plain', 'bad request'];
+      });
+
+      let targetDOM = '<html><head><link href="direct-fetch-target.css" rel="stylesheet"/></head><body><p>x</p></body></html>';
+
+      await percy.snapshot({
+        name: 'direct-fetch failure snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot: targetDOM
+      });
+
+      await percy.idle();
+
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
+        jasmine.stringMatching(/Direct fetch failed for http:\/\/localhost:8000\/direct-fetch-target\.css -/)
+      ]));
+    });
+
+    it('logs when Network.getCookies fails during direct-fetch fallback', async () => {
+      spyOn(percy.browser, '_handleMessage').and.callFake(function(data) {
+        let parsed; try { parsed = JSON.parse(data); } catch { /* binary */ }
+        if (parsed?.method === 'Network.responseReceived' &&
+            parsed?.params?.response?.url?.endsWith('/cookies-fail.css')) {
+          return;
+        }
+        this._handleMessage.and.originalFn.call(this, data);
+      });
+
+      spyOn(Session.prototype, 'send').and.callFake(function(method, params) {
+        if (method === 'Network.getCookies' && params?.urls?.[0]?.includes('cookies-fail.css')) {
+          return Promise.reject(new Error('Internal error'));
+        }
+        return Session.prototype.send.and.originalFn.call(this, method, params);
+      });
+
+      server.reply('/cookies-fail.css', () => [200, 'text/css', 'p { color: blue; }']);
+      let targetDOM = '<html><head><link href="cookies-fail.css" rel="stylesheet"/></head><body><p>x</p></body></html>';
+
+      await percy.snapshot({
+        name: 'cookies fail snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot: targetDOM
+      });
+
+      await percy.idle();
+
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
+        jasmine.stringMatching(/Network\.getCookies unavailable for http:\/\/localhost:8000\/cookies-fail\.css: Internal error/)
+      ]));
+    });
+
+    it('skips direct-fetched resource when body exceeds 25MB', async () => {
+      spyOn(percy.browser, '_handleMessage').and.callFake(function(data) {
+        let parsed; try { parsed = JSON.parse(data); } catch { /* binary */ }
+        if (parsed?.method === 'Network.responseReceived' &&
+            parsed?.params?.response?.url?.endsWith('/oversized.css')) {
+          return;
+        }
+        this._handleMessage.and.originalFn.call(this, data);
+      });
+
+      let assetHits = 0;
+      // 17MB exceeds MAX_RESOURCE_SIZE (≈15.75 MB after base64 factor)
+      let oversizedBody = Buffer.alloc(17 * 1024 * 1024, 'x');
+      server.reply('/oversized.css', () => {
+        assetHits += 1;
+        if (assetHits === 1) return [200, 'text/css', 'p { color: blue; }'];
+        return [200, 'text/css', oversizedBody];
+      });
+
+      let targetDOM = '<html><head><link href="oversized.css" rel="stylesheet"/></head><body><p>x</p></body></html>';
+
+      await percy.snapshot({
+        name: 'oversized direct-fetch snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot: targetDOM
+      });
+
+      await percy.idle();
+
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
+        jasmine.stringMatching(/Skipping resource larger than allowed size/)
+      ]));
+    });
+
+    it('uses server Content-Type for direct-fetch mimetype when URL has no extension', async () => {
+      // For URLs with no recognizable extension, the direct-fetch path must
+      // honor the server's Content-Type response header rather than guessing
+      // a default. Server returns 'application/octet-stream' → that wins.
+      spyOn(percy.browser, '_handleMessage').and.callFake(function(data) {
+        let parsed; try { parsed = JSON.parse(data); } catch { /* binary */ }
+        if (parsed?.method === 'Network.responseReceived' &&
+            parsed?.params?.response?.url?.endsWith('/asset-no-ext')) {
+          return;
+        }
+        this._handleMessage.and.originalFn.call(this, data);
+      });
+
+      let assetHits = 0;
+      server.reply('/asset-no-ext', () => {
+        assetHits += 1;
+        if (assetHits === 1) return [200, 'text/css', 'p { color: blue; }'];
+        return [200, 'application/octet-stream', 'p { color: red; }'];
+      });
+
+      let targetDOM = '<html><head><link href="asset-no-ext" rel="stylesheet"/></head><body><p>x</p></body></html>';
+
+      await percy.snapshot({
+        name: 'unknown extension direct-fetch snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot: targetDOM
+      });
+
+      await percy.idle();
+
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
+        jasmine.stringMatching(/Saving direct-fetched resource sha=[a-f0-9]+ mimetype=application\/octet-stream/)
       ]));
     });
   });
@@ -3151,10 +4515,16 @@ describe('Discovery', () => {
 
       let validationCallCount = 0;
       let validationResolver;
+      let firstCallResolver;
+      let firstCallPromise = new Promise(resolve => { firstCallResolver = resolve; });
 
       // Mock validation to hang so we can test concurrent requests
       validationMock.and.callFake(() => {
         validationCallCount++;
+        if (firstCallResolver) {
+          firstCallResolver();
+          firstCallResolver = null;
+        }
         return new Promise(resolve => {
           validationResolver = resolve;
         });
@@ -3184,13 +4554,8 @@ describe('Discovery', () => {
         widths: [1000]
       });
 
-      // Wait for validation to be called at least once
-      let attempts = 0;
-      // eslint-disable-next-line no-unmodified-loop-condition
-      while (validationCallCount === 0 && attempts < 50) {
-        await new Promise(resolve => setTimeout(resolve, 10));
-        attempts++;
-      }
+      // Wait deterministically for the first validation call instead of polling
+      await firstCallPromise;
 
       // Validation should only be called once
       expect(validationCallCount).toBe(1);
@@ -3588,12 +4953,14 @@ describe('Discovery', () => {
     });
 
     it('should fail to launch if the devtools address is not logged', async () => {
+      // --version exits cleanly on Linux Chrome 143; --remote-debugging-port=null still exits on Windows.
+      let earlyExitArg = process.platform === 'win32' ? '--remote-debugging-port=null' : '--version';
       await expectAsync(Percy.start({
         token: 'PERCY_TOKEN',
         snapshot: { widths: [1000] },
         discovery: {
           launchOptions: {
-            args: ['--remote-debugging-port=null']
+            args: [earlyExitArg]
           }
         }
       })).toBeRejectedWithError(

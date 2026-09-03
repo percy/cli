@@ -125,8 +125,63 @@ async function main({
       }
     }));
 
+    // Spec-level retry support for flaky environments (notably Windows CI,
+    // where ~1 spec out of 1000+ flakes per run on browser/server timing).
+    // When CLI_TEST_FAILURES_FILE is set we record every failed spec name;
+    // a follow-up run with CLI_TEST_ONLY_FAILED=1 re-runs only those specs,
+    // turning a ~60-min full-suite retry into a few seconds. See PER-9011.
+    // NB: these env vars are intentionally NOT prefixed with PERCY_ so they do
+    // not leak into env-audit / Percy-env detection tests (cli-doctor).
+    let failuresFile = process.env.CLI_TEST_FAILURES_FILE;
+    let onlyFailed = process.env.CLI_TEST_ONLY_FAILED === '1';
+    let priorFailures = [];
+
+    if (onlyFailed && failuresFile && fs.existsSync(failuresFile)) {
+      try { priorFailures = JSON.parse(fs.readFileSync(failuresFile, 'utf8')); } catch { /* treated as no recorded failures below */ }
+    }
+
+    // A retry was requested but the previous run recorded no failed specs. That
+    // means the failure was not a flaky spec (e.g. a coverage-threshold failure
+    // or a crash) -- re-running a subset would mask it, so preserve the failure.
+    if (onlyFailed && !priorFailures.length) {
+      console.log(colors.yellow('No recorded spec failures to retry — preserving the previous failure.'));
+      process.exit(1);
+    }
+
+    if (onlyFailed) {
+      let retrySet = new Set(priorFailures);
+      jasmine.env.configure({ specFilter: spec => retrySet.has(spec.getFullName()) });
+      console.log(colors.yellow(`Re-running ${priorFailures.length} previously-failed spec(s)...\n`));
+    }
+
+    let failures = [];
+    jasmine.addReporter({
+      specDone: result => result.status === 'failed' && failures.push(result.fullName)
+    });
+
     console.log(colors.magenta('Running node tests...\n'));
-    await jasmine.execute();
+
+    // manage the exit code ourselves so failures can be persisted first
+    jasmine.exitOnCompletion = false;
+    let result;
+
+    try {
+      result = await jasmine.execute();
+    } finally {
+      if (failuresFile) {
+        try { fs.writeFileSync(failuresFile, JSON.stringify(failures)); } catch { /* best-effort */ }
+      }
+    }
+
+    // When re-running only previously-failed specs, jasmine reports the run as
+    // "incomplete" (the rest are intentionally skipped) — so success here means
+    // the targeted specs passed, i.e. no new failures. A normal full run keeps
+    // jasmine's strict status (incomplete/failed both count as failure).
+    let passed = onlyFailed
+      ? failures.length === 0
+      : (result ? result.overallStatus === 'passed' : failures.length === 0);
+
+    process.exit(passed ? 0 : 1);
   } else if (testBrowsers) {
     // $ karma start --config <root>/karma.config.js
     let { default: Karma } = await import('karma');

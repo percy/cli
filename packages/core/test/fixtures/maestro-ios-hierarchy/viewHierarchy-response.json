@@ -1,0 +1,103 @@
+{
+  "axElement": {
+    "identifier": "",
+    "frame": { "X": 0, "Y": 0, "Width": 0, "Height": 0 },
+    "label": "",
+    "elementType": 0,
+    "enabled": false,
+    "horizontalSizeClass": 0,
+    "verticalSizeClass": 0,
+    "selected": false,
+    "hasFocus": false,
+    "windowContextID": 0,
+    "displayID": 0,
+    "children": [
+      {
+        "identifier": "com.example.app",
+        "frame": { "X": 0, "Y": 0, "Width": 390, "Height": 844 },
+        "label": "Calculator",
+        "elementType": 1,
+        "enabled": true,
+        "horizontalSizeClass": 1,
+        "verticalSizeClass": 2,
+        "selected": false,
+        "hasFocus": false,
+        "windowContextID": 0,
+        "displayID": 1,
+        "children": [
+          {
+            "identifier": "main_window",
+            "frame": { "X": 0, "Y": 0, "Width": 390, "Height": 844 },
+            "label": "",
+            "elementType": 6,
+            "enabled": true,
+            "horizontalSizeClass": 1,
+            "verticalSizeClass": 2,
+            "selected": false,
+            "hasFocus": false,
+            "windowContextID": 0,
+            "displayID": 1,
+            "children": [
+              {
+                "identifier": "submitBtn",
+                "frame": { "X": 100, "Y": 400, "Width": 190, "Height": 44 },
+                "label": "Submit",
+                "elementType": 9,
+                "enabled": true,
+                "horizontalSizeClass": 1,
+                "verticalSizeClass": 2,
+                "selected": false,
+                "hasFocus": false,
+                "windowContextID": 0,
+                "displayID": 1
+              },
+              {
+                "identifier": "resultText",
+                "value": "42",
+                "frame": { "X": 16, "Y": 200, "Width": 358, "Height": 60 },
+                "label": "Result",
+                "elementType": 48,
+                "enabled": true,
+                "horizontalSizeClass": 1,
+                "verticalSizeClass": 2,
+                "selected": false,
+                "hasFocus": false,
+                "windowContextID": 0,
+                "displayID": 1
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "identifier": "",
+        "frame": { "X": 0, "Y": 0, "Width": 0, "Height": 0 },
+        "label": "",
+        "elementType": 0,
+        "enabled": false,
+        "horizontalSizeClass": 0,
+        "verticalSizeClass": 0,
+        "selected": false,
+        "hasFocus": false,
+        "windowContextID": 0,
+        "displayID": 0,
+        "children": [
+          {
+            "identifier": "",
+            "frame": { "X": 0, "Y": 0, "Width": 390, "Height": 47 },
+            "label": "",
+            "elementType": 26,
+            "enabled": true,
+            "horizontalSizeClass": 1,
+            "verticalSizeClass": 2,
+            "selected": false,
+            "hasFocus": false,
+            "windowContextID": 0,
+            "displayID": 1
+          }
+        ]
+      }
+    ]
+  },
+  "depth": 4
+}

@@ -106,9 +106,10 @@ export default class AutomateProvider extends GenericProvider {
 
   async setDebugUrl() {
     if (!this.driver) throw new Error('Driver is null, please initialize driver with createDriver().');
+    const automateDomain = process.env.PERCY_AUTOMATE_DOMAIN || 'automate.browserstack.com';
     this.debugUrl = await Cache.withCache(Cache.bstackSessionDetails, this.driver.sessionId,
       async () => {
-        return `https://automate.browserstack.com/builds/${this.automateResults.buildHash}/sessions/${this.automateResults.sessionHash}`;
+        return `https://${automateDomain}/builds/${this.automateResults.buildHash}/sessions/${this.automateResults.sessionHash}`;
       });
   }
 

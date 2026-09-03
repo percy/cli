@@ -1,0 +1,11 @@
+# Track C — alternate schema shapes that cannot coexist with all-config.yml.
+# Covers the discovery.cookies ARRAY form (all-config.yml uses the object form)
+# and the discovery.maxCacheRam null form (all-config.yml uses the integer form).
+version: 2
+discovery:
+  cookies:
+    - name: session
+      value: abc123
+    - name: theme
+      value: dark
+  maxCacheRam: null

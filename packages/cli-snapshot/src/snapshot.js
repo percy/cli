@@ -56,7 +56,7 @@ export const snapshot = command('snapshot', {
     schemas: [SnapshotConfig.configSchema],
     migrations: [SnapshotConfig.configMigration]
   }
-}, async function*({ percy, args, flags, log, exit }) {
+}, async function*({ percy, args, flags, log, exit, shutdown }) {
   let { include, exclude, baseUrl, cleanUrls } = flags;
   let { file, serve, sitemap } = args;
 
@@ -90,7 +90,16 @@ export const snapshot = command('snapshot', {
     yield* percy.yield.stop();
   } catch (error) {
     log.error(error);
-    await percy.stop(true);
+    // See start.js comment — graceful on first signal, force on second;
+    // non-signal errors force-stop as before.
+    /* istanbul ignore next: the signal-driven branch (error.signal
+       truthy → use shutdown.forced) is exercised at the integration
+       level by the SIGINT/SIGTERM tests in
+       cli-command/test/shutdown.test.js and cli-exec/test/exec.test.js;
+       the cli-snapshot suite does not currently emit signals during a
+       snapshot run, so this branch is not reached here. */
+    let force = error.signal ? !!shutdown?.forced : true;
+    await percy.stop(force);
     throw error;
   }
 });

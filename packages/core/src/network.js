@@ -1,12 +1,54 @@
 import { request as makeRequest } from '@percy/client/utils';
 import logger from '@percy/logger';
 import mime from 'mime-types';
-import { DefaultMap, createResource, hostnameMatches, normalizeURL, waitFor, decodeAndEncodeURLWithLogging, handleIncorrectFontMimeType, executeDomainValidation } from './utils.js';
+import dns from 'dns';
+import { AbortError, DefaultMap, createResource, hostnameMatches, normalizeURL, waitFor, decodeAndEncodeURLWithLogging, handleIncorrectFontMimeType, executeDomainValidation, isMetadataTarget, isMetadataIP } from './utils.js';
 
-const MAX_RESOURCE_SIZE = 25 * (1024 ** 2) * 0.63; // 25MB, 0.63 factor for accounting for base64 encoding
+export const MAX_RESOURCE_SIZE = 25 * (1024 ** 2) * 0.63; // 25MB, 0.63 factor for accounting for base64 encoding
+// CDP returns binary bodies via Network.getResponseBody as base64 in the JSON-RPC
+// response. Base64 inflates by 4/3, so an N-byte body becomes ~1.33×N on the wire.
+// The ws library defaults maxPayload to 100 MB; browser.js raises it to this value
+// so base64(body) + framing stays well under the limit (see browser.js connect()).
+export const MAX_CDP_PAYLOAD = 150 * (1024 ** 2);
+// 50 MB is a conservative starting point for the PERCY_GZIP raw ceiling
+// (50 × 4/3 ≈ 67 MB on the wire); the final value is pending a storage-cost
+// review (PER-8648).
+export const MAX_RAW_RESOURCE_SIZE_WITH_GZIP = 50 * (1024 ** 2);
+// Direct-fetch fallback needs more time when bodies can be tens of MB.
+const DIRECT_FETCH_TIMEOUT_WITH_GZIP = 30000;
+
+export function shouldSkipForSize(size) {
+  if (!Number.isFinite(size)) return false;
+  if (process.env.PERCY_GZIP) return size > MAX_RAW_RESOURCE_SIZE_WITH_GZIP;
+  return size > MAX_RESOURCE_SIZE;
+}
 const ALLOWED_STATUSES = [200, 201, 301, 302, 304, 307, 308];
 const ALLOWED_RESOURCES = ['Document', 'Stylesheet', 'Image', 'Media', 'Font', 'Other'];
 const ABORTED_MESSAGE = 'Request was aborted by browser';
+// Chrome 143 omits Network.responseReceived for worker scripts; cap the wait
+// so loadingFinished can clean up. Per-request — N timeouts accumulate to N*2s;
+// PERCY_NETWORK_IDLE_WAIT_TIMEOUT (default 30s) caps cumulative impact.
+const RESPONSE_RECEIVED_TIMEOUT = 2000;
+// Cap idle() impact when a host accepts the TCP connection then stalls during a direct fetch.
+const DIRECT_FETCH_TIMEOUT = 5000;
+
+// Stable, machine-readable codes for abort errors thrown from this module.
+// Consumers should prefer `error.code` over string matching on `error.message`.
+export const AbortCodes = Object.freeze({
+  ABORTED: 'ABORTED',
+  TIMEOUT_NETWORK_IDLE: 'TIMEOUT_NETWORK_IDLE'
+});
+
+// Thrown from the direct-fetch choke point (makeDirectRequest) when a Node-side
+// fetch connects to a cloud metadata IP. Callers treat it as "already blocked
+// and logged" and simply drop the resource without re-logging a network error.
+export class MetadataBlockedError extends Error {
+  constructor(host) {
+    super(`Refusing to save direct-fetched resource from cloud metadata endpoint: ${host}`);
+    this.name = 'MetadataBlockedError';
+    this.host = host;
+  }
+}
 
 // RequestLifeCycleHandler handles life cycle of a requestId
 // Ideal flow:          requestWillBeSent -> requestPaused -> responseReceived -> loadingFinished / loadingFailed
@@ -19,12 +61,38 @@ class RequestLifeCycleHandler {
     this.responseReceived = new Promise((resolve) => (this.resolveResponseReceived = resolve));
   }
 }
+// `Network.TIMEOUT` was a static class field used by
+// some test code (and potentially external SDK consumers) to override
+// the network-idle timeout. It's been replaced by a per-instance
+// `networkIdleWaitTimeout` initialized from PERCY_NETWORK_IDLE_WAIT_TIMEOUT.
+// Keep a static getter/setter shim so external callers reading or
+// writing `Network.TIMEOUT` see a one-time deprecation warning instead
+// of silently dropping their override.
+let _timeoutDeprecationWarned = false;
+
 // The Interceptor class creates common handlers for dealing with intercepting asset requests
 // for a given page using various devtools protocol events and commands.
 export class Network {
-  static TIMEOUT = undefined;
-
   log = logger('core:discovery');
+
+  /* istanbul ignore next: deprecation shim — kept only for external
+     SDK consumers that read the field. Not reachable from test code. */
+  static get TIMEOUT() {
+    return undefined;
+  }
+
+  /* istanbul ignore next: deprecation shim — exercised only when
+     external callers still write the static field. The shim logs a
+     one-time warning pointing at PERCY_NETWORK_IDLE_WAIT_TIMEOUT. */
+  static set TIMEOUT(_val) {
+    if (!_timeoutDeprecationWarned) {
+      _timeoutDeprecationWarned = true;
+      logger('core:discovery').warn(
+        'Network.TIMEOUT is deprecated; set the PERCY_NETWORK_IDLE_WAIT_TIMEOUT ' +
+        'env var (or pass per-page options) — the static field no longer affects discovery.'
+      );
+    }
+  }
 
   #requestsLifeCycleHandler = new DefaultMap(() => new RequestLifeCycleHandler());
   #pending = new Map();
@@ -41,7 +109,7 @@ export class Network {
     this.captureMockedServiceWorker = options.captureMockedServiceWorker ?? false;
     this.userAgent = options.userAgent ??
       // by default, emulate a non-headless browser
-      page.session.browser.version.userAgent.replace('Headless', '');
+      page.session.browser?.version?.userAgent?.replace('Headless', '');
     this.fontDomains = options.fontDomains || [];
     this.intercept = options.intercept;
     this.meta = options.meta;
@@ -101,11 +169,13 @@ export class Network {
 
       return requests.length === 0;
     }, {
-      timeout: Network.TIMEOUT,
+      timeout: this.networkIdleWaitTimeout,
       idle: timeout
     }).catch(error => {
       if (error.message.startsWith('Timeout')) {
-        let message = 'Timed out waiting for network requests to idle.';
+        let message = 'Timed out waiting for network requests to idle.\n' +
+          'Hint: set PERCY_NETWORK_IDLE_WAIT_TIMEOUT to increase the budget, ' +
+          'or allowlist slow domains via the discovery config.';
         if (captureResponsiveAssetsEnabled) message += '\nWhile capturing responsive assets try setting PERCY_DO_NOT_CAPTURE_RESPONSIVE_ASSETS to true.';
         this._throwTimeoutError(message, filter);
       } else {
@@ -135,7 +205,10 @@ export class Network {
     if (params.requestId) {
       /* istanbul ignore if: race condition, very hard to mock this */
       if (this.isAborted(params.requestId)) {
-        throw new Error(ABORTED_MESSAGE);
+        throw new AbortError(ABORTED_MESSAGE, {
+          code: AbortCodes.ABORTED,
+          reason: 'browser-aborted'
+        });
       }
     }
 
@@ -166,7 +239,14 @@ export class Network {
       return;
     }
 
-    throw new Error(msg);
+    // Use a plain Error (NOT AbortError) so this does not trip
+    // `error.name === 'AbortError'` consumers in discovery.js:520,
+    // percy.js:347, snapshot.js:472 — those treat AbortError as
+    // "snapshot was aborted" and would silently drop the timeout.
+    let err = new Error(msg);
+    err.code = AbortCodes.TIMEOUT_NETWORK_IDLE;
+    err.reason = 'network-idle-timeout';
+    throw err;
   }
 
   // Called when a request should be removed from various trackers
@@ -205,6 +285,13 @@ export class Network {
   _handleRequestPaused = async (session, event) => {
     let { networkId: requestId, requestId: interceptId, resourceType } = event;
 
+    // Response-stage events arrive here when Fetch.continueRequest was called
+    // with interceptResponse:true (see sendResponseResource).
+    if (event.responseStatusCode != null || event.responseErrorReason != null) {
+      await this._handleResponsePaused(session, event);
+      return;
+    }
+
     // wait for request to be sent
     await this.#requestsLifeCycleHandler.get(requestId).requestWillBeSent;
     let pending = this.#pending.get(requestId);
@@ -215,6 +302,68 @@ export class Network {
     pending?.request.url === event.request.url &&
     pending.request.method === event.request.method &&
     await this._handleRequest(session, { ...pending, resourceType, interceptId });
+  }
+
+  // Response-stage interception is kept ONLY to detect oversized/malformed
+  // Content-Length and abort the request before Chrome streams a body it
+  // would never terminate (Chrome 143 quirk). For everything else we just
+  // continue — body capture happens later via Network.loadingFinished →
+  // Network.getResponseBody (the v126 path). Reading the body at this stage
+  // hangs worker-initiated fetches, so we don't.
+  _handleResponsePaused = async (session, event) => {
+    let { networkId: requestId, requestId: interceptId, responseHeaders, responseStatusCode } = event;
+    // request may be undefined when a response-stage pause arrives for a request
+    // whose request-stage tracking we never installed (service-worker-fulfilled,
+    // or a cleanup race). We still need to unpause Chrome regardless.
+    let request = this.#requests.get(requestId);
+    let url = request ? originURL(request) : (event.request?.url && normalizeURL(event.request.url));
+    let headersObj = headersArrayToObject(responseHeaders);
+    let { tooLarge, malformed, rawValue } = inspectContentLength(headersObj);
+
+    if (tooLarge || malformed) {
+      let meta = { ...this.meta, url, responseStatus: responseStatusCode };
+      logAssetInstrumentation(this.log, 'asset_not_uploaded', 'resource_too_large', {
+        url, size: rawValue, snapshot: meta.snapshot
+      });
+      this.log.debug('- Skipping resource larger than allowed size', meta);
+
+      // Disposition first, then forget the request — so we never leave Chrome's
+      // Fetch state paused while Percy thinks the request is already done.
+      try {
+        await this.send(session, 'Fetch.failRequest', { requestId: interceptId, errorReason: 'Aborted' });
+      } catch (error) {
+        if (error.message === ABORTED_MESSAGE || error.message.includes('Invalid InterceptionId')) {
+          // benign race — request was already aborted upstream; nothing to un-pause
+        } else {
+          this.log.debug(`Failed to abort oversized response for ${url}: ${error.message}`);
+          // Last-resort: un-pause Chrome's Fetch so it doesn't leak the response.
+          try {
+            await this.send(session, 'Fetch.continueResponse', { requestId: interceptId });
+          } catch (continueError) {
+            this.log.debug(`Last-resort continueResponse also failed for ${url}: ${continueError.message}`);
+          }
+        }
+      }
+
+      if (request) {
+        this._forgetRequest(request);
+        this.#requestsLifeCycleHandler.get(requestId).resolveResponseReceived();
+      }
+      return;
+    }
+
+    return this._continueResponse(session, interceptId, url);
+  }
+
+  // Tell the browser to continue the paused response, swallowing expected
+  // races (request already aborted, interception ID no longer valid).
+  _continueResponse = async (session, interceptId, url) => {
+    try {
+      await this.send(session, 'Fetch.continueResponse', { requestId: interceptId });
+    } catch (error) {
+      if (error.message === ABORTED_MESSAGE || error.message.includes('Invalid InterceptionId')) return;
+      this.log.debug(`Failed to continue response for ${url}: ${error.message}`);
+    }
   }
 
   // Called when a request will be sent. If the request has already been intercepted, handle it;
@@ -283,6 +432,28 @@ export class Network {
     if (!request) return;
 
     request.response = response;
+
+    // DNS-rebinding-safe SSRF gate: block on the IP Chromium actually connected
+    // to (response.remoteIPAddress), before the body is ever buffered/uploaded.
+    // The request-time pre-check only inspects the literal host, so a hostname
+    // that resolves benignly at request time but rebinds to a metadata IP for
+    // the real connection slips past it and is caught here instead. Dropping the
+    // request now means _handleLoadingFinished finds nothing to save, so the
+    // metadata response body is never fetched via Network.getResponseBody.
+    let metadataHost = isMetadataIP(response.remoteIPAddress);
+    if (metadataHost) {
+      let url = originURL(request);
+      logAssetInstrumentation(this.log, 'asset_not_uploaded', 'metadata_endpoint_blocked', {
+        url,
+        hostname: metadataHost,
+        snapshot: this.meta?.snapshot
+      });
+      this.log.warn(`Refusing to capture resource from cloud metadata endpoint: ${metadataHost}`, { ...this.meta, url });
+      this._forgetRequest(request);
+      this.#requestsLifeCycleHandler.get(requestId).resolveResponseReceived();
+      return;
+    }
+
     request.response.buffer = async () => {
       let result = await this.send(session, 'Network.getResponseBody', { requestId });
       return Buffer.from(result.body, result.base64Encoded ? 'base64' : 'utf-8');
@@ -306,11 +477,40 @@ export class Network {
   // callback. The request should have an associated response and be finished with any redirects.
   _handleLoadingFinished = async (session, event) => {
     let { requestId } = event;
-    // wait for upto 2 seconds or check if response has been sent
-    await this.#requestsLifeCycleHandler.get(requestId).responseReceived;
     let request = this.#requests.get(requestId);
     /* istanbul ignore if: race condition paranoia */
     if (!request) return;
+
+    if (!request.response) {
+      let timerId;
+      await Promise.race([
+        this.#requestsLifeCycleHandler.get(requestId).responseReceived,
+        new Promise(resolve => { timerId = setTimeout(resolve, RESPONSE_RECEIVED_TIMEOUT); })
+      ]);
+      clearTimeout(timerId);
+    }
+
+    if (!request.response) {
+      this.log.debug(`Skipping resource: responseReceived not received within ${RESPONSE_RECEIVED_TIMEOUT}ms - ${request.url}`);
+      // Chrome 143+ PlzDedicatedWorker: dedicated worker scripts fetch in the browser
+      // process and never surface a CDP response. resourceType varies ('Other' on v143,
+      // 'Script' on older Chrome) so we gate on hostname rather than type, and mirror
+      // sendResponseResource's disallowedHostnames-before-allowedHostnames precedence.
+      let url = originURL(request);
+      /* istanbul ignore else: the else only fires for PlzDedicatedWorker requests
+         whose worker-script fetch bypasses Fetch.requestPaused. Cross-origin assets
+         loaded via the document session still go through sendResponseResource
+         (which performs its own disallowedHostnames check), so the test harness
+         can't reliably reach this skip branch via integration tests. */
+      if (!hostnameMatches(this.intercept.disallowedHostnames, url) &&
+          hostnameMatches(this.intercept.allowedHostnames, url)) {
+        await captureResourceDirectly(this, request, session);
+      } else {
+        this.log.debug(`- Skipping direct-fetch fallback for ${url}: hostname not allowed`, this.meta);
+      }
+      this._forgetRequest(request);
+      return;
+    }
 
     await saveResponseResource(this, request, session);
     this._forgetRequest(request);
@@ -384,20 +584,72 @@ export class Network {
   }
 
   _initializeNetworkIdleWaitTimeout() {
-    if (Network.TIMEOUT) return;
+    // Per-instance timeout so concurrent pages with different env values
+    // (or env values changed mid-run by tests) don't stomp each other.
+    this.networkIdleWaitTimeout = parseInt(process.env.PERCY_NETWORK_IDLE_WAIT_TIMEOUT, 10) || 30000;
 
-    Network.TIMEOUT = parseInt(process.env.PERCY_NETWORK_IDLE_WAIT_TIMEOUT) || 30000;
-
-    if (Network.TIMEOUT > 60000) {
+    if (this.networkIdleWaitTimeout > 60000) {
       this.log.warn('Setting PERCY_NETWORK_IDLE_WAIT_TIMEOUT over 60000ms is not recommended. ' +
         'If your page needs more than 60000ms to idle due to CPU/Network load, ' +
         'its recommended to increase CI resources where this cli is running.');
     }
   }
+
+  // Perform the actual Node-side HTTP fetch for a request, attaching the page's
+  // cookies and (same-origin only) Basic auth. A custom dns `lookup` hook records
+  // the IP(s) the socket is actually resolving/connecting to — this is the same
+  // resolution Node uses for the connection (not an extra DNS round-trip), so the
+  // caller can enforce the SSRF metadata block on the real connected IP and defeat
+  // DNS rebinding on the direct-fetch path. Kept as an instance method so tests
+  // can stub the transport (and the connected IP) without hitting the network.
+  async directFetch(request, session) {
+    let cookies = [];
+    let cookieSession = pickCookieSession(this, session);
+    try {
+      ({ cookies } = await cookieSession.send('Network.getCookies', { urls: [request.url] }));
+    } catch (error) {
+      this.log.debug(`Network.getCookies unavailable for ${request.url}: ${error.message}`);
+    }
+
+    let headers = {
+      // add default browser
+      accept: '*/*',
+      'sec-fetch-site': 'same-origin',
+      'sec-fetch-mode': 'cors',
+      'sec-fetch-dest': 'font',
+      'sec-ch-ua': '"Chromium";v="143", "Google Chrome";v="143", "Not?A_Brand";v="99"',
+      'sec-ch-ua-mobile': '?0',
+      'sec-ch-ua-platform': '"macOS"',
+      'sec-fetch-user': '?1',
+      // add request fetched headers
+      ...request.headers,
+      // add applicable cookies
+      cookie: cookies.map(cookie => `${cookie.name}=${cookie.value}`).join('; ')
+    };
+
+    if (shouldAttachAuth(this.authorization, request.url, this.meta?.snapshotURL)) {
+      let { username, password } = this.authorization;
+      let token = Buffer.from([username, password || ''].join(':')).toString('base64');
+      headers.Authorization = `Basic ${token}`;
+    }
+
+    let remoteAddresses = [];
+    let lookup = (hostname, opts, cb) => dns.lookup(hostname, opts, (err, address, family) => {
+      remoteAddresses.push(...flattenLookupAddresses(address));
+      cb(err, address, family);
+    });
+
+    let { body, status, headers: responseHeaders } = await makeRequest(
+      request.url, { buffer: true, headers, lookup }, (body, res) => ({
+        body, status: res.statusCode, headers: res.headers
+      }));
+
+    return { body, status, headers: responseHeaders, remoteAddresses };
+  }
 }
 
 // Logs asset instrumentation for failed/skipped asset loading
-function logAssetInstrumentation(log, category, reason, details) {
+export function logAssetInstrumentation(log, category, reason, details) {
   const categoryMap = {
     asset_load_5xx: '[ASSET_LOAD_5XX]',
     asset_not_uploaded: '[ASSET_NOT_UPLOADED]',
@@ -412,7 +664,8 @@ function logAssetInstrumentation(log, category, reason, details) {
     resource_too_large: 'Resource too large',
     no_response: 'No response received',
     empty_response: 'Empty response',
-    disallowed_resource_type: 'Disallowed resource type'
+    disallowed_resource_type: 'Disallowed resource type',
+    metadata_endpoint_blocked: 'Cloud metadata endpoint blocked'
   };
 
   const prefix = categoryMap[category];
@@ -432,6 +685,24 @@ function logAssetInstrumentation(log, category, reason, details) {
 // Returns the normalized origin URL of a request
 function originURL(request) {
   return normalizeURL((request.redirectChain[0] || request).url);
+}
+
+// Convert Fetch event responseHeaders ([{name, value}, …]) to a header object.
+function headersArrayToObject(arr) {
+  let out = {};
+  if (!Array.isArray(arr)) return out;
+  for (let { name, value } of arr) out[name] = value;
+  return out;
+}
+
+// Returns { tooLarge, malformed, rawValue } for Content-Length classification.
+function inspectContentLength(headers) {
+  let key = headers && Object.keys(headers).find(k => k.toLowerCase() === 'content-length');
+  let rawValue = key ? headers[key] : undefined;
+  let parsed = parseInt(rawValue, 10);
+  let tooLarge = shouldSkipForSize(parsed);
+  let malformed = rawValue !== undefined && rawValue !== null && String(rawValue).length > 0 && !Number.isFinite(parsed);
+  return { tooLarge, malformed, rawValue };
 }
 
 // Validate domain for auto-allowlisting feature
@@ -486,6 +757,7 @@ async function sendResponseResource(network, request, session) {
 
   try {
     let resource = network.intercept.getResource(url, network.intercept.currentWidth);
+    let metadataHost;
     network.log.debug(`Handling request: ${url}`, meta);
 
     if (!resource?.root && hostnameMatches(disallowedHostnames, url)) {
@@ -511,9 +783,37 @@ async function sendResponseResource(network, request, session) {
         responseHeaders: Object.entries(resource.headers || {})
           .map(([k, v]) => ({ name: k.toLowerCase(), value: String(v) }))
       });
+    } else if ((metadataHost = isMetadataTarget(url)) ||
+      (request.redirectChain.length && (metadataHost = isMetadataTarget(request.url)))) {
+      // Cheap, synchronous first-line block for SSRF pivots to cloud
+      // instance-metadata endpoints whose target is a literal metadata IP or a
+      // known metadata hostname — refused before issuing a real outbound
+      // request. This is a literal-only pre-check: it does NOT resolve DNS and
+      // therefore does NOT defend against DNS rebinding (a hostname that
+      // resolves benignly here can still connect to a metadata IP). The
+      // rebinding leg is closed at the response stage in _handleResponseReceived,
+      // which gates on response.remoteIPAddress — the IP actually connected to.
+      // Cache hits and root resources are served above and never reach here, so
+      // loopback/RFC1918 snapshotting is unaffected. We check both the origin
+      // URL and, on a redirect hop, the actual target (request.url) so an open
+      // redirect to a metadata endpoint cannot bypass the block — originURL
+      // reports the pre-redirect URL for resource identity.
+      logAssetInstrumentation(log, 'asset_not_uploaded', 'metadata_endpoint_blocked', {
+        url,
+        hostname: metadataHost,
+        snapshot: meta.snapshot
+      });
+      log.warn(`Refusing to fetch resource from cloud metadata endpoint: ${metadataHost}`, meta);
+
+      await send('Fetch.failRequest', {
+        requestId: request.interceptId,
+        errorReason: 'Aborted'
+      });
     } else {
+      // interceptResponse:true triggers a second pause at the response stage. See _handleResponsePaused.
       await send('Fetch.continueRequest', {
-        requestId: request.interceptId
+        requestId: request.interceptId,
+        interceptResponse: true
       });
     }
   } catch (error) {
@@ -526,7 +826,7 @@ async function sendResponseResource(network, request, session) {
     // Note: its not a necessity that we would get aborted callback in a tick, its just that if we
     // already have it then we can safely ignore this error
     // Its very hard to test it as this function should be called and request should get cancelled before
-    if (error.message === ABORTED_MESSAGE || error.message.includes('Invalid InterceptionId')) {
+    if (error.code === AbortCodes.ABORTED || error.message === ABORTED_MESSAGE || error.message.includes('Invalid InterceptionId')) {
       // defer this to the end of queue to make sure that any incoming aborted messages were
       // handled and network.#aborted is updated
       await new Promise((res, _) => process.nextTick(res));
@@ -548,34 +848,129 @@ async function sendResponseResource(network, request, session) {
   }
 }
 
-// Make a new request with Node based on a network request
+// Pick the CDP session for Network.getCookies. Worker/auxiliary sessions
+// expose a partial Network domain where Network.getCookies throws
+// "Internal error", so prefer the page's session whenever available and
+// fall back to the request's own session otherwise.
+export function pickCookieSession(network, session) {
+  return network.page?.session ?? session;
+}
+
+// Decide whether to attach a Basic auth header to the Node-side direct fetch.
+// The browser's URLLoader origin-scopes Basic auth; this fallback runs in
+// Node, so we re-enforce the same-origin rule explicitly to avoid leaking
+// credentials cross-origin. Malformed URLs fall through to `false` defensively.
+export function shouldAttachAuth(authorization, requestUrl, snapshotUrl) {
+  if (!authorization?.username) return false;
+  try {
+    return new URL(requestUrl).origin === new URL(snapshotUrl).origin;
+  } catch {
+    return false;
+  }
+}
+
+// Race a promise against a timeout. Resolves with the promise's value if it
+// settles within `ms`, otherwise rejects with `new Error(message)`. The
+// internal timer is always cleared so the event loop can exit cleanly.
+export function raceWithTimeout(promise, ms, message) {
+  let timerId;
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => {
+      timerId = setTimeout(() => reject(new Error(message)), ms);
+    })
+  ]).finally(() => clearTimeout(timerId));
+}
+
+// Server Content-Type wins; URL-extension mime is the fallback; binary default last.
+export function resolveDirectFetchMime(responseHeaders, urlForLookup) {
+  let serverMime = responseHeaders?.['content-type']?.split(';')[0].trim();
+  return serverMime || mime.lookup(urlForLookup) || 'application/octet-stream';
+}
+
+// Normalize the address argument passed to a dns.lookup callback into a flat
+// array of IP strings. Node's http stack calls lookup with `all: true` (Happy
+// Eyeballs), so `address` is an array of { address, family }; older/other
+// callers may pass a single string. Missing values yield an empty list.
+export function flattenLookupAddresses(address) {
+  if (Array.isArray(address)) return address.map(a => a.address);
+  return address ? [address] : [];
+}
+
+// The single choke point for all Node-side direct fetches (the direct-fetch
+// fallback for worker scripts and the font-mime re-fetch in saveResponseResource).
+// It runs the transport (network.directFetch) then enforces the SSRF metadata
+// block on the IP(s) the socket actually connected to — the DNS-rebinding-safe
+// equivalent of the response-stage remoteIPAddress gate, for requests that never
+// surface a CDP response. On a hit it logs + warns and throws MetadataBlockedError
+// so the caller drops the resource instead of buffering/uploading (or attaching
+// cookies/auth to) a metadata response.
 async function makeDirectRequest(network, request, session) {
-  const { cookies } = await session.send('Network.getCookies', { urls: [request.url] });
+  let { body, status, headers, remoteAddresses } = await network.directFetch(request, session);
 
-  let headers = {
-    // add default browser
-    accept: '*/*',
-    'sec-fetch-site': 'same-origin',
-    'sec-fetch-mode': 'cors',
-    'sec-fetch-dest': 'font',
-    'sec-ch-ua': '"Chromium";v="123", "Google Chrome";v="123", "Not?A_Brand";v="99"',
-    'sec-ch-ua-mobile': '?0',
-    'sec-ch-ua-platform': '"macOS"',
-    'sec-fetch-user': '?1',
-    // add request fetched headers
-    ...request.headers,
-    // add applicable cookies
-    cookie: cookies.map(cookie => `${cookie.name}=${cookie.value}`).join('; ')
-  };
-
-  if (network.authorization?.username) {
-    // include basic authorization username and password
-    let { username, password } = network.authorization;
-    let token = Buffer.from([username, password || ''].join(':')).toString('base64');
-    headers.Authorization = `Basic ${token}`;
+  let metadataHost = remoteAddresses.map(isMetadataIP).find(Boolean);
+  if (metadataHost) {
+    let url = originURL(request);
+    let meta = { ...network.meta, url };
+    logAssetInstrumentation(network.log, 'asset_not_uploaded', 'metadata_endpoint_blocked', {
+      url, hostname: metadataHost, snapshot: meta.snapshot
+    });
+    network.log.warn(`Refusing to save direct-fetched resource from cloud metadata endpoint: ${metadataHost}`, meta);
+    throw new MetadataBlockedError(metadataHost);
   }
 
-  return makeRequest(request.url, { buffer: true, headers });
+  return { body, status, headers };
+}
+
+// Capture a resource via direct HTTP fetch when the browser-side response
+// never surfaces — Chrome 143+ fetches dedicated worker scripts in the browser
+// process (PlzDedicatedWorker) so loadingFinished fires without a body on CDP.
+async function captureResourceDirectly(network, request, session) {
+  let log = network.log;
+  let url = originURL(request);
+  let meta = { ...network.meta, url };
+
+  // Under PERCY_GZIP the size ceiling can reach tens of MB; 5s is too short.
+  let timeoutMs = process.env.PERCY_GZIP ? DIRECT_FETCH_TIMEOUT_WITH_GZIP : DIRECT_FETCH_TIMEOUT;
+
+  try {
+    log.debug('- Requesting resource directly (responseReceived timeout fallback)', meta);
+    let { body, status, headers: responseHeaders } = await raceWithTimeout(
+      makeDirectRequest(network, request, session),
+      timeoutMs,
+      `Direct fetch timed out after ${timeoutMs}ms`
+    );
+
+    if (shouldSkipForSize(body.length)) {
+      logAssetInstrumentation(log, 'asset_not_uploaded', 'resource_too_large', {
+        url, size: body.length, snapshot: meta.snapshot
+      });
+      log.debug('- Skipping resource larger than allowed size', meta);
+      return;
+    }
+
+    let urlObj = new URL(url);
+    let mimeType = resolveDirectFetchMime(responseHeaders, urlObj.origin + urlObj.pathname);
+
+    let resource = createResource(url, body, mimeType, {
+      status,
+      headers: { 'content-type': [mimeType] }
+    });
+
+    log.debug(`- Saving direct-fetched resource sha=${resource.sha} mimetype=${mimeType}`, meta);
+    network.intercept.saveResource(resource);
+  } catch (error) {
+    if (error instanceof MetadataBlockedError) {
+      // The connected IP was a cloud metadata endpoint — makeDirectRequest has
+      // already logged + warned. Drop the resource without re-logging it as a
+      // generic network error so the metadata body is never saved/uploaded.
+      return;
+    }
+    logAssetInstrumentation(log, 'asset_load_missing', 'network_error', {
+      url, snapshot: meta.snapshot, requestType: request.type, error: error.message
+    });
+    log.debug(`Direct fetch failed for ${url} - ${error.message}`, meta);
+  }
 }
 
 // Save a resource from a request, skipping it if specific parameters are not met
@@ -590,19 +985,8 @@ async function saveResponseResource(network, request, session) {
     url,
     responseStatus: response?.status
   };
-  // Checking for content length more than 100MB, to prevent websocket error which is governed by
-  // maxPayload option of websocket defaulted to 100MB.
-  // If content-length is more than our allowed 25MB, no need to process that resouce we can return log.
-  let contentLength = response.headers?.[Object.keys(response.headers).find(key => key.toLowerCase() === 'content-length')];
-  contentLength = parseInt(contentLength);
-  if (contentLength > MAX_RESOURCE_SIZE) {
-    logAssetInstrumentation(log, 'asset_not_uploaded', 'resource_too_large', {
-      url,
-      size: contentLength,
-      snapshot: meta.snapshot
-    });
-    return log.debug('- Skipping resource larger than 25MB', meta);
-  }
+  // Oversized/malformed Content-Length is rejected earlier in _handleResponsePaused;
+  // the body.length check below still guards cached responses where headers may lie.
   let resource = network.intercept.getResource(url);
 
   if (!resource || (!resource.root && !resource.provided && disableCache)) {
@@ -625,7 +1009,15 @@ async function saveResponseResource(network, request, session) {
         }
       }
 
-      let body = shouldCapture && await response.buffer();
+      // Bound how long we'll wait for a single body — large bodies over a slow
+      // or dead CDP socket must not stall the discovery queue forever. Errors
+      // (timeout or underlying CDP failure) propagate to the outer try/catch
+      // which logs the failure via the existing "Encountered an error" path.
+      let body = shouldCapture && await raceWithTimeout(
+        response.buffer(),
+        process.env.PERCY_GZIP ? 60000 : 30000,
+        `response.buffer() timed out for ${url}`
+      );
 
       // Don't rename the below log line as it is used in getting network logs in api
       /* istanbul ignore if: first check is a sanity check */
@@ -649,14 +1041,14 @@ async function saveResponseResource(network, request, session) {
           snapshot: meta.snapshot
         });
         return log.debug('- Skipping empty response', meta);
-      } else if (body.length > MAX_RESOURCE_SIZE) {
+      } else if (shouldSkipForSize(body.length)) {
         logAssetInstrumentation(log, 'asset_not_uploaded', 'resource_too_large', {
           url,
           size: body.length,
           snapshot: meta.snapshot
         });
         log.debug('- Missing headers for the requested resource.', meta);
-        return log.debug('- Skipping resource larger than 25MB', meta);
+        return log.debug('- Skipping resource larger than allowed size', meta);
       } else if (!ALLOWED_STATUSES.includes(response.status)) {
         /* istanbul ignore next: ternary branches tested separately */
         const category = (response.status >= 500 && response.status < 600)
@@ -700,7 +1092,7 @@ async function saveResponseResource(network, request, session) {
       // so request them directly.
       if (mimeType?.includes('font') || (detectedMime && detectedMime.includes('font'))) {
         log.debug('- Requesting asset directly', meta);
-        body = await makeDirectRequest(network, request, session);
+        ({ body } = await makeDirectRequest(network, request, session));
         log.debug('- Got direct response', meta);
       }
 
@@ -719,6 +1111,12 @@ async function saveResponseResource(network, request, session) {
       // Don't rename the below log line as it is used in getting network logs in api
       log.debug(`Encountered an error processing resource: ${url}`, meta);
       log.debug(error, meta);
+      // Surface to the structured asset instrumentation channel so support
+      // tooling (analyse_build, analyze_cli_logs_tool) sees the failure
+      // instead of just a debug-level line.
+      logAssetInstrumentation(log, 'asset_load_missing', 'network_error', {
+        url, snapshot: meta.snapshot, requestType: request?.type, error: error.message
+      });
     }
   }
 

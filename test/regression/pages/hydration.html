@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hydration Regression Test</title>
+  <link rel="stylesheet" href="/assets/css/base.css">
+  <style>
+    .status { padding: 12px; border: 1px solid #ccc; border-radius: 4px; min-height: 40px; margin-bottom: 8px; }
+    .hydrated { background: #d4edda; border-color: #28a745; color: #155724; font-weight: bold; }
+    .loading { background: #fff3cd; border-color: #ffc107; color: #856404; }
+  </style>
+</head>
+<body>
+  <h1>Hydration Test</h1>
+  <p style="color:#666;margin-bottom:16px;">
+    These custom-element components hydrate inside connectedCallback the moment
+    customElements.define runs. Percy's pre-snapshot wait blocks on
+    <code>:not(:defined)</code> elements, so by the time Percy serializes,
+    every component below has finished its synchronous hydration and the
+    captured DOM reflects the post-hydration state.
+  </p>
+
+  <div class="section">
+    <div class="section-title">Sync hydration on define</div>
+    <hydrate-sync>Loading...</hydrate-sync>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Hydration that mutates structure</div>
+    <hydrate-structural>Loading...</hydrate-structural>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Multi-phase hydration (all phases run synchronously)</div>
+    <hydrate-multi>Phase 0: Server rendered</hydrate-multi>
+  </div>
+
+  <script>
+    // Custom elements hydrate synchronously inside connectedCallback.
+    // Because Percy waits on `:not(:defined)` before serializing, the
+    // captured DOM always reflects the post-hydration state — regardless
+    // of how long the page takes to download the script.
+
+    class HydrateSync extends HTMLElement {
+      connectedCallback() {
+        this.className = 'status hydrated';
+        this.textContent = 'Hydrated synchronously on define';
+      }
+    }
+
+    class HydrateStructural extends HTMLElement {
+      connectedCallback() {
+        this.className = 'status hydrated';
+        this.innerHTML = '<strong>Hydrated:</strong> structure replaced';
+      }
+    }
+
+    class HydrateMulti extends HTMLElement {
+      connectedCallback() {
+        // Run every phase synchronously so the final state is captured.
+        this.textContent = 'Phase 1: Components mounted';
+        this.textContent = 'Phase 2: Data fetched';
+        this.className = 'status hydrated';
+        this.textContent = 'Phase 3: Fully hydrated';
+      }
+    }
+
+    customElements.define('hydrate-sync', HydrateSync);
+    customElements.define('hydrate-structural', HydrateStructural);
+    customElements.define('hydrate-multi', HydrateMulti);
+  </script>
+</body>
+</html>

@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Scroll To Bottom Regression Test</title>
+  <link rel="stylesheet" href="/assets/css/base.css">
+  <style>
+    .spacer { height: 1500px; background: linear-gradient(#f7fafc, #e2e8f0); padding: 20px; }
+    #lazy { padding: 20px; }
+    #lazy .loaded { background: #fef3c7; border: 2px solid #d97706; padding: 20px; }
+  </style>
+</head>
+<body>
+  <h1>Scroll To Bottom</h1>
+  <p>Content at the bottom of this page is injected only after the page is
+     scrolled. With <code>discovery.scrollToBottom: true</code> the CLI scrolls
+     the page during capture so the lazy content is serialized.</p>
+
+  <div class="spacer">Tall spacer — forces the lazy region below the fold.</div>
+
+  <div id="lazy"><em>lazy content not yet loaded</em></div>
+
+  <script>
+    // Reveal lazy content once the page has been scrolled down.
+    window.addEventListener('scroll', function () {
+      if (window.scrollY > 500) {
+        document.getElementById('lazy').innerHTML =
+          '<div class="loaded"><h2>Lazy Loaded</h2><p>Appeared after scrollToBottom.</p></div>';
+      }
+    });
+  </script>
+</body>
+</html>

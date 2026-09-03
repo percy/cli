@@ -23,6 +23,10 @@ const { PERCY_CLIENT_API_URL = 'https://percy.io/api/v1' } = process.env;
 let pkg = getPackageJSON(import.meta.url);
 // minimum polling interval milliseconds
 const MIN_POLLING_INTERVAL = 1_000;
+// Allow-listed drop-in build sources. The API keys drop-in behavior (baseline auto-approval,
+// telemetry) on these; anything else keeps the computed default so a stray env var can't
+// inject an arbitrary source.
+export const DROPIN_BUILD_SOURCES = ['playwright-dropin', 'playwright-dropin-baseline'];
 const INVALID_TOKEN_ERROR_MESSAGE = 'Unable to retrieve snapshot details with write access token. Kindly use a full access token for retrieving snapshot details with Synchronous CLI.';
 
 // Validate ID arguments
@@ -52,6 +56,133 @@ function makeRegions(regions, algorithm, algorithmConfiguration) {
     ...region,
     elementSelector: region.elementSelector || { fullpage: true }
   }));
+}
+
+const VISUAL_CONFIG_TOP_LEVEL_KEYS = new Set([
+  'enableLayout',
+  'percyCssValue',
+  'compareWithPreviousRun',
+  'diffIgnoreEnabled',
+  'diffIgnorePercentage',
+  'diffSensitivity',
+  'browsers',
+  'intelliIgnore'
+]);
+
+const VISUAL_CONFIG_INTELLI_IGNORE_KEYS = new Set([
+  'enabled',
+  'dynamic',
+  'ignoreAds',
+  'ignoreBanners',
+  'ignoreCarousels',
+  'ignoreCustomElementsEnabled',
+  'ignoreCustomElementsClasses',
+  'ignoreImages',
+  'diffIgnorePercentage'
+]);
+
+function validateBoolean(value, path) {
+  if (value != null && typeof value !== 'boolean') {
+    throw new Error(`Invalid PERCY_VISUAL_CONFIG: '${path}' must be a boolean`);
+  }
+}
+
+function validateNumberInRange(value, path) {
+  if (value == null) return;
+  if (typeof value !== 'number' || Number.isNaN(value) || value < 0 || value > 1) {
+    throw new Error(`Invalid PERCY_VISUAL_CONFIG: '${path}' must be a number between 0 and 1`);
+  }
+}
+
+function validateIntegerRange(value, path, min, max) {
+  if (value == null) return;
+  if (!Number.isInteger(value) || value < min || value > max) {
+    throw new Error(
+      `Invalid PERCY_VISUAL_CONFIG: '${path}' must be an integer between ${min} and ${max}`
+    );
+  }
+}
+
+function parseVisualConfigFromEnv(log) {
+  let rawVisualConfig = process.env.PERCY_VISUAL_CONFIG;
+  if (!rawVisualConfig) return;
+
+  let parsed;
+  try {
+    parsed = JSON.parse(rawVisualConfig);
+  } catch {
+    throw new Error('Invalid PERCY_VISUAL_CONFIG: value must be valid JSON');
+  }
+
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error('Invalid PERCY_VISUAL_CONFIG: value must be a JSON object');
+  }
+
+  let visualConfig = {};
+  for (let key of Object.keys(parsed)) {
+    if (!VISUAL_CONFIG_TOP_LEVEL_KEYS.has(key)) {
+      log.warn(`Ignoring unknown PERCY_VISUAL_CONFIG key: '${key}'`);
+      continue;
+    }
+    visualConfig[key] = parsed[key];
+  }
+
+  validateBoolean(visualConfig.enableLayout, 'enableLayout');
+  if (visualConfig.percyCssValue != null && typeof visualConfig.percyCssValue !== 'string') {
+    throw new Error("Invalid PERCY_VISUAL_CONFIG: 'percyCssValue' must be a string");
+  }
+  validateBoolean(visualConfig.compareWithPreviousRun, 'compareWithPreviousRun');
+  validateBoolean(visualConfig.diffIgnoreEnabled, 'diffIgnoreEnabled');
+  validateNumberInRange(visualConfig.diffIgnorePercentage, 'diffIgnorePercentage');
+  validateIntegerRange(visualConfig.diffSensitivity, 'diffSensitivity', 1, 5);
+
+  if (visualConfig.browsers != null) {
+    if (!Array.isArray(visualConfig.browsers) || !visualConfig.browsers.every(b => typeof b === 'string')) {
+      throw new Error("Invalid PERCY_VISUAL_CONFIG: 'browsers' must be an array of strings");
+    }
+    visualConfig.browsers = normalizeBrowsers(visualConfig.browsers);
+  }
+
+  if (visualConfig.intelliIgnore != null) {
+    if (!visualConfig.intelliIgnore || typeof visualConfig.intelliIgnore !== 'object' ||
+        Array.isArray(visualConfig.intelliIgnore)) {
+      throw new Error("Invalid PERCY_VISUAL_CONFIG: 'intelliIgnore' must be an object");
+    }
+
+    let sanitizedIntelliIgnore = {};
+    for (let key of Object.keys(visualConfig.intelliIgnore)) {
+      if (!VISUAL_CONFIG_INTELLI_IGNORE_KEYS.has(key)) {
+        log.warn(`Ignoring unknown PERCY_VISUAL_CONFIG intelliIgnore key: '${key}'`);
+        continue;
+      }
+      sanitizedIntelliIgnore[key] = visualConfig.intelliIgnore[key];
+    }
+
+    validateBoolean(sanitizedIntelliIgnore.enabled, 'intelliIgnore.enabled');
+    validateBoolean(sanitizedIntelliIgnore.dynamic, 'intelliIgnore.dynamic');
+    validateBoolean(sanitizedIntelliIgnore.ignoreAds, 'intelliIgnore.ignoreAds');
+    validateBoolean(sanitizedIntelliIgnore.ignoreBanners, 'intelliIgnore.ignoreBanners');
+    validateBoolean(sanitizedIntelliIgnore.ignoreCarousels, 'intelliIgnore.ignoreCarousels');
+    validateBoolean(
+      sanitizedIntelliIgnore.ignoreCustomElementsEnabled,
+      'intelliIgnore.ignoreCustomElementsEnabled'
+    );
+    if (sanitizedIntelliIgnore.ignoreCustomElementsClasses != null &&
+        typeof sanitizedIntelliIgnore.ignoreCustomElementsClasses !== 'string') {
+      throw new Error(
+        "Invalid PERCY_VISUAL_CONFIG: 'intelliIgnore.ignoreCustomElementsClasses' must be a string"
+      );
+    }
+    validateBoolean(sanitizedIntelliIgnore.ignoreImages, 'intelliIgnore.ignoreImages');
+    validateNumberInRange(
+      sanitizedIntelliIgnore.diffIgnorePercentage,
+      'intelliIgnore.diffIgnorePercentage'
+    );
+
+    visualConfig.intelliIgnore = sanitizedIntelliIgnore;
+  }
+
+  return visualConfig;
 }
 
 // Validate project path arguments
@@ -186,17 +317,46 @@ export class PercyClient {
   // Creates a build with optional build resources. Only one build can be
   // created at a time per instance so snapshots and build finalization can be
   // done more seamlessly without manually tracking build ids
-  async createBuild({ resources = [], projectType, cliStartTime = null } = {}) {
+  //
+  // Drop-in baseline options (Playwright drop-in):
+  //   source — override the build source with an allow-listed drop-in value.
+  //   dropinBaselineCandidate — ask the API to treat the build as the project's baseline IF it is
+  //     the project's first build (the server decides; a no-op on established projects).
+  //   dropinBaselineSetup — explicit `percy playwright:setup-baseline`: the build IS the baseline
+  //     regardless of build number (deliberate user-triggered re-baseline).
+  async createBuild({
+    resources = [],
+    projectType,
+    cliStartTime = null,
+    source: sourceOverride,
+    dropinBaselineCandidate,
+    dropinBaselineSetup
+  } = {}) {
     this.log.debug('Creating a new build...');
+    let visualConfig = parseVisualConfigFromEnv(this.log);
     let source = 'user_created';
 
     if (process.env.PERCY_ORIGINATED_SOURCE) {
       source = 'bstack_sdk_created';
     } else if (process.env.PERCY_AUTO_ENABLED_GROUP_BUILD === 'true') {
       source = 'auto_enabled_group';
+    } else if (DROPIN_BUILD_SOURCES.includes(process.env.PERCY_BUILD_SOURCE)) {
+      source = process.env.PERCY_BUILD_SOURCE;
     }
 
+    // Allow-listed explicit override (used by the baseline seeding flows).
+    if (DROPIN_BUILD_SOURCES.includes(sourceOverride)) source = sourceOverride;
+
+    dropinBaselineCandidate ??= process.env.PERCY_DROPIN_BASELINE_CANDIDATE === 'true';
+    dropinBaselineSetup ??= process.env.PERCY_DROPIN_BASELINE_SETUP === 'true';
+
     let tagsArr = tagsList(this.labels);
+
+    // PER-9724: internal-only priority request. Set by internal product
+    // orchestration (e.g. Scanner / LCA) via PERCY_PRIORITY; mirrors the
+    // PERCY_ORIGINATED_SOURCE internal signal above. percy-api only honors this
+    // for eligible internal build types, so it is a no-op for customer builds.
+    let priority = process.env.PERCY_PRIORITY === 'true';
 
     return this.post('builds', {
       data: {
@@ -222,7 +382,11 @@ export class PercyClient {
           source: source,
           'skip-base-build': this.config.percy?.skipBaseBuild,
           'testhub-build-uuid': this.env.testhubBuildUuid,
-          'testhub-build-run-id': this.env.testhubBuildRunId
+          'testhub-build-run-id': this.env.testhubBuildRunId,
+          ...(dropinBaselineCandidate ? { 'dropin-baseline-candidate': true } : {}),
+          ...(dropinBaselineSetup ? { 'dropin-baseline-setup': true } : {}),
+          ...(visualConfig ? { 'visual-config': visualConfig } : {}),
+          ...(priority ? { priority: true } : {})
         },
         relationships: {
           resources: {
@@ -285,9 +449,44 @@ export class PercyClient {
 
   // Retrieves snapshot/comparison data by id. Requires a read access token.
   async getStatus(type, ids) {
-    if (!['snapshot', 'comparison'].includes(type)) throw new Error('Invalid type passed');
+    if (!['snapshot', 'comparison', 'intelli_story_graph'].includes(type)) throw new Error('Invalid type passed');
     this.log.debug(`Getting ${type} status for ids ${ids}`);
     return this.get(`job_status?sync=true&type=${type}&id=${ids.join()}`);
+  }
+
+  async getIntelliStorySnapshotNameToCommit(buildId) {
+    this.log.debug('IntelliStory: looking up baselines...');
+    // `build_id` is the only input. The build already exists by the time this is
+    // called, so its base build has been selected server-side and the endpoint
+    // reads through to that base build's commit — there is nothing to predict
+    // from git/PR context any more.
+    const qs = new URLSearchParams();
+
+    if (buildId) qs.append('build_id', buildId);
+
+    const query = qs.toString();
+    return this.get(
+      query ? `intelli_story/snapshot-name-to-commit?${query}` : 'intelli_story/snapshot-name-to-commit',
+      { identifier: 'intelli_story.snapshot_name_to_commit' }
+    );
+  }
+
+  async generateIntelliStoryGraph(buildId, {
+    files,
+    modules,
+    storybookPaths,
+    affectedNodes,
+    affectedFileLocations
+  } = {}) {
+    this.log.debug(`IntelliStory: enqueueing graph build for build ${buildId}...`);
+    return this.post('intelli_story/generate-graph', {
+      build_id: buildId,
+      files,
+      modules,
+      storybook_paths: storybookPaths,
+      affected_nodes: affectedNodes,
+      affected_file_locations: affectedFileLocations
+    }, { identifier: 'intelli_story.generate_graph' });
   }
 
   // Returns device details enabled on project associated with given token
@@ -452,6 +651,8 @@ export class PercyClient {
     regions,
     algorithm,
     algorithmConfiguration,
+    intelliStory,
+    storybookPath,
     resources = [],
     meta
   } = {}) {
@@ -490,7 +691,11 @@ export class PercyClient {
           'enable-javascript': enableJavaScript || null,
           'enable-layout': enableLayout || false,
           'th-test-case-execution-id': thTestCaseExecutionId || null,
-          browsers: normalizeBrowsers(browsers) || null
+          browsers: normalizeBrowsers(browsers) || null,
+          // IntelliStory: when enabled, the API selects affected snapshots
+          // server-side using the story's source path.
+          'intelli-story': intelliStory || null,
+          'storybook-path': storybookPath || null
         },
         relationships: {
           resources: {
@@ -522,15 +727,28 @@ export class PercyClient {
   async sendSnapshot(buildId, options) {
     let { meta = {} } = options;
     let snapshot = await this.createSnapshot(buildId, options);
+
+    // The API always creates the snapshot record now; when server-side SmartSnap
+    // selection skips it, the response carries `skipped-via-smartsnap: true` and
+    // there are no resources to upload. Tally kept vs skipped so the storybook
+    // flow can print an IntelliStory summary.
+    let skipped = !!snapshot?.data?.attributes?.['skipped-via-smartsnap'];
+    if (typeof options.intelliStory === 'boolean') {
+      this.intelliStoryStats ??= { kept: 0, skipped: 0 };
+      this.intelliStoryStats[skipped ? 'skipped' : 'kept'] += 1;
+    }
+
     meta.snapshotId = snapshot.data.id;
 
     let missing = snapshot.data.relationships?.['missing-resources']?.data;
     this.log.debug(`${missing?.length || 0} Missing resources: ${options.name}...`, meta);
-    if (missing?.length) {
+    if (skipped) {
+      this.log.debug('skipping resource upload because this is a intellistory skip build', meta);
+    } else if (missing?.length) {
       let resources = options.resources.reduce((acc, r) => Object.assign(acc, { [r.sha]: r }), {});
       await this.uploadResources(buildId, missing.map(({ id }) => resources[id]), meta);
+      this.log.debug(`Resources uploaded: ${options.name}...`, meta);
     }
-    this.log.debug(`Resources uploaded: ${options.name}...`, meta);
 
     await this.finalizeSnapshot(snapshot.data.id, meta);
 
@@ -707,10 +925,13 @@ export class PercyClient {
     return comparison;
   }
 
-  async sendBuildEvents(buildId, body, meta = {}) {
+  async sendBuildEvents(buildId, body, meta = {}, { eventName, category } = {}) {
     validateId('build', buildId);
     this.log.debug('Sending Build Events');
     return this.post(`builds/${buildId}/send-events`, {
+      // newer params are optional; when omitted the API applies its defaults
+      ...(eventName && { event_name: eventName }),
+      ...(category && { category }),
       data: body
     }, { identifier: 'build.send_events', ...meta });
   }

@@ -83,10 +83,12 @@ describe('TimeIt', () => {
       expect(summary.funcReturns.avg - 100).toBeLessThan(15.0); // adding buffer for win test
       expect(summary.funcReturns.vals.length).toEqual(3);
 
-      // funcVariableTime
-      expect(summary.funcVariableTime.min - 10).toBeLessThan(10.0);
-      expect(summary.funcVariableTime.max - 200).toBeLessThan(10.0);
-      expect(summary.funcVariableTime.avg - 103).toBeLessThan(10.0);
+      // funcVariableTime — tolerance must exceed the Windows default timer
+      // tick (~15.6 ms); a 10 ms ceiling on the 10 ms sleep was reliably
+      // tripped on windows-latest runners (observed drifts of 11–16 ms).
+      expect(summary.funcVariableTime.min - 10).toBeLessThan(20.0);
+      expect(summary.funcVariableTime.max - 200).toBeLessThan(20.0);
+      expect(summary.funcVariableTime.avg - 103).toBeLessThan(20.0);
       expect(summary.funcVariableTime.vals.length).toEqual(3);
     });
   });

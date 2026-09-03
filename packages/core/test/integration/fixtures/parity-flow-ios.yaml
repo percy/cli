@@ -1,0 +1,26 @@
+# Cross-platform parity flow — iOS half (Unit 5).
+#
+# Pairs with parity-flow-android.yaml. The harness runs both flows on
+# their respective devices, captures the resolved bbox for the shared
+# selector via Percy CLI's relay, and asserts |Δ| ≤ 2px per side.
+#
+# The selector below uses `id` because that's the only iOS-side selector
+# in V1 (Maestro's iOS TreeNode doesn't carry `class`). The Android flow
+# uses the same `id` selector — `id` is an alias for `resource-id` on
+# Android per R1 vocabulary parity.
+#
+# AUT requirements: a screen with an element whose iOS XCUI identifier
+# matches the resource-id of the corresponding Android view (`submitBtn`
+# in the example below). The example-percy-maestro-app's Calculator
+# satisfies this with its calculator buttons.
+
+appId: com.example.calculator
+---
+- launchApp
+- assertVisible:
+    id: "submitBtn"
+- runFlow:
+    file: ../../../../../../../percy-maestro/percy/flows/percy-screenshot.yaml
+    env:
+      SCREENSHOT_NAME: ParityIOS
+      PERCY_REGIONS: '[{"element":{"id":"submitBtn"},"algorithm":"ignore"}]'

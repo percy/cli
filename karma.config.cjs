@@ -8,6 +8,17 @@ module.exports = async config => {
     singleRun: true,
     concurrency: 1,
 
+    // Karma + karma-firefox-launcher on windows-latest occasionally exits
+    // with `Disconnected (0 times) Client disconnected from CONNECTED state
+    // (server shutting down)` after every spec passes — the post-test
+    // disconnect handshake misses Karma's default 2 s window. Generous
+    // timeouts and a single tolerated disconnect prevent the runner-level
+    // race from masquerading as a test failure.
+    browserDisconnectTimeout: 30000,
+    browserNoActivityTimeout: 60000,
+    browserDisconnectTolerance: 1,
+    captureTimeout: 60000,
+
     browsers: [
       'ChromeHeadless',
       'FirefoxHeadless'
