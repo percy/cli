@@ -1499,8 +1499,9 @@ describe('Snapshot', () => {
 
       await percy.idle();
 
+      // one resource (the DOM) per snapshot now that the log is not a resource
       let dom = i => Buffer.from((
-        api.requests['/builds/123/resources'][i * 2]
+        api.requests['/builds/123/resources'][i]
           .body.data.attributes['base64-content']
       ), 'base64').toString();
 
@@ -1686,7 +1687,7 @@ describe('Snapshot', () => {
       ].join(''));
 
       expect(Buffer.from((
-        api.requests['/builds/123/resources'][2]
+        api.requests['/builds/123/resources'][1]
           .body.data.attributes['base64-content']
       ), 'base64').toString()).toMatch([
         '<p>beforeResize - 400</p>',

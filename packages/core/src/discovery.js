@@ -215,10 +215,6 @@ function processSnapshotResources({ domSnapshot, resources, ...snapshot }) {
   // For multi dom root resources are stored as array
   resources = resources.flat();
 
-  // The per-snapshot CLI log is no longer shipped as a resource; it is uploaded
-  // directly to the logs endpoint after the snapshot is created (see
-  // uploadSnapshotLog in snapshot.js), keyed by the snapshot id.
-
   if (process.env.PERCY_GZIP) {
     for (let index = 0; index < resources.length; index++) {
       const alreadyZipped = isGzipped(resources[index].content);
