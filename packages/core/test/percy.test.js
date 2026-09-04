@@ -1551,10 +1551,22 @@ describe('Percy', () => {
         environmentInfo: 'env-info'
       });
       percy.build = { id: 1 };
+
+      // The published AWS documentation sample for an STS temporary access key
+      // ID -- not a live credential (and ASIA-prefixed keys are short-lived by
+      // construction). It is here only to match the "AWS Access Key ID Value"
+      // rule in secretPatterns.yml, so redaction has something to find.
+      // Semgrep's hardcoded-AWS-credential rule flags the literal regardless.
+      // nosemgrep
+      const fakeAwsKey = 'ASIAY34FZKBOKMUTVV7A';
+
       // A CLI-side log entry can carry upstream response text, so it needs the
-      // same redaction cilogs already gets.
-      percy.log.info('leaked from upstream: ASIAY34FZKBOKMUTVV7A');
-      percy.log.info('ci side: ASIAY34FZKBOKMUTVV7A', {}, true);
+      // same redaction cilogs already gets. `percy.log` is a namespace group
+      // bound as log(name, level, ...), so a CI-tagged entry has to be written
+      // through the instance directly -- passing a third arg to
+      // percy.log.info() does nothing, since log() only takes (message, meta).
+      percy.log.info(`leaked from upstream: ${fakeAwsKey}`);
+      logger.instance.log('ci', 'info', `ci side: ${fakeAwsKey}`);
 
       await expectAsync(percy.sendBuildLogs()).toBeResolved();
       expect(api.requests['/logs']).toBeDefined();
@@ -1566,9 +1578,13 @@ describe('Percy', () => {
 
       const clilogs = JSON.stringify(sent.clilogs);
       const cilogs = JSON.stringify(sent.cilogs);
-      expect(clilogs).not.toContain('ASIAY34FZKBOKMUTVV7A');
+      // Both halves must be present, or an assertion below passes vacuously.
+      expect(sent.clilogs.length).toBeGreaterThan(0);
+      expect(sent.cilogs.length).toBeGreaterThan(0);
+      expect(clilogs).not.toContain(fakeAwsKey);
       expect(clilogs).toContain('[REDACTED]');
-      expect(cilogs).not.toContain('ASIAY34FZKBOKMUTVV7A');
+      expect(cilogs).not.toContain(fakeAwsKey);
+      expect(cilogs).toContain('[REDACTED]');
     });
 
     it('should catch the error in sending build logs', async () => {
