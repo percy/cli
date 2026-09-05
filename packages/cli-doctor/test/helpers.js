@@ -55,6 +55,11 @@ export function createHttpServer(handler) {
  * @param {'block'} [opts.mode]  Return 502 for everything
  * @returns {Promise<{server: net.Server, url: string, port: number, close: function}>}
  */
+// Minimal proxy double. Every response below closes the socket immediately, so
+// each one must say `Connection: close`. Node's http.globalAgent enables
+// keepAlive by default from Node 19, and without that header the client pools
+// the socket and reuses it for the next request — which then fails with
+// ECONNRESET ("socket hang up") because the server already ended it.
 export function createProxyServer(opts = {}) {
   return new Promise((resolve, reject) => {
     const sockets = new Set();
@@ -78,7 +83,9 @@ export function createProxyServer(opts = {}) {
 
         // ── block mode ──────────────────────────────────────────────────────
         if (opts.mode === 'block') {
-          clientSocket.end('HTTP/1.1 502 Bad Gateway\r\nContent-Length: 0\r\n\r\n');
+          clientSocket.end(
+            'HTTP/1.1 502 Bad Gateway\r\nConnection: close\r\nContent-Length: 0\r\n\r\n'
+          );
           return;
         }
 
@@ -89,6 +96,7 @@ export function createProxyServer(opts = {}) {
             clientSocket.end(
               'HTTP/1.1 407 Proxy Authentication Required\r\n' +
               'Proxy-Authenticate: Basic realm="proxy"\r\n' +
+              'Connection: close\r\n' +
               'Content-Length: 0\r\n\r\n'
             );
             return;
@@ -97,7 +105,8 @@ export function createProxyServer(opts = {}) {
           const [user, pass] = decoded.split(':');
           if (user !== opts.auth.user || pass !== opts.auth.pass) {
             clientSocket.end(
-              'HTTP/1.1 407 Proxy Authentication Required\r\nContent-Length: 0\r\n\r\n'
+              'HTTP/1.1 407 Proxy Authentication Required\r\n' +
+              'Connection: close\r\nContent-Length: 0\r\n\r\n'
             );
             return;
           }
@@ -126,7 +135,9 @@ export function createProxyServer(opts = {}) {
 
         // ── Plain HTTP proxy ────────────────────────────────────────────────
         // For non-CONNECT requests just return 200 (sufficient for our tests)
-        clientSocket.end('HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n');
+        clientSocket.end(
+          'HTTP/1.1 200 OK\r\nConnection: close\r\nContent-Length: 0\r\n\r\n'
+        );
       };
 
       clientSocket.on('data', onData);

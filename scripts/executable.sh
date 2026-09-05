@@ -8,7 +8,11 @@ function cleanup {
 }
 
 brew install gnu-sed
-npm install -g pkg
+# vercel/pkg is archived; its final release (5.8.1) ships no Node 22 base
+# binary, so it cannot build this CLI once the toolchain moves off Node 14.
+# @yao-pkg/pkg is the maintained fork; its pkg-fetch v3.6 provides prebuilt
+# Node 22 binaries for linux, macos and win on both x64 and arm64.
+npm install -g @yao-pkg/pkg@6.22.0
 
 yarn install
 yarn build
@@ -53,7 +57,13 @@ cp -R ./build/* packages/
 # Create executables. (No `-d`/`--debug`: it only adds per-file "included as
 # DISCLOSED code / asset content" logging — thousands of lines — without
 # changing the output binaries.)
-pkg ./packages/cli/bin/run.js
+#
+# Targets are pinned explicitly. Unpinned, pkg infers them from the host, so a
+# macOS arm64 runner would silently start emitting an arm64 `percy-osx` — a
+# change to what customers download, which is not this migration's call to make.
+# Keep the published matrix at x64 and move only the embedded Node to 22;
+# whether to add arm64 assets is a separate release decision.
+pkg --targets node22-linux-x64,node22-macos-x64,node22-win-x64 ./packages/cli/bin/run.js
 
 # Rename executables
 mv run-linux percy && chmod +x percy

@@ -36,21 +36,36 @@ export const LOADER_ALIAS = {
 };
 
 // resolve specifier file url
-export async function resolve(specifier, context, defaultResolve) {
+export function resolve(specifier, context, nextResolve) {
+  // `module.registerHooks` intercepts require() as well as import, which the
+  // old --experimental-loader did not. Mock interception has to stay
+  // import-only: applying it to require() redirects internal CommonJS requires
+  // into the memfs volume and breaks fs mocking (@percy/config).
+  let isRequire = context.conditions?.includes('require');
+
   // check for import or filesystem mocks
-  if (MOCK_IMPORTS.has(specifier)) {
-    return { url: `mock://${specifier}?__mock__=${MOCK_IMPORTS.__uid__}&module` };
-  } else if (context.parentURL && '$vol' in fs) {
+  if (!isRequire && MOCK_IMPORTS.has(specifier)) {
+    return {
+      url: `mock://${specifier}?__mock__=${MOCK_IMPORTS.__uid__}&module`,
+      shortCircuit: true
+    };
+  } else if (!isRequire && context.parentURL && '$vol' in fs) {
     let filename = specifier.startsWith('file:') ? url.fileURLToPath(specifier) : specifier;
     let filepath = path.resolve(path.dirname(url.fileURLToPath(context.parentURL)), filename);
 
     if (fs.$vol.existsSync(filepath)) {
       let fmt = CJS_REG.test(fs.$vol.readFileSync(filepath)) ? 'commonjs' : 'module';
-      return { url: `${url.pathToFileURL(filepath)}?__mock__=${MOCK_IMPORTS.__uid__}&${fmt}` };
+
+      return {
+        url: `${url.pathToFileURL(filepath)}?__mock__=${MOCK_IMPORTS.__uid__}&${fmt}`,
+        shortCircuit: true
+      };
     }
   }
 
   // rewrite dist to src in development
+  let original = specifier;
+
   if (specifier.startsWith('#')) {
     let pkgRoot = url.fileURLToPath(context.parentURL.replace(/(packages\/[^/]+\/).+$/, '$1'));
     let pkgJSON = JSON.parse(fs.readFileSync(path.resolve(pkgRoot, 'package.json')));
@@ -60,18 +75,16 @@ export async function resolve(specifier, context, defaultResolve) {
     specifier = specifier.replace(LOADER_ALIAS.find, LOADER_ALIAS.replace);
   }
 
-  // transform absolute filepaths into absolute file urls
-  if (specifier.startsWith(ROOT)) specifier = url.pathToFileURL(specifier).href;
+  // Transform absolute filepaths into absolute file urls, but only for
+  // specifiers we actually rewrote. `module.registerHooks` also intercepts
+  // `require()`, whose resolver rejects a file: URL -- converting every
+  // in-repo path unconditionally broke requires like babel.config.cjs.
+  if (specifier !== original && specifier.startsWith(ROOT)) {
+    specifier = url.pathToFileURL(specifier).href;
+  }
 
   // use default resolve when not mocked
-  return defaultResolve(specifier, context, defaultResolve);
-}
-
-// get module format for loader mocks
-export async function getFormat(srcURL, context, defaultGetFormat) {
-  return srcURL.includes('?__mock__')
-    ? { format: srcURL.split('?')[1].split('&')[1] }
-    : defaultGetFormat(srcURL, context, defaultGetFormat);
+  return nextResolve(specifier, context);
 }
 
 // generate mock sources for mocked modules
@@ -87,26 +100,144 @@ function mockSource(mockURL) {
   }
 }
 
-// return loader mocks as module sources
-export async function getSource(srcURL, context, defaultGetSource) {
-  if (srcURL.includes('?__mock__')) return { source: mockSource(srcURL) };
-  return defaultGetSource(srcURL, context, defaultGetSource);
+// Nearest package.json `type`, mirroring how babel.config.cjs decides between
+// its `modules: false` and `modules: 'commonjs'` overrides. The format we hand
+// back to Node has to agree with what Babel actually emitted, so it is derived
+// the same way rather than sniffed off the output.
+const typeCache = new Map();
+
+function packageType(filename) {
+  let dir = path.dirname(filename);
+
+  while (dir.startsWith(ROOT)) {
+    if (typeCache.has(dir)) return typeCache.get(dir);
+    let pkg = path.join(dir, 'package.json');
+
+    if (fs.existsSync(pkg)) {
+      let type = JSON.parse(fs.readFileSync(pkg, 'utf8')).type === 'module'
+        ? 'module' : 'commonjs';
+      typeCache.set(dir, type);
+      return type;
+    }
+
+    let parent = path.dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+
+  return 'commonjs';
 }
 
-// return loader mocks or transform sources using babel
-export async function transformSource(source, context, defaultTransformSource) {
-  let callback = (src = source) => defaultTransformSource(src, context, defaultTransformSource);
-  if (context.format !== 'module' && context.format !== 'commonjs') return callback();
-  if (context.url.startsWith('mock://')) return callback();
+// Restore `require.cache` / `require.extensions` on Node 22.
+//
+// Registering a `load` hook makes Node translate CommonJS reached through
+// ESM interop (`import` of a CJS package) via the ESM pipeline rather than the
+// classic CJS loader. The `require` that pipeline builds is missing `cache` and
+// `extensions` -- it carries only `main` and `resolve`. Verified against a
+// bare pass-through `load` hook, so it is not caused by anything this loader
+// does, and it is fixed in Node 24.
+//
+// Nothing can be done from the hook itself: returning no `source` for CommonJS
+// is rejected with ERR_INVALID_RETURN_PROPERTY_VALUE. So patch the two
+// properties back from inside the module, and only for sources that actually
+// reference them -- in practice `import-fresh`, which cosmiconfig requires to
+// load .percy.js config files, and which throws
+// "Cannot read properties of undefined" on `require.cache[filePath]`.
+const REQUIRE_STATICS_REG = /require\.(cache|extensions)\b/;
 
-  if (typeof source !== 'string') source = Buffer.from(source);
-  if (Buffer.isBuffer(source)) source = source.toString();
+const REQUIRE_STATICS_PRELUDE =
+  'if(!require.cache){const m=require("module");' +
+  'require.cache=m._cache;require.extensions=m._extensions;}';
 
-  return callback((await babel.transformAsync(source, {
-    filename: url.fileURLToPath(context.url),
-    sourceType: context.format,
+function restoreRequireStatics(result, format) {
+  if (format !== 'commonjs' || result.source == null) return result;
+
+  let source = typeof result.source === 'string'
+    ? result.source : Buffer.from(result.source).toString('utf8');
+  if (!REQUIRE_STATICS_REG.test(source)) return result;
+
+  return { ...result, source: REQUIRE_STATICS_PRELUDE + source, shortCircuit: true };
+}
+
+// Read a module's source directly, for the cases where Node does not hand
+// `source` to the load hook (notably CommonJS).
+//
+// Deliberately uses the real filesystem via realpath-free readFileSync on the
+// *unspied* binding: while a test has fs mocked, `fs.readFileSync` is a jasmine
+// spy backed by memfs, so reading through it would serve in-memory content for
+// ordinary source files. Memfs-backed modules are handled separately, via the
+// `?__mock__` branch in load().
+const realReadFileSync = fs.readFileSync;
+
+function readSource(loadURL) {
+  return realReadFileSync(url.fileURLToPath(loadURL.split('?')[0]), 'utf8');
+}
+
+// Return loader mocks, or transform sources using babel.
+//
+// Replaces the getFormat/getSource/transformSource trio this file used to
+// export. Those hooks were removed in Node 16.12 and silently stopped being
+// called, which is what pinned the suite to Node 14: without the Babel step
+// the test files load as native ESM (frozen namespaces, no `__dirname`), and
+// without a shared realm the `__MOCK_IMPORTS__` interception never matched.
+// A single synchronous `load` registered via `module.registerHooks` restores
+// both behaviours. See scripts/loader-register.js.
+export function load(loadURL, context, nextLoad) {
+  // synthesized mock module, or a memfs-backed file
+  if (loadURL.includes('?__mock__')) {
+    let format = loadURL.split('?')[1].split('&')[1];
+    let source = mockSource(loadURL);
+
+    // `mock://` modules are generated re-export shims and must be left alone,
+    // but memfs-backed files are real sources -- the old transformSource hook
+    // skipped only the former, so keep transforming the latter.
+    if (!loadURL.startsWith('mock://')) {
+      source = transform(source, url.fileURLToPath(loadURL.split('?')[0]), format) ?? source;
+    }
+
+    return { format, source, shortCircuit: true };
+  }
+
+  let result = nextLoad(loadURL, context);
+  let format = result.format ?? context.format;
+
+  // only our own src/test files get transformed
+  if (format !== 'module' && format !== 'commonjs') return result;
+  if (!loadURL.startsWith('file:')) return result;
+
+  let filename = url.fileURLToPath(loadURL.split('?')[0]);
+  if (!BABEL_REG.test(filename)) return restoreRequireStatics(result, format);
+
+  let source = result.source;
+
+  if (source == null) {
+    try { source = readSource(loadURL); } catch { return result; }
+  }
+
+  let transformed = transform(source, filename, format);
+
+  // `only` misses turn into a null result -- keep Node's original module.
+  if (transformed == null) return result;
+
+  return {
+    format: packageType(filename),
+    source: transformed,
+    shortCircuit: true
+  };
+}
+
+// Babel-transform a module source, or return null when Babel's `only` filter
+// does not match it. `unambiguous` lets Babel classify the input itself; the
+// old code forwarded Node's format, but Babel's sourceType has no 'commonjs'
+// member, so a CommonJS file would have been mis-declared.
+function transform(source, filename, format) {
+  if (typeof source !== 'string') source = Buffer.from(source).toString('utf8');
+
+  return babel.transformSync(source, {
+    filename,
+    sourceType: 'unambiguous',
     babelrcRoots: ['.'],
     rootMode: 'upward',
     only: [BABEL_REG]
-  }))?.code);
+  })?.code ?? null;
 }

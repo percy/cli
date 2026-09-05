@@ -31,6 +31,28 @@ const INTERNAL_FILE_REG = new RegExp(
 // Used to mock javascript modules
 const JS_FILE_REG = /\.(c|m)?js$/;
 
+// Normalize an fs path argument before matching it against the bypass list.
+//
+// `fs` accepts a path as a string, a Buffer, a `file:` URL, or a file
+// descriptor, but every bypass matcher below is written against a string
+// (`p.includes('node_modules')`, `p.match(INTERNAL_FILE_REG)`). On a URL object
+// those are `undefined`, so the matcher silently returns falsy and the read is
+// routed into the in-memory volume instead of being let through.
+//
+// This matters from Node 22: `module.registerHooks` intercepts `require()` as
+// well as `import` (the old `--experimental-loader` did not), and Node reads
+// CommonJS sources through the public `fs` using a URL. Without this, the first
+// lazy `require()` of a real dependency inside a mockfs block -- cosmiconfig
+// requiring js-yaml to parse a config file -- throws ENOENT.
+//
+// File descriptors are numbers and are passed through untouched, since the
+// descriptor matcher below tests them directly.
+function bypassTarget(filepath) {
+  if (filepath instanceof URL) return url.fileURLToPath(filepath);
+  if (Buffer.isBuffer(filepath)) return filepath.toString('utf8');
+  return filepath;
+}
+
 // Mock and spy on fs methods using an in-memory filesystem
 export async function mockfs({
   // set `true` to allow mocking files within `node_modules` (may cause dynamic import issues)
@@ -76,9 +98,14 @@ export async function mockfs({
   let installFakes = (og, fake) => {
     for (let k in og) {
       if (k in fake && typeof og[k] === 'function' && !FS_CLASSES.includes(k)) {
-        spyOn(og, k).and.callFake((...args) => bypass.some(p => (
-          typeof p === 'function' ? p(...args) : (p === args[0])
-        )) ? og[k].and.originalFn(...args) : fake[k](...args));
+        spyOn(og, k).and.callFake((...args) => {
+          let [filepath, ...rest] = args;
+          let target = bypassTarget(filepath);
+
+          return bypass.some(p => (
+            typeof p === 'function' ? p(target, ...rest) : (p === target)
+          )) ? og[k].and.originalFn(...args) : fake[k](...args);
+        });
       }
     }
   };
