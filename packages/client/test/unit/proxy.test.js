@@ -86,7 +86,11 @@ describe('proxy', () => {
       const url = 'http://example.com';
       const options = {};
       process.env.PERCY_PAC_FILE_URL = 'invalid-url';
-      expect(() => proxyAgentFor(url, options)).toThrowError('Failed to initialize PAC proxy: Invalid URL: invalid-url');
+      // Assert on the prefix we own, not on Node's wording: Node <18 threw
+      // "Invalid URL: invalid-url" and Node >=18 dropped the offending input,
+      // leaving just "Invalid URL".
+      expect(() => proxyAgentFor(url, options))
+        .toThrowError(/^Failed to initialize PAC proxy: Invalid URL/);
     });
   });
 });
