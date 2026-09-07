@@ -1,0 +1,35 @@
+{
+  "name": "@percy/cli-pdf",
+  "version": "1.32.8",
+  "license": "MIT",
+  "description": "Rasterizes PDF documents into per-page images for Percy snapshots",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/percy/cli",
+    "directory": "packages/cli-pdf"
+  },
+  "publishConfig": {
+    "access": "public",
+    "tag": "latest"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "files": [
+    "dist"
+  ],
+  "main": "./dist/index.js",
+  "type": "module",
+  "exports": "./dist/index.js",
+  "scripts": {
+    "build": "node ../../scripts/build",
+    "lint": "eslint --ignore-path ../../.gitignore .",
+    "test": "node ../../scripts/test",
+    "test:coverage": "yarn test --coverage"
+  },
+  "dependencies": {
+    "@napi-rs/canvas": "^0.1.60",
+    "@percy/logger": "1.32.8",
+    "pdfjs-dist": "^4.8.69"
+  }
+}

@@ -5,6 +5,7 @@ import isPercyEnabled from './percy-enabled.js';
 import waitForPercyIdle from './percy-idle.js';
 import fetchPercyDOM from './percy-dom.js';
 import postSnapshot from './post-snapshot.js';
+import postPdfSnapshot from './post-pdf-snapshot.js';
 import postComparison from './post-comparison.js';
 import postBuildEvents from './post-build-event.js';
 import flushSnapshots from './flush-snapshots.js';
@@ -94,6 +95,7 @@ export {
   waitForPercyIdle,
   fetchPercyDOM,
   postSnapshot,
+  postPdfSnapshot,
   postComparison,
   flushSnapshots,
   captureAutomateScreenshot,

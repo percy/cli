@@ -1038,10 +1038,55 @@ export const comparisonSchema = {
 };
 
 // Grouped schemas for easier registration
+// PDF snapshot options -- POST /percy/pdf/snapshot.
+//
+// `pdf` itself is stripped before validation (it carries a megabytes-long
+// base64 string; running it through the validator buys nothing and shows up in
+// error messages). Everything else is the common per-snapshot surface plus the
+// three PDF-specific knobs, so any option that works on a normal snapshot works
+// on each page of a PDF.
+export const pdfSnapshotSchema = {
+  $id: '/pdf-snapshot',
+  type: 'object',
+  $ref: '/snapshot#/$defs/common',
+  required: ['name'],
+  unevaluatedProperties: false,
+  properties: {
+    name: {
+      type: 'string',
+      description: 'Base snapshot name; each page becomes "<name> | Page N"'
+    },
+    pages: {
+      description: 'Pages to snapshot: 3, [1,2,5], "1-5", "1,3,8" or "2-" (to the end)',
+      oneOf: [
+        { type: 'integer', minimum: 1 },
+        { type: 'array', items: { type: 'integer', minimum: 1 } },
+        { type: 'string', pattern: '^\\s*\\d+\\s*(-\\s*\\d*\\s*)?(,\\s*\\d+\\s*(-\\s*\\d*\\s*)?)*$' }
+      ]
+    },
+    excludePages: {
+      description: 'Pages to omit, applied after `pages`. Same forms as `pages`.',
+      oneOf: [
+        { type: 'integer', minimum: 1 },
+        { type: 'array', items: { type: 'integer', minimum: 1 } },
+        { type: 'string', pattern: '^\\s*\\d+\\s*(-\\s*\\d*\\s*)?(,\\s*\\d+\\s*(-\\s*\\d*\\s*)?)*$' }
+      ]
+    },
+    scale: {
+      type: 'number',
+      exclusiveMinimum: 0,
+      maximum: 5,
+      default: 2,
+      description: 'Rasterization scale. Reduced automatically if a page would exceed 2000px.'
+    }
+  }
+};
+
 export const schemas = [
   configSchema,
   snapshotSchema,
-  comparisonSchema
+  comparisonSchema,
+  pdfSnapshotSchema
 ];
 
 // Config migrate function

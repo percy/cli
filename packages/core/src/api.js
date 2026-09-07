@@ -8,6 +8,7 @@ import WebdriverUtils from '@percy/webdriver-utils';
 import { handleSyncJob } from './snapshot.js';
 import { getMaestroHierarchyDrift } from './maestro-hierarchy.js';
 import { handleComparisonUpload } from './comparison-upload.js';
+import { handlePdfSnapshot } from './pdf-snapshot.js';
 import { handleMaestroScreenshot } from './maestro-screenshot.js';
 // Previously, we used `createRequire(import.meta.url).resolve` to resolve the path to the module.
 // This approach relied on `createRequire`, which is Node.js-specific and less compatible with modern ESM (ECMAScript Module) standards.
@@ -278,6 +279,8 @@ export function createPercyServer(percy, port) {
     })
   // post a comparison via multipart file upload
     .route('post', '/percy/comparison/upload', /* istanbul ignore next */ (req, res) => handleComparisonUpload(req, res, percy))
+  // rasterize a PDF and post one snapshot per page, optionally waiting
+    .route('post', '/percy/pdf/snapshot', (req, res) => handlePdfSnapshot(req, res, percy))
   // post a comparison by reading a Maestro screenshot from disk
     .route('post', '/percy/maestro-screenshot', (req, res) => handleMaestroScreenshot(req, res, percy))
   // flushes one or more snapshots from the internal queue
