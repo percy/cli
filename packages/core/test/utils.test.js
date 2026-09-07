@@ -81,6 +81,31 @@ describe('utils', () => {
       expect(req.body.buildInfo).toEqual({ id: 'b1' });
     });
 
+    // scaleToFit is settable at BOTH levels: globally via .percy.yml `snapshot:` (which
+    // only reaches the provider because it is enumerated in the merge above) and
+    // per-screenshot (which overrides it). Both paths are load-bearing.
+    it('carries scaleToFit from global config and lets a per-screenshot value override it', () => {
+      const base = () => ({
+        build: { id: 'b1' },
+        config: { percy: { platforms: [] }, snapshot: { percyCSS: '', scaleToFit: true } }
+      });
+
+      // global only
+      let req = { body: { options: {} } };
+      percyAutomateRequestHandler(req, base());
+      expect(req.body.options.scaleToFit).toBeTrue();
+
+      // per-screenshot snake_case wins over global
+      req = { body: { options: { scale_to_fit: false } } };
+      percyAutomateRequestHandler(req, base());
+      expect(req.body.options.scaleToFit).toBeFalse();
+
+      // per-screenshot can opt in when global is unset
+      req = { body: { options: { scaleToFit: true } } };
+      percyAutomateRequestHandler(req, { build: {}, config: { percy: {}, snapshot: { percyCSS: '' } } });
+      expect(req.body.options.scaleToFit).toBeTrue();
+    });
+
     it('handles missing client/environment and empty options', () => {
       const req = { body: { options: { } } };
       const percy = { build: { id: 'b' }, config: { percy: { platforms: [] }, snapshot: { percyCSS: '', freezeAnimation: false } } };
