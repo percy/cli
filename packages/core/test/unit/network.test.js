@@ -1,5 +1,5 @@
 import { setupTest, logger } from '../helpers/index.js';
-import { Network, AbortCodes, pickCookieSession, shouldAttachAuth, raceWithTimeout, resolveDirectFetchMime, flattenLookupAddresses, MetadataBlockedError } from '../../src/network.js';
+import { Network, AbortCodes, pickCookieSession, shouldAttachAuth, raceWithTimeout, resolveDirectFetchMime, flattenLookupAddresses, originURL, MetadataBlockedError } from '../../src/network.js';
 import { AbortError } from '../../src/utils.js';
 
 describe('Unit / Network', () => {
@@ -138,6 +138,56 @@ describe('Unit / Network', () => {
   // flattenLookupAddresses — normalizes the dns.lookup callback address argument
   // (Node's http stack passes an array under Happy Eyeballs; others a string) so
   // the direct-fetch choke point can gate on every candidate connection IP.
+  describe('originURL', () => {
+    // The abandoned https leg of Chrome's upgrade fallback must not become the
+    // resource key — that hid the snapshot's own root resource and leaked the
+    // fetched page to later snapshots of the same URL.
+    it('ignores the abandoned https leg of an HTTPS-upgrade fallback', () => {
+      expect(originURL({
+        url: 'http://example.test/page',
+        redirectChain: [{ url: 'https://example.test/page' }]
+      })).toEqual('http://example.test/page');
+    });
+
+    it('still reports the referenced URL for a real server redirect', () => {
+      expect(originURL({
+        url: 'http://example.test/b',
+        redirectChain: [{ url: 'http://example.test/a' }]
+      })).toEqual('http://example.test/a');
+    });
+
+    it('skips the upgrade fallback but keeps a following server redirect', () => {
+      expect(originURL({
+        url: 'http://example.test/b',
+        redirectChain: [
+          { url: 'https://example.test/a' },
+          { url: 'http://example.test/a' }
+        ]
+      })).toEqual('http://example.test/a');
+    });
+
+    it('does not treat a differing path as an upgrade fallback', () => {
+      expect(originURL({
+        url: 'http://example.test/b',
+        redirectChain: [{ url: 'https://example.test/a' }]
+      })).toEqual('https://example.test/a');
+    });
+
+    it('leaves a genuine https request alone', () => {
+      expect(originURL({
+        url: 'https://example.test/page',
+        redirectChain: []
+      })).toEqual('https://example.test/page');
+    });
+
+    it('normalizes away the hash and keeps the query', () => {
+      expect(originURL({
+        url: 'http://example.test/page?a=1#frag',
+        redirectChain: []
+      })).toEqual('http://example.test/page?a=1');
+    });
+  });
+
   describe('flattenLookupAddresses', () => {
     it('flattens the { address, family }[] form used by Node http (all:true)', () => {
       expect(flattenLookupAddresses([
