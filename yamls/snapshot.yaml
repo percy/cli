@@ -1,0 +1,8 @@
+version: 2
+snapshots:
+  - name: Example Page
+    url: https://www.bing.com/
+    waitForTimeout: 1000
+  - name: Google Homepage
+    url: https://www.github.com/
+    waitForTimeout: 2000
