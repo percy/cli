@@ -3,7 +3,7 @@ import { createRequire } from 'module';
 import logger from '@percy/logger';
 import { resolvePages } from './pages.js';
 
-const require = createRequire(import.meta.url);
+const cjsRequire = createRequire(import.meta.url);
 
 export const MIN_DIMENSION = 10;
 export const MAX_DIMENSION = 2000;
@@ -12,7 +12,7 @@ export const DEFAULT_SCALE = 2;
 export const MAX_SCALE = 5;
 
 function pdfjsAssetPaths() {
-  let root = path.dirname(require.resolve('pdfjs-dist/package.json'));
+  let root = path.dirname(cjsRequire.resolve('pdfjs-dist/package.json'));
   return {
     standardFontDataUrl: path.join(root, 'standard_fonts') + path.sep,
     cMapUrl: path.join(root, 'cmaps') + path.sep,
