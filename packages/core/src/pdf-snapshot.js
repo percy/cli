@@ -45,9 +45,9 @@ export function decodePdf(pdf) {
   return buffer;
 }
 
-export async function loadPdfModule() {
+export async function loadPdfModule(load = () => import('@percy/cli-pdf')) {
   try {
-    return await import('@percy/cli-pdf');
+    return await load();
   } catch (error) {
     throw new ServerError(501, [
       'PDF snapshots require the @percy/cli-pdf package, which is not installed.',
@@ -114,7 +114,7 @@ export async function handlePdfSnapshot(req, res, percy) {
   let log = logger('core:pdf-snapshot');
   let body = req.body;
 
-  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+  if (!body || typeof body !== 'object' || Array.isArray(body) || Buffer.isBuffer(body)) {
     throw new ServerError(400, 'Expected a JSON object body');
   }
 

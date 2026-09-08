@@ -21,7 +21,7 @@ async function createAssetServer(pdfBuffer, assets) {
   return server;
 }
 
-export async function rasterizePdf(percy, pdfBuffer, options = {}) {
+export async function rasterizePdf(percy, pdfBuffer, options) {
   let log = logger('core:pdf-rasterize');
 
   let {

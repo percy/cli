@@ -1,7 +1,7 @@
 import { logger, setupTest } from './helpers/index.js';
 import { request } from './helpers/request.js';
 import Percy from '@percy/core';
-import { decodePdf, pageSnapshotName } from '../src/pdf-snapshot.js';
+import { decodePdf, pageSnapshotName, loadPdfModule } from '../src/pdf-snapshot.js';
 
 function buildPdf({ pageCount = 1, width = 200, height = 300 } = {}) {
   let objects = [];
@@ -105,6 +105,62 @@ describe('PDF snapshots', () => {
       expect(body.error).toMatch(/missing %PDF- header/);
     });
 
+    it('rejects a body that is not a JSON object', async () => {
+      let [arrBody, arrRes] = await postRaw([1, 2]);
+      expect(arrRes.statusCode).toBe(400);
+      expect(arrBody.error).toMatch(/Expected a JSON object body/);
+
+      let [strBody, strRes] = await postRaw('not json at all');
+      expect(strRes.statusCode).toBe(400);
+      expect(strBody.error).toMatch(/Expected a JSON object body/);
+    });
+
+    it('rejects an empty body', async () => {
+      let [, res] = await postRaw(undefined);
+      expect(res.statusCode).toBe(400);
+    });
+
+    it('rejects a non-object JSON body', async () => {
+      let [body, res] = await postRaw(5);
+      expect(res.statusCode).toBe(400);
+      expect(body.error).toMatch(/Expected a JSON object body/);
+    });
+
+    it('rejects a blank name', async () => {
+      let [body, res] = await postRaw({
+        name: '   ',
+        pdf: { content: b64(buildPdf()) }
+      });
+
+      expect(res.statusCode).toBe(400);
+      expect(body.error).toMatch(/Missing required `name`/);
+    });
+
+    it('rejects an invalid scale', async () => {
+      for (let scale of [0, 99, 'big']) {
+        let [body, res] = await postRaw({
+          name: 'doc',
+          pdf: { content: b64(buildPdf()) },
+          scale
+        });
+
+        expect(res.statusCode).toBe(400);
+        expect(body.error).toMatch(/Invalid scale/);
+      }
+    });
+
+    it('reports a browser failure as a rasterization error', async () => {
+      spyOn(percy.browser, 'page').and.rejectWith(new Error('no page for you'));
+
+      let [body, res] = await postRaw({
+        name: 'doc',
+        pdf: { content: b64(buildPdf()) }
+      });
+
+      expect(res.statusCode).toBe(400);
+      expect(body.error).toMatch(/Could not rasterize PDF: no page for you/);
+    });
+
     it('rejects an impossible page selection', async () => {
       let [body, res] = await postRaw({
         name: 'doc',
@@ -134,10 +190,39 @@ describe('PDF snapshots', () => {
       expect(decodePdf({ content: b64(pdf) }).equals(pdf)).toBe(true);
     });
 
+    it('rejects a pdf value that is not an object', () => {
+      expect(() => decodePdf('policy.pdf')).toThrowMatching(
+        e => e.status === 400 && /Missing required `pdf` object/.test(e.message));
+    });
+
+    it('rejects empty content', () => {
+      expect(() => decodePdf({ content: '' })).toThrowMatching(
+        e => e.status === 400 && /Missing required `pdf\.content`/.test(e.message));
+    });
+
+    it('rejects content too short to be a PDF', () => {
+      expect(() => decodePdf({ content: 'AA' })).toThrowMatching(
+        e => e.status === 400 && /not valid base64-encoded data/.test(e.message));
+    });
+
     it('rejects an oversized PDF', () => {
       let big = Buffer.concat([Buffer.from('%PDF-1.4\n'), Buffer.alloc(50 * 1024 * 1024)]);
       expect(() => decodePdf({ content: b64(big) })).toThrowMatching(
         e => e.status === 413 && /maximum size of 50MB/.test(e.message));
+    });
+  });
+
+  describe('loadPdfModule', () => {
+    it('resolves the optional package when present', async () => {
+      await expectAsync(loadPdfModule()).toBeResolved();
+    });
+
+    it('explains how to install it when the import fails', async () => {
+      let load = () => Promise.reject(new Error('MODULE_NOT_FOUND'));
+
+      await expectAsync(loadPdfModule(load)).toBeRejectedWithError(
+        /PDF snapshots require the @percy\/cli-pdf package, which is not installed/);
+      await loadPdfModule(load).catch(e => expect(e.status).toBe(501));
     });
   });
 
@@ -180,6 +265,23 @@ describe('PDF snapshots', () => {
 
       expect(body.data['page-count']).toBe(5);
       expect(body.data.pages.map(p => p.page)).toEqual([1, 3, 4]);
+    });
+
+    it('reduces the scale when a page would exceed Percy limits', async () => {
+      // US Legal: 612x1008pt would be 1224x2016px at scale 2, over the cap.
+      let upload = spyOn(percy, 'upload').and.callThrough();
+
+      await post({
+        name: 'doc',
+        pdf: { content: b64(buildPdf({ width: 612, height: 1008 })) },
+        scale: 2
+      });
+
+      expect(logger.stderr).toContain(
+        jasmine.stringContaining('scale reduced from 2'));
+
+      let [options] = upload.calls.first().args;
+      expect(options.minHeight).toBeLessThanOrEqual(2000);
     });
 
     it('sizes each snapshot from its own raster', async () => {
@@ -307,6 +409,22 @@ describe('PDF snapshots', () => {
       expect(body.data.pages[1].error).toBe('snapshot blew up');
       expect(body.data.pages[0].status).toBe('success');
       expect(body.data.pages[2].status).toBe('success');
+    });
+
+    it('reports failure when a page comes back with a failure status', async () => {
+      settleSyncJobsImmediately();
+      spyOn(percy.client, 'getSnapshotDetails').and.callFake(async () => ({
+        status: 'failure',
+        screenshots: []
+      }));
+
+      let body = await post({
+        name: 'doc',
+        sync: true,
+        pdf: { content: b64(buildPdf()) }
+      });
+
+      expect(body.data.status).toBe('failure');
     });
 
     it('does not wait when sync is not requested', async () => {
