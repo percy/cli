@@ -2,7 +2,7 @@
   "name": "@percy/cli-pdf",
   "version": "1.32.9",
   "license": "MIT",
-  "description": "Rasterizes PDF documents into per-page images for Percy snapshots",
+  "description": "Renders PDF documents into per-page images for Percy snapshots",
   "repository": {
     "type": "git",
     "url": "https://github.com/percy/cli",
@@ -28,7 +28,6 @@
     "test:coverage": "yarn test --coverage"
   },
   "dependencies": {
-    "@napi-rs/canvas": "^0.1.60",
     "@percy/logger": "1.32.9",
     "pdfjs-dist": "^2.16.105"
   }

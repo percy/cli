@@ -2,6 +2,7 @@ import logger from '@percy/logger';
 import PercyConfig from '@percy/config';
 import { ServerError } from './server.js';
 import { handleSyncJob } from './snapshot.js';
+import { rasterizePdf } from './pdf-rasterize.js';
 import { createResource, createRootResource, normalizeOptions } from './utils.js';
 
 const MAX_PDF_BYTES = 50 * 1024 * 1024;
@@ -124,14 +125,14 @@ export async function handlePdfSnapshot(req, res, percy) {
   }
 
   let buffer = decodePdf(pdf);
-  let { rasterizePdf } = await loadPdfModule();
+  await loadPdfModule();
 
   let sync = percy.syncMode(rest);
 
   let rasterized;
 
   try {
-    rasterized = await rasterizePdf(buffer, { pages, excludePages, scale });
+    rasterized = await rasterizePdf(percy, buffer, { pages, excludePages, scale });
   } catch (error) {
     log.error(`Failed to rasterize PDF "${name}": ${error.message}`);
     throw new ServerError(400, `Could not rasterize PDF: ${error.message}`);

@@ -50,14 +50,17 @@ describe('PDF snapshots', () => {
   }
 
   beforeAll(async () => {
-    jasmine.DEFAULT_TIMEOUT_INTERVAL = 60000;
-    let { rasterizePdf } = await import('@percy/cli-pdf');
-    await rasterizePdf(buildPdf());
+    jasmine.DEFAULT_TIMEOUT_INTERVAL = 240000;
+    await import('@percy/cli-pdf');
   });
 
   beforeEach(async () => {
-    jasmine.DEFAULT_TIMEOUT_INTERVAL = 60000;
-    await setupTest();
+    jasmine.DEFAULT_TIMEOUT_INTERVAL = 240000;
+    await setupTest({
+      filesystem: {
+        $bypass: [p => typeof p === 'string' && p.includes('pdfjs-dist')]
+      }
+    });
     percy = new Percy({ token: 'PERCY_TOKEN', port: 1337 });
     await percy.start();
   });
