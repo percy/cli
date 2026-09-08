@@ -51,6 +51,52 @@ describe('GenericProvider', () => {
       provider.addDefaultOptions();
       expect(provider.options.freezeAnimation).toBeFalse();
     });
+
+    describe('scaleToFit', () => {
+      const build = (options) => {
+        const provider = new GenericProvider({ options });
+        provider.addDefaultOptions();
+        return provider.options.scaleToFit;
+      };
+
+      beforeEach(() => { delete process.env.PERCY_SCALE_TO_FIT; });
+      afterEach(() => { delete process.env.PERCY_SCALE_TO_FIT; });
+
+      it('enables from the option or PERCY_SCALE_TO_FIT', () => {
+        expect(build({ fullPage: true, scaleToFit: true })).toBeTrue();
+
+        process.env.PERCY_SCALE_TO_FIT = 'true';
+        expect(build({ fullPage: true })).toBeTrue();
+
+        delete process.env.PERCY_SCALE_TO_FIT;
+        expect(build({ fullPage: true })).toBeFalse();
+      });
+
+      // The host only shrinks tiles in its full-page loop, so outside it the flag would
+      // report a scale factor for tiles that were never scaled.
+      it('is ignored without fullPage', () => {
+        expect(build({ scaleToFit: true })).toBeFalse();
+        expect(build({ fullPage: false, scaleToFit: true })).toBeFalse();
+
+        process.env.PERCY_SCALE_TO_FIT = 'true';
+        expect(build({})).toBeFalse();
+      });
+
+      // The env var is a run-wide default, not an override -- otherwise a single snapshot
+      // could never opt out once it is set.
+      it('lets an explicit false beat the env var', () => {
+        process.env.PERCY_SCALE_TO_FIT = 'true';
+        expect(build({ fullPage: true, scaleToFit: false })).toBeFalse();
+      });
+
+      // mobile-common compares with `== true`, so a merely-truthy value would silently no-op.
+      it('coerces to a real boolean', () => {
+        expect(build({ fullPage: true, scaleToFit: 'true' })).toBeFalse();
+
+        process.env.PERCY_SCALE_TO_FIT = '1';
+        expect(build({ fullPage: true })).toBeFalse();
+      });
+    });
   });
 
   describe('supports', () => {

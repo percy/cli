@@ -412,6 +412,9 @@ export function percyAutomateRequestHandler(req, percy) {
 
   req.body.options = merge([{
     fullPage: percy.config.snapshot.fullPage,
+    // Must be listed here or a .percy.yml `snapshot.scaleToFit` validates and is then
+    // silently dropped -- the page truncates as before while the build stays green.
+    scaleToFit: percy.config.snapshot.scaleToFit,
     percyCSS: percy.config.snapshot.percyCSS,
     freezeAnimatedImage: percy.config.snapshot.freezeAnimatedImage || percy.config.snapshot.freezeAnimation,
     freezeImageBySelectors: percy.config.snapshot.freezeAnimatedImageOptions?.freezeImageBySelectors,

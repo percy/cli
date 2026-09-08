@@ -1540,6 +1540,55 @@ describe('Percy', () => {
       ]));
     });
 
+    it('redacts secrets from CLI logs, not just CI logs', async () => {
+      process.env.PERCY_TOKEN = 'PERCY_TOKEN';
+      delete process.env.PERCY_CLIENT_ERROR_LOGS;
+      percy = new Percy({
+        token: 'PERCY_TOKEN',
+        snapshot: { widths: [1000] },
+        discovery: { concurrency: 1 },
+        clientInfo: 'client-info',
+        environmentInfo: 'env-info'
+      });
+      percy.build = { id: 1 };
+
+      // Matches the "AWS cred file info" rule in secretPatterns.yml, which keys
+      // on the bare `aws_secret_access_key` keyword rather than on a key value.
+      // That exercises redaction without committing anything credential-shaped:
+      // a real key literal trips Semgrep's hardcoded-credential rule, and an
+      // inline `// nosemgrep` only zeroes semgrep's own blocking count -- the
+      // finding still reaches the SARIF and surfaces as a code-scanning alert.
+      // The unit under test here is sendBuildLogs applying redactSecrets, not
+      // any particular regex in the pattern file, so any matching string works.
+      const secretish = 'aws_secret_access_key';
+
+      // A CLI-side log entry can carry upstream response text, so it needs the
+      // same redaction cilogs already gets. `percy.log` is a namespace group
+      // bound as log(name, level, ...), so a CI-tagged entry has to be written
+      // through the instance directly -- passing a third arg to
+      // percy.log.info() does nothing, since log() only takes (message, meta).
+      percy.log.info(`leaked from upstream: ${secretish}`);
+      logger.instance.log('ci', 'info', `ci side: ${secretish}`);
+
+      await expectAsync(percy.sendBuildLogs()).toBeResolved();
+      expect(api.requests['/logs']).toBeDefined();
+
+      const sent = JSON.parse(Pako.ungzip(
+        Buffer.from(api.requests['/logs'][0].body.data.content, 'base64'),
+        { to: 'string' }
+      ));
+
+      const clilogs = JSON.stringify(sent.clilogs);
+      const cilogs = JSON.stringify(sent.cilogs);
+      // Both halves must be present, or an assertion below passes vacuously.
+      expect(sent.clilogs.length).toBeGreaterThan(0);
+      expect(sent.cilogs.length).toBeGreaterThan(0);
+      expect(clilogs).not.toContain(secretish);
+      expect(clilogs).toContain('[REDACTED]');
+      expect(cilogs).not.toContain(secretish);
+      expect(cilogs).toContain('[REDACTED]');
+    });
+
     it('should catch the error in sending build logs', async () => {
       process.env.PERCY_TOKEN = 'PERCY_TOKEN';
       delete process.env.PERCY_CLIENT_ERROR_LOGS;
