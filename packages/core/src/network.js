@@ -694,7 +694,9 @@ function isHttpsUpgradeFallback(from, to) {
 // redirect hop, so an http:// URL arrives with the abandoned https:// attempt
 // at the head. Keying a resource under that URL hides the snapshot's own root
 // resource and leaks the fetched page to later snapshots through the URL-keyed
-// discovery cache, so skip those hops.
+// discovery cache, so skip those hops. A genuine same-path https->http server
+// redirect is indistinguishable from the fallback and is skipped too; that is
+// rare enough (misconfigured proxies) to be the better trade.
 export function originURL(request) {
   let chain = request.redirectChain;
 

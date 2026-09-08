@@ -135,9 +135,6 @@ describe('Unit / Network', () => {
     });
   });
 
-  // flattenLookupAddresses — normalizes the dns.lookup callback address argument
-  // (Node's http stack passes an array under Happy Eyeballs; others a string) so
-  // the direct-fetch choke point can gate on every candidate connection IP.
   describe('originURL', () => {
     // The abandoned https leg of Chrome's upgrade fallback must not become the
     // resource key — that hid the snapshot's own root resource and leaked the
@@ -186,8 +183,32 @@ describe('Unit / Network', () => {
         redirectChain: []
       })).toEqual('http://example.test/page?a=1');
     });
+
+    it('treats a default-port https hop as a fallback of the same http URL', () => {
+      expect(originURL({
+        url: 'http://example.test/page',
+        redirectChain: [{ url: 'https://example.test:443/page' }]
+      })).toEqual('http://example.test/page');
+    });
+
+    it('treats matching explicit non-default ports as a fallback', () => {
+      expect(originURL({
+        url: 'http://example.test:8080/page',
+        redirectChain: [{ url: 'https://example.test:8080/page' }]
+      })).toEqual('http://example.test:8080/page');
+    });
+
+    it('does not treat a differing query string as a fallback', () => {
+      expect(originURL({
+        url: 'http://example.test/page?a=2',
+        redirectChain: [{ url: 'https://example.test/page?a=1' }]
+      })).toEqual('https://example.test/page?a=1');
+    });
   });
 
+  // flattenLookupAddresses — normalizes the dns.lookup callback address argument
+  // (Node's http stack passes an array under Happy Eyeballs; others a string) so
+  // the direct-fetch choke point can gate on every candidate connection IP.
   describe('flattenLookupAddresses', () => {
     it('flattens the { address, family }[] form used by Node http (all:true)', () => {
       expect(flattenLookupAddresses([
