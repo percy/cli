@@ -1,15 +1,8 @@
 import { logger, setupTest } from './helpers/index.js';
-// Imported statically, NOT with a dynamic import inside a spec: setupTest()
-// installs memfs in beforeEach, after which the module loader can no longer
-// read this file off the real filesystem. Other core specs get away with a
-// lazy import only because an earlier spec file has already cached it.
 import { request } from './helpers/request.js';
 import Percy from '@percy/core';
 import { decodePdf, pageSnapshotName } from '../src/pdf-snapshot.js';
 
-// A minimal but genuinely valid multi-page PDF. Each page draws a differently
-// inset filled rectangle so pages rasterize to distinct images. No fonts, so
-// pdf.js never reaches for standard_fonts on disk (the suite runs on memfs).
 function buildPdf({ pageCount = 1, width = 200, height = 300 } = {}) {
   let objects = [];
   let pageIds = [];
@@ -48,26 +41,16 @@ const b64 = (buf) => buf.toString('base64');
 describe('PDF snapshots', () => {
   let percy;
 
-  // resolves to the parsed response body
   function post(body) {
     return request(new URL('/percy/pdf/snapshot', percy.address()), { method: 'POST', body });
   }
 
-  // handle=true returns [body, response] for success AND error responses,
-  // so a non-2xx status can be asserted rather than thrown.
   function postRaw(body) {
     return request(new URL('/percy/pdf/snapshot', percy.address()), { method: 'POST', body }, true);
   }
 
   beforeAll(async () => {
     jasmine.DEFAULT_TIMEOUT_INTERVAL = 60000;
-    // Warm the lazily-imported PDF stack -- @percy/cli-pdf, and the
-    // pdfjs-dist / @napi-rs/canvas imports inside it -- while the REAL
-    // filesystem is still in play. loadPdfModule() imports on demand by
-    // design (cli-pdf is an optionalDependency), but setupTest() installs
-    // memfs in beforeEach, after which the module loader cannot read those
-    // files off disk. ESM caches modules, so one real rasterization here is
-    // enough to make every later lazy import a cache hit.
     let { rasterizePdf } = await import('@percy/cli-pdf');
     await rasterizePdf(buildPdf());
   });
@@ -83,12 +66,6 @@ describe('PDF snapshots', () => {
     await percy.stop();
   });
 
-  // The mocked Percy API hands back snapshot id 4567 for EVERY snapshot, so a
-  // multi-page PDF produces several jobs sharing one id and the real polling
-  // path (getStatus with a comma-joined id list) never matches a canned reply.
-  // Settle each job the moment it is queued instead: what these specs are
-  // about is how per-page results are aggregated, not WaitForJob's polling,
-  // which wait-for-job.test.js already covers.
   function settleSyncJobsImmediately() {
     spyOn(percy.syncQueue, 'push').and.callFake(job => job.resolve(job.id));
   }
@@ -137,8 +114,6 @@ describe('PDF snapshots', () => {
     });
 
     it('warns but proceeds on an unrecognised option', async () => {
-      // Forward-compatibility: a newer SDK sending an option this CLI does not
-      // know about should degrade, not fail the build.
       await post({
         name: 'doc',
         pdf: { content: b64(buildPdf()) },
@@ -157,8 +132,6 @@ describe('PDF snapshots', () => {
     });
 
     it('rejects an oversized PDF', () => {
-      // 50MB cap, matching /percy/comparison/upload. Build a buffer that
-      // decodes past the limit while still carrying a valid header.
       let big = Buffer.concat([Buffer.from('%PDF-1.4\n'), Buffer.alloc(50 * 1024 * 1024)]);
       expect(() => decodePdf({ content: b64(big) })).toThrowMatching(
         e => e.status === 413 && /maximum size of 50MB/.test(e.message));
@@ -236,13 +209,9 @@ describe('PDF snapshots', () => {
     });
 
     it('attaches a root DOM whose img src matches the image resource', async () => {
-      // Regression guard for the double-encoding bug: when these two URLs
-      // disagree, the image never loads, every page renders as the same blank
-      // sheet, and changed documents silently report zero diffs.
       let upload = spyOn(percy, 'upload').and.callThrough();
 
       await post({
-        // a space in the name is what forced percent-encoding into the URL
         name: 'my doc',
         pdf: { content: b64(buildPdf()) }
       });
@@ -278,8 +247,6 @@ describe('PDF snapshots', () => {
     });
 
     it('creates web snapshots, not comparisons', async () => {
-      // No `tag` means createSnapshotsQueue routes these through
-      // client.sendSnapshot rather than sendComparison.
       let upload = spyOn(percy, 'upload').and.callThrough();
 
       await post({ name: 'doc', pdf: { content: b64(buildPdf()) } });
@@ -305,15 +272,12 @@ describe('PDF snapshots', () => {
         pdf: { content: b64(buildPdf({ pageCount: 2 })) }
       });
 
-      // must be an OBJECT, never a bare array: the .NET wrapper parses this
-      // with JObject.Parse, which throws on a JSON array.
       expect(Array.isArray(body.data)).toBe(false);
       expect(body.data['pdf-name']).toBe('doc');
       expect(body.data['page-count']).toBe(2);
       expect(body.data.status).toBe('success');
       expect(body.data.pages.length).toBe(2);
       expect(body.data.pages[0].page).toBe(1);
-      // our submitted name wins over whatever the API echoes back
       expect(body.data.pages[0]['snapshot-name']).toBe('doc | Page 1');
       expect(body.data.pages[1]['snapshot-name']).toBe('doc | Page 2');
       expect(body.data.pages[0].screenshots[0]['diff-info']['diff-ratio']).toBe(0);
@@ -335,7 +299,6 @@ describe('PDF snapshots', () => {
         pdf: { content: b64(buildPdf({ pageCount: 3 })) }
       });
 
-      // one bad page must not lose the other pages' results
       expect(body.data.status).toBe('failure');
       expect(body.data.pages.length).toBe(3);
       expect(body.data.pages[1].error).toBe('snapshot blew up');

@@ -1,17 +1,7 @@
-// Builds small real PDFs at test time rather than committing binaries.
-//
-// pdf-lib is not a dependency of this package (it is a devDependency of the
-// monorepo root only through here), so the generator is hand-rolled: these are
-// the minimum valid PDFs that pdf.js will parse. Keeping them literal also
-// makes the "what exactly is on the page" question answerable by reading.
-
-// A single-page PDF, `pageCount` pages, each drawing a filled rectangle whose
-// size varies per page so pages rasterize to visibly different images.
 export function buildPdf({ pageCount = 1, width = 200, height = 300 } = {}) {
   let objects = [];
   let pageIds = [];
 
-  // 1: catalog, 2: pages tree; page objects start at 3
   for (let i = 0; i < pageCount; i++) {
     pageIds.push(3 + i * 2);
   }
@@ -22,7 +12,6 @@ export function buildPdf({ pageCount = 1, width = 200, height = 300 } = {}) {
   for (let i = 0; i < pageCount; i++) {
     let pageId = pageIds[i];
     let contentId = pageId + 1;
-    // vary the drawn box per page
     let inset = 10 + i * 15;
     let stream = `${inset} ${inset} ${width - inset * 2} ${height - inset * 2} re f`;
 

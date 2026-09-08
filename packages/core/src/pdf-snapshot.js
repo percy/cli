@@ -4,29 +4,18 @@ import { ServerError } from './server.js';
 import { handleSyncJob } from './snapshot.js';
 import { createResource, createRootResource, normalizeOptions } from './utils.js';
 
-// Matches the cap on /percy/comparison/upload so the two binary-accepting
-// endpoints behave the same. Applied to the DECODED size: base64 inflates by
-// ~33%, so the wire body may legitimately be larger than this.
 const MAX_PDF_BYTES = 50 * 1024 * 1024;
 const PDF_MAGIC = Buffer.from('%PDF-', 'latin1');
 
-// Snapshot name suffix for each page. Deliberately matches the convention the
-// percy-pdf repo used (`<name> | Page N`) so a team migrating off it keeps its
-// existing Percy baselines instead of orphaning every approved snapshot.
 export function pageSnapshotName(name, pageNumber) {
   return `${name} | Page ${pageNumber}`;
 }
 
-// Resource URLs for a page. `http://local/...` mirrors cli-upload's synthetic
-// host for generated image DOMs -- it is never fetched, it only has to be a
-// stable, unique URL so resource SHAs are reproducible across builds.
 function pageUrls(name, pageNumber) {
   let base = `http://local/${encodeURIComponent(name)}/page-${pageNumber}`;
   return { rootUrl: base, imageUrl: `${base}.png` };
 }
 
-// Decodes and sanity-checks the incoming PDF. Everything here is caller error,
-// so each branch is a 400 rather than a 500.
 export function decodePdf(pdf) {
   if (!pdf || typeof pdf !== 'object') {
     throw new ServerError(400, 'Missing required `pdf` object');
@@ -40,8 +29,6 @@ export function decodePdf(pdf) {
 
   let buffer = Buffer.from(content, 'base64');
 
-  // Buffer.from silently drops invalid base64 characters rather than throwing,
-  // so an empty or absurdly short result is how a malformed payload surfaces.
   if (buffer.length < PDF_MAGIC.length) {
     throw new ServerError(400, '`pdf.content` is not valid base64-encoded data');
   }
@@ -57,10 +44,6 @@ export function decodePdf(pdf) {
   return buffer;
 }
 
-// @percy/cli-pdf is an optionalDependency: it pulls in pdfjs-dist and the
-// platform-specific @napi-rs/canvas prebuilds, which users who never snapshot a
-// PDF should not have to install. Absent, we owe them an actionable message
-// rather than a raw MODULE_NOT_FOUND.
 export async function loadPdfModule() {
   try {
     return await import('@percy/cli-pdf');
@@ -73,9 +56,6 @@ export async function loadPdfModule() {
   }
 }
 
-// Validates the request against the /pdf-snapshot schema. Mirrors
-// validateSnapshotOptions: warn rather than reject, so a newer SDK sending an
-// option this CLI does not know about degrades instead of failing the build.
 function validatePdfSnapshotOptions(options) {
   let log = logger('core:pdf-snapshot');
   let normalized = normalizeOptions(options);
@@ -91,12 +71,6 @@ function validatePdfSnapshotOptions(options) {
   return normalized;
 }
 
-// Pushes one snapshot per rasterized page onto the upload queue.
-//
-// Each page carries `resources` and no `tag`, so createSnapshotsQueue's task
-// handler routes it through client.sendSnapshot -- a real web snapshot, not a
-// comparison. Returns one entry per page, each with the sync promise when
-// syncing (resolved by the queue with the snapshot id) or null otherwise.
 function queuePages(percy, { name, rendered, sync, snapshotOptions }) {
   return rendered.map(({ page, width, height, png }) => {
     let snapshotName = pageSnapshotName(name, page);
@@ -105,12 +79,8 @@ function queuePages(percy, { name, rendered, sync, snapshotOptions }) {
     let options = {
       ...snapshotOptions,
       name: snapshotName,
-      // The raster is fixed-size, so render it at exactly its own dimensions
-      // unless the caller deliberately overrode them.
       widths: snapshotOptions.widths || [width],
       minHeight: snapshotOptions.minHeight || height,
-      // A function defers the work into the queue task, which is where
-      // concurrency is applied -- see createSnapshotsQueue's 'task' handler.
       resources: () => buildPageResources({ rootUrl, imageUrl, snapshotName, width, height, png })
     };
 
@@ -119,11 +89,6 @@ function queuePages(percy, { name, rendered, sync, snapshotOptions }) {
     let promise = null;
 
     if (sync) {
-      // Same shape as the /percy/comparison route: percy.upload is the
-      // generatePromise-wrapped method, and syncMode() copies resolve/reject
-      // onto the snapshot so the sync queue can settle them. The trailing
-      // .catch(reject) surfaces errors thrown before the queue task runs,
-      // which would otherwise hang the request.
       promise = new Promise((resolve, reject) => {
         percy.upload(options, { resolve, reject }).catch(reject);
       });
@@ -144,12 +109,6 @@ async function buildPageResources({ rootUrl, imageUrl, snapshotName, width, heig
   ];
 }
 
-// POST /percy/pdf/snapshot
-//
-// Accepts a base64 PDF, rasterizes the selected pages, and creates one Percy
-// snapshot per page. With `sync: true` it blocks until every page has been
-// compared and returns an aggregate object (never a bare array -- the .NET
-// wrapper parses this with JObject.Parse).
 export async function handlePdfSnapshot(req, res, percy) {
   let log = logger('core:pdf-snapshot');
   let body = req.body;
@@ -167,9 +126,6 @@ export async function handlePdfSnapshot(req, res, percy) {
   let buffer = decodePdf(pdf);
   let { rasterizePdf } = await loadPdfModule();
 
-  // syncMode() also force-disables sync under skipUploads/deferUploads/
-  // delayUploads and warns about it, so this is the single source of truth for
-  // whether we wait -- do not read `rest.sync` directly.
   let sync = percy.syncMode(rest);
 
   let rasterized;
@@ -177,8 +133,6 @@ export async function handlePdfSnapshot(req, res, percy) {
   try {
     rasterized = await rasterizePdf(buffer, { pages, excludePages, scale });
   } catch (error) {
-    // A malformed or unsupported document, or an impossible page selection, is
-    // the caller's input -- report it as such instead of a 500.
     log.error(`Failed to rasterize PDF "${name}": ${error.message}`);
     throw new ServerError(400, `Could not rasterize PDF: ${error.message}`);
   }
@@ -213,16 +167,9 @@ export async function handlePdfSnapshot(req, res, percy) {
     });
   }
 
-  // handleSyncJob never rejects -- it converts failures into { error } -- so
-  // one bad page yields a partial result rather than losing every other page's.
   let results = await Promise.all(
     queued.map(async ({ page, snapshotName, promise }) => ({
       ...await handleSyncJob(promise, percy, 'snapshot'),
-      // Set AFTER the spread so they always win. The API happens to echo back
-      // the same snapshot-name today, but the page number and the name we
-      // submitted are what we know to be authoritative -- letting the response
-      // overwrite them would silently break the caller's page mapping if the
-      // API ever omitted or reformatted either.
       page,
       'snapshot-name': snapshotName
     }))

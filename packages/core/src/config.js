@@ -1038,13 +1038,6 @@ export const comparisonSchema = {
 };
 
 // Grouped schemas for easier registration
-// PDF snapshot options -- POST /percy/pdf/snapshot.
-//
-// `pdf` itself is stripped before validation (it carries a megabytes-long
-// base64 string; running it through the validator buys nothing and shows up in
-// error messages). Everything else is the common per-snapshot surface plus the
-// three PDF-specific knobs, so any option that works on a normal snapshot works
-// on each page of a PDF.
 export const pdfSnapshotSchema = {
   $id: '/pdf-snapshot',
   type: 'object',

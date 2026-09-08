@@ -13,7 +13,7 @@
     "tag": "latest"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=14"
   },
   "files": [
     "dist"
@@ -30,6 +30,6 @@
   "dependencies": {
     "@napi-rs/canvas": "^0.1.60",
     "@percy/logger": "1.32.8",
-    "pdfjs-dist": "^4.8.69"
+    "pdfjs-dist": "^2.16.105"
   }
 }

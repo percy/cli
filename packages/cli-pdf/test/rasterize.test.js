@@ -28,11 +28,6 @@ describe('@percy/cli-pdf rasterize', () => {
   });
 
   it('produces a DIFFERENT image for each page', async () => {
-    // Regression guard: the img src in the generated DOM was once double
-    // percent-encoded, so it never matched the image resource URL and every
-    // page rendered as the same blank sheet -- which reports zero diffs for
-    // documents that really changed. Distinct rasters are the precondition for
-    // that bug being detectable at all.
     let { pages } = await rasterizePdf(buildPdf({ pageCount: 3 }));
     let distinct = new Set(pages.map(p => p.png.toString('base64')));
 
@@ -50,7 +45,6 @@ describe('@percy/cli-pdf rasterize', () => {
   });
 
   it('fits the scale down so a tall page stays within Percy limits', async () => {
-    // US Legal at scale 2 would be 1224x2016 -- over the 2000px cap.
     let { pages } = await rasterizePdf(buildPdf({ width: 612, height: 1008 }), { scale: 2 });
 
     expect(pages[0].height).toBeLessThanOrEqual(MAX_DIMENSION);
@@ -58,7 +52,6 @@ describe('@percy/cli-pdf rasterize', () => {
   });
 
   it('leaves the scale alone when the page already fits', async () => {
-    // US Letter at scale 2 is 1224x1584 -- comfortably inside the cap.
     let { pages } = await rasterizePdf(buildPdf({ width: 612, height: 792 }), { scale: 2 });
 
     expect(pages[0].scale).toBe(2);

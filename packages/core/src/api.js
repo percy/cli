@@ -279,7 +279,6 @@ export function createPercyServer(percy, port) {
     })
   // post a comparison via multipart file upload
     .route('post', '/percy/comparison/upload', /* istanbul ignore next */ (req, res) => handleComparisonUpload(req, res, percy))
-  // rasterize a PDF and post one snapshot per page, optionally waiting
     .route('post', '/percy/pdf/snapshot', (req, res) => handlePdfSnapshot(req, res, percy))
   // post a comparison by reading a Maestro screenshot from disk
     .route('post', '/percy/maestro-screenshot', (req, res) => handleMaestroScreenshot(req, res, percy))

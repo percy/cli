@@ -1,7 +1,6 @@
 import helpers from './helpers.js';
 import utils from '@percy/sdk-utils';
 
-// A valid 446-byte single-page PDF (one filled rectangle, no fonts).
 const MINIMAL_PDF_BASE64 = 'JVBERi0xLjQKMSAwIG9iago8PCAvVHlwZSAvQ2F0YWxvZyAvUGFnZXMgMiAwIFIgPj4KZW5kb2JqCjIgMCBvYmoKPDwgL1R5cGUgL1BhZ2VzIC9LaWRzIFszIDAgUl0gL0NvdW50IDEgPj4KZW5kb2JqCjMgMCBvYmoKPDwgL1R5cGUgL1BhZ2UgL1BhcmVudCAyIDAgUiAvTWVkaWFCb3ggWzAgMCA2MCA2MF0gL0NvbnRlbnRzIDQgMCBSIC9SZXNvdXJjZXMgPDwgPj4gPj4KZW5kb2JqCjQgMCBvYmoKPDwgL0xlbmd0aCAxNiA+PgpzdHJlYW0KMTAgMTAgNDAgNDAgcmUgZgplbmRzdHJlYW0KZW5kb2JqCnhyZWYKMCA1CjAwMDAwMDAwMDAgNjU1MzUgZiAKMDAwMDAwMDAwOSAwMDAwMCBuIAowMDAwMDAwMDU4IDAwMDAwIG4gCjAwMDAwMDAxMTUgMDAwMDAgbiAKMDAwMDAwMDIxNyAwMDAwMCBuIAp0cmFpbGVyCjw8IC9TaXplIDUgL1Jvb3QgMSAwIFIgPj4Kc3RhcnR4cmVmCjI4MwolJUVPRgo=';
 
 describe('SDK Utils', () => {
@@ -245,9 +244,6 @@ describe('SDK Utils', () => {
       options = {
         name: 'Policy',
         sync: true,
-        // A real, minimal, single-page PDF. These specs run against an actual
-        // CLI in testing mode, so the route genuinely rasterizes the bytes --
-        // a truncated header would legitimately come back 400.
         pdf: { content: MINIMAL_PDF_BASE64, filename: 'policy.pdf' },
         pages: '1',
         clientInfo: 'sdk/version',
@@ -256,7 +252,6 @@ describe('SDK Utils', () => {
     });
 
     it('posts to the CLI API pdf snapshot endpoint', async () => {
-      // body also carries `data` (the per-page rollup), so match loosely
       await expectAsync(postPdfSnapshot(options)).toBeResolvedTo(
         jasmine.objectContaining({ body: jasmine.objectContaining({ success: true }) }));
       await expectAsync(helpers.get('requests')).toBeResolvedTo([{
@@ -267,9 +262,6 @@ describe('SDK Utils', () => {
     });
 
     it('sends the PDF as JSON, not multipart', async () => {
-      // The whole point of the base64-in-JSON contract: every SDK, including
-      // the .NET wrapper's Dictionary-to-JSON helper, can call this with the
-      // HTTP client it already has.
       await postPdfSnapshot(options);
       let [request] = await helpers.get('requests');
 

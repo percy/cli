@@ -35,12 +35,10 @@ describe('@percy/cli-pdf page selection', () => {
   });
 
   it('can exclude page 1', () => {
-    // percy-pdf could not: page 1 was structurally its base snapshot.
     expect(resolvePages({ excludePages: [1] }, 3)).toEqual([2, 3]);
   });
 
   it('can exclude the second-to-last page', () => {
-    // percy-pdf could not: its execute script prefetched the following page.
     expect(resolvePages({ excludePages: [3] }, 4)).toEqual([1, 2, 4]);
   });
 

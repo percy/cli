@@ -16,11 +16,6 @@ describe('@percy/cli-pdf page DOM', () => {
   });
 
   it('references the image URL byte-for-byte as given', () => {
-    // THE regression this file exists for: buildPageHtml used to run encodeURI
-    // over an already-percent-encoded URL, turning %20 into %2520. The <img
-    // src> then pointed at a URL no resource was registered under, so every
-    // page rendered blank and identical -- silently reporting zero diffs for
-    // changed documents. The src must equal the resource URL exactly.
     let imageUrl = 'http://local/Burglary%20Insurance%20Policy/page-2.png';
     let src = /<img src="([^"]+)"/.exec(buildPageHtml({ ...opts, imageUrl }))[1];
 
@@ -37,15 +32,11 @@ describe('@percy/cli-pdf page DOM', () => {
   it('escapes quotes in the image URL without re-encoding it', () => {
     let html = buildPageHtml({ ...opts, imageUrl: 'http://local/a"b/page-1.png' });
 
-    // the quote is neutralised so it cannot break out of the src attribute...
     expect(html).toContain('&quot;');
-    // ...and the rest of the URL is untouched
     expect(/<img src="http:\/\/local\/a&quot;b\/page-1\.png"/.test(html)).toBe(true);
   });
 
   it('paints an explicit white background', () => {
-    // PDF pages have no intrinsic background; without this, transparent areas
-    // rasterize differently between the page raster and the rendered DOM.
     expect(buildPageHtml(opts)).toContain('background: #fff');
   });
 });
