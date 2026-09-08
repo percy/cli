@@ -63,6 +63,11 @@ describe('@percy/cli-pdf page selection', () => {
       .toThrowError('Requested pages 7, 8 but the document has only 5 pages');
   });
 
+  it('uses the singular in the out-of-range message for a 1-page document', () => {
+    expect(() => resolvePages({ pages: '2' }, 1))
+      .toThrowError('Requested page 2 but the document has only 1 page');
+  });
+
   it('throws on a malformed selection', () => {
     expect(() => resolvePages({ pages: 'abc' }, 5))
       .toThrowError(/Invalid page selection "abc"/);
