@@ -682,9 +682,31 @@ export function logAssetInstrumentation(log, category, reason, details) {
   );
 }
 
-// Returns the normalized origin URL of a request
-function originURL(request) {
-  return normalizeURL((request.redirectChain[0] || request).url);
+// True when `from` is `to` with an https:// scheme — the abandoned leg of
+// Chrome's HTTPS-upgrade fallback.
+function isHttpsUpgradeFallback(from, to) {
+  return from.startsWith('https://') && to.startsWith('http://') &&
+    from.slice('https:'.length) === to.slice('http:'.length);
+}
+
+// Returns the URL the document referenced — the head of the redirect chain for
+// a real server redirect. Chrome surfaces its HTTPS-upgrade fallback as a
+// redirect hop, so an http:// URL arrives with the abandoned https:// attempt
+// at the head. Keying a resource under that URL hides the snapshot's own root
+// resource and leaks the fetched page to later snapshots through the URL-keyed
+// discovery cache, so skip those hops. A genuine same-path https->http server
+// redirect is indistinguishable from the fallback and is skipped too; that is
+// rare enough (misconfigured proxies) to be the better trade.
+export function originURL(request) {
+  let chain = request.redirectChain;
+
+  for (let i = 0; i < chain.length; i++) {
+    let url = normalizeURL(chain[i].url);
+    let next = normalizeURL(chain[i + 1]?.url ?? request.url);
+    if (!isHttpsUpgradeFallback(url, next)) return url;
+  }
+
+  return normalizeURL(request.url);
 }
 
 // Convert Fetch event responseHeaders ([{name, value}, …]) to a header object.
