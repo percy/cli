@@ -30,6 +30,16 @@ describe('@percy/cli-pdf page selection', () => {
     expect(resolvePages({ pages: ' 1 , 3 - 4 ' }, 5)).toEqual([1, 3, 4]);
   });
 
+  it('skips empty segments in a string selection', () => {
+    expect(resolvePages({ pages: '1,,3' }, 5)).toEqual([1, 3]);
+    expect(resolvePages({ pages: '2,' }, 5)).toEqual([2]);
+  });
+
+  it('throws when a string selection resolves to nothing', () => {
+    expect(() => resolvePages({ pages: ',' }, 5))
+      .toThrowError('No pages left to snapshot after applying `pages` and `excludePages`');
+  });
+
   it('applies excludePages after pages', () => {
     expect(resolvePages({ pages: '1-5', excludePages: [2, 4] }, 5)).toEqual([1, 3, 5]);
   });

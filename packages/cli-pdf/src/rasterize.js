@@ -22,7 +22,7 @@ function pdfjsAssetPaths() {
 
 async function loadDocument(buffer) {
   let mod = await import('pdfjs-dist/legacy/build/pdf.js');
-  let pdfjs = mod.default ?? mod;
+  let pdfjs = mod.default;
 
   return pdfjs.getDocument({
     data: new Uint8Array(buffer),

@@ -72,6 +72,7 @@ jobs:
           - '@percy/cli-exec'
           - '@percy/cli-snapshot'
           - '@percy/cli-upload'
+          - '@percy/cli-pdf'
           - '@percy/cli-build'
           - '@percy/cli-config'
           - '@percy/sdk-utils'
