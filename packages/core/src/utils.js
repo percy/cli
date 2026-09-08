@@ -488,6 +488,67 @@ export function createRootResource(url, content, attrs = {}) {
   return createResource(normalizeURL(url), content, 'text/html', { ...attrs, root: true });
 }
 
+// Escapes HTML-special characters. Snapshot names reach the wrapper's <title>,
+// and a name containing `</title><script>` would otherwise be injected into the
+// DOM Percy's renderer loads.
+function escapeHtml(value) {
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+// The canonical wrapper DOM for an image-backed snapshot: one image at its
+// native size, with no margins, padding or font metrics that could shift
+// between renders.
+//
+// THIS SHAPE IS A CONTRACT WITH percy-api. When a build's User-Agent contains
+// `@percy/cli-upload` and the root resource URL starts `http://local/`,
+// Comparison#upload_snapshot? routes the comparison down the extraction path,
+// which recovers the image by matching this HTML against
+//
+//   /<img\s+src="([^"]+)"\s+width="(\d+)px"\s+height="(\d+)px"/
+//
+// and skips the renderer entirely -- measured at ~1s per page versus ~9-19s
+// rendered. A mismatch is not an error: extraction raises, percy-api rescues,
+// and the snapshot silently falls back to being rendered. So the attribute
+// order (src, width, height), the `px` suffixes and the integer dimensions all
+// matter, and there must only ever be one definition of them.
+export function buildImageSnapshotHtml({ name, imageUrl, width, height }) {
+  return `
+      <!doctype html>
+      <html lang="en">
+        <head>
+          <meta charset="utf-8">
+          <title>${escapeHtml(name)}</title>
+          <style>
+            *, *::before, *::after { margin: 0; padding: 0; font-size: 0; }
+            html, body { width: 100%; }
+            img { max-width: 100%; }
+          </style>
+        </head>
+        <body>
+          <img src="${escapeHtml(imageUrl)}" width="${width}px" height="${height}px"/>
+        </body>
+      </html>
+    `;
+}
+
+// Builds the root + image resource pair for an image-backed snapshot. `imageUrl`
+// must already be encoded; it is only HTML-escaped here, never re-encoded --
+// running encodeURI over an encoded URL turns %20 into %2520, the <img src>
+// then matches no registered resource, and every snapshot renders blank.
+export function createImageSnapshotResources({
+  name, rootUrl, imageUrl, width, height, content, mimetype
+}) {
+  return [
+    createRootResource(rootUrl, buildImageSnapshotHtml({ name, imageUrl, width, height })),
+    createResource(imageUrl, content, mimetype)
+  ];
+}
+
 // Creates a Percy CSS resource object.
 export function createPercyCSSResource(url, css) {
   let { href, pathname } = new URL(`/percy-specific.${Date.now()}.css`, url);

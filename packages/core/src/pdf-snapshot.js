@@ -3,10 +3,30 @@ import PercyConfig from '@percy/config';
 import { ServerError } from './server.js';
 import { handleSyncJob } from './snapshot.js';
 import { rasterizePdf } from './pdf-rasterize.js';
-import { createResource, createRootResource, normalizeOptions } from './utils.js';
+import {
+  createImageSnapshotResources,
+  getPackageJSON,
+  normalizeOptions
+} from './utils.js';
 
 const MAX_PDF_BYTES = 50 * 1024 * 1024;
 const PDF_MAGIC = Buffer.from('%PDF-', 'latin1');
+
+// Tagged onto the build's User-Agent so percy-api routes these pages down the
+// extraction path instead of the renderer. Comparison#upload_snapshot? gates on
+// `user_agent&.include?('@percy/cli-upload')` plus a root resource URL under
+// `http://local/`, then recovers the image straight from the wrapper HTML.
+// Measured ~1s per page extracted versus ~9-19s rendered, which is the whole
+// point: the CLI already produced the exact PNG, so re-rendering it in the
+// renderer fleet buys nothing.
+//
+// Because that check is a substring match, naming @percy/cli-pdf alongside it
+// keeps the User-Agent honest about which code actually ran rather than
+// impersonating the upload command.
+export const UPLOAD_CLIENT_INFO = (() => {
+  let { version } = getPackageJSON(import.meta.url);
+  return [`@percy/cli-pdf/${version}`, `@percy/cli-upload/${version}`];
+})();
 
 export function pageSnapshotName(name, pageNumber) {
   return `${name} | Page ${pageNumber}`;
@@ -101,13 +121,16 @@ function queuePages(percy, { name, rendered, sync, snapshotOptions }) {
   });
 }
 
-async function buildPageResources({ rootUrl, imageUrl, snapshotName, width, height, png }) {
-  let { buildPageHtml } = await loadPdfModule();
-
-  return [
-    createRootResource(rootUrl, buildPageHtml({ title: snapshotName, imageUrl, width, height })),
-    createResource(imageUrl, png, 'image/png')
-  ];
+function buildPageResources({ rootUrl, imageUrl, snapshotName, width, height, png }) {
+  return createImageSnapshotResources({
+    name: snapshotName,
+    rootUrl,
+    imageUrl,
+    width,
+    height,
+    content: png,
+    mimetype: 'image/png'
+  });
 }
 
 export async function handlePdfSnapshot(req, res, percy) {
@@ -141,6 +164,7 @@ export async function handlePdfSnapshot(req, res, percy) {
   let { pageCount, pages: rendered } = rasterized;
 
   percy.client.addClientInfo(rest.clientInfo);
+  percy.client.addClientInfo(UPLOAD_CLIENT_INFO);
   percy.client.addEnvironmentInfo(rest.environmentInfo);
 
   let { clientInfo, environmentInfo, sync: _sync, ...snapshotOptions } = rest;
