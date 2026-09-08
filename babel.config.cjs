@@ -27,7 +27,7 @@ module.exports = {
     presets: [
       ['@babel/env', {
         modules: false,
-        targets: { node: '14' }
+        targets: { node: '20' }
       }]
     ]
   }, {
@@ -36,7 +36,7 @@ module.exports = {
     presets: [
       ['@babel/env', {
         modules: 'commonjs',
-        targets: { node: '14' }
+        targets: { node: '20' }
       }]
     ]
   }, {

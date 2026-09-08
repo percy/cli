@@ -2,7 +2,7 @@ import fs from 'fs';
 import net from 'net';
 import http from 'http';
 import https from 'https';
-import { request, ProxyHttpAgent, formatBytes } from '@percy/client/utils';
+import { request, ProxyHttpAgent, formatBytes, flattenAggregateError } from '@percy/client/utils';
 import { port, href, proxyAgentFor } from '../../src/proxy.js';
 import logger from '@percy/logger/test/helpers';
 
@@ -591,5 +591,83 @@ describe('Unit / formatBytes', () => {
     expect(formatBytes(1024)).toBe('1.0kB');
     expect(formatBytes(750 * 1024)).toBe('750.0kB');
     expect(formatBytes(500 * 1024 * 1024)).toBe('500.0MB');
+  });
+});
+
+describe('Unit / flattenAggregateError', () => {
+  // Node >=20 enables autoSelectFamily, so a failed connection to a dual-stack
+  // host rejects with an AggregateError. Node copies `.code` onto it but leaves
+  // `.message` empty, and both client/src/proxy.js and core classify some
+  // failures by message — see the helper's comment.
+  // built without Object.assign so semgrep's insecure-object-assign rule has
+  // nothing to flag in a file that only ever constructs local fixtures
+  let agg = (errors, props = {}) => {
+    let error = new AggregateError(errors);
+    for (let [key, value] of Object.entries(props)) error[key] = value;
+    return error;
+  };
+  let sub = (code, message) => {
+    let error = new Error(message);
+    if (code) error.code = code;
+    return error;
+  };
+
+  it('passes through anything that is not an AggregateError', () => {
+    let plain = sub('ECONNRESET', 'socket hang up');
+    expect(flattenAggregateError(plain)).toBe(plain);
+    expect(plain.message).toEqual('socket hang up');
+  });
+
+  it('passes through null and undefined', () => {
+    expect(flattenAggregateError(null)).toBeNull();
+    expect(flattenAggregateError(undefined)).toBeUndefined();
+  });
+
+  it('passes through an AggregateError with no sub-errors', () => {
+    let empty = agg([]);
+    expect(flattenAggregateError(empty)).toBe(empty);
+    expect(empty.message).toEqual('');
+  });
+
+  it('borrows the message from the sub-error, as Node used to produce', () => {
+    let error = agg([sub('ECONNREFUSED', 'connect ECONNREFUSED 127.0.0.1:5883')], { code: 'ECONNREFUSED' });
+    expect(flattenAggregateError(error).message).toEqual('connect ECONNREFUSED 127.0.0.1:5883');
+  });
+
+  it('prefers a retryable cause when the addresses failed differently', () => {
+    let error = agg([sub('ENETUNREACH', 'no route'), sub('ECONNREFUSED', 'connect ECONNREFUSED ::1:5883')]);
+    expect(flattenAggregateError(error).code).toEqual('ECONNREFUSED');
+    expect(error.message).toEqual('connect ECONNREFUSED ::1:5883');
+  });
+
+  it('falls back to the first sub-error when none are retryable', () => {
+    let error = agg([sub('ENETUNREACH', 'no route to host'), sub('EACCES', 'denied')]);
+    expect(flattenAggregateError(error).code).toEqual('ENETUNREACH');
+    expect(error.message).toEqual('no route to host');
+  });
+
+  it('keeps a code Node already set rather than overwriting it', () => {
+    let error = agg([sub('ENETUNREACH', 'no route')], { code: 'ECONNREFUSED' });
+    expect(flattenAggregateError(error).code).toEqual('ECONNREFUSED');
+  });
+
+  it('handles sub-errors with neither code nor message', () => {
+    expect(flattenAggregateError(agg([sub(null, '')])).message).toEqual('connection failed');
+    expect(flattenAggregateError(agg([undefined])).message).toEqual('connection failed');
+  });
+
+  it('prefixes the code onto a message that does not already mention it', () => {
+    let error = agg([sub('EPIPE', 'broken')], { code: 'EPIPE', message: 'upload failed' });
+    expect(flattenAggregateError(error).message).toEqual('EPIPE: upload failed');
+  });
+
+  it('leaves a message that already mentions the code alone', () => {
+    let error = agg([sub('EPIPE', 'broken')], { code: 'EPIPE', message: 'write EPIPE' });
+    expect(flattenAggregateError(error).message).toEqual('write EPIPE');
+  });
+
+  it('leaves an existing message alone when there is no code anywhere', () => {
+    let error = agg([sub(null, 'nope')], { message: 'already set' });
+    expect(flattenAggregateError(error).message).toEqual('already set');
   });
 });

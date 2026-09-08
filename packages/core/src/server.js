@@ -169,29 +169,13 @@ export class Server extends http.Server {
   // connections, reap idle keep-alives, and let in-flight requests
   // finish for up to `drainMs` (5s) before forcibly destroying any
   // remaining sockets. Pass `{ drainMs: 0 }` for the legacy abrupt
-  // behavior. Uses Node 18.2+ `closeIdleConnections` /
-  // `closeAllConnections` when available, falling back to manual
-  // socket-set iteration on Node 14 (Windows CI is pinned there per
-  // .github/workflows/windows.yml).
+  // behavior.
   async close({ drainMs = 5_000 } = {}) {
     this.draining = true;
     let closed = new Promise(resolve => super.close(resolve));
 
     // Reap idle keep-alives now so they don't hold the close() callback.
-    /* istanbul ignore next: which branch fires depends on the runner's
-       Node version (CI matrix includes Node 14, where
-       closeIdleConnections is missing). The graceful behavior is
-       verified end-to-end by every existing percy.stop()-based test;
-       this if/else simply selects between the Node 18.2+ API and the
-       no-op Node 14 fallback. */
-    if (typeof this.closeIdleConnections === 'function') {
-      this.closeIdleConnections();
-    } else {
-      // Node 14 fallback: best-effort destroy of sockets without an
-      // active response. http.Server doesn't expose idleness here, so
-      // we conservatively destroy nothing in this branch and rely on
-      // the drain timeout below.
-    }
+    this.closeIdleConnections();
 
     /* istanbul ignore if: legacy abrupt-close path; not used by any
        in-tree caller post-Phase-3, kept for backwards compat with
@@ -217,11 +201,7 @@ export class Server extends http.Server {
        the inner callback never runs in normal teardown. */
     let forced = new Promise(resolve => {
       forcedTimer = setTimeout(() => {
-        if (typeof this.closeAllConnections === 'function') {
-          this.closeAllConnections();
-        } else {
-          this.#sockets.forEach(socket => socket.destroy());
-        }
+        this.closeAllConnections();
         resolve();
       }, drainMs).unref();
     });

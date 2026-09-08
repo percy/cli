@@ -88,8 +88,8 @@ async function main({
   } else if (!process.send) {
     // test runners assume they have control over the entire process, so give them each forks
     let flags = flagify({ coverage, karma: karmaArgs });
-    let loader = url.pathToFileURL(path.resolve(filename, '../loader.js')).href;
-    let opts = { execArgv: ['--loader', loader, ...process.execArgv] };
+    let hooks = url.pathToFileURL(path.resolve(filename, '../register-hooks.mjs')).href;
+    let opts = { execArgv: ['--import', hooks, ...process.execArgv] };
 
     if (testNode) {
       await child('fork', filename, ['--node', ...flags], opts);

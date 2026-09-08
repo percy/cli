@@ -386,7 +386,7 @@ describe('percy exec', () => {
   });
 
   it('provides the child process with a percy server address env var', async () => {
-    let args = ['--no-warnings', '--input-type=module', '--loader=../../scripts/loader.js'];
+    let args = ['--no-warnings', '--input-type=module', '--import=../../scripts/register-hooks.mjs'];
 
     await exec(['--port=4567', '--', 'node', ...args, '--eval', [
       'import { request } from "../cli-command/src/utils.js";',

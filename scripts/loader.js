@@ -1,52 +1,81 @@
+// Hooks-thread half of the test module-customization harness.
+//
+// Node >=18.19/20 runs these on a dedicated worker, so nothing here can reach
+// main-thread state. register-hooks.mjs mirrors what we need onto the real
+// filesystem; we read that manifest synchronously (allowed, and cheap).
+//
+// Replaces the pre-16.12 getFormat/getSource/transformSource trio, which Node
+// now ignores with a warning rather than an error — which is why dropping them
+// silently disabled coverage instead of failing loudly.
 import fs from 'fs';
 import url from 'url';
 import path from 'path';
 import babel from '@babel/core';
+import { ROOT, LOADER_ALIAS } from './loader-alias.js';
 
-const ROOT = path.resolve(url.fileURLToPath(import.meta.url), '../..');
 const BABEL_REG = /(\/|\\)(@percy|packages)\1(.+?)\1(src|test|.*\\.js)/;
-const CJS_REG = /(^|\n)(module\.)?(exports)/;
-const MOCK_REG = /^mock:\/\/|\?.+$/g;
 
-// global mocks can be added from tests
-export const MOCK_IMPORTS = global.__MOCK_IMPORTS__ = global.__MOCK_IMPORTS__ ||
-  new Proxy(Object.assign(new Map(), { __uid__: 0 }), {
-    get(target, prop, receiver) {
-      if (typeof target[prop] !== 'function') return target[prop];
+let MANIFEST_PATH;
 
-      return prop === 'set' ? (key, value) => {
-        return target[prop](key, (target.__uid__++, value));
-      } : (prop === 'get' || prop === 'has') ? key => {
-        return target[prop](key.replace(MOCK_REG, ''));
-      } : target[prop].bind(target);
-    }
-  });
+export async function initialize(data) {
+  MANIFEST_PATH = data?.manifestPath;
+}
 
-// matches and rewrites internal imports into absolute src paths
-export const LOADER_ALIAS = {
-  find: /^@percy\/([^/]+)(?:\/(.+))?$|(^[./]+?)\/dist\/(.+\.js)$/,
-  replace: (specifier, name, subpath, rel, filename) => {
-    if (rel) return `${rel}/src/${filename}`;
-    if (!subpath) return path.resolve(ROOT, `./packages/${name}/src/index.js`);
-    let pkg = JSON.parse(fs.readFileSync(path.join(ROOT, `./packages/${name}/package.json`)));
-    let alias = pkg.exports?.[`./${subpath}`].replace('./dist', './src');
-    if (alias) return path.resolve(ROOT, `./packages/${name}/${alias}`);
-    return specifier;
+const EMPTY = { uid: 0, mocks: {}, files: {} };
+
+function manifest() {
+  if (!MANIFEST_PATH) return EMPTY;
+
+  try {
+    return JSON.parse(fs.readFileSync(MANIFEST_PATH, 'utf8'));
+  } catch {
+    // absent, or caught mid-rename — treat as empty rather than failing every
+    // resolution in the process
+    return EMPTY;
   }
-};
+}
 
-// resolve specifier file url
-export async function resolve(specifier, context, defaultResolve) {
-  // check for import or filesystem mocks
-  if (MOCK_IMPORTS.has(specifier)) {
-    return { url: `mock://${specifier}?__mock__=${MOCK_IMPORTS.__uid__}&module` };
-  } else if (context.parentURL && '$vol' in fs) {
-    let filename = specifier.startsWith('file:') ? url.fileURLToPath(specifier) : specifier;
-    let filepath = path.resolve(path.dirname(url.fileURLToPath(context.parentURL)), filename);
+function toPath(specifier) {
+  try {
+    return specifier.startsWith('file:') ? url.fileURLToPath(specifier) : specifier;
+  } catch {
+    return null;
+  }
+}
 
-    if (fs.$vol.existsSync(filepath)) {
-      let fmt = CJS_REG.test(fs.$vol.readFileSync(filepath)) ? 'commonjs' : 'module';
-      return { url: `${url.pathToFileURL(filepath)}?__mock__=${MOCK_IMPORTS.__uid__}&${fmt}` };
+export async function resolve(specifier, context, nextResolve) {
+  let mocks = manifest();
+
+  // registry mocks — source is synthesized in load()
+  if (Object.prototype.hasOwnProperty.call(mocks.mocks, specifier)) {
+    // The specifier is percent-encoded into a single path segment because some
+    // keys are themselves file:// URLs (see mockLegacyCommands). Interpolating
+    // one raw yields `mock://file:///…`, which is not a parseable URL — the new
+    // hooks API validates the returned url and rejects it, where the pre-16.12
+    // API did not.
+    return {
+      url: `mock:///${encodeURIComponent(specifier)}?__mock__=${mocks.uid}`,
+      format: 'module',
+      shortCircuit: true
+    };
+  }
+
+  // virtual modules written into the memfs volume, resolved to the real copy
+  // register-hooks.mjs materialised for us
+  if (context.parentURL && Object.keys(mocks.files).length) {
+    let filename = toPath(specifier);
+    let parent = toPath(context.parentURL);
+
+    if (filename && parent) {
+      let entry = mocks.files[path.resolve(path.dirname(parent), filename)];
+
+      if (entry) {
+        return {
+          url: `${url.pathToFileURL(entry.real).href}?__mock__=${mocks.uid}&${entry.format}`,
+          format: entry.format,
+          shortCircuit: true
+        };
+      }
     }
   }
 
@@ -63,50 +92,113 @@ export async function resolve(specifier, context, defaultResolve) {
   // transform absolute filepaths into absolute file urls
   if (specifier.startsWith(ROOT)) specifier = url.pathToFileURL(specifier).href;
 
-  // use default resolve when not mocked
-  return defaultResolve(specifier, context, defaultResolve);
+  return nextResolve(specifier, context);
 }
 
-// get module format for loader mocks
-export async function getFormat(srcURL, context, defaultGetFormat) {
-  return srcURL.includes('?__mock__')
-    ? { format: srcURL.split('?')[1].split('&')[1] }
-    : defaultGetFormat(srcURL, context, defaultGetFormat);
-}
-
-// generate mock sources for mocked modules
+// The emitted shim reads values back out of global.__MOCK_IMPORTS__. That code
+// runs in the MAIN thread, which is why only export *names* have to cross the
+// thread boundary — the values never do.
 function mockSource(mockURL) {
-  if (MOCK_IMPORTS.has(mockURL)) {
-    let key = `global.__MOCK_IMPORTS__.get("${mockURL}")`;
+  let key = decodeURIComponent(new URL(mockURL).pathname.slice(1));
+  let ref = `global.__MOCK_IMPORTS__.get(${JSON.stringify(key)})`;
 
-    return Object.keys(MOCK_IMPORTS.get(mockURL)).reduce((src, name) => src + (
-      `export ${name === 'default' ? name : `const ${name} =`} ${key}.${name};\n`
-    ), '');
-  } else {
-    return fs.$vol.readFileSync(url.fileURLToPath(mockURL));
+  return (manifest().mocks[key] ?? []).map(name => (
+    name === 'default'
+      ? `export default ${ref}.default;`
+      : `export const ${name} = ${ref}.${name};`
+  )).join('\n') + '\n';
+}
+
+// Mirrors babel.config.cjs's own package-type lookup. That config picks
+// `modules: false` vs `modules: 'commonjs'` purely from the nearest
+// package.json's `type` field, so the loader has to agree with it — see load().
+const pkgTypeCache = new Map();
+
+// Returns 'module' or 'commonjs' when a package.json was actually found, and
+// null when the walk found nothing. The distinction matters: "found, and it does
+// not say module" is a CommonJS package, whereas "no package.json at all" means
+// we know nothing and must not assume either way.
+function nearestPackageType(filename) {
+  let dir = path.dirname(filename);
+
+  while (dir.startsWith(ROOT)) {
+    if (pkgTypeCache.has(dir)) return pkgTypeCache.get(dir);
+    let pkg = path.join(dir, 'package.json');
+
+    if (fs.existsSync(pkg)) {
+      let { type } = JSON.parse(fs.readFileSync(pkg, 'utf8'));
+      let resolved = type === 'module' ? 'module' : 'commonjs';
+      pkgTypeCache.set(dir, resolved);
+      return resolved;
+    }
+
+    let parent = path.dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
   }
+
+  return null;
 }
 
-// return loader mocks as module sources
-export async function getSource(srcURL, context, defaultGetSource) {
-  if (srcURL.includes('?__mock__')) return { source: mockSource(srcURL) };
-  return defaultGetSource(srcURL, context, defaultGetSource);
-}
+export async function load(loadURL, context, nextLoad) {
+  if (loadURL.startsWith('mock://')) {
+    return { format: 'module', source: mockSource(loadURL), shortCircuit: true };
+  }
 
-// return loader mocks or transform sources using babel
-export async function transformSource(source, context, defaultTransformSource) {
-  let callback = (src = source) => defaultTransformSource(src, context, defaultTransformSource);
-  if (context.format !== 'module' && context.format !== 'commonjs') return callback();
-  if (context.url.startsWith('mock://')) return callback();
+  let result = await nextLoad(loadURL, context);
+  if (result.format !== 'module' && result.format !== 'commonjs') return result;
 
-  if (typeof source !== 'string') source = Buffer.from(source);
+  // Hand CommonJS packages straight back to Node's CJS loader, transforming
+  // nothing here.
+  //
+  // Node 18 reported these as `format: 'commonjs'` with a null source, so the CJS
+  // require path loaded them and @babel/register (wired in via jasmine's
+  // `requires`) did the ESM->CJS transform. Node 20 reports the same file as
+  // `module` and hands us its source, which tempted this hook into transforming
+  // it and declaring the format Babel actually emitted.
+  //
+  // Returning a source for a CommonJS module makes Node load it as a distinct
+  // module instead of going through the `require` cache, so a package imported
+  // BOTH ways ends up with two live instances. @percy/sdk-utils is imported as
+  // ESM by the specs and required as CJS by test/helpers.js: with two instances,
+  // `delete utils.percy.enabled` in setupTest() mutated one object while
+  // isPercyEnabled() read the other, so `percy.enabled` stayed cached, the
+  // healthcheck was never re-issued, and 8 specs failed on stale state.
+  //
+  // Declaring the format without a source keeps a single shared instance and
+  // leaves the transform to @babel/register, exactly as on Node 18.
+  //
+  // Scoped to files BABEL_REG matches (our own packages' src/test) and to
+  // packages that positively declare themselves non-ESM. Applying it whenever
+  // nearestPackageType() failed to answer would strip the source from genuinely
+  // ESM files it knows nothing about — which broke cli, cli-build, cli-snapshot
+  // and cli-upload the first time round.
+
+  // strip the ?__mock__ cache-buster: fileURLToPath throws on a query string
+  let filename = url.fileURLToPath(loadURL.split('?')[0]);
+
+  if (BABEL_REG.test(filename) && nearestPackageType(filename) === 'commonjs') {
+    return { ...result, format: 'commonjs', source: undefined, shortCircuit: true };
+  }
+
+  let source = result.source;
   if (Buffer.isBuffer(source)) source = source.toString();
+  if (typeof source !== 'string') return result;
 
-  return callback((await babel.transformAsync(source, {
-    filename: url.fileURLToPath(context.url),
-    sourceType: context.format,
+  let out = await babel.transformAsync(source, {
+    filename,
+    sourceType: result.format,
     babelrcRoots: ['.'],
     rootMode: 'upward',
     only: [BABEL_REG]
-  }))?.code);
+  });
+
+  // transformAsync returns null when `only` excludes the file. The old
+  // transformSource hook had a defaultTransformSource to fall through to;
+  // load() does not, and returning { source: undefined } throws.
+  if (!out?.code) return result;
+
+  // Only ESM packages reach here (the CommonJS case returned above), so the
+  // format Node reported is the one Babel emitted.
+  return { ...result, source: out.code };
 }
