@@ -6,6 +6,15 @@ import {
 } from './utils.js';
 import logger from '@percy/logger';
 
+// machine ids are capped and restricted to header-safe characters on both
+// sides; percy-api rejects anything longer or outside this alphabet
+const MACHINE_ID_MAX_LENGTH = 128;
+
+function machineToken(value) {
+  if (value == null || value === '') return null;
+  return String(value).replace(/[^A-Za-z0-9._-]/g, '-');
+}
+
 export class PercyEnv {
   constructor(vars = process.env) {
     this.vars = vars;
@@ -415,16 +424,23 @@ export class PercyEnv {
     let hostname = null;
     try { hostname = os.hostname() || null; } catch { hostname = null; }
 
+    // the per-shard index for providers that can run several shards on one
+    // host; without it every shard on that host would share a machine id and a
+    // dead shard would look alive as long as any sibling kept uploading
     let index = null;
     let runUrl = null;
     switch (this.ci) {
       case 'circle':
-        index = this.vars.CIRCLE_NODE_INDEX ?? null;
-        runUrl = this.vars.CIRCLE_BUILD_URL || null;
+        index = this.vars.CIRCLE_NODE_INDEX;
+        runUrl = this.vars.CIRCLE_BUILD_URL;
         break;
       case 'buildkite':
-        index = this.vars.BUILDKITE_PARALLEL_JOB ?? null;
-        runUrl = this.vars.BUILDKITE_BUILD_URL || null;
+        index = this.vars.BUILDKITE_PARALLEL_JOB;
+        // the build url is shared by every parallel job; the job id anchor is
+        // what lets the "stopped responding" link land on the dead agent's log
+        runUrl = this.vars.BUILDKITE_BUILD_URL && this.vars.BUILDKITE_JOB_ID
+          ? `${this.vars.BUILDKITE_BUILD_URL}#${this.vars.BUILDKITE_JOB_ID}`
+          : this.vars.BUILDKITE_BUILD_URL;
         break;
       case 'github':
         runUrl = (this.vars.GITHUB_SERVER_URL && this.vars.GITHUB_REPOSITORY && this.vars.GITHUB_RUN_ID)
@@ -432,22 +448,35 @@ export class PercyEnv {
           : null;
         break;
       case 'gitlab':
-        runUrl = this.vars.CI_JOB_URL || null;
+        index = this.vars.CI_NODE_INDEX;
+        runUrl = this.vars.CI_JOB_URL;
+        break;
+      case 'jenkins':
+      case 'jenkins-prb':
+        index = this.vars.EXECUTOR_NUMBER;
         break;
     }
 
-    // stable id: sanitized hostname, suffixed with the CI node index when the
-    // provider exposes one (the same host can run multiple shards)
-    let id = hostname && hostname.replace(/[^A-Za-z0-9._-]/g, '-');
-    if (id && index != null && index !== '') id = `${id}.n${index}`;
+    // stable id: sanitized hostname, suffixed with the sanitized shard index.
+    // The id travels as an HTTP header value on every snapshot POST, so every
+    // part of it must be header-safe — an unsanitized index with a stray
+    // newline would reject the whole upload.
+    let id = machineToken(hostname);
+    let shard = machineToken(index);
+    if (id && shard) id = `${id}.n${shard}`;
+    if (id) id = id.slice(0, MACHINE_ID_MAX_LENGTH);
+    // a hostname with no ASCII alphanumerics sanitizes to dashes alone, which
+    // identifies nothing and would collide across hosts — better no id at all
+    if (id && !/[A-Za-z0-9]/.test(id)) id = null;
 
     return {
-      id: id || null,
-      hostname: hostname || null,
+      id,
+      hostname,
       runUrl: runUrl || null,
       // which CI product the agent belongs to ("jenkins", "buildkite", ...);
-      // percy-web maps it to a display name in the stopped-responding copy
-      platform: this.ci || null
+      // percy-web maps it to a display name in the stopped-responding copy.
+      // The generic CI/unknown marker is not a product and is dropped.
+      platform: this.ci && this.ci !== 'CI/unknown' ? this.ci : null
     };
   }
 

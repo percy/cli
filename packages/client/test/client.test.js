@@ -195,6 +195,14 @@ describe('PercyClient', () => {
 
   describe('#createBuild()', () => {
     let cliStartTime = new Date().toISOString();
+    // the wire mapping for machine identity, kept in one place so a renamed key
+    // is one edit rather than one per expectation
+    let machineAttrs = env => ({
+      'machine-id': env.machine.id,
+      'machine-hostname': env.machine.hostname,
+      'machine-ci-run-url': env.machine.runUrl,
+      'machine-ci-platform': env.machine.platform
+    });
     beforeEach(() => {
       delete process.env.PERCY_AUTO_ENABLED_GROUP_BUILD;
       delete process.env.PERCY_ORIGINATED_SOURCE;
@@ -235,10 +243,7 @@ describe('PercyClient', () => {
             'cli-start-time': null,
             'testhub-build-uuid': client.env.testhubBuildUuid,
             'testhub-build-run-id': client.env.testhubBuildRunId,
-            'machine-id': client.env.machine.id,
-            'machine-hostname': client.env.machine.hostname,
-            'machine-ci-run-url': client.env.machine.runUrl,
-            'machine-ci-platform': client.env.machine.platform,
+            ...machineAttrs(client.env),
             source: 'user_created',
             partial: client.env.partial,
             tags: []
@@ -304,10 +309,7 @@ describe('PercyClient', () => {
             'cli-start-time': null,
             'testhub-build-uuid': client.env.testhubBuildUuid,
             'testhub-build-run-id': client.env.testhubBuildRunId,
-            'machine-id': client.env.machine.id,
-            'machine-hostname': client.env.machine.hostname,
-            'machine-ci-run-url': client.env.machine.runUrl,
-            'machine-ci-platform': client.env.machine.platform,
+            ...machineAttrs(client.env),
             source: 'user_created',
             partial: client.env.partial,
             tags: []
@@ -393,10 +395,7 @@ describe('PercyClient', () => {
             'cli-start-time': null,
             'testhub-build-uuid': client.env.testhubBuildUuid,
             'testhub-build-run-id': client.env.testhubBuildRunId,
-            'machine-id': client.env.machine.id,
-            'machine-hostname': client.env.machine.hostname,
-            'machine-ci-run-url': client.env.machine.runUrl,
-            'machine-ci-platform': client.env.machine.platform,
+            ...machineAttrs(client.env),
             source: 'user_created',
             partial: client.env.partial,
             tags: []
@@ -439,10 +438,7 @@ describe('PercyClient', () => {
             'cli-start-time': null,
             'testhub-build-uuid': client.env.testhubBuildUuid,
             'testhub-build-run-id': client.env.testhubBuildRunId,
-            'machine-id': client.env.machine.id,
-            'machine-hostname': client.env.machine.hostname,
-            'machine-ci-run-url': client.env.machine.runUrl,
-            'machine-ci-platform': client.env.machine.platform,
+            ...machineAttrs(client.env),
             source: 'user_created',
             partial: client.env.partial,
             tags: [{ id: null, name: 'tag1' }, { id: null, name: 'tag2' }]
@@ -486,10 +482,7 @@ describe('PercyClient', () => {
             'cli-start-time': cliStartTime,
             'testhub-build-uuid': client.env.testhubBuildUuid,
             'testhub-build-run-id': client.env.testhubBuildRunId,
-            'machine-id': client.env.machine.id,
-            'machine-hostname': client.env.machine.hostname,
-            'machine-ci-run-url': client.env.machine.runUrl,
-            'machine-ci-platform': client.env.machine.platform,
+            ...machineAttrs(client.env),
             source: 'auto_enabled_group',
             partial: client.env.partial,
             tags: [{ id: null, name: 'tag1' }, { id: null, name: 'tag2' }]
@@ -532,10 +525,7 @@ describe('PercyClient', () => {
             'cli-start-time': null,
             'testhub-build-uuid': client.env.testhubBuildUuid,
             'testhub-build-run-id': client.env.testhubBuildRunId,
-            'machine-id': client.env.machine.id,
-            'machine-hostname': client.env.machine.hostname,
-            'machine-ci-run-url': client.env.machine.runUrl,
-            'machine-ci-platform': client.env.machine.platform,
+            ...machineAttrs(client.env),
             source: 'user_created',
             partial: client.env.partial,
             'skip-base-build': true,
@@ -576,10 +566,7 @@ describe('PercyClient', () => {
             'cli-start-time': null,
             'testhub-build-uuid': 'test-uuid-123',
             'testhub-build-run-id': client.env.testhubBuildRunId,
-            'machine-id': client.env.machine.id,
-            'machine-hostname': client.env.machine.hostname,
-            'machine-ci-run-url': client.env.machine.runUrl,
-            'machine-ci-platform': client.env.machine.platform,
+            ...machineAttrs(client.env),
             source: 'user_created',
             partial: client.env.partial,
             tags: []
@@ -619,10 +606,7 @@ describe('PercyClient', () => {
             'cli-start-time': null,
             'testhub-build-uuid': client.env.testhubBuildUuid,
             'testhub-build-run-id': 'test-run-id-123',
-            'machine-id': client.env.machine.id,
-            'machine-hostname': client.env.machine.hostname,
-            'machine-ci-run-url': client.env.machine.runUrl,
-            'machine-ci-platform': client.env.machine.platform,
+            ...machineAttrs(client.env),
             source: 'user_created',
             partial: client.env.partial,
             tags: []
@@ -662,10 +646,7 @@ describe('PercyClient', () => {
             'cli-start-time': null,
             'testhub-build-uuid': client.env.testhubBuildUuid,
             'testhub-build-run-id': client.env.testhubBuildRunId,
-            'machine-id': client.env.machine.id,
-            'machine-hostname': client.env.machine.hostname,
-            'machine-ci-run-url': client.env.machine.runUrl,
-            'machine-ci-platform': client.env.machine.platform,
+            ...machineAttrs(client.env),
             source: 'bstack_sdk_created',
             partial: client.env.partial,
             tags: []

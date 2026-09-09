@@ -51,23 +51,50 @@ describe('PercyEnv', () => {
       expect(env.machine.runUrl).toEqual('https://github.com/org/repo/actions/runs/123');
     });
 
-    it('suffixes the parallel job index and captures the run url on buildkite', () => {
+    it('suffixes the parallel job index and anchors the run url to the job on buildkite', () => {
       let env = new PercyEnv({
         BUILDKITE: 'true',
         BUILDKITE_PARALLEL_JOB: '3',
-        BUILDKITE_BUILD_URL: 'https://buildkite.com/org/pipe/builds/9'
+        BUILDKITE_BUILD_URL: 'https://buildkite.com/org/pipe/builds/9',
+        BUILDKITE_JOB_ID: '0192a-job'
       });
       expect(env.machine.id).toMatch(/\.n3$/);
+      expect(env.machine.runUrl).toEqual('https://buildkite.com/org/pipe/builds/9#0192a-job');
+    });
+
+    it('falls back to the build url on buildkite without a job id', () => {
+      let env = new PercyEnv({
+        BUILDKITE: 'true',
+        BUILDKITE_BUILD_URL: 'https://buildkite.com/org/pipe/builds/9'
+      });
       expect(env.machine.runUrl).toEqual('https://buildkite.com/org/pipe/builds/9');
     });
 
-    it('captures the job url on gitlab', () => {
+    it('suffixes the parallel node index and captures the job url on gitlab', () => {
       let env = new PercyEnv({
         GITLAB_CI: 'true',
         CI_SERVER_VERSION: '16.0',
+        CI_NODE_INDEX: '2',
         CI_JOB_URL: 'https://gitlab.com/org/repo/-/jobs/42'
       });
+      expect(env.machine.id).toMatch(/\.n2$/);
       expect(env.machine.runUrl).toEqual('https://gitlab.com/org/repo/-/jobs/42');
+    });
+
+    it('suffixes the executor number on jenkins so shards on one agent stay distinct', () => {
+      let env = new PercyEnv({ JENKINS_URL: 'http://jenkins.local/', EXECUTOR_NUMBER: '1' });
+      expect(env.machine.id).toMatch(/\.n1$/);
+    });
+
+    it('keeps a zero shard index', () => {
+      let env = new PercyEnv({ CIRCLECI: 'true', CIRCLE_NODE_INDEX: '0' });
+      expect(env.machine.id).toMatch(/\.n0$/);
+    });
+
+    it('sanitizes the shard index so the id stays header-safe', () => {
+      spyOn(os, 'hostname').and.returnValue('host');
+      let env = new PercyEnv({ CIRCLECI: 'true', CIRCLE_NODE_INDEX: '2\n' });
+      expect(env.machine.id).toEqual('host.n2-');
     });
 
     it('omits the index suffix when the provider exposes no node index', () => {
@@ -104,6 +131,26 @@ describe('PercyEnv', () => {
     it('reports a null platform outside of CI', () => {
       let env = new PercyEnv({});
       expect(env.machine.platform).toBeNull();
+    });
+
+    it('reports a null platform for an unrecognized CI', () => {
+      let env = new PercyEnv({ CI: 'true' });
+      expect(env.ci).toEqual('CI/unknown');
+      expect(env.machine.platform).toBeNull();
+    });
+
+    it('caps the id at the length the API accepts', () => {
+      spyOn(os, 'hostname').and.returnValue('h'.repeat(300));
+      let env = new PercyEnv({});
+      expect(env.machine.id).toHaveSize(128);
+      expect(env.machine.hostname).toHaveSize(300);
+    });
+
+    it('drops an id that sanitizes to nothing identifying', () => {
+      spyOn(os, 'hostname').and.returnValue('сервер');
+      let env = new PercyEnv({});
+      expect(env.machine.id).toBeNull();
+      expect(env.machine.hostname).toEqual('сервер');
     });
 
     it('degrades to null identity when the hostname cannot be read', () => {
