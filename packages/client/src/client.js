@@ -943,6 +943,21 @@ export class PercyClient {
     }, { identifier: 'build.send_logs', ...meta });
   }
 
+  async sendSnapshotLog(buildId, snapshotId, content, meta = {}) {
+    validateId('build', buildId);
+    validateId('snapshot', snapshotId);
+    this.log.debug('Sending Snapshot Log', meta);
+    return this.post('logs', {
+      data: {
+        content,
+        build_id: buildId,
+        reference_id: snapshotId,
+        service_name: 'snapshot',
+        base64encoded: true
+      }
+    }, { identifier: 'snapshot.send_log', ...meta });
+  }
+
   async getErrorAnalysis(errors, meta = {}) {
     const errorLogs = formatLogErrors(errors);
     this.log.debug('Sending error logs for analysis', meta);

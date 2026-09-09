@@ -2,7 +2,50 @@ import { sha256hash, base64encode } from '@percy/client/utils';
 import { logger, api, setupTest, createTestServer, dedent, mockRequests } from './helpers/index.js';
 import { waitFor } from '@percy/core/utils';
 import Percy from '@percy/core';
-import { handleSyncJob } from '../src/snapshot.js';
+import PercyLogger from '@percy/logger';
+import { handleSyncJob, uploadSnapshotLog } from '../src/snapshot.js';
+
+describe('uploadSnapshotLog', () => {
+  let client, percy, meta;
+
+  // seed a log entry for a snapshot so logger.snapshotLogs returns it
+  const seedLog = (name = 'Home') =>
+    PercyLogger('core:snapshot').debug('x', { snapshot: { name, testCase: undefined } });
+
+  beforeEach(async () => {
+    await logger.mock();
+    client = { sendSnapshotLog: jasmine.createSpy('sendSnapshotLog').and.resolveTo() };
+    percy = { client, log: { debug: jasmine.createSpy('debug') } };
+    meta = { snapshot: { name: 'Home', testCase: undefined } };
+  });
+
+  it('is a no-op without a build or snapshot id', async () => {
+    seedLog();
+    await uploadSnapshotLog(percy, null, '4567', meta);
+    await uploadSnapshotLog(percy, '123', null, meta);
+    expect(client.sendSnapshotLog).not.toHaveBeenCalled();
+  });
+
+  it('does not upload when there are no matching log entries (meta defaults)', async () => {
+    // called without meta -> defaults to {}, so nothing matches and nothing uploads
+    await uploadSnapshotLog(percy, '123', '4567');
+    expect(client.sendSnapshotLog).not.toHaveBeenCalled();
+  });
+
+  it('uploads the matching logs to the client keyed by the snapshot id', async () => {
+    seedLog('Home');
+    seedLog('Other');
+    await uploadSnapshotLog(percy, '123', '4567', meta);
+    expect(client.sendSnapshotLog).toHaveBeenCalledWith('123', '4567', jasmine.any(String), meta);
+  });
+
+  it('is best-effort: a client failure does not throw', async () => {
+    seedLog();
+    client.sendSnapshotLog.and.rejectWith(new Error('boom'));
+    await expectAsync(uploadSnapshotLog(percy, '123', '4567', meta)).toBeResolved();
+    expect(percy.log.debug).toHaveBeenCalled();
+  });
+});
 
 describe('Snapshot', () => {
   let percy, server, testDOM;
@@ -1607,8 +1650,9 @@ describe('Snapshot', () => {
 
       await percy.idle();
 
+      // one resource (the DOM) per snapshot now that the log is not a resource
       let dom = i => Buffer.from((
-        api.requests['/builds/123/resources'][i * 2]
+        api.requests['/builds/123/resources'][i]
           .body.data.attributes['base64-content']
       ), 'base64').toString();
 
@@ -1797,7 +1841,7 @@ describe('Snapshot', () => {
       ].join(''));
 
       expect(Buffer.from((
-        api.requests['/builds/123/resources'][2]
+        api.requests['/builds/123/resources'][1]
           .body.data.attributes['base64-content']
       ), 'base64').toString()).toMatch([
         '<p>beforeResize - 400</p>',

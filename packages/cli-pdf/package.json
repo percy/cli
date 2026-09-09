@@ -1,6 +1,6 @@
 {
   "name": "@percy/cli-pdf",
-  "version": "1.32.9",
+  "version": "1.32.10-beta.0",
   "license": "MIT",
   "description": "Renders PDF documents into per-page images for Percy snapshots",
   "repository": {
@@ -10,7 +10,7 @@
   },
   "publishConfig": {
     "access": "public",
-    "tag": "latest"
+    "tag": "beta"
   },
   "engines": {
     "node": ">=14"
@@ -28,7 +28,7 @@
     "test:coverage": "yarn test --coverage"
   },
   "dependencies": {
-    "@percy/logger": "1.32.9",
+    "@percy/logger": "1.32.10-beta.0",
     "pdfjs-dist": "^2.16.105"
   }
 }
