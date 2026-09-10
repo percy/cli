@@ -15,6 +15,7 @@ import {
   waitForReadyScript,
   getReadinessConfig,
   isReadinessDisabled,
+  readinessDeadlineMs,
   runReadinessGate
 } from './serialize-dom.js';
 
@@ -111,6 +112,7 @@ export {
   waitForReadyScript,
   getReadinessConfig,
   isReadinessDisabled,
+  readinessDeadlineMs,
   runReadinessGate
 };
 

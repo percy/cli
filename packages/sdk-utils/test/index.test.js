@@ -1043,6 +1043,108 @@ describe('SDK Utils', () => {
       let result = await runReadinessGate(() => Promise.reject(new Error('no log')), {});
       expect(result).toBe(null);
     });
+
+    // PER-10756: PercyDOM.waitForReady() enforces its own timeout with an
+    // in-page setTimeout, so a page with faked/paused timers (Playwright
+    // page.clock.pauseAt, sinon useFakeTimers) can never settle the gate. The
+    // Node-side deadline is what keeps percySnapshot() from hanging the test.
+    it('returns null when evalScript never settles, without blocking on it', async () => {
+      let logged;
+      let result = await runReadinessGate(
+        () => new Promise(() => {}),
+        { readiness: { timeoutMs: 1000 } },
+        { log: { debug: (m) => { logged = m; } } }
+      );
+      expect(result).toBe(null);
+      expect(logged).toContain('did not settle within 4000ms');
+      expect(logged).toContain('preset: disabled');
+    });
+
+    it('does not raise an unhandled rejection when an abandoned eval rejects later', async () => {
+      let rejectEval;
+      let result = await runReadinessGate(
+        () => new Promise((resolve, reject) => { rejectEval = reject; }),
+        { readiness: { timeoutMs: 1000 } }
+      );
+      expect(result).toBe(null);
+      // The driver tearing the page down after the deadline must stay silent.
+      rejectEval(new Error('Target page, context or browser has been closed'));
+      await new Promise(resolve => setTimeout(resolve, 10));
+    });
+
+    it('still returns diagnostics from an eval that settles before the deadline', async () => {
+      let diagnostics = { passed: true, timed_out: false, preset: 'balanced' };
+      let result = await runReadinessGate(
+        () => new Promise(resolve => setTimeout(() => resolve(diagnostics), 10)),
+        { readiness: { timeoutMs: 1000 } }
+      );
+      expect(result).toEqual(diagnostics);
+    });
+  });
+
+  describe('readinessDeadlineMs(readinessConfig)', () => {
+    let { readinessDeadlineMs } = utils;
+
+    it('defaults to the balanced preset timeout plus grace', () => {
+      expect(readinessDeadlineMs()).toBe(13000);
+      expect(readinessDeadlineMs({})).toBe(13000);
+      expect(readinessDeadlineMs({ preset: 'balanced' })).toBe(13000);
+    });
+
+    it('uses the timeout of the named preset', () => {
+      expect(readinessDeadlineMs({ preset: 'strict' })).toBe(33000);
+      expect(readinessDeadlineMs({ preset: 'fast' })).toBe(8000);
+    });
+
+    it('falls back to balanced for an unknown preset', () => {
+      expect(readinessDeadlineMs({ preset: 'nonsense' })).toBe(13000);
+    });
+
+    it('prefers an explicit timeout over the preset, in either naming', () => {
+      expect(readinessDeadlineMs({ preset: 'strict', timeoutMs: 5000 })).toBe(8000);
+      expect(readinessDeadlineMs({ preset: 'strict', timeout_ms: 5000 })).toBe(8000);
+    });
+
+    it('clamps to maxTimeoutMs when that is lower', () => {
+      expect(readinessDeadlineMs({ timeoutMs: 20000, maxTimeoutMs: 6000 })).toBe(9000);
+      expect(readinessDeadlineMs({ timeoutMs: 20000, max_timeout_ms: 6000 })).toBe(9000);
+      // A higher cap leaves the configured timeout alone.
+      expect(readinessDeadlineMs({ timeoutMs: 4000, maxTimeoutMs: 30000 })).toBe(7000);
+    });
+
+    // Node-only, same rationale as the serialize-frames parity test above:
+    // PRESET_TIMEOUT_MS mirrors PRESETS in @percy/dom's readiness.js, which
+    // only exists in the browser bundle. Read the dom source and assert the
+    // timeouts still match, so drift fails loudly instead of silently
+    // producing a Node deadline shorter than the in-page one.
+    const isNodeEnv = typeof process !== 'undefined' &&
+      typeof process.cwd === 'function' &&
+      !!(process.versions && process.versions.node);
+    const itNodeEnv = isNodeEnv ? it : xit;
+
+    itNodeEnv('stays in lockstep with the presets in @percy/dom/src/readiness.js', async () => {
+      const fs = await import('fs');
+      const path = await import('path');
+      const domSource = fs.readFileSync(
+        path.resolve(process.cwd(), '../dom/src/readiness.js'),
+        'utf8'
+      );
+      // Pull `timeout_ms:` out of each preset block in PRESETS.
+      const presets = domSource
+        .slice(domSource.indexOf('const PRESETS = {'))
+        .match(/(balanced|strict|fast):\s*\{[^}]*?timeout_ms:\s*(\d+)/g)
+        .reduce((acc, block) => {
+          const [, name, ms] = block.match(/(balanced|strict|fast):[\s\S]*timeout_ms:\s*(\d+)/);
+          acc[name] = Number(ms);
+          return acc;
+        }, {});
+
+      expect(presets).toEqual({ balanced: 10000, strict: 30000, fast: 5000 });
+      // Every dom preset timeout must be the base of our deadline.
+      for (const [preset, timeout] of Object.entries(presets)) {
+        expect(readinessDeadlineMs({ preset })).toBe(timeout + 3000);
+      }
+    });
   });
 
   describe('mergeSnapshotOptions(options)', () => {
