@@ -97,6 +97,9 @@ function assertNotCrossOrigin(req) {
   }
 }
 
+// Log levels an SDK may forward through POST /percy/log.
+const SDK_LOG_LEVELS = new Set(['debug', 'info', 'warn', 'error']);
+
 // Create a Percy CLI API server instance
 export function createPercyServer(percy, port) {
   let pkg = getPackageJSON(import.meta.url);
@@ -319,7 +322,20 @@ export function createPercyServer(percy, port) {
       const message = req.body.message;
       const meta = req.body.meta || {};
 
-      log[level](message, meta);
+      // `level` is attacker-controlled input on an unauthenticated endpoint, so
+      // it must never be used as a dynamic property key on the logger object
+      // (CWE-1321 / PER-8606, PER-8625). Only the four log levels are dispatched;
+      // anything else (`__proto__`, `constructor`, `loglevel`, ...) is rejected.
+      if (!SDK_LOG_LEVELS.has(level)) {
+        return res.json(400, { error: 'Invalid log level' });
+      }
+
+      switch (level) {
+        case 'debug': log.debug(message, meta); break;
+        case 'info': log.info(message, meta); break;
+        case 'warn': log.warn(message, meta); break;
+        default: log.error(message, meta);
+      }
 
       res.json(200, { success: true });
     })

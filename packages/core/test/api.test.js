@@ -896,6 +896,41 @@ describe('API Server', () => {
     expect(sdkLogs[1].meta).toEqual(message2.meta);
   });
 
+  it('rejects /log requests whose level is not a real log level (PER-8606/8625)', async () => {
+    await percy.start();
+    let before = logger.loglevel();
+
+    for (let level of ['__proto__', 'constructor', 'loglevel', 'deprecated', 'stdout', '', null, 42]) {
+      let [data, res] = await request('/percy/log', {
+        body: { level, message: 'debug', meta: {} },
+        method: 'post'
+      }, true);
+
+      expect(res.statusCode).toBe(400);
+      expect(data).toEqual({ error: 'Invalid log level' });
+    }
+
+    // no dynamic dispatch side effects: global loglevel untouched, nothing logged
+    expect(logger.loglevel()).toBe(before);
+    expect(logger.instance.query(log => log.debug === 'sdk').length).toBe(0);
+    expect(Object.prototype.token).toBeUndefined();
+  });
+
+  it('dispatches every allowed /log level', async () => {
+    await percy.start();
+    logger.loglevel('debug');
+
+    for (let level of ['debug', 'info', 'warn', 'error']) {
+      await expectAsync(request('/percy/log', {
+        body: { level, message: `${level} message` },
+        method: 'post'
+      })).toBeResolvedTo({ success: true });
+    }
+
+    const sdkLogs = logger.instance.query(log => log.debug === 'sdk');
+    expect(sdkLogs.map(l => l.level)).toEqual(['debug', 'info', 'warn', 'error']);
+  });
+
   it('returns a 500 error when an endpoint throws', async () => {
     spyOn(percy, 'snapshot').and.rejectWith(new Error('test error'));
     await percy.start();
