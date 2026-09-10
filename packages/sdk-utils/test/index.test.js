@@ -1072,6 +1072,34 @@ describe('SDK Utils', () => {
       await new Promise(resolve => setTimeout(resolve, 10));
     });
 
+    // Regression: the deadline must not be schedulable on a clock the consumer
+    // has frozen. jest/sinon fake timers replace the global setTimeout binding,
+    // so a bare setTimeout(...) here would land on the frozen clock and hang
+    // exactly as the in-page gate does -- see the module-scope capture.
+    it('survives Node-side fake timers replacing the global setTimeout', async () => {
+      let realSetTimeout = globalThis.setTimeout;
+      let realClearTimeout = globalThis.clearTimeout;
+      let scheduledOnFrozenClock = 0;
+
+      // Stand in for useFakeTimers() with no clock advancement: replace the
+      // globals with timers that are recorded and never fire.
+      globalThis.setTimeout = () => { scheduledOnFrozenClock++; return 0; };
+      globalThis.clearTimeout = () => {};
+
+      try {
+        let result = await runReadinessGate(
+          () => new Promise(() => {}),
+          { readiness: { timeoutMs: 1000 } }
+        );
+        expect(result).toBe(null);
+        // Nothing was handed to the frozen clock — the capture was used.
+        expect(scheduledOnFrozenClock).toBe(0);
+      } finally {
+        globalThis.setTimeout = realSetTimeout;
+        globalThis.clearTimeout = realClearTimeout;
+      }
+    });
+
     it('still returns diagnostics from an eval that settles before the deadline', async () => {
       let diagnostics = { passed: true, timed_out: false, preset: 'balanced' };
       let result = await runReadinessGate(

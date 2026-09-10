@@ -132,6 +132,24 @@ export function readinessDeadlineMs(readinessConfig = {}) {
   return timeout + READINESS_DEADLINE_GRACE_MS;
 }
 
+// Captured once at module load, because the deadline below must not be the very
+// thing a faked clock disables. jest's and sinon's fake timers replace the
+// *global* `setTimeout` binding, and a bare `setTimeout(...)` call resolves that
+// global at call time -- so a consumer whose Node test process has fake timers
+// installed would schedule the deadline on a frozen clock and hang exactly as
+// before, one layer up from the in-page freeze this gate exists to survive.
+//
+// A module-scope capture holds because the SDK imports this module at require
+// time, before a test body reaches `useFakeTimers()`. It is deliberately not
+// `import { setTimeout } from 'node:timers'`, which would be immune to import
+// order but pulls a Node builtin into this file -- and this file is imported
+// statically by index.js, which is bundled for the browser too (see the package's
+// `browser` field). The one Node-only dependency in this package is reached by a
+// lazy `await import('./proxy.js')` in request.js precisely to keep builtins out
+// of that bundle; a static builtin import here would defeat it.
+const nativeSetTimeout = globalThis.setTimeout;
+const nativeClearTimeout = globalThis.clearTimeout;
+
 const READINESS_DEADLINE_HIT = Symbol('readiness-deadline');
 
 export async function runReadinessGate(evalScript, snapshotOptions = {}, { callback = false, log } = {}) {
@@ -150,7 +168,7 @@ export async function runReadinessGate(evalScript, snapshotOptions = {}, { callb
 
     const result = await Promise.race([
       evaluation,
-      new Promise(resolve => { timer = setTimeout(() => resolve(READINESS_DEADLINE_HIT), deadline); })
+      new Promise(resolve => { timer = nativeSetTimeout(() => resolve(READINESS_DEADLINE_HIT), deadline); })
     ]);
 
     if (result === READINESS_DEADLINE_HIT) {
@@ -171,7 +189,7 @@ export async function runReadinessGate(evalScript, snapshotOptions = {}, { callb
     }
     return null;
   } finally {
-    clearTimeout(timer);
+    nativeClearTimeout(timer);
   }
 }
 
