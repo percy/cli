@@ -1087,10 +1087,24 @@ describe('SDK Utils', () => {
       globalThis.clearTimeout = () => {};
 
       try {
-        let result = await runReadinessGate(
-          () => new Promise(() => {}),
-          { readiness: { timeoutMs: 1000 } }
-        );
+        // Bound the wait on the REAL timer. Without it, a regression here (the
+        // deadline scheduled on the frozen clock) never settles the await, so
+        // the finally below never restores the globals and every later spec
+        // using a bare setTimeout hangs too — one regression becomes a
+        // suite-wide cascade instead of one clean failure. 6000ms is above the
+        // real 4000ms deadline (timeoutMs 1000 + 3000ms grace) so a healthy run
+        // resolves on its own, and below jasmine's 10s spec timeout so this
+        // rejection, not the runner, is what reports the regression.
+        let result = await Promise.race([
+          runReadinessGate(
+            () => new Promise(() => {}),
+            { readiness: { timeoutMs: 1000 } }
+          ),
+          new Promise((resolve, reject) => realSetTimeout(() => reject(new Error(
+            'readiness deadline never fired: it was scheduled on the frozen global clock ' +
+            'instead of the timer captured at module load'
+          )), 6000))
+        ]);
         expect(result).toBe(null);
         // Nothing was handed to the frozen clock — the capture was used.
         expect(scheduledOnFrozenClock).toBe(0);

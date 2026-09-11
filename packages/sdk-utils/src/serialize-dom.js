@@ -139,14 +139,23 @@ export function readinessDeadlineMs(readinessConfig = {}) {
 // installed would schedule the deadline on a frozen clock and hang exactly as
 // before, one layer up from the in-page freeze this gate exists to survive.
 //
-// A module-scope capture holds because the SDK imports this module at require
-// time, before a test body reaches `useFakeTimers()`. It is deliberately not
-// `import { setTimeout } from 'node:timers'`, which would be immune to import
-// order but pulls a Node builtin into this file -- and this file is imported
-// statically by index.js, which is bundled for the browser too (see the package's
-// `browser` field). The one Node-only dependency in this package is reached by a
-// lazy `await import('./proxy.js')` in request.js precisely to keep builtins out
-// of that bundle; a static builtin import here would defeat it.
+// The capture holds for the ordinary case: the SDK imports this module at
+// require time, before a test body or beforeEach reaches `useFakeTimers()`. It
+// is NOT a guarantee. Fake timers installed before this module is first
+// evaluated -- jest's `fakeTimers: { enableGlobally: true }`, a `useFakeTimers()`
+// call in `setupFiles`, or `resetModules()` + a fresh require under an already
+// faked clock -- capture the fake, and the hang returns. Those consumers need
+// `snapshot.readiness.preset: disabled`.
+//
+// Deliberately not `import { setTimeout } from 'node:timers'`, which would be
+// immune to import order too: this file is imported statically by index.js, and
+// index.js is the rollup entry for the browser bundle (see the package's
+// `browser` field). Node-only code in this package is always reached through a
+// lazy `await import(...)` -- `http`/`https` in request.js, `./proxy.js` and its
+// `net`/`tls` imports -- precisely to keep builtins out of that graph. A static
+// builtin import here would not even fail the build, since the rollup config
+// suppresses MISSING_NODE_BUILTINS; it would ship a browser bundle that breaks
+// at runtime, which is worse.
 const nativeSetTimeout = globalThis.setTimeout;
 const nativeClearTimeout = globalThis.clearTimeout;
 
