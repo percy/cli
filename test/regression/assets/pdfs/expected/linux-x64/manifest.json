@@ -1,0 +1,63 @@
+{
+  "generated": "2026-09-11T06:18:42.036Z",
+  "platform": "linux-x64",
+  "browser": "Chrome/143.0.7499.0",
+  "pdfs": {
+    "jack-sparrow-resume": {
+      "source": "jack sparrow resume.pdf",
+      "page-count": 1,
+      "scale": 2,
+      "pages": [
+        {
+          "page": 1,
+          "width": 1191,
+          "height": 1684,
+          "bytes": 461354,
+          "sha256": "0fb1414f82961173acbcb4acffd5b64da856ebb86ba3c4393aa7c7a63995841a"
+        }
+      ]
+    },
+    "multipage-sample-pdf": {
+      "source": "multipage sample pdf.pdf",
+      "page-count": 3,
+      "scale": 2,
+      "pages": [
+        {
+          "page": 1,
+          "width": 1224,
+          "height": 1584,
+          "bytes": 432303,
+          "sha256": "102e380745daaf8b2b7586cb6a0be86527061bda027eb9e6dd37223b834f1752"
+        },
+        {
+          "page": 2,
+          "width": 1224,
+          "height": 1584,
+          "bytes": 467298,
+          "sha256": "a8c3c6d74a146c029e3b79a4dec12b798cccdbccf9400fbffbf86996bfd2d19f"
+        },
+        {
+          "page": 3,
+          "width": 1224,
+          "height": 1584,
+          "bytes": 357286,
+          "sha256": "16f409adfc22276edc897504e10622a978f545cbb76923dccbcd0c2510c31ec4"
+        }
+      ]
+    },
+    "single-page-sample": {
+      "source": "single page sample.pdf",
+      "page-count": 1,
+      "scale": 2,
+      "pages": [
+        {
+          "page": 1,
+          "width": 1224,
+          "height": 1584,
+          "bytes": 379684,
+          "sha256": "73de82e2d54dddca2e9219c8fe282ac372d4bd96347be5bd214902ac0109a7fd"
+        }
+      ]
+    }
+  }
+}
