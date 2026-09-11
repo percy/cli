@@ -10,6 +10,8 @@ import {
 } from './utils.js';
 
 const MAX_PDF_BYTES = 50 * 1024 * 1024;
+// base64 inflates by 4/3 and pads to a multiple of 4.
+const MAX_PDF_BASE64_CHARS = Math.ceil(MAX_PDF_BYTES / 3) * 4;
 const PDF_MAGIC = Buffer.from('%PDF-', 'latin1');
 
 // Tagged onto the build's User-Agent so percy-api routes these pages down the
@@ -46,6 +48,14 @@ export function decodePdf(pdf) {
 
   if (typeof content !== 'string' || !content.length) {
     throw new ServerError(400, 'Missing required `pdf.content` (base64-encoded PDF)');
+  }
+
+  // Reject on the ENCODED length first. Buffer.from() would otherwise allocate
+  // the full decode before we ever reach the size check, and the server buffers
+  // request bodies with no cap of its own (see IncomingMessage in server.js), so
+  // a 1GB body would be buffered, JSON-parsed and decoded before the 413.
+  if (content.length > MAX_PDF_BASE64_CHARS) {
+    throw new ServerError(413, `PDF exceeds the maximum size of ${MAX_PDF_BYTES / 1024 / 1024}MB`);
   }
 
   let buffer = Buffer.from(content, 'base64');
@@ -157,8 +167,14 @@ export async function handlePdfSnapshot(req, res, percy) {
   try {
     rasterized = await rasterizePdf(percy, buffer, { pages, excludePages, scale });
   } catch (error) {
-    log.error(`Failed to rasterize PDF "${name}": ${error.message}`);
-    throw new ServerError(400, `Could not rasterize PDF: ${error.message}`);
+    // Only errors the caller can act on are 400s -- rasterizePdf tags those with
+    // `status`. A browser launch failure, an OOM, an asset-server bind error or
+    // a CDP disconnect are ours, not theirs, and must not tell the SDK that its
+    // request was malformed.
+    let message = error?.message ?? String(error);
+
+    log.error(`Failed to rasterize PDF "${name}": ${message}`);
+    throw new ServerError(error?.status ?? 500, `Could not rasterize PDF: ${message}`);
   }
 
   let { pageCount, pages: rendered } = rasterized;

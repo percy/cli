@@ -71,6 +71,36 @@ function serializeDomCapture(_, options) {
   return { domSnapshot: PercyDOM.serialize(options), url: document.URL };
 }
 
+// Builds a real Error from a CDP exception.
+//
+// `exception.description` is the remote stack trace as one string: its first
+// line is the message, the rest are frames. Throwing that bare string (as this
+// used to) meant every caller saw `error.message === undefined`, so an in-page
+// failure surfaced as literally "undefined" -- a corrupt PDF, a bad `execute`
+// script and a pdf.js render throw were all indistinguishable and unreadable.
+//
+// The description is preserved verbatim as `stack`, so nothing is lost: callers
+// that logged the old string can log `error.stack` for the identical text.
+export function remoteError(exceptionDetails) {
+  let { exception, text } = exceptionDetails ?? {};
+  let description = exception?.description;
+
+  if (!description) {
+    // A non-Error was thrown in the page, so CDP reports the thrown value
+    // rather than a stack. `text` is CDP's own summary of the exception.
+    let value = exception?.value;
+
+    description = value == null
+      ? (text || 'Unknown page error')
+      : (typeof value === 'object' ? JSON.stringify(value) : String(value));
+  }
+
+  let error = new Error(description.split('\n')[0]);
+  error.stack = description;
+
+  return error;
+}
+
 export class Page {
   static TIMEOUT = undefined;
 
@@ -216,7 +246,7 @@ export class Page {
       });
 
     if (exceptionDetails) {
-      throw exceptionDetails.exception.description;
+      throw remoteError(exceptionDetails);
     } else {
       return result.value;
     }

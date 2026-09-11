@@ -178,7 +178,9 @@ describe('PDF snapshots', () => {
       }
     });
 
-    it('reports a browser failure as a rasterization error', async () => {
+    it('reports a browser failure as a server error, not a bad request', async () => {
+      // Ours, not the caller's: telling the SDK 400 here would send it looking
+      // for a fault in a request that was perfectly well formed.
       spyOn(percy.browser, 'page').and.rejectWith(new Error('no page for you'));
 
       let [body, res] = await postRaw({
@@ -186,8 +188,61 @@ describe('PDF snapshots', () => {
         pdf: { content: b64(buildPdf()) }
       });
 
-      expect(res.statusCode).toBe(400);
+      expect(res.statusCode).toBe(500);
       expect(body.error).toMatch(/Could not rasterize PDF: no page for you/);
+    });
+
+    it('reports an in-page failure with a readable message', async () => {
+      // Page#eval used to throw the CDP description string rather than an
+      // Error, so `error.message` was undefined and every in-page failure --
+      // a corrupt PDF, a pdf.js throw -- surfaced as "undefined".
+      spyOn(percy.browser, 'page').and.returnValue(Promise.resolve({
+        goto: () => Promise.resolve(),
+        close: () => Promise.resolve(),
+        eval: () => Promise.reject(Object.assign(
+          new Error('Error: pdf.js exploded'),
+          { stack: 'Error: pdf.js exploded\n    at <anonymous>:1:1' }))
+      }));
+
+      let [body, res] = await postRaw({
+        name: 'doc',
+        pdf: { content: b64(buildPdf()) }
+      });
+
+      expect(res.statusCode).toBe(500);
+      expect(body.error).not.toMatch(/undefined/);
+      expect(body.error).toMatch(/Could not rasterize PDF: Error: pdf\.js exploded/);
+    });
+
+    it('never reports undefined even when something throws a non-Error', async () => {
+      spyOn(percy.browser, 'page').and.returnValue(Promise.resolve({
+        goto: () => Promise.resolve(),
+        close: () => Promise.resolve(),
+        /* eslint-disable-next-line prefer-promise-reject-errors */
+        eval: () => Promise.reject('a bare string')
+      }));
+
+      let [body] = await postRaw({
+        name: 'doc',
+        pdf: { content: b64(buildPdf()) }
+      });
+
+      expect(body.error).not.toMatch(/undefined/);
+      expect(body.error).toMatch(/Could not rasterize PDF: a bare string/);
+    });
+
+    it('rejects an oversized PDF before decoding it', async () => {
+      // The cap has to bite on the encoded length: Buffer.from() would
+      // otherwise allocate the whole decode first, and the server buffers
+      // request bodies with no limit of its own.
+      let fromSpy = spyOn(Buffer, 'from').and.callThrough();
+      let content = 'A'.repeat(Math.ceil((50 * 1024 * 1024) / 3) * 4 + 4);
+
+      let [body, res] = await postRaw({ name: 'doc', pdf: { content } });
+
+      expect(res.statusCode).toBe(413);
+      expect(body.error).toMatch(/PDF exceeds the maximum size of 50MB/);
+      expect(fromSpy).not.toHaveBeenCalledWith(content, 'base64');
     });
 
     it('rejects an impossible page selection', async () => {
@@ -199,6 +254,21 @@ describe('PDF snapshots', () => {
 
       expect(res.statusCode).toBe(400);
       expect(body.error).toMatch(/Requested page 5 but the document has only 2 pages/);
+    });
+
+    it('rejects a selection larger than the per-request page cap', async () => {
+      let { MAX_PAGES } = await import('@percy/cli-pdf');
+      let pageCount = MAX_PAGES + 1;
+
+      let [body, res] = await postRaw({
+        name: 'doc',
+        pdf: { content: b64(buildPdf({ pageCount })) }
+      });
+
+      // The caller can fix this by narrowing `pages`, so it is a 400.
+      expect(res.statusCode).toBe(400);
+      expect(body.error).toMatch(
+        new RegExp(`Requested ${pageCount} pages but the maximum per request is ${MAX_PAGES}`));
     });
 
     it('warns but proceeds on an unrecognised option', async () => {

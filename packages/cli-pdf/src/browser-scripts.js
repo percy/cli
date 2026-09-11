@@ -4,6 +4,13 @@ export const MAX_DIMENSION = 2000;
 export const DEFAULT_SCALE = 2;
 export const MAX_SCALE = 5;
 
+// Wall-clock ceiling for a single page's in-page work (open, measure, render).
+// Page#eval resolves off `Runtime.callFunctionOn` with `awaitPromise: true`,
+// which has no timeout of its own -- Page.TIMEOUT only covers navigation. A PDF
+// that wedges pdf.js would otherwise hang the HTTP request forever while
+// holding a browser page and a listening asset server.
+export const PAGE_RENDER_TIMEOUT = 30000;
+
 export function fitScale(requestedScale, { width, height }) {
   return Math.min(requestedScale, MAX_DIMENSION / width, MAX_DIMENSION / height);
 }

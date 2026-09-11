@@ -1,4 +1,4 @@
-import { resolvePages } from '../src/pages.js';
+import { resolvePages, MAX_PAGES } from '../src/pages.js';
 
 describe('@percy/cli-pdf page selection', () => {
   it('selects every page when nothing is specified', () => {
@@ -88,5 +88,33 @@ describe('@percy/cli-pdf page selection', () => {
 
   it('throws on an invalid page count', () => {
     expect(() => resolvePages({}, 0)).toThrowError('Invalid page count: 0');
+  });
+
+  describe('the per-request page cap', () => {
+    // Each page is held in memory as a PNG twice over and crosses CDP as a
+    // base64 data URL, so an uncapped document can exhaust the heap.
+    it('allows exactly MAX_PAGES', () => {
+      expect(resolvePages({}, MAX_PAGES).length).toBe(MAX_PAGES);
+    });
+
+    it('throws one page past MAX_PAGES', () => {
+      expect(() => resolvePages({}, MAX_PAGES + 1)).toThrowError(
+        new RegExp(`Requested ${MAX_PAGES + 1} pages but the maximum per request is ${MAX_PAGES}`));
+    });
+
+    it('counts what is actually selected, not the document length', () => {
+      // A long document is fine so long as the request narrows it.
+      expect(resolvePages({ pages: '1-10' }, MAX_PAGES * 10)).toEqual(
+        [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+    });
+
+    it('counts after exclusions are applied', () => {
+      expect(resolvePages({ excludePages: '1' }, MAX_PAGES + 1).length).toBe(MAX_PAGES);
+    });
+
+    it('suggests how to get under the cap', () => {
+      expect(() => resolvePages({}, MAX_PAGES + 1))
+        .toThrowError(/Narrow the selection with `pages`/);
+    });
   });
 });

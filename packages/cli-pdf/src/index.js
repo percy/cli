@@ -1,5 +1,5 @@
 export { pdfjsAssets } from './assets.js';
-export { resolvePages } from './pages.js';
+export { resolvePages, MAX_PAGES } from './pages.js';
 export {
   openDocument,
   measurePages,
@@ -9,6 +9,7 @@ export {
   assertRasterDimensions,
   DEFAULT_SCALE,
   MAX_SCALE,
+  PAGE_RENDER_TIMEOUT,
   MIN_DIMENSION,
   MAX_DIMENSION
 } from './browser-scripts.js';

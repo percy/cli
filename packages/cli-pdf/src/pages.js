@@ -1,3 +1,11 @@
+// Ceiling on how many pages one request may rasterize. Every page is held in
+// memory as a PNG twice over -- once in the rasterizer's result array, once in
+// the resource closure the snapshot queue keeps -- and each additionally crosses
+// CDP as a base64 data URL. A 50MB PDF can carry thousands of pages, so without
+// a cap a single request can exhaust the heap. Callers who genuinely want more
+// can narrow with `pages` and issue several requests.
+export const MAX_PAGES = 250;
+
 function parseSelection(value, pageCount) {
   if (value == null) return range(1, pageCount);
   if (typeof value === 'number') return [toPageNumber(value)];
@@ -66,6 +74,13 @@ export function resolvePages({ pages, excludePages } = {}, pageCount) {
 
   if (!resolved.length) {
     throw new Error('No pages left to snapshot after applying `pages` and `excludePages`');
+  }
+
+  if (resolved.length > MAX_PAGES) {
+    throw new Error(
+      `Requested ${resolved.length} pages but the maximum per request is ${MAX_PAGES}. ` +
+      'Narrow the selection with `pages` (for example "1-100") and issue several requests.'
+    );
   }
 
   return resolved;

@@ -21,19 +21,51 @@ async function createAssetServer(pdfBuffer, assets) {
   return server;
 }
 
+// Marks an error the caller can fix by changing the request -- a page selection
+// out of range, too many pages, an unusable scale, a page that rasterizes below
+// Percy's minimum. handlePdfSnapshot answers 400 for these and 500 for
+// everything else, so a browser launch failure or a CDP disconnect is no longer
+// reported to the SDK as if the caller sent a bad request.
+function asInputError(error) {
+  return Object.assign(error, { status: 400 });
+}
+
+// Page#eval has no timeout of its own, so every in-page call is raced against
+// one. The timer is unref'd so a pending race never holds the process open.
+function withTimeout(promise, ms, description) {
+  let timer;
+
+  let timeout = new Promise((resolve, reject) => {
+    timer = setTimeout(() => reject(new Error(
+      `Timed out after ${ms}ms ${description}`
+    )), ms);
+    timer.unref?.();
+  });
+
+  // When the timeout wins, the eval is still in flight and will usually reject
+  // later (the page gets closed out from under it). Nothing is awaiting it by
+  // then, so swallow that second rejection rather than let it surface as an
+  // unhandled one.
+  promise.catch(() => {});
+
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
+
 export async function rasterizePdf(percy, pdfBuffer, options) {
   let log = logger('core:pdf-rasterize');
 
   let {
     pdfjsAssets, resolvePages, fitScale, assertRasterDimensions,
     openDocument, measurePages, renderPage, destroyDocument,
-    DEFAULT_SCALE, MAX_SCALE
+    DEFAULT_SCALE, MAX_SCALE, PAGE_RENDER_TIMEOUT
   } = await import('@percy/cli-pdf');
 
   let scale = options.scale == null ? DEFAULT_SCALE : Number(options.scale);
 
   if (!Number.isFinite(scale) || scale <= 0 || scale > MAX_SCALE) {
-    throw new Error(`Invalid scale ${options.scale}: expected a number between 0 and ${MAX_SCALE}`);
+    throw asInputError(new Error(
+      `Invalid scale ${options.scale}: expected a number between 0 and ${MAX_SCALE}`
+    ));
   }
 
   let assets = pdfjsAssets();
@@ -49,12 +81,24 @@ export async function rasterizePdf(percy, pdfBuffer, options) {
     let pdfjsSource = await fs.promises.readFile(assets.libPath, 'utf-8');
     await page.eval(new Function(pdfjsSource)); /* eslint-disable-line no-new-func */
 
-    let { pageCount } = await page.eval(openDocument, { origin });
-    let selected = resolvePages(options, pageCount);
+    let { pageCount } = await withTimeout(
+      page.eval(openDocument, { origin }),
+      PAGE_RENDER_TIMEOUT, 'opening the PDF');
+
+    let selected;
+
+    try {
+      selected = resolvePages(options, pageCount);
+    } catch (error) {
+      throw asInputError(error);
+    }
 
     log.debug(`Rendering ${selected.length} of ${pageCount} page(s) at scale ${scale}`);
 
-    let sizes = await page.eval(measurePages, { pageNumbers: selected });
+    let sizes = await withTimeout(
+      page.eval(measurePages, { pageNumbers: selected }),
+      PAGE_RENDER_TIMEOUT, 'measuring the PDF pages');
+
     let pages = [];
 
     for (let { pageNumber, width, height } of sizes) {
@@ -68,8 +112,15 @@ export async function rasterizePdf(percy, pdfBuffer, options) {
         );
       }
 
-      let rendered = await page.eval(renderPage, { pageNumber, scale: effectiveScale });
-      assertRasterDimensions(pageNumber, rendered.width, rendered.height);
+      let rendered = await withTimeout(
+        page.eval(renderPage, { pageNumber, scale: effectiveScale }),
+        PAGE_RENDER_TIMEOUT, `rendering page ${pageNumber}`);
+
+      try {
+        assertRasterDimensions(pageNumber, rendered.width, rendered.height);
+      } catch (error) {
+        throw asInputError(error);
+      }
 
       let png = Buffer.from(rendered.dataUrl.slice(rendered.dataUrl.indexOf(',') + 1), 'base64');
 
@@ -88,7 +139,9 @@ export async function rasterizePdf(percy, pdfBuffer, options) {
 
     return { pageCount, scale, pages };
   } finally {
-    await page?.close();
-    await server.close();
+    // Settle both regardless: a timed-out page is exactly the case where close()
+    // is liable to reject, and letting that escape here would leak the asset
+    // server -- a listening socket still holding the customer's PDF.
+    await Promise.allSettled([page?.close(), server.close()]);
   }
 }
