@@ -96,6 +96,7 @@ async function run() {
   let manifest = readManifest(platform);
   let percy = createPercy();
   let entries = {};
+  let pending = [];
   let env;
 
   try {
@@ -127,9 +128,9 @@ async function run() {
         let rel = path.relative(process.cwd(), golden);
 
         if (UPDATE) {
-          fs.mkdirSync(dir, { recursive: true });
-          fs.writeFileSync(golden, png);
-          console.log(`  ↻ wrote ${rel} (${width}x${height}, ${png.length} bytes)`);
+          // Buffered, not written yet: nothing lands on disk until every page
+          // has rendered cleanly (see the failure check after the loop).
+          pending.push({ golden, rel, png, width, height });
           continue;
         }
 
@@ -189,6 +190,25 @@ async function run() {
   }
 
   if (UPDATE) {
+    // A render that failed its own sanity checks (a page that never rendered,
+    // say) must not become the baseline — that would bake the failure into the
+    // goldens and every later run would agree with it. Nothing has touched disk
+    // yet, so bailing here leaves the committed set intact.
+    if (failures) {
+      console.error(
+        `\nTRACK P FAILED: ${failures} assertion(s) failed while rendering; ` +
+        'no goldens or manifest were written'
+      );
+      process.exit(1);
+    }
+
+    fs.mkdirSync(dir, { recursive: true });
+
+    for (let { golden, rel, png, width, height } of pending) {
+      fs.writeFileSync(golden, png);
+      console.log(`  ↻ wrote ${rel} (${width}x${height}, ${png.length} bytes)`);
+    }
+
     fs.writeFileSync(manifestPath(platform), JSON.stringify({
       generated: new Date().toISOString(),
       ...env,

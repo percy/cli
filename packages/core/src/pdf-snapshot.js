@@ -51,7 +51,7 @@ export function decodePdf(pdf) {
   let buffer = Buffer.from(content, 'base64');
 
   if (buffer.length < PDF_MAGIC.length) {
-    throw new ServerError(400, '`pdf.content` is not valid base64-encoded data');
+    throw new ServerError(400, '`pdf.content` is too short to be a PDF');
   }
 
   if (buffer.length > MAX_PDF_BYTES) {

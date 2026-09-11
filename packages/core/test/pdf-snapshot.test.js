@@ -49,9 +49,18 @@ describe('PDF snapshots', () => {
     return request(new URL('/percy/pdf/snapshot', percy.address()), { method: 'POST', body }, true);
   }
 
+  // Rasterizing in a real browser needs far longer than the default timeout,
+  // but the bump must not leak into suites that run after this one.
+  let defaultTimeout;
+
   beforeAll(async () => {
+    defaultTimeout = jasmine.DEFAULT_TIMEOUT_INTERVAL;
     jasmine.DEFAULT_TIMEOUT_INTERVAL = 240000;
     await import('@percy/cli-pdf');
+  });
+
+  afterAll(() => {
+    jasmine.DEFAULT_TIMEOUT_INTERVAL = defaultTimeout;
   });
 
   beforeEach(async () => {
@@ -149,6 +158,26 @@ describe('PDF snapshots', () => {
       }
     });
 
+    // The 400 above comes from the rasterizer, which would still reject these
+    // values if schema validation were dropped entirely. Asserting the warning
+    // separately pins the schema as the thing that flagged them first.
+    it('warns that an invalid scale failed schema validation', async () => {
+      for (let scale of [0, 99, 'big']) {
+        logger.reset();
+
+        await postRaw({
+          name: 'doc',
+          pdf: { content: b64(buildPdf()) },
+          scale
+        });
+
+        expect(logger.stderr).toContain(
+          jasmine.stringContaining('Invalid PDF snapshot options:'));
+        expect(logger.stderr).toContain(
+          jasmine.stringContaining('- scale:'));
+      }
+    });
+
     it('reports a browser failure as a rasterization error', async () => {
       spyOn(percy.browser, 'page').and.rejectWith(new Error('no page for you'));
 
@@ -202,7 +231,7 @@ describe('PDF snapshots', () => {
 
     it('rejects content too short to be a PDF', () => {
       expect(() => decodePdf({ content: 'AA' })).toThrowMatching(
-        e => e.status === 400 && /not valid base64-encoded data/.test(e.message));
+        e => e.status === 400 && /too short to be a PDF/.test(e.message));
     });
 
     it('rejects an oversized PDF', () => {
