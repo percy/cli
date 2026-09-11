@@ -106,17 +106,99 @@ export function waitForReadyScript(readinessConfig = {}, { callback = false } = 
 //     options,
 //     { callback: true, log }
 //   );
+// Effective in-page timeout for each readiness preset, mirroring PRESETS in
+// @percy/dom's readiness.js. Duplicated here because the presets live in the
+// browser bundle, and the Node side needs the number to size its own deadline.
+const PRESET_TIMEOUT_MS = { balanced: 10000, strict: 30000, fast: 5000 };
+
+// Added to the in-page timeout before the Node side gives up, so a gate that is
+// merely slow (eval round-trip, check teardown) is never pre-empted.
+const READINESS_DEADLINE_GRACE_MS = 3000;
+
+// Wall-clock budget the Node side gives the readiness eval.
+//
+// PercyDOM.waitForReady() bounds itself with an in-page `setTimeout`, and every
+// individual check settles on a `setTimeout`/`setInterval`. On a page whose
+// timers are faked and paused -- Playwright's `page.clock.pauseAt()`, sinon
+// `useFakeTimers`, jest fake timers -- neither the checks nor the gate's own
+// timeout can ever fire, so the eval stays pending for the life of the page and
+// hangs the test that called percySnapshot(). Node is the only side of that
+// boundary guaranteed to have a real clock, so the backstop belongs here.
+export function readinessDeadlineMs(readinessConfig = {}) {
+  let timeout = readinessConfig.timeoutMs ?? readinessConfig.timeout_ms ??
+    PRESET_TIMEOUT_MS[readinessConfig.preset] ?? PRESET_TIMEOUT_MS.balanced;
+  let max = readinessConfig.maxTimeoutMs ?? readinessConfig.max_timeout_ms;
+  if (max != null) timeout = Math.min(timeout, max);
+  return timeout + READINESS_DEADLINE_GRACE_MS;
+}
+
+// Captured once at module load, because the deadline below must not be the very
+// thing a faked clock disables. jest's and sinon's fake timers replace the
+// *global* `setTimeout` binding, and a bare `setTimeout(...)` call resolves that
+// global at call time -- so a consumer whose Node test process has fake timers
+// installed would schedule the deadline on a frozen clock and hang exactly as
+// before, one layer up from the in-page freeze this gate exists to survive.
+//
+// The capture holds for the ordinary case: the SDK imports this module at
+// require time, before a test body or beforeEach reaches `useFakeTimers()`. It
+// is NOT a guarantee. Fake timers installed before this module is first
+// evaluated -- jest's `fakeTimers: { enableGlobally: true }`, a `useFakeTimers()`
+// call in `setupFiles`, or `resetModules()` + a fresh require under an already
+// faked clock -- capture the fake, and the hang returns. Those consumers need
+// `snapshot.readiness.preset: disabled`.
+//
+// Deliberately not `import { setTimeout } from 'node:timers'`, which would be
+// immune to import order too: this file is imported statically by index.js, and
+// index.js is the rollup entry for the browser bundle (see the package's
+// `browser` field). Node-only code in this package is always reached through a
+// lazy `await import(...)` -- `http`/`https` in request.js, `./proxy.js` and its
+// `net`/`tls` imports -- precisely to keep builtins out of that graph. A static
+// builtin import here would not even fail the build, since the rollup config
+// suppresses MISSING_NODE_BUILTINS; it would ship a browser bundle that breaks
+// at runtime, which is worse.
+const nativeSetTimeout = globalThis.setTimeout;
+const nativeClearTimeout = globalThis.clearTimeout;
+
+const READINESS_DEADLINE_HIT = Symbol('readiness-deadline');
+
 export async function runReadinessGate(evalScript, snapshotOptions = {}, { callback = false, log } = {}) {
   if (isReadinessDisabled(snapshotOptions)) return null;
   const config = getReadinessConfig(snapshotOptions);
   const script = waitForReadyScript(config, { callback });
+  const deadline = readinessDeadlineMs(config);
+  let timer;
+
   try {
-    return await evalScript(script);
+    const evaluation = Promise.resolve(evalScript(script));
+    // Hitting the deadline abandons `evaluation`, which may still reject much
+    // later -- when the driver tears the page down at end of test, say. Swallow
+    // that here so it never surfaces as an unhandled rejection.
+    evaluation.catch(() => {});
+
+    const result = await Promise.race([
+      evaluation,
+      new Promise(resolve => { timer = nativeSetTimeout(() => resolve(READINESS_DEADLINE_HIT), deadline); })
+    ]);
+
+    if (result === READINESS_DEADLINE_HIT) {
+      if (log && typeof log.debug === 'function') {
+        log.debug(
+          `waitForReady did not settle within ${deadline}ms, proceeding to serialize. ` +
+          'If this page fakes or pauses timers (e.g. Playwright page.clock), disable ' +
+          'the readiness gate with snapshot.readiness.preset: disabled.'
+        );
+      }
+      return null;
+    }
+
+    return result;
   } catch (err) {
     if (log && typeof log.debug === 'function') {
       log.debug(`waitForReady failed, proceeding to serialize: ${err?.message || err}`);
     }
     return null;
+  } finally {
+    nativeClearTimeout(timer);
   }
 }
 
