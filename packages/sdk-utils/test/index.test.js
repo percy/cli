@@ -1,6 +1,8 @@
 import helpers from './helpers.js';
 import utils from '@percy/sdk-utils';
 
+const MINIMAL_PDF_BASE64 = 'JVBERi0xLjQKMSAwIG9iago8PCAvVHlwZSAvQ2F0YWxvZyAvUGFnZXMgMiAwIFIgPj4KZW5kb2JqCjIgMCBvYmoKPDwgL1R5cGUgL1BhZ2VzIC9LaWRzIFszIDAgUl0gL0NvdW50IDEgPj4KZW5kb2JqCjMgMCBvYmoKPDwgL1R5cGUgL1BhZ2UgL1BhcmVudCAyIDAgUiAvTWVkaWFCb3ggWzAgMCA2MCA2MF0gL0NvbnRlbnRzIDQgMCBSIC9SZXNvdXJjZXMgPDwgPj4gPj4KZW5kb2JqCjQgMCBvYmoKPDwgL0xlbmd0aCAxNiA+PgpzdHJlYW0KMTAgMTAgNDAgNDAgcmUgZgplbmRzdHJlYW0KZW5kb2JqCnhyZWYKMCA1CjAwMDAwMDAwMDAgNjU1MzUgZiAKMDAwMDAwMDAwOSAwMDAwMCBuIAowMDAwMDAwMDU4IDAwMDAwIG4gCjAwMDAwMDAxMTUgMDAwMDAgbiAKMDAwMDAwMDIxNyAwMDAwMCBuIAp0cmFpbGVyCjw8IC9TaXplIDUgL1Jvb3QgMSAwIFIgPj4Kc3RhcnR4cmVmCjI4MwolJUVPRgo=';
+
 describe('SDK Utils', () => {
   beforeEach(async () => {
     await helpers.setupTest();
@@ -228,6 +230,68 @@ describe('SDK Utils', () => {
       await expectAsync(postSnapshot(options, params)).toBeResolved();
       await expectAsync(helpers.get('requests')).toBeResolvedTo([{
         url: `/percy/snapshot?${new URLSearchParams(params)}`,
+        method: 'POST',
+        body: options
+      }]);
+    });
+  });
+
+  describe('postPdfSnapshot(options[, params])', () => {
+    let { postPdfSnapshot } = utils;
+    let options;
+
+    beforeEach(() => {
+      options = {
+        name: 'Policy',
+        sync: true,
+        pdf: { content: MINIMAL_PDF_BASE64, filename: 'policy.pdf' },
+        pages: '1',
+        clientInfo: 'sdk/version',
+        environmentInfo: ['lib/version', 'lang/version']
+      };
+    });
+
+    it('posts to the CLI API pdf snapshot endpoint', async () => {
+      await expectAsync(postPdfSnapshot(options)).toBeResolvedTo(
+        jasmine.objectContaining({ body: jasmine.objectContaining({ success: true }) }));
+      await expectAsync(helpers.get('requests')).toBeResolvedTo([{
+        url: '/percy/pdf/snapshot',
+        method: 'POST',
+        body: options
+      }]);
+    });
+
+    it('sends the PDF as JSON, not multipart', async () => {
+      await postPdfSnapshot(options);
+      let [request] = await helpers.get('requests');
+
+      expect(typeof request.body).toBe('object');
+      expect(request.body.pdf.content).toBe(MINIMAL_PDF_BASE64);
+    });
+
+    it('throws when the pdf snapshot API fails', async () => {
+      await helpers.test('error', '/percy/pdf/snapshot');
+
+      await expectAsync(postPdfSnapshot({}))
+        .toBeRejectedWithError('testing');
+    });
+
+    it('disables snapshots when a build fails', async () => {
+      await helpers.test('error', '/percy/pdf/snapshot');
+      await helpers.test('build-failure');
+      utils.percy.enabled = true;
+
+      expect(utils.percy.enabled).toEqual(true);
+      await expectAsync(postPdfSnapshot({})).toBeResolved();
+      expect(utils.percy.enabled).toEqual(false);
+    });
+
+    it('accepts URL parameters as the second argument', async () => {
+      let params = { test: 'foobar' };
+
+      await expectAsync(postPdfSnapshot(options, params)).toBeResolved();
+      await expectAsync(helpers.get('requests')).toBeResolvedTo([{
+        url: `/percy/pdf/snapshot?${new URLSearchParams(params)}`,
         method: 'POST',
         body: options
       }]);

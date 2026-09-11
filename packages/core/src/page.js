@@ -71,6 +71,46 @@ function serializeDomCapture(_, options) {
   return { domSnapshot: PercyDOM.serialize(options), url: document.URL };
 }
 
+// Builds a real Error from a CDP exception.
+//
+// `exception.description` is the remote stack trace as one string, opening with
+// the remote error's own `Name: message` and followed by its frames. This used
+// to `throw` that bare string, so every caller saw `error.message === undefined`
+// and an in-page failure surfaced as literally "undefined".
+//
+// `name` is deliberately blank. @percy/logger renders a thrown Error as
+// `Error.prototype.toString.call(err)` and only falls back to `stack` at debug
+// level (logger.js `log()`), so keeping the default name would both double the
+// prefix -- "Error: Error: test error" -- and drop the remote frames from what
+// the user sees. With an empty name, toString returns `message` verbatim, so the
+// logged text stays byte-identical to what the thrown string produced, frames
+// and all. That output is pinned by snapshot.test.js "logs execute errors and
+// does not snapshot": those `at execute (<anonymous>:4:17)` lines are how a user
+// debugs their own execute script.
+//
+// The trade is that `message` carries the frames too. Callers that want just the
+// summary line -- an HTTP error body, say -- should take `message.split('\n')[0]`.
+export function remoteError(exceptionDetails) {
+  let { exception, text } = exceptionDetails ?? {};
+  let description = exception?.description;
+
+  if (!description) {
+    // A non-Error was thrown in the page, so CDP reports the thrown value
+    // rather than a stack. `text` is CDP's own summary of the exception.
+    let value = exception?.value;
+
+    description = value == null
+      ? (text || 'Unknown page error')
+      : (typeof value === 'object' ? JSON.stringify(value) : String(value));
+  }
+
+  let error = new Error(description);
+  error.name = '';
+  error.stack = description;
+
+  return error;
+}
+
 export class Page {
   static TIMEOUT = undefined;
 
@@ -216,7 +256,7 @@ export class Page {
       });
 
     if (exceptionDetails) {
-      throw exceptionDetails.exception.description;
+      throw remoteError(exceptionDetails);
     } else {
       return result.value;
     }

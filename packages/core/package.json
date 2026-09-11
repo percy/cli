@@ -67,6 +67,7 @@
     "yaml": "^2.4.1"
   },
   "optionalDependencies": {
-    "@percy/cli-doctor": "1.32.10-beta.0"
+    "@percy/cli-doctor": "1.32.10-beta.0",
+    "@percy/cli-pdf": "1.32.10-beta.0"
   }
 }

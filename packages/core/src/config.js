@@ -1047,11 +1047,56 @@ export const comparisonSchema = {
   }
 };
 
+// Shape shared by `pages` and `excludePages`, defined once so the two cannot
+// drift apart. The string pattern constrains only the character set: the
+// grammar and every semantic rule (ranges, ordering, bounds, emptiness) belong
+// to parseSelection() in @percy/cli-pdf, which is what actually reads the value
+// and raises a precise error. Spelling the grammar out here as well meant the
+// two disagreed — the old pattern rejected "1,,3" and "2,", which the parser
+// accepts by skipping empty parts.
+const pageSelection = {
+  oneOf: [
+    { type: 'integer', minimum: 1 },
+    { type: 'array', items: { type: 'integer', minimum: 1 } },
+    { type: 'string', pattern: '^[\\d\\s,-]*\\d[\\d\\s,-]*$' }
+  ]
+};
+
 // Grouped schemas for easier registration
+export const pdfSnapshotSchema = {
+  $id: '/pdf-snapshot',
+  type: 'object',
+  $ref: '/snapshot#/$defs/common',
+  required: ['name'],
+  unevaluatedProperties: false,
+  properties: {
+    name: {
+      type: 'string',
+      description: 'Base snapshot name; each page becomes "<name> | Page N"'
+    },
+    pages: {
+      description: 'Pages to snapshot: 3, [1,2,5], "1-5", "1,3,8" or "2-" (to the end)',
+      ...pageSelection
+    },
+    excludePages: {
+      description: 'Pages to omit, applied after `pages`. Same forms as `pages`.',
+      ...pageSelection
+    },
+    scale: {
+      type: 'number',
+      exclusiveMinimum: 0,
+      maximum: 5,
+      default: 2,
+      description: 'Rasterization scale. Reduced automatically if a page would exceed 2000px.'
+    }
+  }
+};
+
 export const schemas = [
   configSchema,
   snapshotSchema,
-  comparisonSchema
+  comparisonSchema,
+  pdfSnapshotSchema
 ];
 
 // Config migrate function

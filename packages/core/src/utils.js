@@ -488,6 +488,97 @@ export function createRootResource(url, content, attrs = {}) {
   return createResource(normalizeURL(url), content, 'text/html', { ...attrs, root: true });
 }
 
+// Escapes HTML-special characters for TEXT context. Snapshot names reach the
+// wrapper's <title>, and a name containing `</title><script>` would otherwise
+// be injected into the DOM Percy's renderer loads.
+function escapeHtml(value) {
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+// Escapes for ATTRIBUTE context, and deliberately escapes less than escapeHtml.
+//
+// The `src` value is compared byte-for-byte against the registered resource URL
+// by percy-api's extractor, so any character we rewrite here that the URL itself
+// still carries breaks the match. The value sits inside double quotes, so only
+// `&` and `"` can actually break out of the attribute -- `<`, `>` and `'` are
+// all inert here and must be left alone.
+//
+// `'` is the one that bit us: encodeURIComponent does NOT encode it, so a
+// document named "Jack's Resume" produced src="...Jack&#39;s..." against a
+// resource URL of "...Jack's...". The extractor found no match, percy-api
+// rescued, and every page silently fell back to being rendered.
+//
+// Callers must pass an already percent-encoded URL (see
+// createImageSnapshotResources), which leaves `&` and `"` unreachable in
+// practice -- this escape is the backstop that keeps the DOM well-formed if one
+// ever slips through, not a substitute for encoding.
+function escapeAttr(value) {
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;');
+}
+
+// The canonical wrapper DOM for an image-backed snapshot: one image at its
+// native size, with no margins, padding or font metrics that could shift
+// between renders.
+//
+// THIS SHAPE IS A CONTRACT WITH percy-api. When a build's User-Agent contains
+// `@percy/cli-upload` and the root resource URL starts `http://local/`,
+// Comparison#upload_snapshot? routes the comparison down the extraction path,
+// which recovers the image by matching this HTML against
+//
+//   /<img\s+src="([^"]+)"\s+width="(\d+)px"\s+height="(\d+)px"/
+//
+// and skips the renderer entirely -- measured at ~1s per page versus ~9-19s
+// rendered. A mismatch is not an error: extraction raises, percy-api rescues,
+// and the snapshot silently falls back to being rendered. So the attribute
+// order (src, width, height), the `px` suffixes and the integer dimensions all
+// matter, and there must only ever be one definition of them.
+export function buildImageSnapshotHtml({ name, imageUrl, width, height }) {
+  return `
+      <!doctype html>
+      <html lang="en">
+        <head>
+          <meta charset="utf-8">
+          <title>${escapeHtml(name)}</title>
+          <style>
+            *, *::before, *::after { margin: 0; padding: 0; font-size: 0; }
+            html, body { width: 100%; }
+            img { max-width: 100%; }
+          </style>
+        </head>
+        <body>
+          <img src="${escapeAttr(imageUrl)}" width="${width}px" height="${height}px"/>
+        </body>
+      </html>
+    `;
+}
+
+// Builds the root + image resource pair for an image-backed snapshot.
+//
+// `imageUrl` MUST already be percent-encoded (encodeURIComponent over the
+// varying segment). It is neither re-encoded nor text-escaped here, because the
+// resource is registered under this exact string and percy-api's extractor
+// compares the two byte-for-byte:
+//   - re-encoding turns %20 into %2520, so the img src matches no registered
+//     resource and the snapshot renders blank;
+//   - text-escaping rewrites characters encodeURIComponent leaves literal (`'`
+//     most notably), so extraction misses and the page is silently re-rendered.
+// Only escapeAttr's `&`/`"` backstop is applied. See buildImageSnapshotHtml.
+export function createImageSnapshotResources({
+  name, rootUrl, imageUrl, width, height, content, mimetype
+}) {
+  return [
+    createRootResource(rootUrl, buildImageSnapshotHtml({ name, imageUrl, width, height })),
+    createResource(imageUrl, content, mimetype)
+  ];
+}
+
 // Creates a Percy CSS resource object.
 export function createPercyCSSResource(url, css) {
   let { href, pathname } = new URL(`/percy-specific.${Date.now()}.css`, url);
