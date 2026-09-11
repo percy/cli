@@ -117,10 +117,12 @@ export class ServerError extends Error {
 export class Server extends http.Server {
   #sockets = new Set();
   #defaultPort;
+  #host;
 
-  constructor({ port } = {}) {
+  constructor({ port, host } = {}) {
     super({ IncomingMessage, ServerResponse });
     this.#defaultPort = port;
+    this.#host = host;
 
     // handle requests on end
     this.on('request', (req, res) => {
@@ -134,8 +136,13 @@ export class Server extends http.Server {
   }
 
   // return host bind address - defaults to "::"
+  //
+  // An explicit `host` wins over the environment: a server that must not be
+  // reachable off-box (the PDF asset server, which serves the customer's
+  // document unauthenticated) has to stay on loopback even where an operator
+  // has widened PERCY_SERVER_HOST for the API server.
   get host() {
-    return process.env.PERCY_SERVER_HOST || '::';
+    return this.#host || process.env.PERCY_SERVER_HOST || '::';
   }
 
   // return the listening port or any default port
@@ -422,8 +429,8 @@ function parseByteRange(range, size) {
 
 // shorthand function for creating a new server with specific options
 export function createServer(options = {}) {
-  let { serve, port, baseUrl = '/', ...opts } = options;
-  let server = new Server({ port });
+  let { serve, port, host, baseUrl = '/', ...opts } = options;
+  let server = new Server({ port, host });
 
   return serve ? (
     server.serve(baseUrl, serve, opts)

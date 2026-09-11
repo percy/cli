@@ -3,7 +3,10 @@ import logger from '@percy/logger';
 import { Server } from './server.js';
 
 async function createAssetServer(pdfBuffer, assets) {
-  let server = Server.createServer({ port: 0 });
+  // Loopback only. This origin serves the customer's PDF with no auth, and the
+  // sole client is the discovery browser running on this machine -- unlike the
+  // API server it has no reason to be reachable off-box.
+  let server = Server.createServer({ port: 0, host: '127.0.0.1' });
 
   server.serve('/pdfjs', assets.buildDir);
   server.serve('/standard_fonts', assets.standardFontsDir);
@@ -30,23 +33,22 @@ function asInputError(error) {
   return Object.assign(error, { status: 400 });
 }
 
-// Page#eval has no timeout of its own, so every in-page call is raced against
-// one. The timer is unref'd so a pending race never holds the process open.
-function withTimeout(promise, ms, description) {
+// Page#eval has no timeout of its own -- Page.TIMEOUT only covers navigation,
+// and Runtime.callFunctionOn with awaitPromise waits forever -- so every in-page
+// call is raced against one. The timer is unref'd so a pending race never holds
+// the process open.
+//
+// A losing promise needs no catch of its own: Promise.race attaches handlers to
+// every input, so a late rejection from the timed-out eval is already handled.
+export function withTimeout(promise, ms, description) {
   let timer;
 
   let timeout = new Promise((resolve, reject) => {
     timer = setTimeout(() => reject(new Error(
       `Timed out after ${ms}ms ${description}`
     )), ms);
-    timer.unref?.();
+    timer.unref();
   });
-
-  // When the timeout wins, the eval is still in flight and will usually reject
-  // later (the page gets closed out from under it). Nothing is awaiting it by
-  // then, so swallow that second rejection rather than let it surface as an
-  // unhandled one.
-  promise.catch(() => {});
 
   return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
 }
@@ -79,7 +81,11 @@ export async function rasterizePdf(percy, pdfBuffer, options) {
     await page.goto(`${origin}/`);
 
     let pdfjsSource = await fs.promises.readFile(assets.libPath, 'utf-8');
-    await page.eval(new Function(pdfjsSource)); /* eslint-disable-line no-new-func */
+
+    await withTimeout(
+      /* eslint-disable-next-line no-new-func */
+      page.eval(new Function(pdfjsSource)),
+      PAGE_RENDER_TIMEOUT, 'injecting pdf.js');
 
     let { pageCount } = await withTimeout(
       page.eval(openDocument, { origin }),
@@ -135,13 +141,22 @@ export async function rasterizePdf(percy, pdfBuffer, options) {
       });
     }
 
-    await page.eval(destroyDocument);
+    await withTimeout(
+      page.eval(destroyDocument),
+      PAGE_RENDER_TIMEOUT, 'closing the PDF');
 
     return { pageCount, scale, pages };
   } finally {
     // Settle both regardless: a timed-out page is exactly the case where close()
     // is liable to reject, and letting that escape here would leak the asset
-    // server -- a listening socket still holding the customer's PDF.
-    await Promise.allSettled([page?.close(), server.close()]);
+    // server -- a listening socket still holding the customer's PDF. Report
+    // what failed rather than discarding it: a socket that will not drain is
+    // still holding that PDF, and nothing else would record it.
+    for (let result of await Promise.allSettled([page?.close(), server.close()])) {
+      /* istanbul ignore next: both closes resolve in every reachable test path */
+      if (result.status === 'rejected') {
+        log.debug(`PDF cleanup failed: ${result.reason?.message ?? result.reason}`);
+      }
+    }
   }
 }

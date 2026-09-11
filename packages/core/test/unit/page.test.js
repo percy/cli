@@ -10,7 +10,21 @@ describe('remoteError', () => {
     });
 
     expect(error).toBeInstanceOf(Error);
-    expect(error.message).toBe('TypeError: x is not a function');
+    expect(error.message).toBe('TypeError: x is not a function\n    at <anonymous>:1:1');
+    expect(error.message.split('\n')[0]).toBe('TypeError: x is not a function');
+  });
+
+  it('logs byte-identically to the string this used to throw', () => {
+    // @percy/logger prints a thrown Error as Error.prototype.toString and only
+    // uses `stack` at debug level, so a default `name` would render
+    // "Error: Error: test error" and silently drop the remote frames that a
+    // user needs to debug their own execute script.
+    let description = 'Error: test error\n' +
+      '    at execute (<anonymous>:4:17)\n' +
+      '    at withPercyHelpers (<anonymous>:5:11)';
+
+    expect(Error.prototype.toString.call(remoteError({ exception: { description } })))
+      .toBe(description);
   });
 
   it('keeps the remote stack verbatim', () => {

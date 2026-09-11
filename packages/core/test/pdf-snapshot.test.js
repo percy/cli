@@ -1,6 +1,7 @@
 import { logger, setupTest } from './helpers/index.js';
 import { request } from './helpers/request.js';
 import Percy from '@percy/core';
+import { Server } from '../src/server.js';
 import { decodePdf, pageSnapshotName, loadPdfModule } from '../src/pdf-snapshot.js';
 
 function buildPdf({ pageCount = 1, width = 200, height = 300 } = {}) {
@@ -243,6 +244,21 @@ describe('PDF snapshots', () => {
       expect(res.statusCode).toBe(413);
       expect(body.error).toMatch(/PDF exceeds the maximum size of 50MB/);
       expect(fromSpy).not.toHaveBeenCalledWith(content, 'base64');
+    });
+
+    it('serves the PDF on loopback only', async () => {
+      // The asset server hands out the customer's document with no auth, so it
+      // must not inherit Server's "::" default and become reachable off-box.
+      let origins = [];
+      let create = Server.createServer;
+      spyOn(Server, 'createServer').and.callFake(opts => {
+        origins.push(opts?.host);
+        return create.call(Server, opts);
+      });
+
+      await post({ name: 'doc', pdf: { content: b64(buildPdf()) } });
+
+      expect(origins).toEqual(['127.0.0.1']);
     });
 
     it('rejects an impossible page selection', async () => {

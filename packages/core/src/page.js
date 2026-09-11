@@ -73,14 +73,23 @@ function serializeDomCapture(_, options) {
 
 // Builds a real Error from a CDP exception.
 //
-// `exception.description` is the remote stack trace as one string: its first
-// line is the message, the rest are frames. Throwing that bare string (as this
-// used to) meant every caller saw `error.message === undefined`, so an in-page
-// failure surfaced as literally "undefined" -- a corrupt PDF, a bad `execute`
-// script and a pdf.js render throw were all indistinguishable and unreadable.
+// `exception.description` is the remote stack trace as one string, opening with
+// the remote error's own `Name: message` and followed by its frames. This used
+// to `throw` that bare string, so every caller saw `error.message === undefined`
+// and an in-page failure surfaced as literally "undefined".
 //
-// The description is preserved verbatim as `stack`, so nothing is lost: callers
-// that logged the old string can log `error.stack` for the identical text.
+// `name` is deliberately blank. @percy/logger renders a thrown Error as
+// `Error.prototype.toString.call(err)` and only falls back to `stack` at debug
+// level (logger.js `log()`), so keeping the default name would both double the
+// prefix -- "Error: Error: test error" -- and drop the remote frames from what
+// the user sees. With an empty name, toString returns `message` verbatim, so the
+// logged text stays byte-identical to what the thrown string produced, frames
+// and all. That output is pinned by snapshot.test.js "logs execute errors and
+// does not snapshot": those `at execute (<anonymous>:4:17)` lines are how a user
+// debugs their own execute script.
+//
+// The trade is that `message` carries the frames too. Callers that want just the
+// summary line -- an HTTP error body, say -- should take `message.split('\n')[0]`.
 export function remoteError(exceptionDetails) {
   let { exception, text } = exceptionDetails ?? {};
   let description = exception?.description;
@@ -95,7 +104,8 @@ export function remoteError(exceptionDetails) {
       : (typeof value === 'object' ? JSON.stringify(value) : String(value));
   }
 
-  let error = new Error(description.split('\n')[0]);
+  let error = new Error(description);
+  error.name = '';
   error.stack = description;
 
   return error;

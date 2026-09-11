@@ -171,7 +171,9 @@ export async function handlePdfSnapshot(req, res, percy) {
     // `status`. A browser launch failure, an OOM, an asset-server bind error or
     // a CDP disconnect are ours, not theirs, and must not tell the SDK that its
     // request was malformed.
-    let message = error?.message ?? String(error);
+    // remoteError puts the remote frames in `message` so the logger prints them
+    // (see page.js); the HTTP body wants only the summary line.
+    let message = (error?.message ?? String(error)).split('\n')[0];
 
     log.error(`Failed to rasterize PDF "${name}": ${message}`);
     throw new ServerError(error?.status ?? 500, `Could not rasterize PDF: ${message}`);
