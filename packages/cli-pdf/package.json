@@ -29,6 +29,6 @@
   },
   "dependencies": {
     "@percy/logger": "1.32.10-beta.1",
-    "pdfjs-dist": "^2.16.105"
+    "pdfjs-dist": "^4.2.67"
   }
 }
