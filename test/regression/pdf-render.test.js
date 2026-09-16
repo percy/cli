@@ -17,10 +17,10 @@
 //      Goldens therefore live under `expected/<platform>-<arch>/`, each set with
 //      its own `manifest.json` recording the browser build it came from. CI
 //      (linux-x64) and a macOS dev machine each compare against their own set.
-//   2. Pages containing raster images are not byte-reproducible even on one
-//      machine: Chromium picks between two anti-aliasing paths for a clipped
-//      image edge from run to run. Those pages declare a measured pixel budget
-//      and fail if the difference exceeds it.
+//   2. Some pages are not byte-reproducible even on one machine: Chromium picks
+//      between anti-aliasing paths from run to run, both for a clipped image
+//      edge and for a thin rule landing between sub-pixels. Those pages declare
+//      a measured pixel budget and fail if the difference exceeds it.
 //
 // Run:            yarn test:regression:pdf
 // Regenerate:     yarn test:regression:pdf --update
@@ -43,17 +43,26 @@ const UPDATE = process.argv.includes('--update') || process.env.UPDATE_PDF_GOLDE
 // not listed here must match byte-for-byte; these budgets are the only escape
 // hatch, and they are deliberately tight.
 //
-// `jack sparrow resume.pdf` embeds a photo clipped to a circle. Chromium
-// rasterizes that clip edge one of two ways depending on how the decoded image
-// lands, so ~6 runs in 15 differ from the golden — always the same 270 pixels
-// in the same 193x193 box around the photo, never more than 52 per channel, out
-// of 2,005,644 pixels (0.013%). The budget is ~2x the measured worst case: a
-// real rendering regression moves glyphs or layout and blows straight past it.
+// `jack sparrow resume.pdf` has two independent, measured sources of run-to-run
+// jitter on a fixed Chromium build, out of 2,005,644 pixels:
+//
+//   - The photo clipped to a circle. Chromium rasterizes that clip edge one of
+//     two ways depending on how the decoded image lands, so ~6 runs in 15 differ
+//     from the golden — always the same 270 pixels in the same 193x193 box
+//     around the photo, never more than 52 per channel.
+//   - The section rule under "LANGUAGES", a hairline that straddles two pixel
+//     rows and blends into them differently between runs: the full 324x2 box
+//     [369, 1447, 692, 1448], 648 pixels at a channel delta of 4 —
+//     imperceptible, but enough to move the PNG bytes.
+//
+// Worst case is both at once (918 pixels); the budget is ~2x that, still 0.1% of
+// the page. A real rendering regression moves glyphs or layout and blows
+// straight past it — and a size change is never tolerated at all.
 const TOLERANCES = {
   'jack-sparrow-resume': {
-    maxDiffPixels: 600,
+    maxDiffPixels: 2000,
     maxChannelDelta: 96,
-    reason: 'Chromium anti-aliases the circular photo clip differently between runs'
+    reason: 'Chromium anti-aliases the circular photo clip and a horizontal rule differently between runs'
   }
 };
 

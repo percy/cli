@@ -287,6 +287,21 @@ describe('PDF snapshots', () => {
         new RegExp(`Requested ${pageCount} pages but the maximum per request is ${MAX_PAGES}`));
     });
 
+    it('rejects a page that rasterizes below Percy\'s minimum', async () => {
+      // fitScale only clamps the upper bound, so a tiny MediaBox still renders
+      // under the 10px floor -- and the caller can fix it by raising `scale`,
+      // which is what makes it a 400 rather than a 500.
+      let [body, res] = await postRaw({
+        name: 'doc',
+        pdf: { content: b64(buildPdf({ width: 4, height: 4 })) },
+        scale: 2
+      });
+
+      expect(res.statusCode).toBe(400);
+      expect(body.error).toMatch(
+        /Page 1 rasterized to 8x8px, below Percy's 10px minimum\. Increase `scale`\./);
+    });
+
     it('warns but proceeds on an unrecognised option', async () => {
       await post({
         name: 'doc',
@@ -323,6 +338,20 @@ describe('PDF snapshots', () => {
     it('rejects an oversized PDF', () => {
       let big = Buffer.concat([Buffer.from('%PDF-1.4\n'), Buffer.alloc(50 * 1024 * 1024)]);
       expect(() => decodePdf({ content: b64(big) })).toThrowMatching(
+        e => e.status === 413 && /maximum size of 50MB/.test(e.message));
+    });
+
+    it('rejects a PDF that only goes over once decoded', () => {
+      // The encoded cap rounds up to a whole base64 quantum, so a payload can
+      // clear it and still decode past 50MB -- by at most two bytes, which is
+      // exactly the window the second check exists to close. 52428801 bytes is
+      // the largest such buffer: divisible by 3, so it encodes to precisely
+      // MAX_PDF_BASE64_CHARS with no padding.
+      let big = Buffer.alloc(50 * 1024 * 1024 + 1);
+      let content = b64(big);
+
+      expect(content.length).toBe(Math.ceil((50 * 1024 * 1024) / 3) * 4);
+      expect(() => decodePdf({ content })).toThrowMatching(
         e => e.status === 413 && /maximum size of 50MB/.test(e.message));
     });
   });
