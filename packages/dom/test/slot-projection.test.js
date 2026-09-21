@@ -242,6 +242,110 @@ describe('serializeDOM - slot projection', () => {
       expect(found.length).toEqual(1);
       expect(found[0].textContent).toEqual('forwarded');
     });
+
+    it('resolves slots inside a closed shadow root captured via CDP', () => {
+      if (!isChrome()) return;
+      withExample('<div id="content"></div>', { withShadow: false });
+      const host = document.createElement('div');
+      host.id = 'closed-host';
+      // `mode: closed` hides the root from element.shadowRoot — the clone walk
+      // reaches it only through the CDP-populated WeakMap
+      const closed = host.attachShadow({ mode: 'closed' });
+      closed.innerHTML = '<div class="closed-wrap"><slot></slot></div>';
+      const payload = document.createElement('p');
+      payload.className = 'closed-payload';
+      payload.textContent = 'closed slotted';
+      host.appendChild(payload);
+      document.querySelector('#content').appendChild(host);
+
+      const orig = window.__percyClosedShadowRoots;
+      const map = new WeakMap();
+      map.set(host, closed);
+      window.__percyClosedShadowRoots = map;
+
+      try {
+        const $ = parseDOM(serializeDOM({ forceShadowAsLightDOM: true }).html);
+        const found = $('#closed-host .closed-wrap .closed-payload');
+
+        expect(found.length).toEqual(1);
+        expect(found[0].textContent).toEqual('closed slotted');
+      } finally {
+        window.__percyClosedShadowRoots = orig;
+      }
+    });
+
+    it('flattens a slotted element that is itself a shadow host', () => {
+      if (!isChrome()) return;
+      withExample('<div id="content"></div>', { withShadow: false });
+      const host = document.createElement('div');
+      host.id = 'parent-host';
+      host.attachShadow({ mode: 'open' }).innerHTML = '<div class="wrap"><slot></slot></div>';
+
+      // the projected node carries its own shadow root, which must flatten too
+      const child = document.createElement('div');
+      child.className = 'child-host';
+      child.attachShadow({ mode: 'open' }).innerHTML = '<span class="child-inner">inner</span>';
+      host.appendChild(child);
+      document.querySelector('#content').appendChild(host);
+
+      const $ = parseDOM(serializeDOM({ forceShadowAsLightDOM: true }).html);
+      const found = $('#parent-host .wrap .child-host .child-inner');
+
+      expect(found.length).toEqual(1);
+      expect(found[0].textContent).toEqual('inner');
+    });
+
+    it('assigns content to the first matching slot only', () => {
+      if (!isChrome()) return;
+      withExample('<div id="content"></div>', { withShadow: false });
+      const host = document.createElement('div');
+      host.id = 'dup-host';
+      host.attachShadow({ mode: 'open' }).innerHTML =
+        '<div class="slot-a"><slot name="dup"></slot></div>' +
+        '<div class="slot-b"><slot name="dup"></slot></div>';
+      const p = document.createElement('p');
+      p.setAttribute('slot', 'dup');
+      p.textContent = 'once';
+      host.appendChild(p);
+      document.querySelector('#content').appendChild(host);
+
+      const html = serializeDOM({ forceShadowAsLightDOM: true }).html;
+      const $ = parseDOM(html);
+
+      // per spec only the first same-named slot receives the content
+      expect($('#dup-host .slot-a p').length).toEqual(1);
+      expect($('#dup-host .slot-b p').length).toEqual(0);
+      expect((html.match(/once/g) || []).length).toEqual(1);
+    });
+
+    it('resolves a slot in a shadow root nested inside another flattened host', () => {
+      if (!isChrome()) return;
+      withExample('<div id="content"></div>', { withShadow: false });
+
+      // inner host lives in the outer host's shadow tree and slots its own
+      // light child — not forwarded from the outer host
+      const inner = document.createElement('div');
+      inner.className = 'inner2';
+      inner.attachShadow({ mode: 'open' }).innerHTML = '<div class="inner2-wrap"><slot></slot></div>';
+      const innerLight = document.createElement('p');
+      innerLight.className = 'inner2-light';
+      innerLight.textContent = 'own child';
+      inner.appendChild(innerLight);
+
+      const outer = document.createElement('div');
+      outer.id = 'outer2';
+      const mid = document.createElement('div');
+      mid.className = 'mid';
+      mid.appendChild(inner);
+      outer.attachShadow({ mode: 'open' }).appendChild(mid);
+      document.querySelector('#content').appendChild(outer);
+
+      const $ = parseDOM(serializeDOM({ forceShadowAsLightDOM: true }).html);
+      const found = $('#outer2 .mid .inner2 .inner2-wrap .inner2-light');
+
+      expect(found.length).toEqual(1);
+      expect(found[0].textContent).toEqual('own child');
+    });
   });
 
   describe('when the host keeps its shadow root', () => {
