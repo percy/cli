@@ -147,12 +147,12 @@ export function serializeFrames({ dom, clone, warnings, resources, enableJavaScr
         cloneEl.setAttribute('srcdoc', p.createHTML ? p.createHTML(serialized.html) : serialized.html);
       } catch { }
 
-      cloneEl.removeAttribute('src');
+      cloneEl?.removeAttribute('src');
 
       // delete inaccessible frames built with js when js is disabled because they
       // break asset discovery by creating non-captured requests that hang
     } else if (!enableJavaScript && builtWithJs) {
-      cloneEl.remove();
+      cloneEl?.remove();
     }
   }
 }

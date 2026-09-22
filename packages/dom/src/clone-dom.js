@@ -68,6 +68,24 @@ export function cloneNodeAndShadow(ctx) {
         return;
       }
 
+      // Slotted content lives in the host's light DOM and is only *rendered* at
+      // the slot's position by the shadow root. Flattening the root away leaves
+      // an inert <slot> and strands that content outside its container, so
+      // resolve the projection here instead (PER-10812). Every shadow root is
+      // flattened when forceShadowAsLightDOM is set, so any slot belonging to
+      // one needs resolving — including slots reached indirectly, as projected
+      // content nested inside another component's slotted markup. The slot
+      // itself never renders and isn't cloned.
+      if (forceShadowAsLightDOM && node.nodeName === 'SLOT' &&
+          typeof node.assignedNodes === 'function' && node.getRootNode()?.host) {
+        for (let assigned of node.assignedNodes({ flatten: true })) {
+          if (!ignoreTags.includes(assigned.nodeName)) {
+            cloneNode(assigned, parent);
+          }
+        }
+        return;
+      }
+
       // mark the node before cloning
       markElement(node, disableShadowDOM, forceShadowAsLightDOM);
 
@@ -116,8 +134,10 @@ export function cloneNodeAndShadow(ctx) {
       // clone shadow DOM (including closed shadow roots captured via CDP
       // and stored on window.__percyClosedShadowRoots)
       let nodeShadowRoot = node.shadowRoot || getClosedShadowRoot(node);
+      let flattenedHost = false;
       if (nodeShadowRoot && !disableShadowDOM) {
-        if (forceShadowAsLightDOM) {
+        flattenedHost = !!forceShadowAsLightDOM;
+        if (flattenedHost) {
           // When forceShadowAsLightDOM is true, treat shadow content as normal DOM
           walkTree(nodeShadowRoot.firstChild, clone);
         } else {
@@ -136,8 +156,12 @@ export function cloneNodeAndShadow(ctx) {
         }
       }
 
-      // clone light DOM
-      walkTree(node.firstChild, clone);
+      // clone light DOM — skipped for a flattened host, whose light children were
+      // already placed at their <slot> positions above. Children assigned to no
+      // slot are dropped, matching what the browser renders for them: nothing.
+      if (!flattenedHost) {
+        walkTree(node.firstChild, clone);
+      }
     } catch (err) {
       if (!err.handled) {
         handleErrors(err, 'Error cloning node: ', node);

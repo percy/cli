@@ -457,10 +457,11 @@ describe('serializeDOM', () => {
 
       const html = serializeDOM({ forceShadowAsLightDOM: true }).html;
 
-      // When forceShadowAsLightDOM is true, shadow content becomes light DOM
-      // The slot element from shadow DOM will be present, and slotted content remains in light DOM
+      // When forceShadowAsLightDOM is true, shadow content becomes light DOM and
+      // slotted content is projected into the slot's position. The <slot> itself
+      // is dropped — outside a shadow root it renders nothing.
       expect(html).toMatch('Slotted content as light DOM');
-      expect(html).toMatch('<slot name="title"></slot>');
+      expect(html).not.toMatch('<slot');
       expect(html).not.toMatch('<template shadowrootmode="open"');
       expect(html).not.toMatch('shadowrootserializable');
     });
