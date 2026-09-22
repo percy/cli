@@ -28,7 +28,9 @@
     "test:coverage": "yarn test --coverage"
   },
   "dependencies": {
-    "@percy/logger": "1.32.11-beta.0",
+    "@percy/logger": "1.32.11-beta.0"
+  },
+  "optionalDependencies": {
     "pdfjs-dist": "^4.2.67"
   }
 }

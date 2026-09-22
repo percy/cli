@@ -1,3 +1,7 @@
+/* istanbul ignore file: pdfjs-backed — every path here needs the pdfjs-dist
+   optionalDependency, which requires Node >=18 while this suite's coverage gate
+   runs on Node 14 and therefore installs without it. Exercised by the
+   describePdfjs specs in test/pdf-snapshot.test.js on Node >=18. */
 import logger from '@percy/logger';
 import { Server } from './server.js';
 
