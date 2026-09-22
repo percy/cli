@@ -5,13 +5,18 @@ const cjsRequire = createRequire(import.meta.url);
 
 export function pdfjsAssets() {
   let root = path.dirname(cjsRequire.resolve('pdfjs-dist/package.json'));
+  let buildDir = path.join(root, 'legacy/build');
 
   return {
     root,
-    buildDir: path.join(root, 'legacy/build'),
+    buildDir,
     standardFontsDir: path.join(root, 'standard_fonts'),
     cmapsDir: path.join(root, 'cmaps'),
-    libPath: path.join(root, 'legacy/build/pdf.js'),
-    workerFile: 'pdf.worker.js'
+    // pdfjs-dist v4 ships ESM only -- there is no UMD bundle left to read off
+    // disk and eval, so the library and its worker are loaded as modules over
+    // the asset server instead (see loadLibrary in browser-scripts.js).
+    libFile: 'pdf.mjs',
+    libPath: path.join(buildDir, 'pdf.mjs'),
+    workerFile: 'pdf.worker.mjs'
   };
 }

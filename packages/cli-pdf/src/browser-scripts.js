@@ -24,14 +24,48 @@ export function assertRasterDimensions(pageNumber, width, height) {
   }
 }
 
-export async function openDocument(_, { origin }) {
-  let lib = window['pdfjs-dist/build/pdf'] || window.pdfjsLib;
+// pdfjs-dist v4 is ESM only -- there is no UMD bundle left to read off disk and
+// eval into the page, so the library is imported as a module from the asset
+// server and parked on `window.pdfjsLib` for the scripts that follow. The
+// element's error event is the only signal for an import that never resolves.
+export async function loadLibrary(_, { origin, libFile }) {
+  if (window.pdfjsLib) return true;
+
+  let loaded = new Promise((resolve, reject) => {
+    window.__percyPdfLoad = { resolve, reject };
+  });
+
+  let script = document.createElement('script');
+  script.type = 'module';
+  script.textContent = [
+    `import * as lib from '${origin}/pdfjs/${libFile}';`,
+    'window.pdfjsLib = lib;',
+    'window.__percyPdfLoad.resolve();'
+  ].join('\n');
+
+  script.onerror = () => window.__percyPdfLoad.reject(
+    new Error('pdf.js failed to load in the page')
+  );
+
+  document.head.appendChild(script);
+
+  try {
+    await loaded;
+  } finally {
+    delete window.__percyPdfLoad;
+  }
+
+  return true;
+}
+
+export async function openDocument(_, { origin, workerFile }) {
+  let lib = window.pdfjsLib;
 
   if (!lib) {
     throw new Error('pdf.js did not initialise in the page');
   }
 
-  lib.GlobalWorkerOptions.workerSrc = `${origin}/pdfjs/pdf.worker.js`;
+  lib.GlobalWorkerOptions.workerSrc = `${origin}/pdfjs/${workerFile}`;
 
   let doc = await lib.getDocument({
     url: `${origin}/doc.pdf`,

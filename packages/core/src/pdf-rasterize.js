@@ -1,4 +1,3 @@
-import fs from 'fs';
 import logger from '@percy/logger';
 import { Server } from './server.js';
 
@@ -58,7 +57,7 @@ export async function rasterizePdf(percy, pdfBuffer, options) {
 
   let {
     pdfjsAssets, resolvePages, fitScale, assertRasterDimensions,
-    openDocument, measurePages, renderPage, destroyDocument,
+    loadLibrary, openDocument, measurePages, renderPage, destroyDocument,
     DEFAULT_SCALE, MAX_SCALE, PAGE_RENDER_TIMEOUT
   } = await import('@percy/cli-pdf');
 
@@ -80,15 +79,12 @@ export async function rasterizePdf(percy, pdfBuffer, options) {
     page = await percy.browser.page({ meta: { snapshot: { name: 'pdf' } } });
     await page.goto(`${origin}/`);
 
-    let pdfjsSource = await fs.promises.readFile(assets.libPath, 'utf-8');
-
     await withTimeout(
-      /* eslint-disable-next-line no-new-func */
-      page.eval(new Function(pdfjsSource)),
+      page.eval(loadLibrary, { origin, libFile: assets.libFile }),
       PAGE_RENDER_TIMEOUT, 'injecting pdf.js');
 
     let { pageCount } = await withTimeout(
-      page.eval(openDocument, { origin }),
+      page.eval(openDocument, { origin, workerFile: assets.workerFile }),
       PAGE_RENDER_TIMEOUT, 'opening the PDF');
 
     let selected;
