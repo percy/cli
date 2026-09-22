@@ -1,10 +1,12 @@
-/* istanbul ignore file: pdfjs-backed — every path here needs the pdfjs-dist
-   optionalDependency, which requires Node >=18 while this suite's coverage gate
-   runs on Node 14 and therefore installs without it. Exercised by the
-   describePdfjs specs in test/pdf-snapshot.test.js on Node >=18. */
 import logger from '@percy/logger';
 import { Server } from './server.js';
 
+// The pdfjs-backed functions in this file -- everything but withTimeout, which
+// test/unit/pdf-rasterize.test.js covers on any Node -- need the pdfjs-dist
+// optionalDependency. The resolved build requires Node >=20 while the coverage
+// gate runs on Node 14 and therefore installs without it, so they are exempt
+// from the gate and exercised by the describePdfjs specs on Node >=20.
+/* istanbul ignore next */
 async function createAssetServer(pdfBuffer, assets) {
   // Loopback only. This origin serves the customer's PDF with no auth, and the
   // sole client is the discovery browser running on this machine -- unlike the
@@ -32,6 +34,7 @@ async function createAssetServer(pdfBuffer, assets) {
 // Percy's minimum. handlePdfSnapshot answers 400 for these and 500 for
 // everything else, so a browser launch failure or a CDP disconnect is no longer
 // reported to the SDK as if the caller sent a bad request.
+/* istanbul ignore next: pdfjs-backed — see the note above createAssetServer */
 function asInputError(error) {
   return Object.assign(error, { status: 400 });
 }
@@ -56,6 +59,7 @@ export function withTimeout(promise, ms, description) {
   return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
 }
 
+/* istanbul ignore next: pdfjs-backed — see the note above createAssetServer */
 export async function rasterizePdf(percy, pdfBuffer, options) {
   let log = logger('core:pdf-rasterize');
 
