@@ -1,5 +1,23 @@
+import { createRequire } from 'module';
 import helpers from './helpers.js';
 import utils from '@percy/sdk-utils';
+
+const cjsRequire = createRequire(import.meta.url);
+
+// The CLI answers 501 for a PDF snapshot when pdfjs-dist is absent, which is
+// every Node 14 install: it is an optionalDependency of @percy/cli-pdf declaring
+// Node >=18. Specs that need the CLI to actually rasterize are gated; the ones
+// that stub the route are not.
+function pdfjsInstalled() {
+  try {
+    cjsRequire.resolve('pdfjs-dist/package.json');
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+const itPdfjs = pdfjsInstalled() ? it : xit;
 
 const MINIMAL_PDF_BASE64 = 'JVBERi0xLjQKMSAwIG9iago8PCAvVHlwZSAvQ2F0YWxvZyAvUGFnZXMgMiAwIFIgPj4KZW5kb2JqCjIgMCBvYmoKPDwgL1R5cGUgL1BhZ2VzIC9LaWRzIFszIDAgUl0gL0NvdW50IDEgPj4KZW5kb2JqCjMgMCBvYmoKPDwgL1R5cGUgL1BhZ2UgL1BhcmVudCAyIDAgUiAvTWVkaWFCb3ggWzAgMCA2MCA2MF0gL0NvbnRlbnRzIDQgMCBSIC9SZXNvdXJjZXMgPDwgPj4gPj4KZW5kb2JqCjQgMCBvYmoKPDwgL0xlbmd0aCAxNiA+PgpzdHJlYW0KMTAgMTAgNDAgNDAgcmUgZgplbmRzdHJlYW0KZW5kb2JqCnhyZWYKMCA1CjAwMDAwMDAwMDAgNjU1MzUgZiAKMDAwMDAwMDAwOSAwMDAwMCBuIAowMDAwMDAwMDU4IDAwMDAwIG4gCjAwMDAwMDAxMTUgMDAwMDAgbiAKMDAwMDAwMDIxNyAwMDAwMCBuIAp0cmFpbGVyCjw8IC9TaXplIDUgL1Jvb3QgMSAwIFIgPj4Kc3RhcnR4cmVmCjI4MwolJUVPRgo=';
 
@@ -251,7 +269,7 @@ describe('SDK Utils', () => {
       };
     });
 
-    it('posts to the CLI API pdf snapshot endpoint', async () => {
+    itPdfjs('posts to the CLI API pdf snapshot endpoint', async () => {
       await expectAsync(postPdfSnapshot(options)).toBeResolvedTo(
         jasmine.objectContaining({ body: jasmine.objectContaining({ success: true }) }));
       await expectAsync(helpers.get('requests')).toBeResolvedTo([{
@@ -261,7 +279,7 @@ describe('SDK Utils', () => {
       }]);
     });
 
-    it('sends the PDF as JSON, not multipart', async () => {
+    itPdfjs('sends the PDF as JSON, not multipart', async () => {
       await postPdfSnapshot(options);
       let [request] = await helpers.get('requests');
 
@@ -276,6 +294,17 @@ describe('SDK Utils', () => {
         .toBeRejectedWithError('testing');
     });
 
+    // Same query-building as the spec above, minus the rasterizing, so the
+    // params branch is still covered where pdfjs-dist was never installed.
+    it('appends URL parameters without reaching the renderer', async () => {
+      await helpers.test('error', '/percy/pdf/snapshot');
+
+      await expectAsync(postPdfSnapshot({}, { test: 'foobar' }))
+        .toBeRejectedWithError('testing');
+      await expectAsync(helpers.get('requests', r => r.url))
+        .toBeResolvedTo(['/percy/pdf/snapshot?test=foobar']);
+    });
+
     it('disables snapshots when a build fails', async () => {
       await helpers.test('error', '/percy/pdf/snapshot');
       await helpers.test('build-failure');
@@ -286,7 +315,7 @@ describe('SDK Utils', () => {
       expect(utils.percy.enabled).toEqual(false);
     });
 
-    it('accepts URL parameters as the second argument', async () => {
+    itPdfjs('accepts URL parameters as the second argument', async () => {
       let params = { test: 'foobar' };
 
       await expectAsync(postPdfSnapshot(options, params)).toBeResolved();
