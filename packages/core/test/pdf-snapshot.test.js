@@ -1,8 +1,11 @@
+import { createRequire } from 'module';
 import { logger, setupTest } from './helpers/index.js';
 import { request } from './helpers/request.js';
 import Percy from '@percy/core';
 import { Server } from '../src/server.js';
 import { decodePdf, pageSnapshotName, loadPdfModule } from '../src/pdf-snapshot.js';
+
+const cjsRequire = createRequire(import.meta.url);
 
 function buildPdf({ pageCount = 1, width = 200, height = 300 } = {}) {
   let objects = [];
@@ -38,6 +41,23 @@ function buildPdf({ pageCount = 1, width = 200, height = 300 } = {}) {
 }
 
 const b64 = (buf) => buf.toString('base64');
+
+// pdfjs-dist is an optionalDependency of @percy/cli-pdf declaring Node >=18, so
+// on Node 14 it installs without a renderer and every request that gets as far
+// as rasterizing answers 501. Those specs are gated; the validation specs, which
+// answer before loadPdfModule, run everywhere.
+function pdfjsInstalled() {
+  try {
+    cjsRequire.resolve('pdfjs-dist/package.json');
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+const installed = pdfjsInstalled();
+const describePdfjs = installed ? describe : xdescribe;
+const itPdfjs = installed ? it : xit;
 
 describe('PDF snapshots', () => {
   let percy;
@@ -146,7 +166,9 @@ describe('PDF snapshots', () => {
       expect(body.error).toMatch(/Missing required `name`/);
     });
 
-    it('rejects an invalid scale', async () => {
+    // The rasterizer, not the schema, is what answers 400 here -- and it is only
+    // reached once the renderer has loaded, hence the gate.
+    itPdfjs('rejects an invalid scale', async () => {
       for (let scale of [0, 99, 'big']) {
         let [body, res] = await postRaw({
           name: 'doc',
@@ -179,7 +201,7 @@ describe('PDF snapshots', () => {
       }
     });
 
-    it('reports a browser failure as a server error, not a bad request', async () => {
+    itPdfjs('reports a browser failure as a server error, not a bad request', async () => {
       // Ours, not the caller's: telling the SDK 400 here would send it looking
       // for a fault in a request that was perfectly well formed.
       spyOn(percy.browser, 'page').and.rejectWith(new Error('no page for you'));
@@ -193,7 +215,7 @@ describe('PDF snapshots', () => {
       expect(body.error).toMatch(/Could not rasterize PDF: no page for you/);
     });
 
-    it('reports an in-page failure with a readable message', async () => {
+    itPdfjs('reports an in-page failure with a readable message', async () => {
       // Page#eval used to throw the CDP description string rather than an
       // Error, so `error.message` was undefined and every in-page failure --
       // a corrupt PDF, a pdf.js throw -- surfaced as "undefined".
@@ -215,7 +237,7 @@ describe('PDF snapshots', () => {
       expect(body.error).toMatch(/Could not rasterize PDF: Error: pdf\.js exploded/);
     });
 
-    it('never reports undefined even when something throws a non-Error', async () => {
+    itPdfjs('never reports undefined even when something throws a non-Error', async () => {
       spyOn(percy.browser, 'page').and.returnValue(Promise.resolve({
         goto: () => Promise.resolve(),
         close: () => Promise.resolve(),
@@ -246,7 +268,7 @@ describe('PDF snapshots', () => {
       expect(fromSpy).not.toHaveBeenCalledWith(content, 'base64');
     });
 
-    it('serves the PDF on loopback only', async () => {
+    itPdfjs('serves the PDF on loopback only', async () => {
       // The asset server hands out the customer's document with no auth, so it
       // must not inherit Server's "::" default and become reachable off-box.
       let origins = [];
@@ -261,7 +283,7 @@ describe('PDF snapshots', () => {
       expect(origins).toEqual(['127.0.0.1']);
     });
 
-    it('rejects an impossible page selection', async () => {
+    itPdfjs('rejects an impossible page selection', async () => {
       let [body, res] = await postRaw({
         name: 'doc',
         pdf: { content: b64(buildPdf({ pageCount: 2 })) },
@@ -272,7 +294,7 @@ describe('PDF snapshots', () => {
       expect(body.error).toMatch(/Requested page 5 but the document has only 2 pages/);
     });
 
-    it('rejects a selection larger than the per-request page cap', async () => {
+    itPdfjs('rejects a selection larger than the per-request page cap', async () => {
       let { MAX_PAGES } = await import('@percy/cli-pdf');
       let pageCount = MAX_PAGES + 1;
 
@@ -287,7 +309,7 @@ describe('PDF snapshots', () => {
         new RegExp(`Requested ${pageCount} pages but the maximum per request is ${MAX_PAGES}`));
     });
 
-    it('rejects a page that rasterizes below Percy\'s minimum', async () => {
+    itPdfjs('rejects a page that rasterizes below Percy\'s minimum', async () => {
       // fitScale only clamps the upper bound, so a tiny MediaBox still renders
       // under the 10px floor -- and the caller can fix it by raising `scale`,
       // which is what makes it a 400 rather than a 500.
@@ -302,7 +324,7 @@ describe('PDF snapshots', () => {
         /Page 1 rasterized to 8x8px, below Percy's 10px minimum\. Increase `scale`\./);
     });
 
-    it('warns but proceeds on an unrecognised option', async () => {
+    itPdfjs('warns but proceeds on an unrecognised option', async () => {
       await post({
         name: 'doc',
         pdf: { content: b64(buildPdf()) },
@@ -357,7 +379,7 @@ describe('PDF snapshots', () => {
   });
 
   describe('loadPdfModule', () => {
-    it('resolves the optional package when present', async () => {
+    itPdfjs('resolves the optional package when present', async () => {
       await expectAsync(loadPdfModule()).toBeResolved();
     });
 
@@ -366,6 +388,22 @@ describe('PDF snapshots', () => {
 
       await expectAsync(loadPdfModule(load)).toBeRejectedWithError(
         /PDF snapshots require the @percy\/cli-pdf package, which is not installed/);
+      await loadPdfModule(load).catch(e => expect(e.status).toBe(501));
+    });
+
+    it('explains the Node requirement when the renderer was skipped', async () => {
+      // What a Node 14 install looks like: the package is there, pdfjs-dist is
+      // not, and the failure must not read as a missing @percy/cli-pdf.
+      let load = () => Promise.resolve({
+        pdfjsAssets: () => {
+          throw Object.assign(new Error("Cannot find module 'pdfjs-dist/package.json'"), {
+            code: 'PDFJS_UNAVAILABLE'
+          });
+        }
+      });
+
+      await expectAsync(loadPdfModule(load)).toBeRejectedWithError(
+        /PDF snapshots require the pdfjs-dist package.*needs Node >= 18/s);
       await loadPdfModule(load).catch(e => expect(e.status).toBe(501));
     });
   });
@@ -377,7 +415,7 @@ describe('PDF snapshots', () => {
     });
   });
 
-  describe('fan-out', () => {
+  describePdfjs('fan-out', () => {
     it('creates one snapshot per page', async () => {
       let body = await post({
         name: 'doc',
@@ -506,7 +544,7 @@ describe('PDF snapshots', () => {
     });
   });
 
-  describe('sync mode', () => {
+  describePdfjs('sync mode', () => {
     it('returns an aggregate object with one entry per page', async () => {
       settleSyncJobsImmediately();
       spyOn(percy.client, 'getSnapshotDetails').and.callFake(async id => ({
