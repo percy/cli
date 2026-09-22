@@ -10,6 +10,9 @@ export function serializeVideos(ctx) {
 
       let videoId = video.getAttribute('data-percy-element-id');
       let cloneEl = clone.querySelector(`[data-percy-element-id="${videoId}"]`);
+      // no counterpart in the clone means the element wasn't serialized — e.g.
+      // light DOM content no <slot> projected, which the browser doesn't render
+      if (!cloneEl) continue;
       let canvas = document.createElement('canvas');
       let width = canvas.width = video.videoWidth;
       let height = canvas.height = video.videoHeight;

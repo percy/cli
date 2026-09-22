@@ -7,6 +7,9 @@ export function serializeInputElements(ctx) {
     try {
       let inputId = elem.getAttribute('data-percy-element-id');
       let cloneEl = clone.querySelector(`[data-percy-element-id="${inputId}"]`);
+      // no counterpart in the clone means the element wasn't serialized — e.g.
+      // light DOM content no <slot> projected, which the browser doesn't render
+      if (!cloneEl) continue;
 
       switch (elem.type) {
         case 'checkbox':
