@@ -1,23 +1,17 @@
-import { createRequire } from 'module';
 import helpers from './helpers.js';
 import utils from '@percy/sdk-utils';
 
-const cjsRequire = createRequire(import.meta.url);
-
-// The CLI answers 501 for a PDF snapshot when pdfjs-dist is absent, which is
-// every Node 14 install: it is an optionalDependency of @percy/cli-pdf declaring
-// Node >=18. Specs that need the CLI to actually rasterize are gated; the ones
-// that stub the route are not.
-function pdfjsInstalled() {
-  try {
-    cjsRequire.resolve('pdfjs-dist/package.json');
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-const itPdfjs = pdfjsInstalled() ? it : xit;
+// The CLI answers 501 for a PDF snapshot when pdfjs-dist is absent: it is an
+// optionalDependency of @percy/cli-pdf, and the resolved build needs Node >=20,
+// so yarn skips it on the Node 14 runs. Specs that need the CLI to actually
+// rasterize are gated; the ones that stub the route are not.
+//
+// Keyed on the Node version rather than resolving the package, as the sibling
+// suites do: this is the one package without "type": "module", so its specs
+// compile to CommonJS and `import.meta.url` is a syntax error here. Same reason
+// lockfileDiff.test.js gates its snyk specs this way.
+const nodeMajor = parseInt(process.versions.node.split('.')[0], 10);
+const itPdfjs = nodeMajor >= 20 ? it : xit;
 
 const MINIMAL_PDF_BASE64 = 'JVBERi0xLjQKMSAwIG9iago8PCAvVHlwZSAvQ2F0YWxvZyAvUGFnZXMgMiAwIFIgPj4KZW5kb2JqCjIgMCBvYmoKPDwgL1R5cGUgL1BhZ2VzIC9LaWRzIFszIDAgUl0gL0NvdW50IDEgPj4KZW5kb2JqCjMgMCBvYmoKPDwgL1R5cGUgL1BhZ2UgL1BhcmVudCAyIDAgUiAvTWVkaWFCb3ggWzAgMCA2MCA2MF0gL0NvbnRlbnRzIDQgMCBSIC9SZXNvdXJjZXMgPDwgPj4gPj4KZW5kb2JqCjQgMCBvYmoKPDwgL0xlbmd0aCAxNiA+PgpzdHJlYW0KMTAgMTAgNDAgNDAgcmUgZgplbmRzdHJlYW0KZW5kb2JqCnhyZWYKMCA1CjAwMDAwMDAwMDAgNjU1MzUgZiAKMDAwMDAwMDAwOSAwMDAwMCBuIAowMDAwMDAwMDU4IDAwMDAwIG4gCjAwMDAwMDAxMTUgMDAwMDAgbiAKMDAwMDAwMDIxNyAwMDAwMCBuIAp0cmFpbGVyCjw8IC9TaXplIDUgL1Jvb3QgMSAwIFIgPj4Kc3RhcnR4cmVmCjI4MwolJUVPRgo=';
 

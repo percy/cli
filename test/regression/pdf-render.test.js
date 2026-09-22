@@ -31,6 +31,7 @@
 
 import fs from 'fs';
 import path from 'path';
+import { createRequire } from 'module';
 import {
   comparePngs, createPercy, goldenDir, goldenPath, knownPlatforms, listPdfs,
   manifestPath, platformKey, readManifest, renderEnvironment, renderPdf, sha256,
@@ -73,8 +74,31 @@ function firstDiff(a, b) {
   return a.length === b.length ? -1 : len;
 }
 
+const cjsRequire = createRequire(import.meta.url);
+
+function pdfjsInstalled() {
+  try {
+    cjsRequire.resolve('pdfjs-dist/package.json');
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 async function run() {
   console.log(`Track P — PDF rasterization byte comparison${UPDATE ? ' (UPDATING GOLDENS)' : ''}\n`);
+
+  // pdfjs-dist is an optionalDependency of @percy/cli-pdf and the resolved build
+  // needs Node >=20, so yarn skips it on the Node 14 runner this job uses. There
+  // is nothing to rasterize without a renderer, so skip rather than fail -- the
+  // same call the unit suites make for their pdfjs-backed specs.
+  if (!pdfjsInstalled()) {
+    console.log(
+      'TRACK P SKIPPED: pdfjs-dist is not installed (optional, needs Node >=20). ' +
+      `This runner is on Node ${process.versions.node}; run the track on Node >=20 to compare goldens.`
+    );
+    process.exit(0);
+  }
 
   let platform = platformKey();
   let dir = goldenDir(platform);
