@@ -1,7 +1,12 @@
-import fs from 'fs';
 import logger from '@percy/logger';
 import { Server } from './server.js';
 
+// The pdfjs-backed functions in this file -- everything but withTimeout, which
+// test/unit/pdf-rasterize.test.js covers on any Node -- need the pdfjs-dist
+// optionalDependency. The resolved build requires Node >=20 while the coverage
+// gate runs on Node 14 and therefore installs without it, so they are exempt
+// from the gate and exercised by the describePdfjs specs on Node >=20.
+/* istanbul ignore next */
 async function createAssetServer(pdfBuffer, assets) {
   // Loopback only. This origin serves the customer's PDF with no auth, and the
   // sole client is the discovery browser running on this machine -- unlike the
@@ -29,6 +34,7 @@ async function createAssetServer(pdfBuffer, assets) {
 // Percy's minimum. handlePdfSnapshot answers 400 for these and 500 for
 // everything else, so a browser launch failure or a CDP disconnect is no longer
 // reported to the SDK as if the caller sent a bad request.
+/* istanbul ignore next: pdfjs-backed — see the note above createAssetServer */
 function asInputError(error) {
   return Object.assign(error, { status: 400 });
 }
@@ -53,12 +59,13 @@ export function withTimeout(promise, ms, description) {
   return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
 }
 
+/* istanbul ignore next: pdfjs-backed — see the note above createAssetServer */
 export async function rasterizePdf(percy, pdfBuffer, options) {
   let log = logger('core:pdf-rasterize');
 
   let {
     pdfjsAssets, resolvePages, fitScale, assertRasterDimensions,
-    openDocument, measurePages, renderPage, destroyDocument,
+    loadLibrary, openDocument, measurePages, renderPage, destroyDocument,
     DEFAULT_SCALE, MAX_SCALE, PAGE_RENDER_TIMEOUT
   } = await import('@percy/cli-pdf');
 
@@ -80,15 +87,12 @@ export async function rasterizePdf(percy, pdfBuffer, options) {
     page = await percy.browser.page({ meta: { snapshot: { name: 'pdf' } } });
     await page.goto(`${origin}/`);
 
-    let pdfjsSource = await fs.promises.readFile(assets.libPath, 'utf-8');
-
     await withTimeout(
-      /* eslint-disable-next-line no-new-func */
-      page.eval(new Function(pdfjsSource)),
+      page.eval(loadLibrary, { origin, libFile: assets.libFile }),
       PAGE_RENDER_TIMEOUT, 'injecting pdf.js');
 
     let { pageCount } = await withTimeout(
-      page.eval(openDocument, { origin }),
+      page.eval(openDocument, { origin, workerFile: assets.workerFile }),
       PAGE_RENDER_TIMEOUT, 'opening the PDF');
 
     let selected;

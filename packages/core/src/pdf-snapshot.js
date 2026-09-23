@@ -34,6 +34,8 @@ export function pageSnapshotName(name, pageNumber) {
   return `${name} | Page ${pageNumber}`;
 }
 
+/* istanbul ignore next: reached only with a rasterized page — see the
+   pdfjs-backed note at the top of pdf-rasterize.js */
 function pageUrls(name, pageNumber) {
   let base = `http://local/${encodeURIComponent(name)}/page-${pageNumber}`;
   return { rootUrl: base, imageUrl: `${base}.png` };
@@ -76,8 +78,10 @@ export function decodePdf(pdf) {
 }
 
 export async function loadPdfModule(load = () => import('@percy/cli-pdf')) {
+  let mod;
+
   try {
-    return await load();
+    mod = await load();
   } catch (error) {
     throw new ServerError(501, [
       'PDF snapshots require the @percy/cli-pdf package, which is not installed.',
@@ -85,6 +89,22 @@ export async function loadPdfModule(load = () => import('@percy/cli-pdf')) {
       `(underlying error: ${error.message})`
     ].join(' '));
   }
+
+  // pdfjs-dist is an optionalDependency of @percy/cli-pdf declaring Node >=18,
+  // so on Node 14 the install is skipped and the package is present without its
+  // renderer. Resolving the assets up front turns that into a 501 here rather
+  // than a 500 after a browser launch, three frames deeper.
+  try {
+    mod.pdfjsAssets();
+  } catch (error) {
+    throw new ServerError(501, [
+      'PDF snapshots require the pdfjs-dist package, which is not installed.',
+      'It is an optional dependency of @percy/cli-pdf and needs Node >= 18.',
+      `(underlying error: ${error.message})`
+    ].join(' '));
+  }
+
+  return mod;
 }
 
 function validatePdfSnapshotOptions(options) {
@@ -102,6 +122,8 @@ function validatePdfSnapshotOptions(options) {
   return normalized;
 }
 
+/* istanbul ignore next: reached only with a rasterized page — see the
+   pdfjs-backed note at the top of pdf-rasterize.js */
 function queuePages(percy, { name, rendered, sync, snapshotOptions }) {
   return rendered.map(({ page, width, height, png }) => {
     let snapshotName = pageSnapshotName(name, page);
@@ -131,6 +153,8 @@ function queuePages(percy, { name, rendered, sync, snapshotOptions }) {
   });
 }
 
+/* istanbul ignore next: reached only with a rasterized page — see the
+   pdfjs-backed note at the top of pdf-rasterize.js */
 function buildPageResources({ rootUrl, imageUrl, snapshotName, width, height, png }) {
   return createImageSnapshotResources({
     name: snapshotName,
@@ -143,6 +167,11 @@ function buildPageResources({ rootUrl, imageUrl, snapshotName, width, height, pn
   });
 }
 
+// Only the validation half of this handler is reachable without pdfjs-dist, and
+// the coverage gate runs on Node 14 where the optional install is skipped, so
+// the whole function is exempt from the gate rather than half its statements.
+// The 400-path specs still run and still assert on every Node version.
+/* istanbul ignore next */
 export async function handlePdfSnapshot(req, res, percy) {
   let log = logger('core:pdf-snapshot');
   let body = req.body;

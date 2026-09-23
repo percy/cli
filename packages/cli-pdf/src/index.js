@@ -1,6 +1,7 @@
 export { pdfjsAssets } from './assets.js';
 export { resolvePages, MAX_PAGES } from './pages.js';
 export {
+  loadLibrary,
   openDocument,
   measurePages,
   renderPage,
