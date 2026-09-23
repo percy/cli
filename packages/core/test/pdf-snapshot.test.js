@@ -383,6 +383,13 @@ describe('PDF snapshots', () => {
       await expectAsync(loadPdfModule()).toBeResolved();
     });
 
+    // Ungated twin of the spec above, so the success path is covered on Node 14.
+    it('returns the module once the renderer resolves', async () => {
+      let mod = { pdfjsAssets: () => ({}) };
+
+      await expectAsync(loadPdfModule(() => Promise.resolve(mod))).toBeResolvedTo(mod);
+    });
+
     it('explains how to install it when the import fails', async () => {
       let load = () => Promise.reject(new Error('MODULE_NOT_FOUND'));
 
