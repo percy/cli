@@ -2,7 +2,7 @@ import { createRequire } from 'module';
 import logger from '@percy/logger';
 
 // snyk-nodejs-lockfile-parser is a CommonJS optionalDependency. It requires
-// Node >=18 while the CLI supports Node >=14, so we defer the require to call
+// Node >=20.19 while the CLI supports Node >=14, so we defer the require to call
 // time — that way importing this module never throws on older Node versions
 // (or when the optional install was skipped for any other reason). Cached on
 // first successful load so the require only resolves once per process.
@@ -14,7 +14,7 @@ import logger from '@percy/logger';
 // initializer (TypeError: _require is not a function). See PER intelliStory binary.
 const cjsRequire = createRequire(import.meta.url);
 let _snykModule;
-/* istanbul ignore next: snyk-backed path — the parser requires Node >=18 while
+/* istanbul ignore next: snyk-backed path — the parser requires Node >=20.19 while
    CI runs the suite on Node 14, so these lines can't execute there; they're
    exercised by the describeSnyk tests on Node >=18 */
 function loadSnyk() {
@@ -23,7 +23,7 @@ function loadSnyk() {
     _snykModule = cjsRequire('snyk-nodejs-lockfile-parser');
     return _snykModule;
   } catch (e) {
-    const err = new Error(`snyk-nodejs-lockfile-parser is not available (requires Node >=18, or the optional install was skipped): ${e.message}`);
+    const err = new Error(`snyk-nodejs-lockfile-parser is not available (requires Node >=20.19, or the optional install was skipped): ${e.message}`);
     err.code = 'SNYK_LOCKFILE_PARSER_UNAVAILABLE';
     throw err;
   }

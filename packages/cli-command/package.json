@@ -43,6 +43,6 @@
     "glob-to-regexp": "^0.4.1"
   },
   "optionalDependencies": {
-    "snyk-nodejs-lockfile-parser": "2.7.1"
+    "snyk-nodejs-lockfile-parser": "2.10.4"
   }
 }
