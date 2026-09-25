@@ -25,7 +25,7 @@ jobs:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
       - uses: actions/setup-node@3235b876344d2a9aa001b8d1453c930bba69e610 # v3.9.1
         with:
-          node-version: 14
+          node-version: 26
       - uses: actions/cache@f4b3439a656ba812b8cb417d2d49f9c810103092 # v3.4.0
         with:
           path: |
