@@ -622,7 +622,7 @@ describe('Unit / lookupCacheResource', () => {
     const { percy } = makePercy(undefined);
     const provided = { url: '/__serialized__/_abc.css', provided: true, content: Buffer.from('P') };
     const snapshotResources = new Map([['/__serialized__/_abc.css', provided]]);
-    expect(lookupCacheResource(percy, snapshotResources, new ByteLRU(), 'http://localhost:3000/__serialized__/_abc.css')).toBe(provided);
+    expect(lookupCacheResource(percy, snapshotResources, new ByteLRU(), 'http://localhost:3000/__serialized__/_abc.css', undefined, 'http://localhost:3000/')).toBe(provided);
   });
 
   it('prefers a root-relative provided snapshot resource over a cached entry for the absolute URL', () => {
@@ -631,26 +631,40 @@ describe('Unit / lookupCacheResource', () => {
     const snapshotResources = new Map([['/__serialized__/_abc.css', provided]]);
     const cache = new ByteLRU();
     cache.set('http://localhost:3000/__serialized__/_abc.css', { url: 'http://localhost:3000/__serialized__/_abc.css', content: Buffer.from('CACHED') }, 100);
-    expect(lookupCacheResource(percy, snapshotResources, cache, 'http://localhost:3000/__serialized__/_abc.css')).toBe(provided);
+    expect(lookupCacheResource(percy, snapshotResources, cache, 'http://localhost:3000/__serialized__/_abc.css', undefined, 'http://localhost:3000/')).toBe(provided);
   });
 
   it('does not match a bare root-relative key when the absolute request carries a query string', () => {
     const { percy } = makePercy(undefined);
     const snapshotResources = new Map([['/__serialized__/_abc.css', { url: '/__serialized__/_abc.css', provided: true }]]);
-    expect(lookupCacheResource(percy, snapshotResources, new ByteLRU(), 'http://localhost:3000/__serialized__/_abc.css?theme=dark')).toBeUndefined();
+    expect(lookupCacheResource(percy, snapshotResources, new ByteLRU(), 'http://localhost:3000/__serialized__/_abc.css?theme=dark', undefined, 'http://localhost:3000/')).toBeUndefined();
   });
 
   it('matches a root-relative key that includes a query string when the request carries the same one', () => {
     const { percy } = makePercy(undefined);
     const provided = { url: '/asset.css?theme=dark', provided: true, content: Buffer.from('DARK') };
     const snapshotResources = new Map([['/asset.css?theme=dark', provided]]);
-    expect(lookupCacheResource(percy, snapshotResources, new ByteLRU(), 'http://localhost:3000/asset.css?theme=dark')).toBe(provided);
+    expect(lookupCacheResource(percy, snapshotResources, new ByteLRU(), 'http://localhost:3000/asset.css?theme=dark', undefined, 'http://localhost:3000/')).toBe(provided);
+  });
+
+  it('does not apply the relative-key fallback to a request from another origin', () => {
+    // An allowed cross-origin request that happens to share the path must be
+    // served its own origin's bytes, never the snapshot's.
+    const { percy } = makePercy(undefined);
+    const snapshotResources = new Map([['/__serialized__/_abc.css', { url: '/__serialized__/_abc.css', provided: true }]]);
+    expect(lookupCacheResource(percy, snapshotResources, new ByteLRU(), 'https://cdn.example.com/__serialized__/_abc.css', undefined, 'http://localhost:3000/')).toBeUndefined();
+  });
+
+  it('does not apply the relative-key fallback when no snapshot url is given', () => {
+    const { percy } = makePercy(undefined);
+    const snapshotResources = new Map([['/__serialized__/_abc.css', { url: '/__serialized__/_abc.css', provided: true }]]);
+    expect(lookupCacheResource(percy, snapshotResources, new ByteLRU(), 'http://localhost:3000/__serialized__/_abc.css')).toBeUndefined();
   });
 
   it('does not match an absolute request whose pathname is not a snapshot key', () => {
     const { percy } = makePercy(undefined);
     const snapshotResources = new Map([['/__serialized__/_abc.css', { url: '/__serialized__/_abc.css' }]]);
-    expect(lookupCacheResource(percy, snapshotResources, new ByteLRU(), 'http://localhost:3000/__serialized__/_other.css')).toBeUndefined();
+    expect(lookupCacheResource(percy, snapshotResources, new ByteLRU(), 'http://localhost:3000/__serialized__/_other.css', undefined, 'http://localhost:3000/')).toBeUndefined();
   });
 
   it('falls through to RAM cache when snapshot has no entry', () => {
