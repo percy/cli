@@ -625,6 +625,15 @@ describe('Unit / lookupCacheResource', () => {
     expect(lookupCacheResource(percy, snapshotResources, new ByteLRU(), 'http://localhost:3000/__serialized__/_abc.css')).toBe(provided);
   });
 
+  it('prefers a root-relative provided snapshot resource over a cached entry for the absolute URL', () => {
+    const { percy } = makePercy(undefined);
+    const provided = { url: '/__serialized__/_abc.css', provided: true, content: Buffer.from('SNAPSHOT') };
+    const snapshotResources = new Map([['/__serialized__/_abc.css', provided]]);
+    const cache = new ByteLRU();
+    cache.set('http://localhost:3000/__serialized__/_abc.css', { url: 'http://localhost:3000/__serialized__/_abc.css', content: Buffer.from('CACHED') }, 100);
+    expect(lookupCacheResource(percy, snapshotResources, cache, 'http://localhost:3000/__serialized__/_abc.css')).toBe(provided);
+  });
+
   it('does not match an absolute request whose pathname is not a snapshot key', () => {
     const { percy } = makePercy(undefined);
     const snapshotResources = new Map([['/__serialized__/_abc.css', { url: '/__serialized__/_abc.css' }]]);
