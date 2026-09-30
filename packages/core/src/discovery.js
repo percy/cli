@@ -466,12 +466,14 @@ export function lookupCacheResource(percy, snapshotResources, cache, url, width)
   // @percy/dom keys the resources it fabricates by a root-relative URL
   // (/__serialized__/<uid>.<ext>) so no host or scheme is baked into the
   // snapshot; the discovery browser requests the resolved absolute form.
-  // Match on pathname so provided content is found either way. Both snapshot
-  // lookups run before the shared cache so a snapshot's own provided bytes
-  // always win over whatever an earlier fetch of the same URL left cached.
+  // Match on the origin-less form (path + query) so provided content is found
+  // either way without loosening identity. Both snapshot lookups run before
+  // the shared cache so a snapshot's own provided bytes always win over
+  // whatever an earlier fetch of the same URL left cached.
   if (!resource) {
     try {
-      resource = snapshotResources.get(new URL(url).pathname);
+      let { pathname, search } = new URL(url);
+      resource = snapshotResources.get(pathname + search);
     } catch (e) {
       // url is not absolute -- nothing further to try
     }

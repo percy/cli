@@ -634,6 +634,19 @@ describe('Unit / lookupCacheResource', () => {
     expect(lookupCacheResource(percy, snapshotResources, cache, 'http://localhost:3000/__serialized__/_abc.css')).toBe(provided);
   });
 
+  it('does not match a bare root-relative key when the absolute request carries a query string', () => {
+    const { percy } = makePercy(undefined);
+    const snapshotResources = new Map([['/__serialized__/_abc.css', { url: '/__serialized__/_abc.css', provided: true }]]);
+    expect(lookupCacheResource(percy, snapshotResources, new ByteLRU(), 'http://localhost:3000/__serialized__/_abc.css?theme=dark')).toBeUndefined();
+  });
+
+  it('matches a root-relative key that includes a query string when the request carries the same one', () => {
+    const { percy } = makePercy(undefined);
+    const provided = { url: '/asset.css?theme=dark', provided: true, content: Buffer.from('DARK') };
+    const snapshotResources = new Map([['/asset.css?theme=dark', provided]]);
+    expect(lookupCacheResource(percy, snapshotResources, new ByteLRU(), 'http://localhost:3000/asset.css?theme=dark')).toBe(provided);
+  });
+
   it('does not match an absolute request whose pathname is not a snapshot key', () => {
     const { percy } = makePercy(undefined);
     const snapshotResources = new Map([['/__serialized__/_abc.css', { url: '/__serialized__/_abc.css' }]]);
