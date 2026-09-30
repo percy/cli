@@ -616,6 +616,21 @@ describe('Unit / lookupCacheResource', () => {
     expect(lookupCacheResource(percy, snapshotResources, cache, 'a')).toBe(local);
   });
 
+  it('matches an absolute request against a root-relative snapshot key', () => {
+    // @percy/dom keys fabricated resources by /__serialized__/<uid>.<ext>;
+    // the discovery browser asks for the resolved absolute URL.
+    const { percy } = makePercy(undefined);
+    const provided = { url: '/__serialized__/_abc.css', provided: true, content: Buffer.from('P') };
+    const snapshotResources = new Map([['/__serialized__/_abc.css', provided]]);
+    expect(lookupCacheResource(percy, snapshotResources, new ByteLRU(), 'http://localhost:3000/__serialized__/_abc.css')).toBe(provided);
+  });
+
+  it('does not match an absolute request whose pathname is not a snapshot key', () => {
+    const { percy } = makePercy(undefined);
+    const snapshotResources = new Map([['/__serialized__/_abc.css', { url: '/__serialized__/_abc.css' }]]);
+    expect(lookupCacheResource(percy, snapshotResources, new ByteLRU(), 'http://localhost:3000/__serialized__/_other.css')).toBeUndefined();
+  });
+
   it('falls through to RAM cache when snapshot has no entry', () => {
     const { percy } = makePercy(undefined);
     const cache = new ByteLRU();

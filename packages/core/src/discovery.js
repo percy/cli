@@ -462,6 +462,19 @@ function readWarnThresholdBytes() {
 // cache here is guaranteed to be a ByteLRU when we enter this branch.
 export function lookupCacheResource(percy, snapshotResources, cache, url, width) {
   let resource = snapshotResources.get(url) || cache.get(url);
+
+  // @percy/dom keys the resources it fabricates by a root-relative URL
+  // (/__serialized__/<uid>.<ext>) so no host or scheme is baked into the
+  // snapshot; the discovery browser requests the resolved absolute form.
+  // Match on pathname so provided content is found either way.
+  if (!resource) {
+    try {
+      resource = snapshotResources.get(new URL(url).pathname);
+    } catch (e) {
+      // url is not absolute -- nothing further to try
+    }
+  }
+
   const disk = percy[DISK_SPILL_KEY];
   if (!resource && disk) {
     resource = disk.get(url);
