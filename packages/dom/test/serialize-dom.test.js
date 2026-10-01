@@ -654,17 +654,22 @@ describe('serializeDOM', () => {
 
   describe('error handling', () => {
     it('adds node details in error message and rethrow it', () => {
-      let oldURL = window.URL;
-      window.URL = undefined;
       withExample(`
           <img id="test" class="test1 test2" src="data:image/png;base64,iVBORw0KGgo" alt="Example Image">
           `);
+
+      // Fail inside the img's own serialization step (the base64 serializer is
+      // the only thing that sets this attribute) so the decorated error names it.
+      let setAttribute = window.Element.prototype.setAttribute;
+      spyOn(window.Element.prototype, 'setAttribute').and.callFake(function(name, value) {
+        if (name === 'data-percy-serialized-attribute-src') throw new Error('boom');
+        return setAttribute.call(this, name, value);
+      });
 
       expect(() => serializeDOM()).toThrowMatching((error) => {
         return error.message.includes('Error cloning node:') &&
             error.message.includes('{"nodeName":"IMG","classNames":"test1 test2","id":"test"}');
       });
-      window.URL = oldURL;
     });
 
     it('ignores canvas serialization errors when flag is enabled', () => {

@@ -14,20 +14,24 @@ export function resourceFromDataURL(uid, dataURL) {
   let [, mimetype] = data.split(':');
   [mimetype] = mimetype.split(';');
 
-  // build a URL for the serialized asset
+  // build a root-relative URL for the serialized asset. It is same-origin by
+  // construction (served from wherever the captured page itself ends up), so
+  // it never needs a host or scheme baked in -- PPLT-6109: an absolute URL
+  // here previously carried over whatever scheme the local capture host used
+  // (typically http), which survives every downstream hostname rewrite and
+  // becomes a mixed-content block on any https render.
   let [, ext] = mimetype.split('/');
-  let path = `/__serialized__/${uid}.${ext}`;
-  let url = rewriteLocalhostURL(new URL(path, document.URL).toString());
+  let url = `/__serialized__/${uid}.${ext}`;
 
   // return the url, base64 content, and mimetype
   return { url, content, mimetype };
 }
 
 export function resourceFromText(uid, mimetype, data) {
-  // build a URL for the serialized asset
+  // build a root-relative URL for the serialized asset -- see
+  // resourceFromDataURL above for why this is relative, not absolute.
   let [, ext] = mimetype.split('/');
-  let path = `/__serialized__/${uid}.${ext}`;
-  let url = rewriteLocalhostURL(new URL(path, document.URL).toString());
+  let url = `/__serialized__/${uid}.${ext}`;
   // return the url, text content, and mimetype
   return { url, content: data, mimetype };
 }
@@ -51,10 +55,6 @@ export function styleSheetFromNode(node) {
   } catch (err) {
     handleErrors(err, 'Failed to get stylesheet from node: ', node);
   }
-}
-
-export function rewriteLocalhostURL(url) {
-  return url.replace(/(http[s]{0,1}:\/\/)(localhost|127.0.0.1)[:\d+]*/, '$1render.percy.local');
 }
 
 // Utility function to handle errors
