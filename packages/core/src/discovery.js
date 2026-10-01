@@ -460,8 +460,30 @@ function readWarnThresholdBytes() {
 // the actual coldest entry if needed. DISK_SPILL_KEY is only set when the
 // ByteLRU tier is active (see createDiscoveryQueue 'start' handler), so the
 // cache here is guaranteed to be a ByteLRU when we enter this branch.
-export function lookupCacheResource(percy, snapshotResources, cache, url, width) {
-  let resource = snapshotResources.get(url) || cache.get(url);
+export function lookupCacheResource(percy, snapshotResources, cache, url, width, rootUrl) {
+  let resource = snapshotResources.get(url);
+
+  // @percy/dom keys the resources it fabricates by a root-relative URL
+  // (/__serialized__/<uid>.<ext>) so no host or scheme is baked into the
+  // snapshot; the discovery browser requests the resolved absolute form.
+  // Match on the origin-less form (path + query), but only for requests from
+  // the snapshot's own origin: a root-relative href can resolve nowhere else,
+  // and an allowed cross-origin request must never be answered with the
+  // snapshot's bytes. Both snapshot lookups run before the shared cache so a
+  // snapshot's own provided bytes always win over whatever an earlier fetch
+  // of the same URL left cached.
+  if (!resource && rootUrl) {
+    try {
+      let { origin, pathname, search } = new URL(url);
+      if (origin === new URL(rootUrl).origin) {
+        resource = snapshotResources.get(pathname + search);
+      }
+    } catch (e) {
+      // url is not absolute -- nothing further to try
+    }
+  }
+  if (!resource) resource = cache.get(url);
+
   const disk = percy[DISK_SPILL_KEY];
   if (!resource && disk) {
     resource = disk.get(url);
@@ -652,7 +674,7 @@ export function createDiscoveryQueue(percy) {
               allowedHostnames: snapshot.discovery.allowedHostnames,
               disallowedHostnames: snapshot.discovery.disallowedHostnames,
               getResource: (u, width = null) => (
-                lookupCacheResource(percy, snapshot.resources, cache, u, width)
+                lookupCacheResource(percy, snapshot.resources, cache, u, width, snapshot.url)
               ),
               saveResource: r => {
                 const limitResources = process.env.LIMIT_SNAPSHOT_RESOURCES || false;
