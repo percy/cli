@@ -3452,7 +3452,7 @@ describe('Discovery', () => {
       ]));
     });
 
-    it('logs gracefully when direct font request fails', async () => {
+    it('falls back to the browser body when direct font request fails', async () => {
       server.reply('/style.css', () => [200, 'text/css', [
         '@font-face { font-family: "test"; src: url("/font.woff") format("woff"); }',
         'body { font-family: "test", "sans-serif"; }'
@@ -3475,7 +3475,17 @@ describe('Discovery', () => {
       await percy.idle();
 
       expect(logger.stderr).toEqual(jasmine.arrayContaining([
+        jasmine.stringMatching('- Direct request failed, using browser response:')
+      ]));
+      expect(logger.stderr).not.toEqual(jasmine.arrayContaining([
         jasmine.stringMatching('Encountered an error processing resource: http://localhost:8000/font.woff')
+      ]));
+      expect(captured[0]).toEqual(jasmine.arrayContaining([
+        jasmine.objectContaining({
+          attributes: jasmine.objectContaining({
+            'resource-url': 'http://localhost:8000/font.woff'
+          })
+        })
       ]));
     });
 
