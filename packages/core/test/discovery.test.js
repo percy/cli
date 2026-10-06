@@ -2749,10 +2749,38 @@ describe('Discovery', () => {
         ]));
       });
 
+      it('falls back to the default route when the proxy stalls', async () => {
+        let release;
+        server.reply('/lb-font.woff', req => {
+          if (req.headers['sec-fetch-user'] === '?1' && directFetches++ === 0) {
+            // accept the request through the proxy, then never answer it
+            return new Promise(resolve => (release = resolve));
+          }
+          return [200, 'font/woff', '<font>'];
+        });
+
+        await percy.snapshot({ name: 'proxy stall snapshot', url: 'http://localhost:8000', domSnapshot: loopbackFontDOM });
+        await percy.idle();
+        release([200, 'font/woff', '<font>']);
+
+        expect(directFetches).toEqual(2);
+        expect(logger.stderr).toContain(jasmine.stringMatching(
+          /- Browser proxy failed \(Request to http:\/\/localhost:8000\/lb-font\.woff timed out after 5000ms\), retrying via the default route/));
+        expect(captured[0]).toEqual(jasmine.arrayContaining([
+          jasmine.objectContaining({
+            id: sha256hash('<font>'),
+            attributes: jasmine.objectContaining({ 'resource-url': 'http://localhost:8000/lb-font.woff' })
+          })
+        ]));
+      });
+
       it('does not fall back on an error response from the target', async () => {
-        server.reply('/lb-font.woff', req => req.headers['sec-fetch-user'] === '?1' && ++directFetches
-          ? [404, 'text/plain', 'not found']
-          : [200, 'font/woff', '<font>']);
+        server.reply('/lb-font.woff', req => {
+          // the browser gets the font; the direct fetch gets a 404 from the target
+          if (req.headers['sec-fetch-user'] !== '?1') return [200, 'font/woff', '<font>'];
+          directFetches++;
+          return [404, 'text/plain', 'not found'];
+        });
 
         await percy.snapshot({ name: 'proxy 404 snapshot', url: 'http://localhost:8000', domSnapshot: loopbackFontDOM });
         await percy.idle();
