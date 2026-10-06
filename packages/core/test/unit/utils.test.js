@@ -80,6 +80,8 @@ describe('Unit / Utils', () => {
       expect(browserProxyFor(args(proxy, '*cdn.com'), 'https://mycdn.com')).toBeUndefined();
       expect(browserProxyFor(args(proxy, '*'), 'https://any.where')).toBeUndefined();
       expect(browserProxyFor(args(proxy, 'cdn.*'), 'https://cdn.example.com')).toBeUndefined();
+      // trailing stars left over once the host is exhausted still match
+      expect(browserProxyFor(args(proxy, 'a.com**'), 'https://a.com')).toBeUndefined();
       expect(browserProxyFor(args(proxy, 'CDN.*.com'), 'https://cdn.a.b.com')).toBeUndefined();
       expect(browserProxyFor(args(proxy, '*.cdn.com'), 'https://cdn.com')).toBe(proxy);
       expect(browserProxyFor(args(proxy, 'cdn.*.net'), 'https://cdn.a.com')).toBe(proxy);
