@@ -769,13 +769,30 @@ describe('PercyClient', () => {
         .toBeRejectedWithError('Invalid PERCY_VISUAL_CONFIG: value must be valid JSON');
     });
 
+    it('accepts diffSensitivity 0 (Very Strict)', async () => {
+      process.env.PERCY_VISUAL_CONFIG = JSON.stringify({ diffSensitivity: 0 });
+
+      await expectAsync(client.createBuild({ projectType: 'web' })).toBeResolved();
+
+      expect(api.requests['/builds'][0].body.data.attributes['visual-config'])
+        .toEqual({ diffSensitivity: 0 });
+    });
+
     it('throws when PERCY_VISUAL_CONFIG contains invalid types', async () => {
       process.env.PERCY_VISUAL_CONFIG = JSON.stringify({
         diffSensitivity: 'high'
       });
 
       await expectAsync(client.createBuild({ projectType: 'web' })).toBeRejectedWithError(
-        "Invalid PERCY_VISUAL_CONFIG: 'diffSensitivity' must be an integer between 1 and 5"
+        "Invalid PERCY_VISUAL_CONFIG: 'diffSensitivity' must be an integer between 0 and 4"
+      );
+    });
+
+    it('throws when PERCY_VISUAL_CONFIG diffSensitivity is out of range', async () => {
+      process.env.PERCY_VISUAL_CONFIG = JSON.stringify({ diffSensitivity: 5 });
+
+      await expectAsync(client.createBuild({ projectType: 'web' })).toBeRejectedWithError(
+        "Invalid PERCY_VISUAL_CONFIG: 'diffSensitivity' must be an integer between 0 and 4"
       );
     });
 
