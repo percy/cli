@@ -134,8 +134,8 @@ function parseVisualConfigFromEnv(log) {
   validateBoolean(visualConfig.compareWithPreviousRun, 'compareWithPreviousRun');
   validateBoolean(visualConfig.diffIgnoreEnabled, 'diffIgnoreEnabled');
   validateNumberInRange(visualConfig.diffIgnorePercentage, 'diffIgnorePercentage');
-  // the API uses diffSensitivity as-is as the 0-indexed fuzz level (0 = Very Strict)
-  validateIntegerRange(visualConfig.diffSensitivity, 'diffSensitivity', 0, 5);
+  // 0-indexed like the project setting: 0 = Very Strict ... 4 = Very Relaxed
+  validateIntegerRange(visualConfig.diffSensitivity, 'diffSensitivity', 0, 4);
 
   if (visualConfig.browsers != null) {
     if (!Array.isArray(visualConfig.browsers) || !visualConfig.browsers.every(b => typeof b === 'string')) {
