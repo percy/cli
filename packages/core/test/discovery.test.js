@@ -2774,6 +2774,39 @@ describe('Discovery', () => {
         ]));
       });
 
+      it('leaves time for the fallback when a worker-path direct fetch stalls at the proxy', async () => {
+        // drop the CDP response so the resource goes through captureResourceDirectly, whose
+        // overall timeout must cover the stalled proxied attempt plus the default-route retry
+        spyOn(percy.browser, '_handleMessage').and.callFake(function(data) {
+          let parsed; try { parsed = JSON.parse(data); } catch { /* binary frame */ }
+          if (parsed?.method === 'Network.responseReceived' &&
+              parsed.params?.response?.url?.endsWith('/lb-style.css')) return;
+          this._handleMessage.and.originalFn.call(this, data);
+        });
+
+        let release;
+        server.reply('/lb-style.css', req => {
+          if (req.headers['sec-fetch-user'] === '?1' && directFetches++ === 0) {
+            return new Promise(resolve => (release = resolve));
+          }
+          return [200, 'text/css', 'p { color: purple; }'];
+        });
+
+        let dom = '<html><head><link href="lb-style.css" rel="stylesheet"/></head><body>x</body></html>';
+        await percy.snapshot({ name: 'proxy stall worker snapshot', url: 'http://localhost:8000', domSnapshot: dom });
+        await percy.idle();
+        release([200, 'text/css', 'p { color: purple; }']);
+
+        expect(directFetches).toEqual(2);
+        expect(logger.stderr).toContain(jasmine.stringMatching(/- Browser proxy failed \(.*timed out after 5000ms\), retrying via the default route/));
+        expect(logger.stderr).not.toContain(jasmine.stringContaining('Direct fetch timed out'));
+        expect(captured[0]).toEqual(jasmine.arrayContaining([
+          jasmine.objectContaining({
+            attributes: jasmine.objectContaining({ 'resource-url': 'http://localhost:8000/lb-style.css' })
+          })
+        ]));
+      });
+
       it('does not fall back on an error response from the target', async () => {
         server.reply('/lb-font.woff', req => {
           // the browser gets the font; the direct fetch gets a 404 from the target

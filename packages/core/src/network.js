@@ -981,6 +981,9 @@ async function captureResourceDirectly(network, request, session) {
   let meta = { ...network.meta, url };
 
   let timeoutMs = directFetchTimeout();
+  // through a browser proxy, directFetch may spend one timeout on the proxied attempt before
+  // falling back to the default route; budget for both so the fallback is not cut off
+  if (browserProxyFor(network.page.session?.browser?.args, request.url)) timeoutMs *= 2;
 
   try {
     log.debug('- Requesting resource directly (responseReceived timeout fallback)', meta);
