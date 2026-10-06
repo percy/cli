@@ -70,6 +70,41 @@ describe('AutomateProvider', () => {
     });
   });
 
+  describe('createDriver on a native app session', () => {
+    const nativeError = 'Percy on Automate captures browser sessions; this is a native app session. ' +
+      'Use App Percy for native apps (an app project token with `percy app:exec`).';
+
+    it('rejects an Android native session', async () => {
+      spyOn(Driver.prototype, 'getCapabilites').and.returnValue(Promise.resolve({
+        platformName: 'Android', appPackage: 'org.wikipedia.alpha', automationName: 'uiautomator2'
+      }));
+      await expectAsync(new AutomateProvider(args).createDriver()).toBeRejectedWithError(nativeError);
+    });
+
+    it('rejects an iOS native session reporting an empty browserName', async () => {
+      spyOn(Driver.prototype, 'getCapabilites').and.returnValue(Promise.resolve({
+        platformName: 'iOS', browserName: '', desired: { bundleId: 'com.example.app' }
+      }));
+      await expectAsync(new AutomateProvider(args).createDriver()).toBeRejectedWithError(nativeError);
+    });
+
+    it('accepts a mobile browser session', async () => {
+      spyOn(Driver.prototype, 'getCapabilites').and.returnValue(Promise.resolve({
+        platformName: 'Android', browserName: 'chrome', appPackage: 'com.android.chrome'
+      }));
+      const automateProvider = new AutomateProvider(args);
+      await automateProvider.createDriver();
+      expect(automateProvider.metaData).toBeDefined();
+    });
+
+    it('accepts a session without browserName or an app identifier', async () => {
+      spyOn(Driver.prototype, 'getCapabilites').and.returnValue(Promise.resolve({ platformName: 'Android' }));
+      const automateProvider = new AutomateProvider(args);
+      await automateProvider.createDriver();
+      expect(automateProvider.metaData).toBeDefined();
+    });
+  });
+
   describe('supports', () => {
     it('returns true for browserstack automate', () => {
       expect(AutomateProvider.supports('http:browserstack')).toEqual(true);
