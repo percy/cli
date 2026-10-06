@@ -644,14 +644,31 @@ export class Network {
     // The proxy then resolves the target, so as on the browser path (where remoteIPAddress is the
     // proxy's) the connected-IP metadata gate only sees the proxy address.
     let proxy = browserProxyFor(this.page.session?.browser?.args, request.url);
-    if (proxy) this.log.debug('- Requesting directly through the browser proxy', this.meta);
-
-    let { body, status, headers: responseHeaders } = await makeRequest(
+    let fetch = proxy => makeRequest(
       request.url, { buffer: true, headers, lookup, proxy }, (body, res) => ({
         body, status: res.statusCode, headers: res.headers
       }));
 
-    return { body, status, headers: responseHeaders, remoteAddresses };
+    let response;
+    if (proxy) {
+      this.log.debug('- Requesting directly through the browser proxy', this.meta);
+
+      try {
+        response = await fetch(proxy);
+      } catch (error) {
+        // The browser can answer a proxy's auth challenge (with discovery.authorization) but this
+        // fetch cannot, and the proxy may refuse a non-browser client. When the proxy itself fails
+        // (407, or no response from the target at all), fall back to the pre-browser-proxy route
+        // (env proxy or direct) so anything that fetched before still does.
+        if (error.response && error.response.statusCode !== 407) throw error;
+        this.log.debug(`- Browser proxy failed (${error.message.split('\n')[0]}), retrying via the default route`, this.meta);
+        response = await fetch();
+      }
+    } else {
+      response = await fetch();
+    }
+
+    return { ...response, remoteAddresses };
   }
 }
 

@@ -2706,6 +2706,66 @@ describe('Discovery', () => {
         })
       ]));
     });
+
+    describe('when the proxy fails the direct fetch', () => {
+      // localhost is proxied too (<-loopback>), so both the browser and the direct font fetch
+      // reach the test server as a proxy; only the direct fetch sends `sec-fetch-user: ?1`
+      const loopbackFontDOM = proxiedFontDOM.replace('http://tunnel.test/font.woff', 'http://localhost:8000/lb-font.woff');
+      let directFetches;
+
+      beforeEach(async () => {
+        await percy.stop(true);
+        directFetches = 0;
+
+        percy = await Percy.start({
+          token: 'PERCY_TOKEN',
+          snapshot: { widths: [1000] },
+          discovery: {
+            concurrency: 1,
+            launchOptions: { args: ['--proxy-server=http://localhost:8000', '--proxy-bypass-list=<-loopback>'] }
+          }
+        });
+
+        percy.loglevel('debug');
+      });
+
+      it('falls back to the default route when the proxy requires auth', async () => {
+        // like an authenticated proxy: the browser got through, the direct fetch gets a 407
+        server.reply('/lb-font.woff', req => req.headers['sec-fetch-user'] === '?1' && directFetches++ === 0
+          ? [407, { 'Proxy-Authenticate': 'Basic' }, 'proxy auth required']
+          : [200, 'font/woff', '<font>']);
+
+        await percy.snapshot({ name: 'proxy 407 snapshot', url: 'http://localhost:8000', domSnapshot: loopbackFontDOM });
+        await percy.idle();
+
+        expect(directFetches).toEqual(2);
+        expect(logger.stderr).toContain(jasmine.stringMatching(
+          /- Browser proxy failed \(407 Proxy Authentication Required\), retrying via the default route/));
+        expect(captured[0]).toEqual(jasmine.arrayContaining([
+          jasmine.objectContaining({
+            id: sha256hash('<font>'),
+            attributes: jasmine.objectContaining({ 'resource-url': 'http://localhost:8000/lb-font.woff' })
+          })
+        ]));
+      });
+
+      it('does not fall back on an error response from the target', async () => {
+        server.reply('/lb-font.woff', req => req.headers['sec-fetch-user'] === '?1' && ++directFetches
+          ? [404, 'text/plain', 'not found']
+          : [200, 'font/woff', '<font>']);
+
+        await percy.snapshot({ name: 'proxy 404 snapshot', url: 'http://localhost:8000', domSnapshot: loopbackFontDOM });
+        await percy.idle();
+
+        expect(directFetches).toEqual(1);
+        expect(logger.stderr).not.toContain(jasmine.stringContaining('retrying via the default route'));
+        expect(captured[0]).not.toEqual(jasmine.arrayContaining([
+          jasmine.objectContaining({
+            attributes: jasmine.objectContaining({ 'resource-url': 'http://localhost:8000/lb-font.woff' })
+          })
+        ]));
+      });
+    });
   });
 
   describe('resource caching', () => {

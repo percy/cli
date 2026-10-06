@@ -140,7 +140,7 @@ export class ProxyHttpAgent extends http.Agent {
   addRequest(request, options) {
     let proxy = getProxy(options, this.proxy);
     if (!proxy) return super.addRequest(request, options);
-    logger('client:proxy').debug(`Proxying request: ${options.href}`);
+    logger('client:proxy').debug(`Proxying request: ${href(options)}`);
 
     // modify the request for proxying
     request.path = href(options);
