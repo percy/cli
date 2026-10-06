@@ -97,7 +97,8 @@ export function getProxy(options, override) {
     stripQuotesAndSpaces(process.env.no_proxy || process.env.NO_PROXY)
     , href(options)));
 
-  if (proxyUrl && typeof proxyUrl === 'string') { proxyUrl = stripQuotesAndSpaces(proxyUrl); }
+  // only env values may carry stray quotes/spaces; an explicit override is used verbatim
+  if (!override && proxyUrl && typeof proxyUrl === 'string') { proxyUrl = stripQuotesAndSpaces(proxyUrl); }
 
   if (shouldProxy) {
     proxyUrl = new URL(proxyUrl);

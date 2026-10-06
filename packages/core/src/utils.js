@@ -198,10 +198,24 @@ function bypassesBrowserProxy(list = '', hostname, port) {
     let [, host, rulePort] = rule.replace(/^\w+:\/\//, '').match(/^(.+?)(?::(\d+))?$/);
     if (rulePort && rulePort !== port) return false;
     if (host.startsWith('.')) host = `*${host}`;
-
-    let glob = host.toLowerCase().replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*');
-    return new RegExp(`^${glob}$`).test(hostname);
+    return globMatches(host.toLowerCase(), hostname);
   });
+}
+
+// Returns true when `subject` matches `glob`, where `*` matches any run of characters. A linear
+// greedy matcher with single-star backtracking, so user-supplied patterns need no RegExp.
+function globMatches(glob, subject) {
+  let [g, s, star, mark] = [0, 0, -1, 0];
+
+  while (s < subject.length) {
+    if (glob[g] === '*') [star, mark] = [g++, s];
+    else if (glob[g] === subject[s]) [g, s] = [g + 1, s + 1];
+    else if (star !== -1) [g, s] = [star + 1, ++mark];
+    else return false;
+  }
+
+  while (glob[g] === '*') g++;
+  return g === glob.length;
 }
 
 // Throws when the URL points at a cloud instance-metadata endpoint. Used to
