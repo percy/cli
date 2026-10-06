@@ -230,6 +230,9 @@ function cidrMatches(cidr, hostname) {
   let family = net.isIP(ip);
   let bits = Number(prefix);
 
+  // net.BlockList needs Node >= 14.18; without it CIDR rules are left unmatched
+  /* istanbul ignore next: CI runs a Node version that has net.BlockList */
+  if (typeof net.BlockList !== 'function') return false;
   if (!family || net.isIP(address) !== family) return false;
   if (!Number.isInteger(bits) || bits < 0 || bits > (family === 4 ? 32 : 128)) return false;
 
@@ -238,14 +241,15 @@ function cidrMatches(cidr, hostname) {
   return range.check(address, `ipv${family}`);
 }
 
-// Returns true when `subject` matches `glob`, where `*` matches any run of characters. A linear
-// greedy matcher with single-star backtracking, so user-supplied patterns need no RegExp.
+// Returns true when `subject` matches `glob`, where `*` matches any run of characters and `?` any
+// single one (as in Chrome's MatchPattern). A linear greedy matcher with single-star
+// backtracking, so user-supplied patterns need no RegExp.
 function globMatches(glob, subject) {
   let [g, s, star, mark] = [0, 0, -1, 0];
 
   while (s < subject.length) {
     if (glob[g] === '*') [star, mark] = [g++, s];
-    else if (glob[g] === subject[s]) [g, s] = [g + 1, s + 1];
+    else if (glob[g] === '?' || glob[g] === subject[s]) [g, s] = [g + 1, s + 1];
     else if (star !== -1) [g, s] = [star + 1, ++mark];
     else return false;
   }

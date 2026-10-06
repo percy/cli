@@ -83,6 +83,8 @@ describe('Unit / Utils', () => {
       expect(browserProxyFor(args(proxy, 'CDN.*.com'), 'https://cdn.a.b.com')).toBeUndefined();
       expect(browserProxyFor(args(proxy, '*.cdn.com'), 'https://cdn.com')).toBe(proxy);
       expect(browserProxyFor(args(proxy, 'cdn.*.net'), 'https://cdn.a.com')).toBe(proxy);
+      expect(browserProxyFor(args(proxy, 'cdn?.com'), 'https://cdn1.com')).toBeUndefined();
+      expect(browserProxyFor(args(proxy, 'cdn?.com'), 'https://cdn12.com')).toBe(proxy);
       expect(browserProxyFor(args(proxy, 'https://a.com'), 'https://a.com')).toBeUndefined();
       expect(browserProxyFor(args(proxy, 'a.com:443'), 'https://a.com')).toBeUndefined();
       expect(browserProxyFor(args(proxy, 'a.com:8443'), 'https://a.com')).toBe(proxy);

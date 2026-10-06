@@ -8,6 +8,10 @@ describe('proxy', () => {
       process.env.http_proxy = 'http://proxy.com:8080';
     });
 
+    afterEach(() => {
+      delete process.env.no_proxy;
+    });
+
     it('should return proxy object if proxy is set', () => {
       const options = { protocol: 'http:', hostname: 'example.com' };
       const proxy = getProxy(options);
@@ -21,7 +25,6 @@ describe('proxy', () => {
       expect(getProxy(options, 'http://other.com:3128')).toEqual(jasmine.objectContaining({
         host: 'other.com', port: '3128'
       }));
-      delete process.env.no_proxy;
     });
 
     it('should return undefined if no proxy is set', () => {

@@ -89,16 +89,17 @@ export function href(options) {
 // Returns the proxy URL for a set of request options. An explicit `override` proxy URL is
 // used as-is, without consulting the proxy env vars or NO_PROXY; the caller owns bypassing.
 export function getProxy(options, override) {
-  let proxyUrl = override || (options.protocol === 'https:' &&
+  let envProxyUrl = (options.protocol === 'https:' &&
     (process.env.https_proxy || process.env.HTTPS_PROXY)) ||
     (process.env.http_proxy || process.env.HTTP_PROXY);
 
-  let shouldProxy = !!override || (!!proxyUrl && !hostnameMatches(
+  let shouldProxy = !!override || (!!envProxyUrl && !hostnameMatches(
     stripQuotesAndSpaces(process.env.no_proxy || process.env.NO_PROXY)
     , href(options)));
 
   // only env values may carry stray quotes/spaces; an explicit override is used verbatim
-  if (!override && proxyUrl && typeof proxyUrl === 'string') { proxyUrl = stripQuotesAndSpaces(proxyUrl); }
+  if (envProxyUrl && typeof envProxyUrl === 'string') { envProxyUrl = stripQuotesAndSpaces(envProxyUrl); }
+  let proxyUrl = override || envProxyUrl;
 
   if (shouldProxy) {
     proxyUrl = new URL(proxyUrl);

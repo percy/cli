@@ -440,6 +440,19 @@ describe('Unit / Request', () => {
               'Connection closed while sending request to upstream proxy'));
           });
 
+          it('rejects without crashing when an established proxy tunnel fails mid-response', async () => {
+            server.reply('/hang', (req, res) => {
+              res.writeHead(200, { 'Content-Length': '1000' });
+              res.write('partial'); // never finishes
+            });
+
+            let pending = server.request('/hang', { retries: 0 });
+            await new Promise(r => setTimeout(r, 100));
+            await proxy.close();
+
+            await expectAsync(pending).toBeRejected();
+          });
+
           it('does not proxy requests matching NO_PROXY', async () => {
             process.env.NO_PROXY = 'localhost';
 
