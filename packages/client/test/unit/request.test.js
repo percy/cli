@@ -430,6 +430,16 @@ describe('Unit / Request', () => {
               .toBeResolvedTo('test');
           });
 
+          it('does not report an error when an established proxy tunnel later closes', async () => {
+            await expectAsync(server.request('/test')).toBeResolvedTo('test proxied');
+            // the keep-alive connection to the proxy is torn down after a successful request
+            await proxy.close();
+            await new Promise(r => setTimeout(r, 50));
+
+            expect(logger.stderr).not.toContain(jasmine.stringContaining(
+              'Connection closed while sending request to upstream proxy'));
+          });
+
           it('does not proxy requests matching NO_PROXY', async () => {
             process.env.NO_PROXY = 'localhost';
 

@@ -2,6 +2,7 @@ import EventEmitter from 'events';
 import { sha256hash, request } from '@percy/client/utils';
 import { camelcase, merge } from '@percy/config/utils';
 import YAML from 'yaml';
+import net from 'net';
 import path from 'path';
 import url from 'url';
 import { readFileSync } from 'fs';
@@ -156,7 +157,8 @@ export function isMetadataIP(remoteIP) {
 // (`--proxy-server` and `--proxy-bypass-list`), so Node-side fetches made on the browser's behalf
 // take the same route. Hosts reachable only through that proxy (e.g. a BrowserStack Local tunnel)
 // otherwise fail DNS from Node. Only http(s) proxies are supported: SOCKS and `direct://` rules,
-// like a bypassed host, return undefined and leave the fetch to the proxy env vars.
+// like a bypassed host, return undefined and leave the fetch to the proxy env vars. Only the first
+// proxy of a fallback list is used; Chrome's failover to later entries is not mirrored.
 export function browserProxyFor(args, url) {
   // Chrome honours the last occurrence of a repeated switch
   let flag = name => [].concat(args ?? []).reverse()
@@ -168,38 +170,72 @@ export function browserProxyFor(args, url) {
   let { protocol, hostname, port } = new URL(url);
   let scheme = protocol.slice(0, -1);
 
-  // rules are `[<url-scheme>=]<proxy>[,<fallback>...]` separated by `;`
+  // rules are `[<url-scheme>=]<proxy>[,<fallback>...]` separated by `;`, where the `socks=`
+  // mapping is the fallback for schemes without a mapping of their own
   let rules = server.split(';').map(rule => rule.trim());
-  let rule = rules.find(rule => rule.startsWith(`${scheme}=`)) ?? rules.find(rule => !rule.includes('='));
+  let mapping = name => rules.find(rule => rule.toLowerCase().startsWith(`${name}=`));
+  let rule = mapping(scheme) ?? rules.find(rule => !rule.includes('=')) ?? mapping('socks');
   if (!rule) return;
 
+  // a proxy without a scheme is http, or SOCKS4 within the `socks=` mapping
   let proxy = rule.replace(/^\w+=/, '').split(',')[0].trim();
-  if (!proxy.includes('://')) proxy = `http://${proxy}`;
+  if (!proxy.includes('://')) proxy = `${rule === mapping('socks') ? 'socks4' : 'http'}://${proxy}`;
   if (!/^https?:\/\//.test(proxy)) return;
 
   port ||= scheme === 'https' ? '443' : '80';
-  if (bypassesBrowserProxy(flag('proxy-bypass-list'), hostname, port)) return;
+  if (bypassesBrowserProxy(flag('proxy-bypass-list'), { scheme, hostname, port })) return;
   return proxy;
 }
 
-// Mirrors Chrome's `--proxy-bypass-list` matching: `,`/`;` separated host globs with an optional
-// scheme and port, `.host` meaning `*.host`, `<local>` for dotless hosts, and loopback hosts
-// bypassed implicitly unless the list contains `<-loopback>`.
-function bypassesBrowserProxy(list = '', hostname, port) {
+// Mirrors Chrome's `--proxy-bypass-list` matching: `,`/`;` separated rules that are either an IP
+// range in CIDR notation or a host glob with an optional scheme and port (`.host` meaning
+// `*.host`), plus `<local>` for dotless hosts. Loopback and link-local hosts are bypassed
+// implicitly unless the list contains `<-loopback>`.
+function bypassesBrowserProxy(list = '', { scheme, hostname, port }) {
   let rules = list.split(/[,;]/).map(rule => rule.trim()).filter(Boolean);
 
-  if (!rules.includes('<-loopback>') &&
-      /^(localhost|127(\.\d+){3}|\[::1\])$|\.localhost$/.test(hostname)) return true;
+  if (!rules.includes('<-loopback>') && (
+    /^(localhost|127(\.\d+){3}|169\.254(\.\d+){2}|\[::1\])$|\.localhost$/.test(hostname) ||
+    /^\[fe[89ab][0-9a-f]:/.test(hostname)
+  )) return true;
 
   return rules.some(rule => {
     if (rule === '<local>') return !hostname.includes('.');
     if (rule === '<-loopback>') return false;
 
-    let [, host, rulePort] = rule.replace(/^\w+:\/\//, '').match(/^(.+?)(?::(\d+))?$/);
-    if (rulePort && rulePort !== port) return false;
+    let host = rule.toLowerCase();
+    let sep = host.indexOf('://');
+    if (sep !== -1) {
+      if (host.slice(0, sep) !== scheme) return false;
+      host = host.slice(sep + 3);
+    }
+
+    if (host.includes('/')) return cidrMatches(host, hostname);
+
+    let colon = host.lastIndexOf(':');
+    if (colon > host.lastIndexOf(']') && /^\d+$/.test(host.slice(colon + 1))) {
+      if (host.slice(colon + 1) !== port) return false;
+      host = host.slice(0, colon);
+    }
+
     if (host.startsWith('.')) host = `*${host}`;
-    return globMatches(host.toLowerCase(), hostname);
+    return globMatches(host, hostname);
   });
+}
+
+// Returns true when the IP-literal `hostname` falls within the `cidr` range (IPv4 or IPv6)
+function cidrMatches(cidr, hostname) {
+  let [ip, prefix] = cidr.split('/');
+  let address = hostname.replace(/^\[/, '').replace(/\]$/, '');
+  let family = net.isIP(ip);
+  let bits = Number(prefix);
+
+  if (!family || net.isIP(address) !== family) return false;
+  if (!Number.isInteger(bits) || bits < 0 || bits > (family === 4 ? 32 : 128)) return false;
+
+  let range = new net.BlockList();
+  range.addSubnet(ip, bits, `ipv${family}`);
+  return range.check(address, `ipv${family}`);
 }
 
 // Returns true when `subject` matches `glob`, where `*` matches any run of characters. A linear

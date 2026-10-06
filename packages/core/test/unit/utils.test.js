@@ -44,13 +44,22 @@ describe('Unit / Utils', () => {
       expect(browserProxyFor(args('ftp=ftp:21;127.0.0.1:8118'), 'http://a.com')).toBe(proxy);
     });
 
+    it('falls back to the socks= mapping for schemes without their own', () => {
+      expect(browserProxyFor(args('http=first:1;socks=http://127.0.0.1:8118'), 'https://a.com')).toBe(proxy);
+      // a scheme-less proxy in the socks= mapping is SOCKS4, which is unsupported
+      expect(browserProxyFor(args('http=first:1;SOCKS=127.0.0.1:1080'), 'https://a.com')).toBeUndefined();
+    });
+
     it('returns undefined for socks and direct proxies', () => {
       expect(browserProxyFor(args('socks5://127.0.0.1:1080'), 'https://a.com')).toBeUndefined();
       expect(browserProxyFor(args('direct://'), 'https://a.com')).toBeUndefined();
     });
 
-    it('bypasses loopback hosts unless <-loopback> is listed', () => {
-      for (let url of ['http://localhost:8000', 'http://127.0.0.1', 'http://[::1]', 'http://app.localhost']) {
+    it('bypasses loopback and link-local hosts unless <-loopback> is listed', () => {
+      for (let url of [
+        'http://localhost:8000', 'http://127.0.0.1', 'http://[::1]', 'http://app.localhost',
+        'http://169.254.1.10', 'http://[fe80::1]', 'http://[febf::1]'
+      ]) {
         expect(browserProxyFor(args(proxy), url)).toBeUndefined();
         expect(browserProxyFor(args(proxy, '<-loopback>'), url)).toBe(proxy);
       }
@@ -81,6 +90,23 @@ describe('Unit / Utils', () => {
       expect(browserProxyFor(args(proxy, '<local>'), 'http://intranet')).toBeUndefined();
       expect(browserProxyFor(args(proxy, '<local>'), 'http://a.com')).toBe(proxy);
       expect(browserProxyFor(args(proxy, ' ; a.com'), 'https://b.com')).toBe(proxy);
+      expect(browserProxyFor(args(proxy, '[2001:db8::1]:8080'), 'http://[2001:db8::1]:8080')).toBeUndefined();
+    });
+
+    it('only bypasses scheme-restricted rules for that scheme', () => {
+      expect(browserProxyFor(args(proxy, 'https://a.com'), 'http://a.com')).toBe(proxy);
+      expect(browserProxyFor(args(proxy, 'HTTP://a.com'), 'http://a.com')).toBeUndefined();
+    });
+
+    it('matches CIDR rules against IP-literal hosts', () => {
+      expect(browserProxyFor(args(proxy, '192.168.1.0/24'), 'http://192.168.1.20')).toBeUndefined();
+      expect(browserProxyFor(args(proxy, '192.168.1.0/24'), 'http://192.168.2.1')).toBe(proxy);
+      expect(browserProxyFor(args(proxy, '192.168.1.0/24'), 'http://a.com')).toBe(proxy);
+      expect(browserProxyFor(args(proxy, '2001:db8::/32'), 'http://[2001:db8::1]')).toBeUndefined();
+      expect(browserProxyFor(args(proxy, '192.168.0.0/16'), 'http://[2001:db8::1]')).toBe(proxy);
+      expect(browserProxyFor(args(proxy, 'not-an-ip/8'), 'http://10.0.0.1')).toBe(proxy);
+      expect(browserProxyFor(args(proxy, '10.0.0.0/33'), 'http://10.0.0.1')).toBe(proxy);
+      expect(browserProxyFor(args(proxy, '10.0.0.0/x'), 'http://10.0.0.1')).toBe(proxy);
     });
   });
 

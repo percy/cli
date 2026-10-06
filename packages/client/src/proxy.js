@@ -235,6 +235,8 @@ export class ProxyHttpsAgent extends https.Agent {
         ));
       }
 
+      // the tunnel is established; its later close (e.g. keep-alive teardown) is not a failure
+      socket.off('error', handleError).off('close', handleClose);
       options.socket = socket;
       options.servername = options.hostname;
       // callback not passed in so not to be added as a listener
