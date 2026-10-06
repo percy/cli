@@ -152,6 +152,58 @@ export function isMetadataIP(remoteIP) {
   return matchMetadataHost(remoteIP);
 }
 
+// Returns the proxy URL Chrome would route `url` through, given the browser's launch `args`
+// (`--proxy-server` and `--proxy-bypass-list`), so Node-side fetches made on the browser's behalf
+// take the same route. Hosts reachable only through that proxy (e.g. a BrowserStack Local tunnel)
+// otherwise fail DNS from Node. Only http(s) proxies are supported: SOCKS and `direct://` rules,
+// like a bypassed host, return undefined and leave the fetch to the proxy env vars.
+export function browserProxyFor(args, url) {
+  // Chrome honours the last occurrence of a repeated switch
+  let flag = name => [].concat(args ?? []).reverse()
+    .find(arg => arg.startsWith(`--${name}=`))?.slice(name.length + 3);
+
+  let server = flag('proxy-server');
+  if (!server) return;
+
+  let { protocol, hostname, port } = new URL(url);
+  let scheme = protocol.slice(0, -1);
+
+  // rules are `[<url-scheme>=]<proxy>[,<fallback>...]` separated by `;`
+  let rules = server.split(';').map(rule => rule.trim());
+  let rule = rules.find(rule => rule.startsWith(`${scheme}=`)) ?? rules.find(rule => !rule.includes('='));
+  if (!rule) return;
+
+  let proxy = rule.replace(/^\w+=/, '').split(',')[0].trim();
+  if (!proxy.includes('://')) proxy = `http://${proxy}`;
+  if (!/^https?:\/\//.test(proxy)) return;
+
+  port ||= scheme === 'https' ? '443' : '80';
+  if (bypassesBrowserProxy(flag('proxy-bypass-list'), hostname, port)) return;
+  return proxy;
+}
+
+// Mirrors Chrome's `--proxy-bypass-list` matching: `,`/`;` separated host globs with an optional
+// scheme and port, `.host` meaning `*.host`, `<local>` for dotless hosts, and loopback hosts
+// bypassed implicitly unless the list contains `<-loopback>`.
+function bypassesBrowserProxy(list = '', hostname, port) {
+  let rules = list.split(/[,;]/).map(rule => rule.trim()).filter(Boolean);
+
+  if (!rules.includes('<-loopback>') &&
+      /^(localhost|127(\.\d+){3}|\[::1\])$|\.localhost$/.test(hostname)) return true;
+
+  return rules.some(rule => {
+    if (rule === '<local>') return !hostname.includes('.');
+    if (rule === '<-loopback>') return false;
+
+    let [, host, rulePort] = rule.replace(/^\w+:\/\//, '').match(/^(.+?)(?::(\d+))?$/);
+    if (rulePort && rulePort !== port) return false;
+    if (host.startsWith('.')) host = `*${host}`;
+
+    let glob = host.toLowerCase().replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*');
+    return new RegExp(`^${glob}$`).test(hostname);
+  });
+}
+
 // Throws when the URL points at a cloud instance-metadata endpoint. Used to
 // refuse navigating the top-level snapshot URL to such a target.
 export function assertNotMetadataTarget(rawUrl) {

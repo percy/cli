@@ -2649,6 +2649,65 @@ describe('Discovery', () => {
     });
   });
 
+  describe('with a browser proxy', () => {
+    // `tunnel.test` never resolves (RFC 2606), so like a host behind a BrowserStack Local
+    // tunnel it is reachable only through the proxy. The test server doubles as that proxy:
+    // it routes absolute-form requests (`GET http://tunnel.test/font.woff`) by path.
+    const proxiedFontDOM = dedent`
+      <html>
+      <head>
+        <style>
+          @font-face { font-family: "test"; src: url("http://tunnel.test/font.woff") format("woff"); }
+          body { font-family: "test", "sans-serif"; }
+        </style>
+      </head>
+      <body>
+        <p>Hello Percy!<p>
+        ${' '.repeat(1000)}
+      </body>
+      </html>
+    `;
+
+    beforeEach(async () => {
+      await percy.stop(true);
+
+      percy = await Percy.start({
+        token: 'PERCY_TOKEN',
+        snapshot: { widths: [1000] },
+        discovery: {
+          concurrency: 1,
+          allowedHostnames: ['tunnel.test'],
+          launchOptions: { args: ['--proxy-server=http://localhost:8000'] }
+        }
+      });
+
+      percy.loglevel('debug');
+    });
+
+    it('re-fetches fonts through the proxy the browser was launched with', async () => {
+      await percy.snapshot({
+        name: 'proxied font snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot: proxiedFontDOM
+      });
+
+      await percy.idle();
+
+      expect(logger.stderr).toContain(
+        '[percy:core:discovery] - Requesting directly through the browser proxy'
+      );
+      expect(logger.stderr).not.toContain(jasmine.stringContaining('ENOTFOUND'));
+      expect(captured[0]).toEqual(jasmine.arrayContaining([
+        jasmine.objectContaining({
+          id: sha256hash('<font>'),
+          attributes: jasmine.objectContaining({
+            'resource-url': 'http://tunnel.test/font.woff'
+          })
+        })
+      ]));
+    });
+  });
+
   describe('resource caching', () => {
     let snapshot = async n => {
       await percy.snapshot({

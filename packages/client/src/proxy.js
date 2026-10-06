@@ -86,15 +86,16 @@ export function href(options) {
     (path || `${pathname || ''}${search || ''}${hash || ''}`);
 };
 
-// Returns the proxy URL for a set of request options
-export function getProxy(options) {
-  let proxyUrl = (options.protocol === 'https:' &&
+// Returns the proxy URL for a set of request options. An explicit `override` proxy URL is
+// used as-is, without consulting the proxy env vars or NO_PROXY; the caller owns bypassing.
+export function getProxy(options, override) {
+  let proxyUrl = override || (options.protocol === 'https:' &&
     (process.env.https_proxy || process.env.HTTPS_PROXY)) ||
     (process.env.http_proxy || process.env.HTTP_PROXY);
 
-  let shouldProxy = !!proxyUrl && !hostnameMatches(
+  let shouldProxy = !!override || (!!proxyUrl && !hostnameMatches(
     stripQuotesAndSpaces(process.env.no_proxy || process.env.NO_PROXY)
-    , href(options));
+    , href(options)));
 
   if (proxyUrl && typeof proxyUrl === 'string') { proxyUrl = stripQuotesAndSpaces(proxyUrl); }
 
@@ -128,8 +129,14 @@ export class ProxyHttpAgent extends http.Agent {
   // needed for https proxies
   httpsAgent = new https.Agent({ keepAlive: true });
 
+  // an optional `proxy` URL takes precedence over the proxy env vars
+  constructor({ proxy, ...options } = {}) {
+    super(options);
+    this.proxy = proxy;
+  }
+
   addRequest(request, options) {
-    let proxy = getProxy(options);
+    let proxy = getProxy(options, this.proxy);
     if (!proxy) return super.addRequest(request, options);
     logger('client:proxy').debug(`Proxying request: ${options.href}`);
 
@@ -168,13 +175,15 @@ export class ProxyHttpAgent extends http.Agent {
 
 // Proxified https agent
 export class ProxyHttpsAgent extends https.Agent {
-  constructor(options) {
+  // an optional `proxy` URL takes precedence over the proxy env vars
+  constructor({ proxy, ...options } = {}) {
     // default keep-alive
     super({ keepAlive: true, ...options });
+    this.proxy = proxy;
   }
 
   createConnection(options, callback) {
-    let proxy = getProxy(options);
+    let proxy = getProxy(options, this.proxy);
     if (!proxy) return super.createConnection(options, callback);
     logger('client:proxy').debug(`Proxying request: ${href(options)}`);
 
@@ -244,6 +253,7 @@ export function proxyAgentFor(url, options) {
   let cache = (proxyAgentFor.cache ||= new Map());
   let { protocol, hostname } = new URL(url);
   let cachekey = `${protocol}//${hostname}`;
+  if (options?.proxy) cachekey += ` via ${options.proxy}`;
 
   // If we already have a cached agent, return it
   if (cache.has(cachekey)) {
@@ -254,8 +264,8 @@ export function proxyAgentFor(url, options) {
     let agent;
     const pacUrl = process.env.PERCY_PAC_FILE_URL;
 
-    // If PAC URL is provided, use PAC proxy
-    if (pacUrl) {
+    // If PAC URL is provided, use PAC proxy (an explicit proxy takes precedence)
+    if (pacUrl && !options?.proxy) {
       logger('client:proxy').info(`Using PAC file from: ${pacUrl}`);
       agent = createPacAgent(pacUrl, options);
     } else {

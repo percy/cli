@@ -2,7 +2,7 @@ import { request as makeRequest } from '@percy/client/utils';
 import logger from '@percy/logger';
 import mime from 'mime-types';
 import dns from 'dns';
-import { AbortError, DefaultMap, createResource, hostnameMatches, normalizeURL, waitFor, decodeAndEncodeURLWithLogging, handleIncorrectFontMimeType, executeDomainValidation, isMetadataTarget, isMetadataIP } from './utils.js';
+import { AbortError, DefaultMap, createResource, hostnameMatches, normalizeURL, waitFor, decodeAndEncodeURLWithLogging, handleIncorrectFontMimeType, executeDomainValidation, isMetadataTarget, isMetadataIP, browserProxyFor } from './utils.js';
 
 export const MAX_RESOURCE_SIZE = 25 * (1024 ** 2) * 0.63; // 25MB, 0.63 factor for accounting for base64 encoding
 // CDP returns binary bodies via Network.getResponseBody as base64 in the JSON-RPC
@@ -639,8 +639,15 @@ export class Network {
       cb(err, address, family);
     });
 
+    // Take the same route as the browser: when Chrome was launched with `--proxy-server`, hosts
+    // may only resolve through that proxy (e.g. privoxy in front of a BrowserStack Local tunnel).
+    // The proxy then resolves the target, so as on the browser path (where remoteIPAddress is the
+    // proxy's) the connected-IP metadata gate only sees the proxy address.
+    let proxy = browserProxyFor(this.page.session?.browser?.args, request.url);
+    if (proxy) this.log.debug('- Requesting directly through the browser proxy', this.meta);
+
     let { body, status, headers: responseHeaders } = await makeRequest(
-      request.url, { buffer: true, headers, lookup }, (body, res) => ({
+      request.url, { buffer: true, headers, lookup, proxy }, (body, res) => ({
         body, status: res.statusCode, headers: res.headers
       }));
 

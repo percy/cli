@@ -420,6 +420,16 @@ describe('Unit / Request', () => {
             ]);
           });
 
+          it('proxies requests through an explicit `proxy` option over env and NO_PROXY', async () => {
+            delete process.env[env];
+            process.env.NO_PROXY = 'localhost';
+
+            await expectAsync(server.request('/test', { proxy: proxy.address }))
+              .toBeResolvedTo('test proxied');
+            await expectAsync(server.request('/test'))
+              .toBeResolvedTo('test');
+          });
+
           it('does not proxy requests matching NO_PROXY', async () => {
             process.env.NO_PROXY = 'localhost';
 

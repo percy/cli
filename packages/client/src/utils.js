@@ -124,7 +124,8 @@ const RETRY_ERROR_CODES = [
 // and any received error details. Server 500 errors are retried up to 5 times at 50ms intervals by
 // default, and 404 errors may also be optionally retried. If a callback is provided, it is called
 // with the parsed response body and response details. If the callback returns a value, that value
-// will be returned in the final resolved promise instead of the response body.
+// will be returned in the final resolved promise instead of the response body. A `proxy` URL
+// routes the request through that proxy regardless of the proxy env vars.
 export async function request(url, options = {}, callback) {
   // accept `request(url, callback)`
   if (typeof options === 'function') [options, callback] = [{}, options];
@@ -132,7 +133,7 @@ export async function request(url, options = {}, callback) {
   // gather request options
   let {
     body, headers, retries, retryNotFound,
-    interval, noProxy, buffer, meta = {}, ...requestOptions
+    interval, noProxy, proxy, buffer, meta = {}, ...requestOptions
   } = options;
   let { protocol, hostname, port, pathname, search, hash } = new URL(url);
 
@@ -150,7 +151,8 @@ export async function request(url, options = {}, callback) {
 
   // combine request options
   Object.assign(requestOptions, {
-    agent: requestOptions.agent || (!noProxy && proxyAgentFor(url)) || null,
+    agent: requestOptions.agent || (proxy && proxyAgentFor(url, { proxy })) ||
+      (!noProxy && proxyAgentFor(url)) || null,
     path: pathname + search + hash,
     protocol,
     hostname,

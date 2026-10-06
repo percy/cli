@@ -14,6 +14,16 @@ describe('proxy', () => {
       expect(proxy).toBeInstanceOf(Object);
     });
 
+    it('should prefer an explicit proxy over env and NO_PROXY', () => {
+      process.env.no_proxy = '*';
+      const options = { protocol: 'https:', hostname: 'example.com' };
+      expect(getProxy(options)).toBeUndefined();
+      expect(getProxy(options, 'http://other.com:3128')).toEqual(jasmine.objectContaining({
+        host: 'other.com', port: '3128'
+      }));
+      delete process.env.no_proxy;
+    });
+
     it('should return undefined if no proxy is set', () => {
       delete process.env.http_proxy;
       const options = { protocol: 'http:', hostname: 'example.com' };
@@ -80,6 +90,15 @@ describe('proxy', () => {
       const options = {};
       const agent = proxyAgentFor(url, options);
       expect(agent).toBeInstanceOf(PacProxyAgent);
+    });
+
+    it('should create a separately cached agent for an explicit proxy, ignoring PAC', () => {
+      const url = 'https://example.com';
+      const agent = proxyAgentFor(url, { proxy: 'http://localhost:8118' });
+      expect(agent).toBeInstanceOf(ProxyHttpsAgent);
+      expect(agent.proxy).toBe('http://localhost:8118');
+      expect(proxyAgentFor(url, { proxy: 'http://localhost:8118' })).toBe(agent);
+      expect(proxyAgentFor(url)).toBeInstanceOf(PacProxyAgent);
     });
 
     it('logs an error and throws when proxy agent creation fails', () => {
