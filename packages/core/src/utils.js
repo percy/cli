@@ -225,16 +225,18 @@ function bypassesBrowserProxy(list = '', { scheme, hostname, port }) {
 
 // Returns true when the IP-literal `hostname` falls within the `cidr` range (IPv4 or IPv6)
 function cidrMatches(cidr, hostname) {
-  let [ip, prefix] = cidr.split('/');
+  let [ip, prefix, ...extra] = cidr.split('/');
   let address = hostname.replace(/^\[/, '').replace(/\]$/, '');
   let family = net.isIP(ip);
-  let bits = Number(prefix);
+  // only a plain decimal prefix is valid; Number() would read '' as 0 (matching everything)
+  // and also accept forms like '1e1' or '0x8'
+  let bits = !extra.length && /^\d{1,3}$/.test(prefix) ? Number(prefix) : NaN;
 
   // net.BlockList needs Node >= 14.18; without it CIDR rules are left unmatched
   /* istanbul ignore next: CI runs a Node version that has net.BlockList */
   if (typeof net.BlockList !== 'function') return false;
   if (!family || net.isIP(address) !== family) return false;
-  if (!Number.isInteger(bits) || bits < 0 || bits > (family === 4 ? 32 : 128)) return false;
+  if (!(bits <= (family === 4 ? 32 : 128))) return false;
 
   let range = new net.BlockList();
   range.addSubnet(ip, bits, `ipv${family}`);

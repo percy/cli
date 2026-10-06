@@ -109,6 +109,10 @@ describe('Unit / Utils', () => {
       expect(browserProxyFor(args(proxy, 'not-an-ip/8'), 'http://10.0.0.1')).toBe(proxy);
       expect(browserProxyFor(args(proxy, '10.0.0.0/33'), 'http://10.0.0.1')).toBe(proxy);
       expect(browserProxyFor(args(proxy, '10.0.0.0/x'), 'http://10.0.0.1')).toBe(proxy);
+      // malformed prefixes must not degrade to /0 (which would match every address)
+      for (let rule of ['10.0.0.0/', '10.0.0.0/1e1', '10.0.0.0/0x8', '10.0.0.0/ 8', '10.0.0.0/8/9']) {
+        expect(browserProxyFor(args(proxy, rule), 'http://10.0.0.1')).withContext(rule).toBe(proxy);
+      }
     });
   });
 
