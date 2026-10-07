@@ -463,6 +463,12 @@ describe('Unit / Request', () => {
 
             await expectAsync(server.request('/test', { timeout: 100, retries: 0 }))
               .toBeRejectedWithError(/timed out after 100ms/);
+            // let the destroyed socket emit its trailing 'error' and 'close'
+            await new Promise(r => setTimeout(r, 50));
+
+            // https requests go through a CONNECT tunnel, whose failure is handled only once
+            expect(logger.stderr.filter(line => /Proxying request .* failed/.test(line)))
+              .toHaveSize(serverType === 'https' ? 1 : 0);
           });
 
           it('does not proxy requests matching NO_PROXY', async () => {

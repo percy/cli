@@ -203,7 +203,11 @@ export class ProxyHttpsAgent extends https.Agent {
     // start the proxy connection and setup listeners
     let socket = proxy.connect();
 
+    // destroying the socket re-emits 'error' and 'close'; only the first failure counts
+    let failed = false;
     let handleError = err => {
+      if (failed) return;
+      failed = true;
       socket.destroy(err);
       logger('client:proxy').error(`Proxying request ${href(options)} failed: ${err}`);
 
