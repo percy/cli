@@ -221,6 +221,12 @@ export class ProxyHttpsAgent extends https.Agent {
       new Error('Connection closed while sending request to upstream proxy')
     );
 
+    // a request's `timeout` only starts once it has a socket, which is handed over after the
+    // CONNECT reply; bound the handshake itself so a silent proxy cannot hang the request
+    let handleTimeout = () => handleError(Object.assign(new Error(
+      `Request to ${href(options)} timed out after ${options.timeout}ms waiting for the proxy`
+    ), { code: 'ETIMEDOUT' }));
+
     let buffer = '';
     let handleData = data => {
       buffer += data.toString();
@@ -237,12 +243,15 @@ export class ProxyHttpsAgent extends https.Agent {
       }
 
       // the tunnel is established; its later close (e.g. keep-alive teardown) is not a failure
-      socket.off('error', handleError).off('close', handleClose);
+      socket.off('error', handleError).off('close', handleClose).off('timeout', handleTimeout);
+      socket.setTimeout(0);
       options.socket = socket;
       options.servername = options.hostname;
       // callback not passed in so not to be added as a listener
       callback(null, super.createConnection(options));
     };
+
+    if (options.timeout) socket.setTimeout(options.timeout, handleTimeout);
 
     // send and handle the connect message
     socket

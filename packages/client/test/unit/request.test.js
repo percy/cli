@@ -83,6 +83,9 @@ function createProxyServer({ type, port, ...options }) {
       return res.writeHead(403).end();
     }
 
+    // accept the request, then never answer it
+    if (options.stall) return;
+
     (proto === 'http' ? http : https).request(url.href, {
       method, headers, rejectUnauthorized: false
     }).on('response', remote => {
@@ -110,6 +113,8 @@ function createProxyServer({ type, port, ...options }) {
       client.write('\r\n'); // end headers
       return client.end();
     }
+
+    if (options.stall) return;
 
     let socket = net.connect({
       rejectUnauthorized: false,
@@ -451,6 +456,13 @@ describe('Unit / Request', () => {
             await proxy.close();
 
             await expectAsync(pending).toBeRejected();
+          });
+
+          it('times out a request when the proxy never answers', async () => {
+            proxy.options.stall = true;
+
+            await expectAsync(server.request('/test', { timeout: 100, retries: 0 }))
+              .toBeRejectedWithError(/timed out after 100ms/);
           });
 
           it('does not proxy requests matching NO_PROXY', async () => {
