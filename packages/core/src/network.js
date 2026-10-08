@@ -1114,8 +1114,18 @@ async function saveResponseResource(network, request, session) {
       // so request them directly.
       if (mimeType?.includes('font') || (detectedMime && detectedMime.includes('font'))) {
         log.debug('- Requesting asset directly', meta);
-        ({ body } = await makeDirectRequest(network, request, session));
-        log.debug('- Got direct response', meta);
+        try {
+          ({ body } = await makeDirectRequest(network, request, session));
+          log.debug('- Got direct response', meta);
+        } catch (error) {
+          // The SSRF metadata guard must still drop the resource.
+          if (error instanceof MetadataBlockedError) throw error;
+          // The direct fetch runs from Node, outside the browser's network stack, so it
+          // can fail where the browser succeeded (e.g. a private host the browser reaches
+          // through a proxy/tunnel, or DNS only the browser can resolve). Keep the body
+          // the browser already loaded instead of dropping the font entirely.
+          log.debug(`- Direct request failed, using browser response: ${error.message}`, meta);
+        }
       }
 
       resource = createResource(url, body, mimeType, {

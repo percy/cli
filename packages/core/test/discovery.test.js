@@ -2505,6 +2505,87 @@ describe('Discovery', () => {
       ]));
     });
 
+    describe('when the direct font request fails', () => {
+      const fontDOM = dedent`
+        <html>
+        <head>
+          <style>
+           @font-face { font-family: "test"; src: url("direct-fail/font.woff") format("woff"); }
+           body { font-family: "test", "sans-serif"; }
+          </style>
+        </head>
+        <body>
+          <p>Hello Percy!<p>
+          ${' '.repeat(1000)}
+        </body>
+        </html>
+      `;
+
+      beforeEach(() => {
+        percy.loglevel('debug');
+        server.reply('/direct-fail/font.woff', () => [200, 'font/woff', '<font>']);
+      });
+
+      it('falls back to the browser response body', async () => {
+        // The browser can load the font, but Node's direct fetch cannot (e.g. a host
+        // only the browser can resolve through its proxy/tunnel).
+        spyOn(Network.prototype, 'directFetch').and.callFake(async function(request) {
+          if (request.url.endsWith('/direct-fail/font.woff')) {
+            throw new Error('getaddrinfo ENOTFOUND private.example');
+          }
+          return Network.prototype.directFetch.and.originalFn.apply(this, arguments);
+        });
+
+        await percy.snapshot({
+          name: 'direct fail font snapshot',
+          url: 'http://localhost:8000',
+          domSnapshot: fontDOM
+        });
+
+        await percy.idle();
+
+        expect(logger.stderr).toContain(
+          '[percy:core:discovery] - Direct request failed, using browser response: ' +
+          'getaddrinfo ENOTFOUND private.example'
+        );
+        expect(captured[0]).toEqual(jasmine.arrayContaining([
+          jasmine.objectContaining({
+            attributes: jasmine.objectContaining({
+              'resource-url': 'http://localhost:8000/direct-fail/font.woff'
+            })
+          })
+        ]));
+      });
+
+      it('still drops the font when the metadata guard blocks it', async () => {
+        let origDirectFetch = Network.prototype.directFetch;
+        spyOn(Network.prototype, 'directFetch').and.callFake(async function(request, session) {
+          let result = await origDirectFetch.call(this, request, session);
+          if (request.url.endsWith('/direct-fail/font.woff')) {
+            return { ...result, remoteAddresses: ['169.254.169.254'] };
+          }
+          return result;
+        });
+
+        await percy.snapshot({
+          name: 'direct fail metadata font snapshot',
+          url: 'http://localhost:8000',
+          domSnapshot: fontDOM
+        });
+
+        await percy.idle();
+
+        expect(logger.stderr).not.toContain(jasmine.stringMatching(
+          /Direct request failed, using browser response/
+        ));
+        expect(captured[0]).not.toContain(jasmine.objectContaining({
+          attributes: jasmine.objectContaining({
+            'resource-url': 'http://localhost:8000/direct-fail/font.woff'
+          })
+        }));
+      });
+    });
+
     it('captures fonts with valid username basic auth', async () => {
       percy.loglevel('debug');
 
@@ -3371,7 +3452,7 @@ describe('Discovery', () => {
       ]));
     });
 
-    it('logs gracefully when direct font request fails', async () => {
+    it('falls back to the browser body when direct font request fails', async () => {
       server.reply('/style.css', () => [200, 'text/css', [
         '@font-face { font-family: "test"; src: url("/font.woff") format("woff"); }',
         'body { font-family: "test", "sans-serif"; }'
@@ -3394,7 +3475,17 @@ describe('Discovery', () => {
       await percy.idle();
 
       expect(logger.stderr).toEqual(jasmine.arrayContaining([
+        jasmine.stringMatching('- Direct request failed, using browser response:')
+      ]));
+      expect(logger.stderr).not.toEqual(jasmine.arrayContaining([
         jasmine.stringMatching('Encountered an error processing resource: http://localhost:8000/font.woff')
+      ]));
+      expect(captured[0]).toEqual(jasmine.arrayContaining([
+        jasmine.objectContaining({
+          attributes: jasmine.objectContaining({
+            'resource-url': 'http://localhost:8000/font.woff'
+          })
+        })
       ]));
     });
 
