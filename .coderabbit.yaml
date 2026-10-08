@@ -15,7 +15,7 @@
 #
 # Budget: 50 guideline files per review. 0 already tracked here and
 # auto-discovered (CLAUDE.md etc.), so 50 entries are available:
-#   rules 12, reviewer agents 6, domain stack 32, conventions 0 — 38 lower-priority file(s) left out.
+#   rules 12, reviewer agents 6, domain stack 32, conventions 0 — 29 lower-priority file(s) left out.
 
 inheritance: true
 
@@ -63,8 +63,6 @@ knowledge_base:
       # --- 3. Rest of the domain stack
       - files: "percy/browserstack-ai-harness-percy:stacks/stack-domain-percy-cli/CLAUDE.md"
         applyTo: "**"
-      - files: "percy/browserstack-ai-harness-percy:stacks/stack-domain-percy-cli/skills/stack:percy-cli-code-review.md"
-        applyTo: "**"
       - files: "percy/browserstack-ai-harness-percy:stacks/stack-domain-percy-cli/knowledge/DEPENDENCIES.md"
         applyTo: "**"
       - files: "percy/browserstack-ai-harness-percy:stacks/stack-domain-percy-cli/knowledge/DEPLOYMENT.md"
@@ -91,13 +89,7 @@ knowledge_base:
         applyTo: "**"
       - files: "percy/browserstack-ai-harness-percy:stacks/stack-domain-percy-cli/agents/stack-percy-cli-version-bump.md"
         applyTo: "**"
-      - files: "percy/browserstack-ai-harness-percy:stacks/stack-domain-percy-cli/skills/stack:percy-cli-debugging.md"
-        applyTo: "**"
-      - files: "percy/browserstack-ai-harness-percy:stacks/stack-domain-percy-cli/skills/stack:percy-cli-feature-dev.md"
-        applyTo: "**"
       - files: "percy/browserstack-ai-harness-percy:stacks/stack-domain-percy-web-sdks/CLAUDE.md"
-        applyTo: "**"
-      - files: "percy/browserstack-ai-harness-percy:stacks/stack-domain-percy-web-sdks/skills/stack:percy-web-sdks-code-review.md"
         applyTo: "**"
       - files: "percy/browserstack-ai-harness-percy:stacks/stack-domain-percy-web-sdks/knowledge/api-design.md"
         applyTo: "**"
@@ -124,4 +116,12 @@ knowledge_base:
       - files: "percy/browserstack-ai-harness-percy:stacks/stack-domain-percy-web-sdks/knowledge/flow-snapshot-capybara.md"
         applyTo: "**"
       - files: "percy/browserstack-ai-harness-percy:stacks/stack-domain-percy-web-sdks/knowledge/flow-snapshot-cypress.md"
+        applyTo: "**"
+      - files: "percy/browserstack-ai-harness-percy:stacks/stack-domain-percy-web-sdks/knowledge/flow-snapshot-playwright.md"
+        applyTo: "**"
+      - files: "percy/browserstack-ai-harness-percy:stacks/stack-domain-percy-web-sdks/knowledge/flow-snapshot-puppeteer.md"
+        applyTo: "**"
+      - files: "percy/browserstack-ai-harness-percy:stacks/stack-domain-percy-web-sdks/knowledge/flow-snapshot-selenium.md"
+        applyTo: "**"
+      - files: "percy/browserstack-ai-harness-percy:stacks/stack-domain-percy-web-sdks/knowledge/flow-snapshot-storybook.md"
         applyTo: "**"
