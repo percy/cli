@@ -2,6 +2,7 @@ import EventEmitter from 'events';
 import { sha256hash, request } from '@percy/client/utils';
 import { camelcase, merge } from '@percy/config/utils';
 import YAML from 'yaml';
+import net from 'net';
 import path from 'path';
 import url from 'url';
 import { readFileSync } from 'fs';
@@ -150,6 +151,113 @@ export function isMetadataTarget(rawUrl) {
 // is still blocked here. No DNS needed: the input is already an IP literal.
 export function isMetadataIP(remoteIP) {
   return matchMetadataHost(remoteIP);
+}
+
+// Returns the proxy URL Chrome would route `url` through, given the browser's launch `args`
+// (`--proxy-server` and `--proxy-bypass-list`), so Node-side fetches made on the browser's behalf
+// take the same route. Hosts reachable only through that proxy (e.g. a BrowserStack Local tunnel)
+// otherwise fail DNS from Node. Only http(s) proxies are supported: SOCKS and `direct://` rules,
+// like a bypassed host, return undefined and leave the fetch to the proxy env vars. Only the first
+// proxy of a fallback list is used; Chrome's failover to later entries is not mirrored.
+export function browserProxyFor(args, url) {
+  // Chrome honours the last occurrence of a repeated switch
+  let flag = name => [].concat(args ?? []).reverse()
+    .find(arg => arg.startsWith(`--${name}=`))?.slice(name.length + 3);
+
+  let server = flag('proxy-server');
+  if (!server) return;
+
+  let { protocol, hostname, port } = new URL(url);
+  let scheme = protocol.slice(0, -1);
+
+  // rules are `[<url-scheme>=]<proxy>[,<fallback>...]` separated by `;`, where the `socks=`
+  // mapping is the fallback for schemes without a mapping of their own
+  let rules = server.split(';').map(rule => rule.trim());
+  let mapping = name => rules.find(rule => rule.toLowerCase().startsWith(`${name}=`));
+  let rule = mapping(scheme) ?? rules.find(rule => !rule.includes('=')) ?? mapping('socks');
+  if (!rule) return;
+
+  // a proxy without a scheme is http, or SOCKS4 within the `socks=` mapping
+  let proxy = rule.replace(/^\w+=/, '').split(',')[0].trim();
+  if (!proxy.includes('://')) proxy = `${rule === mapping('socks') ? 'socks4' : 'http'}://${proxy}`;
+  if (!/^https?:\/\//.test(proxy)) return;
+
+  port ||= scheme === 'https' ? '443' : '80';
+  if (bypassesBrowserProxy(flag('proxy-bypass-list'), { scheme, hostname, port })) return;
+  return proxy;
+}
+
+// Mirrors Chrome's `--proxy-bypass-list` matching: `,`/`;` separated rules that are either an IP
+// range in CIDR notation or a host glob with an optional scheme and port (`.host` meaning
+// `*.host`), plus `<local>` for dotless hosts. Loopback and link-local hosts are bypassed
+// implicitly unless the list contains `<-loopback>`.
+function bypassesBrowserProxy(list = '', { scheme, hostname, port }) {
+  let rules = list.split(/[,;]/).map(rule => rule.trim()).filter(Boolean);
+
+  if (!rules.includes('<-loopback>') && (
+    /^(localhost|127(\.\d+){3}|169\.254(\.\d+){2}|\[::1\])$|\.localhost$/.test(hostname) ||
+    /^\[fe[89ab][0-9a-f]:/.test(hostname)
+  )) return true;
+
+  return rules.some(rule => {
+    if (rule === '<local>') return !hostname.includes('.');
+    if (rule === '<-loopback>') return false;
+
+    let host = rule.toLowerCase();
+    let sep = host.indexOf('://');
+    if (sep !== -1) {
+      if (host.slice(0, sep) !== scheme) return false;
+      host = host.slice(sep + 3);
+    }
+
+    if (host.includes('/')) return cidrMatches(host, hostname);
+
+    let colon = host.lastIndexOf(':');
+    if (colon > host.lastIndexOf(']') && /^\d+$/.test(host.slice(colon + 1))) {
+      if (host.slice(colon + 1) !== port) return false;
+      host = host.slice(0, colon);
+    }
+
+    if (host.startsWith('.')) host = `*${host}`;
+    return globMatches(host, hostname);
+  });
+}
+
+// Returns true when the IP-literal `hostname` falls within the `cidr` range (IPv4 or IPv6)
+function cidrMatches(cidr, hostname) {
+  let [ip, prefix, ...extra] = cidr.split('/');
+  let address = hostname.replace(/^\[/, '').replace(/\]$/, '');
+  let family = net.isIP(ip);
+  // only a plain decimal prefix is valid; Number() would read '' as 0 (matching everything)
+  // and also accept forms like '1e1' or '0x8'
+  let bits = !extra.length && /^\d{1,3}$/.test(prefix) ? Number(prefix) : NaN;
+
+  // net.BlockList needs Node >= 14.18; without it CIDR rules are left unmatched
+  /* istanbul ignore next: CI runs a Node version that has net.BlockList */
+  if (typeof net.BlockList !== 'function') return false;
+  if (!family || net.isIP(address) !== family) return false;
+  if (!(bits <= (family === 4 ? 32 : 128))) return false;
+
+  let range = new net.BlockList();
+  range.addSubnet(ip, bits, `ipv${family}`);
+  return range.check(address, `ipv${family}`);
+}
+
+// Returns true when `subject` matches `glob`, where `*` matches any run of characters and `?` any
+// single one (as in Chrome's MatchPattern). A linear greedy matcher with single-star
+// backtracking, so user-supplied patterns need no RegExp.
+function globMatches(glob, subject) {
+  let [g, s, star, mark] = [0, 0, -1, 0];
+
+  while (s < subject.length) {
+    if (glob[g] === '*') [star, mark] = [g++, s];
+    else if (glob[g] === '?' || glob[g] === subject[s]) [g, s] = [g + 1, s + 1];
+    else if (star !== -1) [g, s] = [star + 1, ++mark];
+    else return false;
+  }
+
+  while (glob[g] === '*') g++;
+  return g === glob.length;
 }
 
 // Throws when the URL points at a cloud instance-metadata endpoint. Used to

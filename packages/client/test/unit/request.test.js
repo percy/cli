@@ -83,6 +83,9 @@ function createProxyServer({ type, port, ...options }) {
       return res.writeHead(403).end();
     }
 
+    // accept the request, then never answer it
+    if (options.stall) return;
+
     (proto === 'http' ? http : https).request(url.href, {
       method, headers, rejectUnauthorized: false
     }).on('response', remote => {
@@ -110,6 +113,8 @@ function createProxyServer({ type, port, ...options }) {
       client.write('\r\n'); // end headers
       return client.end();
     }
+
+    if (options.stall) return;
 
     let socket = net.connect({
       rejectUnauthorized: false,
@@ -418,6 +423,52 @@ describe('Unit / Request', () => {
                 headers: { authorization: 'Basic foobar:xyzzy' }
               })
             ]);
+          });
+
+          it('proxies requests through an explicit `proxy` option over env and NO_PROXY', async () => {
+            delete process.env[env];
+            process.env.NO_PROXY = 'localhost';
+
+            await expectAsync(server.request('/test', { proxy: proxy.address }))
+              .toBeResolvedTo('test proxied');
+            await expectAsync(server.request('/test'))
+              .toBeResolvedTo('test');
+          });
+
+          it('does not report an error when an established proxy tunnel later closes', async () => {
+            await expectAsync(server.request('/test')).toBeResolvedTo('test proxied');
+            // the keep-alive connection to the proxy is torn down after a successful request
+            await proxy.close();
+            await new Promise(r => setTimeout(r, 50));
+
+            expect(logger.stderr).not.toContain(jasmine.stringContaining(
+              'Connection closed while sending request to upstream proxy'));
+          });
+
+          it('rejects without crashing when an established proxy tunnel fails mid-response', async () => {
+            server.reply('/hang', (req, res) => {
+              res.writeHead(200, { 'Content-Length': '1000' });
+              res.write('partial'); // never finishes
+            });
+
+            let pending = server.request('/hang', { retries: 0 });
+            await new Promise(r => setTimeout(r, 100));
+            await proxy.close();
+
+            await expectAsync(pending).toBeRejected();
+          });
+
+          it('times out a request when the proxy never answers', async () => {
+            proxy.options.stall = true;
+
+            await expectAsync(server.request('/test', { timeout: 100, retries: 0 }))
+              .toBeRejectedWithError(/timed out after 100ms/);
+            // let the destroyed socket emit its trailing 'error' and 'close'
+            await new Promise(r => setTimeout(r, 50));
+
+            // https requests go through a CONNECT tunnel, whose failure is handled only once
+            expect(logger.stderr.filter(line => /Proxying request .* failed/.test(line)))
+              .toHaveSize(serverType === 'https' ? 1 : 0);
           });
 
           it('does not proxy requests matching NO_PROXY', async () => {

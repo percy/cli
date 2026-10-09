@@ -6,10 +6,118 @@ import {
   yieldAll,
   DefaultMap,
   redactSecrets,
-  base64encode
+  base64encode,
+  browserProxyFor
 } from '../../src/utils.js';
 
 describe('Unit / Utils', () => {
+  describe('browserProxyFor', () => {
+    const proxy = 'http://127.0.0.1:8118';
+    const args = (server, bypass) => [
+      '--headless', `--proxy-server=${server}`,
+      ...(bypass != null ? [`--proxy-bypass-list=${bypass}`] : [])
+    ];
+
+    it('returns undefined without a --proxy-server arg', () => {
+      expect(browserProxyFor(undefined, 'https://a.com')).toBeUndefined();
+      expect(browserProxyFor(['--headless'], 'https://a.com')).toBeUndefined();
+    });
+
+    it('returns the proxy for http and https urls', () => {
+      expect(browserProxyFor(args(proxy), 'https://site.example/font.woff')).toBe(proxy);
+      expect(browserProxyFor(args(proxy), 'http://site.example/font.woff')).toBe(proxy);
+    });
+
+    it('uses the last occurrence of a repeated switch', () => {
+      expect(browserProxyFor([...args('http://first:1'), ...args(proxy)], 'https://a.com')).toBe(proxy);
+    });
+
+    it('defaults a bare host:port to an http proxy and takes the first fallback', () => {
+      expect(browserProxyFor(args('127.0.0.1:8118,direct://'), 'https://a.com')).toBe(proxy);
+      expect(browserProxyFor(args('https://secure:443'), 'https://a.com')).toBe('https://secure:443');
+    });
+
+    it('picks per-scheme rules, falling back to a scheme-less rule', () => {
+      let server = 'https=127.0.0.1:8118;ftp=ftp:21';
+      expect(browserProxyFor(args(server), 'https://a.com')).toBe(proxy);
+      expect(browserProxyFor(args(server), 'http://a.com')).toBeUndefined();
+      expect(browserProxyFor(args('ftp=ftp:21;127.0.0.1:8118'), 'http://a.com')).toBe(proxy);
+    });
+
+    it('falls back to the socks= mapping for schemes without their own', () => {
+      expect(browserProxyFor(args('http=first:1;socks=http://127.0.0.1:8118'), 'https://a.com')).toBe(proxy);
+      // a scheme-less proxy in the socks= mapping is SOCKS4, which is unsupported
+      expect(browserProxyFor(args('http=first:1;SOCKS=127.0.0.1:1080'), 'https://a.com')).toBeUndefined();
+    });
+
+    it('returns undefined for socks and direct proxies', () => {
+      expect(browserProxyFor(args('socks5://127.0.0.1:1080'), 'https://a.com')).toBeUndefined();
+      expect(browserProxyFor(args('direct://'), 'https://a.com')).toBeUndefined();
+    });
+
+    it('bypasses loopback and link-local hosts unless <-loopback> is listed', () => {
+      for (let url of [
+        'http://localhost:8000', 'http://127.0.0.1', 'http://[::1]', 'http://app.localhost',
+        'http://169.254.1.10', 'http://[fe80::1]', 'http://[febf::1]'
+      ]) {
+        expect(browserProxyFor(args(proxy), url)).toBeUndefined();
+        expect(browserProxyFor(args(proxy, '<-loopback>'), url)).toBe(proxy);
+      }
+    });
+
+    it('honours the bypass list', () => {
+      // the scanner's real bypass list
+      let bypass = '<-loopback>,ws.pusherapp.com,.pusher.com,ssl.gstatic.com,.google.com';
+      expect(browserProxyFor(args(proxy, bypass), 'https://ws.pusherapp.com/x')).toBeUndefined();
+      expect(browserProxyFor(args(proxy, bypass), 'https://js.pusher.com/x')).toBeUndefined();
+      expect(browserProxyFor(args(proxy, bypass), 'https://fonts.google.com/x')).toBeUndefined();
+      expect(browserProxyFor(args(proxy, bypass), 'https://fonts.gstatic.com/x')).toBe(proxy);
+      expect(browserProxyFor(args(proxy, bypass), 'https://nestscheme-sit6.uk.tapue.com/f.woff2')).toBe(proxy);
+    });
+
+    it('matches bypass globs, schemes, ports and <local>', () => {
+      expect(browserProxyFor(args(proxy, '*.cdn.com'), 'https://a.cdn.com')).toBeUndefined();
+      expect(browserProxyFor(args(proxy, '*cdn.com'), 'https://mycdn.com')).toBeUndefined();
+      expect(browserProxyFor(args(proxy, '*'), 'https://any.where')).toBeUndefined();
+      expect(browserProxyFor(args(proxy, 'cdn.*'), 'https://cdn.example.com')).toBeUndefined();
+      // trailing stars left over once the host is exhausted still match
+      expect(browserProxyFor(args(proxy, 'a.com**'), 'https://a.com')).toBeUndefined();
+      expect(browserProxyFor(args(proxy, 'CDN.*.com'), 'https://cdn.a.b.com')).toBeUndefined();
+      expect(browserProxyFor(args(proxy, '*.cdn.com'), 'https://cdn.com')).toBe(proxy);
+      expect(browserProxyFor(args(proxy, 'cdn.*.net'), 'https://cdn.a.com')).toBe(proxy);
+      expect(browserProxyFor(args(proxy, 'cdn?.com'), 'https://cdn1.com')).toBeUndefined();
+      expect(browserProxyFor(args(proxy, 'cdn?.com'), 'https://cdn12.com')).toBe(proxy);
+      expect(browserProxyFor(args(proxy, 'https://a.com'), 'https://a.com')).toBeUndefined();
+      expect(browserProxyFor(args(proxy, 'a.com:443'), 'https://a.com')).toBeUndefined();
+      expect(browserProxyFor(args(proxy, 'a.com:8443'), 'https://a.com')).toBe(proxy);
+      expect(browserProxyFor(args(proxy, 'a.com:80'), 'http://a.com')).toBeUndefined();
+      expect(browserProxyFor(args(proxy, '<local>'), 'http://intranet')).toBeUndefined();
+      expect(browserProxyFor(args(proxy, '<local>'), 'http://a.com')).toBe(proxy);
+      expect(browserProxyFor(args(proxy, ' ; a.com'), 'https://b.com')).toBe(proxy);
+      expect(browserProxyFor(args(proxy, '[2001:db8::1]:8080'), 'http://[2001:db8::1]:8080')).toBeUndefined();
+    });
+
+    it('only bypasses scheme-restricted rules for that scheme', () => {
+      expect(browserProxyFor(args(proxy, 'https://a.com'), 'http://a.com')).toBe(proxy);
+      expect(browserProxyFor(args(proxy, 'HTTP://a.com'), 'http://a.com')).toBeUndefined();
+    });
+
+    it('matches CIDR rules against IP-literal hosts', () => {
+      expect(browserProxyFor(args(proxy, '192.168.1.0/24'), 'http://192.168.1.20')).toBeUndefined();
+      expect(browserProxyFor(args(proxy, '192.168.1.0/24'), 'http://192.168.2.1')).toBe(proxy);
+      expect(browserProxyFor(args(proxy, '192.168.1.0/24'), 'http://a.com')).toBe(proxy);
+      expect(browserProxyFor(args(proxy, '2001:db8::/32'), 'http://[2001:db8::1]')).toBeUndefined();
+      expect(browserProxyFor(args(proxy, '192.168.0.0/16'), 'http://[2001:db8::1]')).toBe(proxy);
+      expect(browserProxyFor(args(proxy, 'not-an-ip/8'), 'http://10.0.0.1')).toBe(proxy);
+      expect(browserProxyFor(args(proxy, '10.0.0.0/33'), 'http://10.0.0.1')).toBe(proxy);
+      expect(browserProxyFor(args(proxy, '10.0.0.0/x'), 'http://10.0.0.1')).toBe(proxy);
+      // malformed prefixes must not degrade to /0 (which would match every address)
+      for (let rule of ['10.0.0.0/', '10.0.0.0/1e1', '10.0.0.0/0x8', '10.0.0.0/ 8', '10.0.0.0/8/9']) {
+        expect(browserProxyFor(args(proxy, rule), 'http://10.0.0.1')).withContext(rule).toBe(proxy);
+      }
+    });
+  });
+
   describe('generatePromise', () => {
     it('accepts a generator and returns a promise', async () => {
       let gen = (function*(done) { while (!done) done = yield; })();

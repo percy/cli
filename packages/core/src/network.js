@@ -2,7 +2,7 @@ import { request as makeRequest } from '@percy/client/utils';
 import logger from '@percy/logger';
 import mime from 'mime-types';
 import dns from 'dns';
-import { AbortError, DefaultMap, createResource, hostnameMatches, normalizeURL, waitFor, decodeAndEncodeURLWithLogging, handleIncorrectFontMimeType, executeDomainValidation, isMetadataTarget, isMetadataIP } from './utils.js';
+import { AbortError, DefaultMap, createResource, hostnameMatches, normalizeURL, waitFor, decodeAndEncodeURLWithLogging, handleIncorrectFontMimeType, executeDomainValidation, isMetadataTarget, isMetadataIP, browserProxyFor } from './utils.js';
 
 export const MAX_RESOURCE_SIZE = 25 * (1024 ** 2) * 0.63; // 25MB, 0.63 factor for accounting for base64 encoding
 // CDP returns binary bodies via Network.getResponseBody as base64 in the JSON-RPC
@@ -31,6 +31,8 @@ const ABORTED_MESSAGE = 'Request was aborted by browser';
 const RESPONSE_RECEIVED_TIMEOUT = 2000;
 // Cap idle() impact when a host accepts the TCP connection then stalls during a direct fetch.
 const DIRECT_FETCH_TIMEOUT = 5000;
+// Under PERCY_GZIP the size ceiling can reach tens of MB; 5s is too short.
+const directFetchTimeout = () => process.env.PERCY_GZIP ? DIRECT_FETCH_TIMEOUT_WITH_GZIP : DIRECT_FETCH_TIMEOUT;
 
 // Stable, machine-readable codes for abort errors thrown from this module.
 // Consumers should prefer `error.code` over string matching on `error.message`.
@@ -639,12 +641,38 @@ export class Network {
       cb(err, address, family);
     });
 
-    let { body, status, headers: responseHeaders } = await makeRequest(
-      request.url, { buffer: true, headers, lookup }, (body, res) => ({
+    // Take the same route as the browser: when Chrome was launched with `--proxy-server`, hosts
+    // may only resolve through that proxy (e.g. privoxy in front of a BrowserStack Local tunnel).
+    // The proxy then resolves the target, so as on the browser path (where remoteIPAddress is the
+    // proxy's) the connected-IP metadata gate only sees the proxy address.
+    let proxy = browserProxyFor(this.page.session?.browser?.args, request.url);
+    let fetch = (proxy, timeout) => makeRequest(
+      request.url, { buffer: true, headers, lookup, proxy, timeout }, (body, res) => ({
         body, status: res.statusCode, headers: res.headers
       }));
 
-    return { body, status, headers: responseHeaders, remoteAddresses };
+    let response;
+    if (proxy) {
+      this.log.debug('- Requesting directly through the browser proxy', this.meta);
+
+      try {
+        // an idle timeout, so a proxy that accepts the connection and then stalls still leaves
+        // the fallback reachable (the font re-fetch otherwise has no timeout at all)
+        response = await fetch(proxy, directFetchTimeout());
+      } catch (error) {
+        // The browser can answer a proxy's auth challenge (with discovery.authorization) but this
+        // fetch cannot, and the proxy may refuse a non-browser client. When the proxy itself fails
+        // (407, or no response from the target at all, including a stall), fall back to the pre-browser-proxy route
+        // (env proxy or direct) so anything that fetched before still does.
+        if (error.response && error.response.statusCode !== 407) throw error;
+        this.log.debug(`- Browser proxy failed (${error.message.split('\n')[0]}), retrying via the default route`, this.meta);
+        response = await fetch();
+      }
+    } else {
+      response = await fetch();
+    }
+
+    return { ...response, remoteAddresses };
   }
 }
 
@@ -952,8 +980,10 @@ async function captureResourceDirectly(network, request, session) {
   let url = originURL(request);
   let meta = { ...network.meta, url };
 
-  // Under PERCY_GZIP the size ceiling can reach tens of MB; 5s is too short.
-  let timeoutMs = process.env.PERCY_GZIP ? DIRECT_FETCH_TIMEOUT_WITH_GZIP : DIRECT_FETCH_TIMEOUT;
+  let timeoutMs = directFetchTimeout();
+  // through a browser proxy, directFetch may spend one timeout on the proxied attempt before
+  // falling back to the default route; budget for both so the fallback is not cut off
+  if (browserProxyFor(network.page.session?.browser?.args, request.url)) timeoutMs *= 2;
 
   try {
     log.debug('- Requesting resource directly (responseReceived timeout fallback)', meta);
