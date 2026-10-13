@@ -105,6 +105,11 @@ export class Session extends EventEmitter {
             message: cdpTimeoutMessage(method, timeout)
           }));
         }, timeout);
+
+        // A watchdog must never be the reason the process cannot exit: an
+        // orphaned send whose reply is not coming would otherwise hold the
+        // event loop open for the full deadline after the work is finished.
+        callback.timer.unref();
       }
 
       this.#callbacks.set(id, callback);
