@@ -1,3 +1,4 @@
+import os from 'os';
 import command from '@percy/cli-command';
 import logger from '@percy/logger';
 import start from './start.js';
@@ -160,17 +161,26 @@ async function* spawn(cmd, args, percy) {
       });
     }
 
-    // settles as soon as the child errors or closes
+    // settles as soon as the child errors or closes; a child killed by a signal closes with a
+    // null code, so report it the way shells do (128 + signal number) rather than waiting forever
+    let done = false;
     let exited = new Promise(resolve => {
-      proc.on('error', err => resolve(error = err));
-      proc.on('close', code => resolve(closed = code));
+      proc.on('error', err => {
+        [done, error] = [true, err];
+        resolve();
+      });
+
+      proc.on('close', (code, signal) => {
+        [done, closed] = [true, code ?? 128 + os.constants.signals[signal]];
+        resolve();
+      });
     });
 
     // run until an event is triggered; waiting on the exit event rather than spinning on
     // setImmediate keeps an idle child from costing a CPU core (percy/cli#2460), while the
     // periodic wake still lets an abort signal interrupt the generator promptly
     /* eslint-disable-next-line no-unmodified-loop-condition */
-    while (closed == null && error == null) {
+    while (!done) {
       let timer;
       yield Promise.race([exited, new Promise(r => (timer = setTimeout(r, 100)))]);
       clearTimeout(timer);

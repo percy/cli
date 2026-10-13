@@ -385,6 +385,13 @@ describe('percy exec', () => {
     ]));
   });
 
+  it('forwards a shell-style status when the command is killed by a signal', async () => {
+    // the child closes with a null code; this used to keep the wait loop running forever
+    await expectAsync(
+      exec(['--', 'node', '--eval', 'process.kill(process.pid, "SIGKILL")'])
+    ).toBeRejectedWithError(process.platform === 'win32' ? /^EEXIT: \d+$/ : 'EEXIT: 137');
+  });
+
   it('does not spin the event loop while waiting for the command', async () => {
     let immediates = spyOn(global, 'setImmediate').and.callThrough();
     await exec(['--', 'node', '--eval', 'setTimeout(() => {}, 1000)']);
