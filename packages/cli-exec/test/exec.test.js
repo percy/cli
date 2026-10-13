@@ -397,7 +397,8 @@ describe('percy exec', () => {
     await exec(['--', 'node', '--eval', 'setTimeout(() => {}, 1000)']);
 
     // the previous wait loop scheduled an immediate on every event loop turn, i.e. tens of
-    // thousands over a one second command (percy/cli#2460)
+    // thousands over a one second command (percy/cli#2460). The spy also counts unrelated
+    // callers such as percy startup, so the bound is deliberately loose.
     expect(immediates.calls.count()).toBeLessThan(1000);
   });
 
