@@ -160,16 +160,20 @@ async function* spawn(cmd, args, percy) {
       });
     }
 
-    proc.on('error', err => (error = err));
-
-    proc.on('close', code => {
-      closed = code;
+    // settles as soon as the child errors or closes
+    let exited = new Promise(resolve => {
+      proc.on('error', err => resolve(error = err));
+      proc.on('close', code => resolve(closed = code));
     });
 
-    // run until an event is triggered
+    // run until an event is triggered; waiting on the exit event rather than spinning on
+    // setImmediate keeps an idle child from costing a CPU core (percy/cli#2460), while the
+    // periodic wake still lets an abort signal interrupt the generator promptly
     /* eslint-disable-next-line no-unmodified-loop-condition */
     while (closed == null && error == null) {
-      yield new Promise(r => setImmediate(r));
+      let timer;
+      yield Promise.race([exited, new Promise(r => (timer = setTimeout(r, 100)))]);
+      clearTimeout(timer);
     }
 
     if (error) throw error;
