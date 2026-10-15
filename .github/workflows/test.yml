@@ -312,13 +312,6 @@ jobs:
       # UPDATE_PDF_GOLDENS=1 and committing the result.
       - name: Run PDF rasterization byte tests (token-free)
         run: yarn test:regression:pdf
-        env:
-          UPDATE_PDF_GOLDENS: '1'
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: always()
-        with:
-          name: pdf-goldens-linux-x64
-          path: test/regression/assets/pdfs/expected/linux-x64
       # Visual track runs last and is the ONLY step that creates a Percy build,
       # so the PR's single build carries all visual snapshots (no stray build
       # superseding it on the same commit).
