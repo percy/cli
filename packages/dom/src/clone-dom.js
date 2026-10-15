@@ -62,6 +62,14 @@ export function cloneNodeAndShadow(ctx) {
         }
       };
 
+      // A comment inside a <style> is raw text, not markup: templating libraries
+      // such as Lit leave empty marker comments there around bindings. Cloned, it
+      // serializes as a literal `<!---->` in the CSS, which the parser reads as a
+      // CDO/CDC token that swallows the declaration after it (PER-11066).
+      if (node.nodeType === 8 /* COMMENT_NODE */ && /^style$/i.test(node.parentNode.nodeName)) {
+        return;
+      }
+
       if (node.nodeName === 'BASE') {
         let clone = node.cloneNode(false);
         parent.appendChild(clone);
