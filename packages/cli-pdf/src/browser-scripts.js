@@ -24,14 +24,26 @@ export function assertRasterDimensions(pageNumber, width, height) {
   }
 }
 
-export async function openDocument(_, { origin }) {
-  let lib = window['pdfjs-dist/build/pdf'] || window.pdfjsLib;
+// pdf.js 4+ ships only as ES modules, so it can no longer be injected as a
+// classic script body the way the 2.x UMD build was. The page imports it from
+// the loopback asset server instead. The legacy build assigns
+// `globalThis.pdfjsLib` itself, so a repeat call finds it and does nothing.
+export async function loadLibrary(_, { origin, libFile }) {
+  if (!window.pdfjsLib) {
+    window.pdfjsLib = await import(`${origin}/pdfjs/${libFile}`);
+  }
+
+  return true;
+}
+
+export async function openDocument(_, { origin, workerFile }) {
+  let lib = window.pdfjsLib;
 
   if (!lib) {
     throw new Error('pdf.js did not initialise in the page');
   }
 
-  lib.GlobalWorkerOptions.workerSrc = `${origin}/pdfjs/pdf.worker.js`;
+  lib.GlobalWorkerOptions.workerSrc = `${origin}/pdfjs/${workerFile}`;
 
   let doc = await lib.getDocument({
     url: `${origin}/doc.pdf`,
