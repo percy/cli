@@ -565,7 +565,7 @@ describe('serializeCSSOM', () => {
         ' display: flex; gap: 16px; }',
         document.createComment('')
       );
-      expect(getComputedStyle(document.querySelector('.grid')).display).toBe('flex');
+      expect(window.getComputedStyle(document.querySelector('.grid')).display).toBe('flex');
 
       let $ = parseDOM(serializeDOM(), 'plain');
       let clonedStyle = $('#lit-markers')[0];
