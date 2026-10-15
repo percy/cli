@@ -11,7 +11,7 @@ describe('@percy/cli-pdf assets', () => {
 
   it('points at the legacy build directory', () => {
     expect(fs.existsSync(assets.buildDir)).toBe(true);
-    expect(fs.existsSync(path.join(assets.buildDir, 'pdf.js'))).toBe(true);
+    expect(fs.existsSync(path.join(assets.buildDir, assets.libFile))).toBe(true);
     expect(fs.existsSync(path.join(assets.buildDir, assets.workerFile))).toBe(true);
   });
 
@@ -22,8 +22,14 @@ describe('@percy/cli-pdf assets', () => {
     expect(fs.readdirSync(assets.cmapsDir).length).toBeGreaterThan(0);
   });
 
-  it('exposes the injectable pdf.js library file', () => {
-    expect(fs.existsSync(assets.libPath)).toBe(true);
-    expect(fs.readFileSync(assets.libPath, 'utf-8')).toContain('getDocument');
+  it('names the ES module entry and worker the page loads', () => {
+    // pdf.js 4+ only ships ES modules; the page imports the library and pdf.js
+    // spawns the worker as a module worker, so both must be .mjs files
+    expect(assets.libFile).toMatch(/\.mjs$/);
+    expect(assets.workerFile).toMatch(/\.mjs$/);
+
+    let lib = fs.readFileSync(path.join(assets.buildDir, assets.libFile), 'utf-8');
+    expect(lib).toContain('getDocument');
+    expect(lib).toContain('globalThis.pdfjsLib');
   });
 });
