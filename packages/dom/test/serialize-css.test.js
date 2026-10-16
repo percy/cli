@@ -552,5 +552,26 @@ describe('serializeCSSOM', () => {
       expect(clonedStyle.innerHTML).toBe(liveText);
       expect(clonedStyle.getAttribute('data-percy-cssom-serialized')).toBeNull();
     });
+
+    it('drops comment nodes inside <style>, keeping the declarations around them (PER-11066)', () => {
+      // Lit renders `<style>.grid { ${css} }</style>` with empty marker comments
+      // around the binding; serialized as `<!---->` they make `display: flex` drop.
+      withExample('<style id="lit-markers"></style><div class="grid"></div>', { withShadow: false });
+
+      let liveStyle = document.getElementById('lit-markers');
+      liveStyle.append(
+        '.grid {\n',
+        document.createComment(''),
+        ' display: flex; gap: 16px; }',
+        document.createComment('')
+      );
+      expect(window.getComputedStyle(document.querySelector('.grid')).display).toBe('flex');
+
+      let $ = parseDOM(serializeDOM(), 'plain');
+      let clonedStyle = $('#lit-markers')[0];
+
+      expect(clonedStyle.innerHTML).not.toContain('<!--');
+      expect(clonedStyle.innerHTML).toBe(liveStyle.textContent);
+    });
   });
 });
