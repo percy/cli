@@ -385,6 +385,23 @@ describe('percy exec', () => {
     ]));
   });
 
+  it('forwards a shell-style status when the command is killed by a signal', async () => {
+    // the child closes with a null code; this used to keep the wait loop running forever
+    await expectAsync(
+      exec(['--', 'node', '--eval', 'process.kill(process.pid, "SIGKILL")'])
+    ).toBeRejectedWithError(process.platform === 'win32' ? /^EEXIT: \d+$/ : 'EEXIT: 137');
+  });
+
+  it('does not spin the event loop while waiting for the command', async () => {
+    let immediates = spyOn(global, 'setImmediate').and.callThrough();
+    await exec(['--', 'node', '--eval', 'setTimeout(() => {}, 1000)']);
+
+    // the previous wait loop scheduled an immediate on every event loop turn, i.e. tens of
+    // thousands over a one second command (percy/cli#2460). The spy also counts unrelated
+    // callers such as percy startup, so the bound is deliberately loose.
+    expect(immediates.calls.count()).toBeLessThan(1000);
+  });
+
   it('provides the child process with a percy server address env var', async () => {
     let args = ['--no-warnings', '--input-type=module', '--loader=../../scripts/loader.js'];
 
