@@ -13,11 +13,25 @@ export default class AutomateProvider extends GenericProvider {
     return commandExecutorUrl.includes(process.env.AA_DOMAIN || 'browserstack');
   }
 
+  // Automate capture reads the screen size, DPR and regions through JavaScript, which a
+  // native app context cannot run (App Automate answers 405 Method Not Allowed). Browser
+  // sessions always carry a browserName; native ones carry an app identifier instead.
+  static isNativeAppSession(caps) {
+    if (!caps || caps.browserName) return false;
+    const desired = caps.desired || {};
+    return ['app', 'appium:app', 'appPackage', 'bundleId', 'bundleID']
+      .some(key => caps[key] || desired[key]);
+  }
+
   async createDriver() {
     this.driver = new Driver(this.sessionId, this.commandExecutorUrl, this.capabilities);
     log.debug(`Passed capabilities -> ${JSON.stringify(this.capabilities)}`);
     const caps = await this.driver.getCapabilites();
     log.debug(`Fetched capabilities -> ${JSON.stringify(caps)}`);
+    if (AutomateProvider.isNativeAppSession(caps)) {
+      throw new Error('Percy on Automate captures browser sessions; this is a native app session. ' +
+        'Use App Percy for native apps (an app project token with `percy app:exec`).');
+    }
     this.metaData = MetaDataResolver.resolve(this.driver, caps, this.capabilities);
   }
 
