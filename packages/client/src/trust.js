@@ -46,7 +46,8 @@ export function dropDistrustedRoots() {
   // the OpenSSL store replaces Node's bundled roots, and OS vendors have removed them; unlike
   // --use-system-ca, which adds the OS store to the bundled roots
   let flags = [...process.execArgv, ...(process.env.NODE_OPTIONS ?? '').split(/\s+/)];
-  if (flags.includes('--use-openssl-ca')) return;
+  // Node accepts both dashes and underscores in option names
+  if (flags.some(f => f.replace(/_/g, '-') === '--use-openssl-ca')) return;
 
   // newer versions of Node can replace the default CA certificates directly
   if (tls.setDefaultCACertificates && tls.getCACertificates) {

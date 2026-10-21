@@ -206,13 +206,15 @@ describe('Unit / Trust', () => {
           expect(tls.createSecureContext).not.toBe(spy);
         });
 
-        it('does nothing when Node uses the OS trust store', () => {
-          let spy = tls.createSecureContext;
-          process.env.NODE_OPTIONS = '--max-old-space-size=4096 --use-openssl-ca';
-          dropDistrustedRoots();
+        for (let flag of ['--use-openssl-ca', '--use_openssl_ca']) {
+          it(`does nothing when Node uses the OS trust store via ${flag}`, () => {
+            let spy = tls.createSecureContext;
+            process.env.NODE_OPTIONS = `--max-old-space-size=4096 ${flag}`;
+            dropDistrustedRoots();
 
-          expect(tls.createSecureContext).toBe(spy);
-        });
+            expect(tls.createSecureContext).toBe(spy);
+          });
+        }
       });
     }
   });
