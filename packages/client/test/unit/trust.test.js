@@ -124,7 +124,7 @@ describe('Unit / Trust', () => {
     });
 
     it('follows how Node was built by default', () => {
-      expect(usesOpenSSLStore()).toBe(false);
+      expect(usesOpenSSLStore()).toBe(!!process.config.variables.node_use_openssl_ca);
       expect(usesOpenSSLStore({})).toBe(false);
       expect(usesOpenSSLStore({ node_use_openssl_ca: 1 })).toBe(true);
     });
@@ -171,7 +171,10 @@ describe('Unit / Trust', () => {
     });
 
     it('removes the distrusted roots when the client utils are imported', () => {
-      if (canSetDefaultCA) {
+      // nothing is changed when Node verifies against the OS-managed OpenSSL store
+      if (usesOpenSSLStore()) {
+        expect(tls.createSecureContext.__percyTrusted).toBeUndefined();
+      } else if (canSetDefaultCA) {
         expect(tls.getCACertificates('default').every(isTrustedCertificate)).toBe(true);
       } else {
         expect(tls.createSecureContext.__percyTrusted).toBe(true);
@@ -190,14 +193,19 @@ describe('Unit / Trust', () => {
 
     describe('with setDefaultCACertificates', () => {
       let { setDefaultCACertificates, getCACertificates } = tls;
+      let { NODE_OPTIONS } = process.env;
 
       beforeEach(() => {
+        // use the bundled roots regardless of how Node was built
+        process.env.NODE_OPTIONS = '--use-bundled-ca';
         tls.setDefaultCACertificates = jasmine.createSpy('setDefaultCACertificates');
         tls.getCACertificates = jasmine.createSpy('getCACertificates');
       });
 
       afterEach(() => {
         Object.assign(tls, { setDefaultCACertificates, getCACertificates });
+        if (NODE_OPTIONS == null) delete process.env.NODE_OPTIONS;
+        else process.env.NODE_OPTIONS = NODE_OPTIONS;
       });
 
       it('replaces the default CA certificates without the distrusted roots', () => {
@@ -223,7 +231,8 @@ describe('Unit / Trust', () => {
 
         beforeEach(() => {
           tls.createSecureContext = jasmine.createSpy('createSecureContext');
-          delete process.env.NODE_OPTIONS;
+          // use the bundled roots regardless of how Node was built
+          process.env.NODE_OPTIONS = '--use-bundled-ca';
         });
 
         afterEach(() => {
@@ -247,7 +256,7 @@ describe('Unit / Trust', () => {
 
         it('still drops the distrusted roots when Node adds the system store', () => {
           let spy = tls.createSecureContext;
-          process.env.NODE_OPTIONS = '--use-system-ca';
+          process.env.NODE_OPTIONS = '--use-bundled-ca --use-system-ca';
           dropDistrustedRoots();
 
           expect(tls.createSecureContext).not.toBe(spy);
