@@ -8,6 +8,10 @@ on:
       tag:
         description: 'Release tag to publish checksums for (e.g. v1.32.12)'
         required: true
+# Never let a backfill hash a release's assets while its build is replacing them
+concurrency:
+  group: executable-${{ github.event.release.tag_name || inputs.tag }}
+  cancel-in-progress: false
 permissions:
   contents: read
 jobs:
