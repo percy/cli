@@ -5,6 +5,10 @@ import path from 'path';
 import crypto from 'crypto';
 import logger from '@percy/logger';
 import { snakecase } from '@percy/config/utils';
+import { dropDistrustedRoots } from './trust.js';
+
+// every network path in the CLI imports these utils, so distrust compromised roots process-wide
+dropDistrustedRoots();
 
 // Formats a raw byte integer as a string
 export function formatBytes(int) {
@@ -299,3 +303,10 @@ export {
   ProxyHttpsAgent,
   proxyAgentFor
 } from './proxy.js';
+
+export {
+  DISTRUSTED_ROOTS,
+  isTrustedCertificate,
+  trustedCertificates,
+  dropDistrustedRoots
+} from './trust.js';

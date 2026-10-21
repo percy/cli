@@ -2,6 +2,7 @@ import fs from 'fs';
 import url from 'url';
 import path from 'path';
 import https from 'https';
+import crypto from 'crypto';
 import logger from '@percy/logger';
 import cp from 'child_process';
 import { ProxyHttpsAgent, formatBytes } from '@percy/client/utils';
@@ -44,13 +45,15 @@ export function selectByPlatform(map) {
 
 // Downloads and extracts an executable from a url into a local directory, returning the full path
 // to the extracted binary. Skips installation if the executable already exists at the binary path.
+// When a sha256 checksum is provided, the archive is verified against it before being extracted.
 export async function download({
   name,
   revision,
   url,
   extract,
   directory,
-  executable
+  executable,
+  sha256
 }) {
   let outdir = path.join(directory, revision);
   if (process.env.NODE_ENV === 'executable') {
@@ -81,6 +84,7 @@ export async function download({
       await fs.promises.mkdir(outdir, { recursive: true });
 
       // download the file at the given URL
+      let hash = crypto.createHash('sha256');
       await new Promise((resolve, reject) => https.get(url, {
         agent: new ProxyHttpsAgent() // allow proxied requests
       }, response => {
@@ -103,6 +107,9 @@ export async function download({
           });
         }
 
+        // hash the archive as it is downloaded
+        response.on('data', chunk => hash.update(chunk));
+
         // pipe the response directly to a file
         response.pipe(
           fs.createWriteStream(archive)
@@ -110,6 +117,13 @@ export async function download({
             .on('error', reject)
         );
       }).on('error', reject));
+
+      // never extract an archive that does not match its expected checksum
+      let checksum = hash.digest('hex');
+      if (sha256 && checksum !== sha256) {
+        throw new Error(`Checksum mismatch for ${name} ${revision}: ` + (
+          `expected sha256 ${sha256}, got ${checksum} - ${url}`));
+      }
 
       if (process.env.NODE_ENV === 'executable') {
         let output = cp.execSync(command, { encoding: 'utf-8' }).trim();
@@ -165,13 +179,18 @@ export function chromium({
     darwinArm: path.join('chrome-mac', 'Chromium.app', 'Contents', 'MacOS', 'Chromium')
   });
 
+  // checksums are only known for the default revisions
+  let sha256 = revision === selectByPlatform(chromium.revisions)
+    ? selectByPlatform(chromium.checksums) : undefined;
+
   return download({
     name: 'Chromium',
     revision,
     url,
     extract,
     directory,
-    executable
+    executable,
+    sha256
   });
 }
 
@@ -183,6 +202,16 @@ chromium.revisions = {
   win32: '1536377',
   darwin: '1536380',
   darwinArm: '1536376'
+};
+
+// SHA-256 of each platform's archive for the revisions above; update both together. The downloaded
+// archive is executed, so it must be verified even when served over TLS or from a custom base URL.
+chromium.checksums = {
+  linux: 'c4bb3ae75dd6c174472b53439d65fa067efdbb4633e30776abf9dac180f92de3',
+  win64: '6521f300babef0bd0f202a7de0da58e392b8862ab7609ca792505326fb93cd71',
+  win32: 'a67e4404a0548d650b899e0c92024ed86ef32cf6d15009ffe8295917312d8557',
+  darwin: 'adead2a2a830d206cfe8b36171fc5ef64eddbe20152528f164c51946c75e5ff8',
+  darwinArm: '7eb76e4cf39b1a828c4680a4252bd21f608392545409fca4c20220f449804ad8'
 };
 
 // export the namespace by default
