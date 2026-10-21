@@ -308,5 +308,6 @@ export {
   DISTRUSTED_ROOTS,
   isTrustedCertificate,
   trustedCertificates,
+  usesOpenSSLStore,
   dropDistrustedRoots
 } from './trust.js';

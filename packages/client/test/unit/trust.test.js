@@ -6,6 +6,7 @@ import {
   DISTRUSTED_ROOTS,
   isTrustedCertificate,
   trustedCertificates,
+  usesOpenSSLStore,
   dropDistrustedRoots
 } from '@percy/client/utils';
 
@@ -104,6 +105,52 @@ describe('Unit / Trust', () => {
     it('ignores a missing NODE_EXTRA_CA_CERTS file', () => {
       process.env.NODE_EXTRA_CA_CERTS = './test/certs/missing.crt';
       expect(trustedCertificates().length).toEqual(tls.rootCertificates.length - distrusted.length);
+    });
+  });
+
+  describe('usesOpenSSLStore', () => {
+    let { NODE_OPTIONS } = process.env;
+    let { execArgv } = process;
+
+    beforeEach(() => {
+      delete process.env.NODE_OPTIONS;
+      process.execArgv = [];
+    });
+
+    afterEach(() => {
+      if (NODE_OPTIONS == null) delete process.env.NODE_OPTIONS;
+      else process.env.NODE_OPTIONS = NODE_OPTIONS;
+      process.execArgv = execArgv;
+    });
+
+    it('follows how Node was built by default', () => {
+      expect(usesOpenSSLStore()).toBe(false);
+      expect(usesOpenSSLStore({})).toBe(false);
+      expect(usesOpenSSLStore({ node_use_openssl_ca: 1 })).toBe(true);
+    });
+
+    for (let [options, expected] of [
+      ['--use-openssl-ca', true],
+      ['--use_openssl_ca', true],
+      ['--use-system-ca', false],
+      ['--use-openssl-ca --use-bundled-ca', false],
+      ['--use_bundled_ca --use-openssl-ca', true]
+    ]) {
+      it(`returns ${expected} for NODE_OPTIONS="${options}"`, () => {
+        process.env.NODE_OPTIONS = options;
+        expect(usesOpenSSLStore({})).toBe(expected);
+      });
+    }
+
+    it('lets --use-bundled-ca override an OpenSSL build default', () => {
+      process.env.NODE_OPTIONS = '--use-bundled-ca';
+      expect(usesOpenSSLStore({ node_use_openssl_ca: 1 })).toBe(false);
+    });
+
+    it('lets command-line options take precedence over NODE_OPTIONS', () => {
+      process.env.NODE_OPTIONS = '--use-openssl-ca';
+      process.execArgv = ['--use-bundled-ca'];
+      expect(usesOpenSSLStore({})).toBe(false);
     });
   });
 

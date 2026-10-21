@@ -1,6 +1,7 @@
 import fs from 'fs';
 import tls from 'tls';
 import crypto from 'crypto';
+import logger from '@percy/logger';
 
 // SHA-256 hashes of the SubjectPublicKeyInfo of root certificates that Node still bundles but that
 // must no longer be trusted. Both chain to eMudhra intermediates whose private keys are publicly
@@ -17,7 +18,8 @@ export function isTrustedCertificate(pem) {
   try {
     let spki = crypto.createPublicKey(pem).export({ type: 'spki', format: 'der' });
     return !DISTRUSTED_ROOTS.has(crypto.createHash('sha256').update(spki).digest('hex'));
-  } catch {
+  } catch (error) {
+    logger('client:trust').debug(`Skipping a CA certificate that cannot be parsed: ${error.message}`);
     return false;
   }
 }
@@ -40,21 +42,35 @@ export function trustedCertificates() {
   return tls.rootCertificates.concat(extra).filter(isTrustedCertificate);
 }
 
+// Returns true when Node verifies against the OpenSSL store instead of its bundled roots. Distro
+// builds (e.g. Debian and Ubuntu) default to the OpenSSL store, and either default can be switched
+// with --use-openssl-ca or --use-bundled-ca, where the last option wins and command-line options
+// take precedence over NODE_OPTIONS. Unlike these, --use-system-ca adds to the bundled roots.
+export function usesOpenSSLStore(variables = process.config.variables) {
+  let openssl = !!variables.node_use_openssl_ca;
+  let options = [...(process.env.NODE_OPTIONS ?? '').split(/\s+/), ...process.execArgv];
+
+  for (let option of options) {
+    // Node accepts both dashes and underscores in option names
+    option = option.replace(/_/g, '-');
+    if (option === '--use-openssl-ca') openssl = true;
+    if (option === '--use-bundled-ca') openssl = false;
+  }
+
+  return openssl;
+}
+
 // Removes the distrusted roots from the CA certificates used by every TLS connection in this
 // process that does not provide its own `ca` option (http, https, proxies, fetch).
 export function dropDistrustedRoots() {
-  // the OpenSSL store replaces Node's bundled roots, and OS vendors have removed them; unlike
-  // --use-system-ca, which adds the OS store to the bundled roots
-  let flags = [...process.execArgv, ...(process.env.NODE_OPTIONS ?? '').split(/\s+/)];
-  // Node accepts both dashes and underscores in option names
-  if (flags.some(f => f.replace(/_/g, '-') === '--use-openssl-ca')) return;
+  // the OpenSSL store is managed by the OS, and OS vendors have removed the distrusted roots
+  if (usesOpenSSLStore()) return;
 
   // newer versions of Node can replace the default CA certificates directly
   if (tls.setDefaultCACertificates && tls.getCACertificates) {
-    let trusted = trustedCertificates();
-    if (trusted.length !== tls.getCACertificates('default').length) {
-      tls.setDefaultCACertificates(trusted);
-    }
+    let current = tls.getCACertificates('default');
+    let trusted = current.filter(isTrustedCertificate);
+    if (trusted.length !== current.length) tls.setDefaultCACertificates(trusted);
     return;
   }
 
