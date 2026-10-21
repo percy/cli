@@ -69,6 +69,11 @@ describe('Unit / Trust', () => {
       }
     });
 
+    it('ignores a NODE_EXTRA_CA_CERTS file without certificates', () => {
+      process.env.NODE_EXTRA_CA_CERTS = './test/certs/test.key';
+      expect(trustedCertificates().length).toEqual(tls.rootCertificates.length - distrusted.length);
+    });
+
     it('ignores a missing NODE_EXTRA_CA_CERTS file', () => {
       process.env.NODE_EXTRA_CA_CERTS = './test/certs/missing.crt';
       expect(trustedCertificates().length).toEqual(tls.rootCertificates.length - distrusted.length);
@@ -109,6 +114,34 @@ describe('Unit / Trust', () => {
       await expectAsync(get({ ca: ssl.cert })).toBeResolvedTo('ok');
     });
 
+    describe('with setDefaultCACertificates', () => {
+      let { setDefaultCACertificates, getCACertificates } = tls;
+
+      beforeEach(() => {
+        tls.setDefaultCACertificates = jasmine.createSpy('setDefaultCACertificates');
+        tls.getCACertificates = jasmine.createSpy('getCACertificates');
+      });
+
+      afterEach(() => {
+        Object.assign(tls, { setDefaultCACertificates, getCACertificates });
+      });
+
+      it('replaces the default CA certificates without the distrusted roots', () => {
+        tls.getCACertificates.and.returnValue([ssl.cert, ...distrusted]);
+        dropDistrustedRoots();
+
+        expect(tls.getCACertificates).toHaveBeenCalledWith('default');
+        expect(tls.setDefaultCACertificates).toHaveBeenCalledOnceWith([ssl.cert]);
+      });
+
+      it('leaves the default CA certificates alone without distrusted roots', () => {
+        tls.getCACertificates.and.returnValue([ssl.cert]);
+        dropDistrustedRoots();
+
+        expect(tls.setDefaultCACertificates).not.toHaveBeenCalled();
+      });
+    });
+
     if (!canSetDefaultCA) {
       describe('on Node versions without setDefaultCACertificates', () => {
         let { createSecureContext } = tls;
@@ -116,6 +149,7 @@ describe('Unit / Trust', () => {
 
         beforeEach(() => {
           tls.createSecureContext = jasmine.createSpy('createSecureContext');
+          delete process.env.NODE_OPTIONS;
         });
 
         afterEach(() => {
