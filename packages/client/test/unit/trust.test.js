@@ -194,10 +194,12 @@ describe('Unit / Trust', () => {
     describe('with setDefaultCACertificates', () => {
       let { setDefaultCACertificates, getCACertificates } = tls;
       let { NODE_OPTIONS } = process.env;
+      let { execArgv } = process;
 
       beforeEach(() => {
-        // use the bundled roots regardless of how Node was built
+        // use the bundled roots regardless of how Node was built or the tests were run
         process.env.NODE_OPTIONS = '--use-bundled-ca';
+        process.execArgv = [];
         tls.setDefaultCACertificates = jasmine.createSpy('setDefaultCACertificates');
         tls.getCACertificates = jasmine.createSpy('getCACertificates');
       });
@@ -206,6 +208,7 @@ describe('Unit / Trust', () => {
         Object.assign(tls, { setDefaultCACertificates, getCACertificates });
         if (NODE_OPTIONS == null) delete process.env.NODE_OPTIONS;
         else process.env.NODE_OPTIONS = NODE_OPTIONS;
+        process.execArgv = execArgv;
       });
 
       it('replaces the default CA certificates without the distrusted roots', () => {
@@ -228,17 +231,20 @@ describe('Unit / Trust', () => {
       describe('on Node versions without setDefaultCACertificates', () => {
         let { createSecureContext } = tls;
         let { NODE_OPTIONS } = process.env;
+        let { execArgv } = process;
 
         beforeEach(() => {
           tls.createSecureContext = jasmine.createSpy('createSecureContext');
-          // use the bundled roots regardless of how Node was built
+          // use the bundled roots regardless of how Node was built or the tests were run
           process.env.NODE_OPTIONS = '--use-bundled-ca';
+          process.execArgv = [];
         });
 
         afterEach(() => {
           tls.createSecureContext = createSecureContext;
           if (NODE_OPTIONS == null) delete process.env.NODE_OPTIONS;
           else process.env.NODE_OPTIONS = NODE_OPTIONS;
+          process.execArgv = execArgv;
         });
 
         it('defaults secure contexts to the trusted certificates', () => {
