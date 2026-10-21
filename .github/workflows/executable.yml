@@ -2,7 +2,7 @@ name: Build Executables
 on:
   release:
     types: [published]
-  # Backfill SHA256SUMS and attestations for an already-published release
+  # Backfill SHA256SUMS for an already-published release (no attestation)
   workflow_dispatch:
     inputs:
       tag:
@@ -149,6 +149,9 @@ jobs:
           sha256sum percy-linux.zip percy-osx.zip percy-win.zip > SHA256SUMS
           cat SHA256SUMS
       - name: Attest release assets
+        # only this run's build and signing jobs produced the zips; a backfill
+        # did not build them, so it must not claim their provenance
+        if: github.event_name == 'release'
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-path: |
