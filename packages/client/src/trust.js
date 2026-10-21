@@ -11,16 +11,25 @@ export const DISTRUSTED_ROOTS = new Map([
   ['bd153ed7b0434f6886b17bce8bbe84ed340c7132d702a8f4fa318f756ecbd6f3', 'AAA Certificate Services']
 ]);
 
-// Returns true when a PEM certificate is not one of the distrusted roots
+// Returns true when a PEM certificate is not one of the distrusted roots. Like Node, certificates
+// that cannot be parsed are not trusted.
 export function isTrustedCertificate(pem) {
-  let spki = crypto.createPublicKey(pem).export({ type: 'spki', format: 'der' });
-  return !DISTRUSTED_ROOTS.has(crypto.createHash('sha256').update(spki).digest('hex'));
+  try {
+    let spki = crypto.createPublicKey(pem).export({ type: 'spki', format: 'der' });
+    return !DISTRUSTED_ROOTS.has(crypto.createHash('sha256').update(spki).digest('hex'));
+  } catch {
+    return false;
+  }
 }
 
-// Returns Node's bundled root certificates plus any certificates from NODE_EXTRA_CA_CERTS, which Node
-// only adds to its default store and would otherwise be lost when providing an explicit CA list,
-// without the distrusted roots
+// Returns the CA certificates Node trusts by default, without the distrusted roots. Older versions
+// of Node cannot report their defaults, so use the bundled roots plus NODE_EXTRA_CA_CERTS, which
+// Node only adds to its default store and would otherwise be lost when providing an explicit list.
 export function trustedCertificates() {
+  if (tls.getCACertificates) {
+    return tls.getCACertificates('default').filter(isTrustedCertificate);
+  }
+
   let extra = [];
 
   try {
@@ -34,15 +43,17 @@ export function trustedCertificates() {
 // Removes the distrusted roots from the CA certificates used by every TLS connection in this
 // process that does not provide its own `ca` option (http, https, proxies, fetch).
 export function dropDistrustedRoots() {
-  // the OS trust store is used instead of Node's bundled roots, and OS vendors have removed them
+  // the OpenSSL store replaces Node's bundled roots, and OS vendors have removed them; unlike
+  // --use-system-ca, which adds the OS store to the bundled roots
   let flags = [...process.execArgv, ...(process.env.NODE_OPTIONS ?? '').split(/\s+/)];
-  if (flags.some(f => f === '--use-openssl-ca' || f === '--use-system-ca')) return;
+  if (flags.includes('--use-openssl-ca')) return;
 
   // newer versions of Node can replace the default CA certificates directly
   if (tls.setDefaultCACertificates && tls.getCACertificates) {
-    let current = tls.getCACertificates('default');
-    let trusted = current.filter(isTrustedCertificate);
-    if (trusted.length !== current.length) tls.setDefaultCACertificates(trusted);
+    let trusted = trustedCertificates();
+    if (trusted.length !== tls.getCACertificates('default').length) {
+      tls.setDefaultCACertificates(trusted);
+    }
     return;
   }
 

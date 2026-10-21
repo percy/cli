@@ -33,14 +33,26 @@ describe('Unit / Trust', () => {
 
   describe('trustedCertificates', () => {
     let { NODE_EXTRA_CA_CERTS } = process.env;
+    let { getCACertificates } = tls;
 
     beforeEach(() => {
       delete process.env.NODE_EXTRA_CA_CERTS;
+      // exercise the fallback for Node versions that cannot report their default CA certificates
+      tls.getCACertificates = undefined;
     });
 
     afterEach(() => {
       if (NODE_EXTRA_CA_CERTS == null) delete process.env.NODE_EXTRA_CA_CERTS;
       else process.env.NODE_EXTRA_CA_CERTS = NODE_EXTRA_CA_CERTS;
+      tls.getCACertificates = getCACertificates;
+    });
+
+    it('filters the CA certificates Node trusts by default when available', () => {
+      tls.getCACertificates = jasmine.createSpy('getCACertificates')
+        .and.returnValue([ssl.cert, ...distrusted]);
+
+      expect(trustedCertificates()).toEqual([ssl.cert]);
+      expect(tls.getCACertificates).toHaveBeenCalledOnceWith('default');
     });
 
     it('returns the bundled roots without the distrusted roots', () => {
@@ -64,6 +76,21 @@ describe('Unit / Trust', () => {
         let trusted = trustedCertificates();
         expect(trusted).toContain(ssl.cert.trim());
         expect(trusted.filter(pem => !isTrustedCertificate(pem))).toEqual([]);
+      } finally {
+        fs.unlinkSync(bundle);
+      }
+    });
+
+    it('skips certificates in NODE_EXTRA_CA_CERTS that cannot be parsed', async () => {
+      let bundle = `${await import('os').then(os => os.tmpdir())}/percy-bad-ca-${process.pid}.pem`;
+      fs.writeFileSync(bundle, `${ssl.cert}\n-----BEGIN CERTIFICATE-----\nnot a certificate\n` +
+        '-----END CERTIFICATE-----\n');
+      process.env.NODE_EXTRA_CA_CERTS = bundle;
+
+      try {
+        let trusted = trustedCertificates();
+        expect(trusted).toContain(ssl.cert.trim());
+        expect(trusted.length).toEqual(tls.rootCertificates.length - distrusted.length + 1);
       } finally {
         fs.unlinkSync(bundle);
       }
@@ -169,6 +196,14 @@ describe('Unit / Trust', () => {
           expect(spy).toHaveBeenCalledWith({ servername: 'percy.io', ca: trustedCertificates() });
           expect(spy).toHaveBeenCalledWith({ ca: ssl.cert });
           expect(spy).toHaveBeenCalledTimes(2);
+        });
+
+        it('still drops the distrusted roots when Node adds the system store', () => {
+          let spy = tls.createSecureContext;
+          process.env.NODE_OPTIONS = '--use-system-ca';
+          dropDistrustedRoots();
+
+          expect(tls.createSecureContext).not.toBe(spy);
         });
 
         it('does nothing when Node uses the OS trust store', () => {
