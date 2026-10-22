@@ -706,6 +706,8 @@ export class Percy {
   upload(options, callback = null, screenshotFlow = null) {
     if (this.readyState !== 1) {
       throw new Error('Not running');
+    } else if (this.build?.error) {
+      throw new Error(this.build.error);
     } else if (Array.isArray(options)) {
       return yieldAll(options.map(o => this.yield.upload(o)));
     }

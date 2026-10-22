@@ -555,8 +555,12 @@ export function createSnapshotsQueue(percy) {
       let result = { ...snapshot, error };
       let { name, meta } = snapshot;
 
-      if (error.name === 'QueueClosedError') return result;
-      if (error.name === 'AbortError') return result;
+      // a closed or aborted queue never runs the task, so settle any sync caller
+      // here or the SDK request waiting on it hangs until its own timeout
+      if (error.name === 'QueueClosedError' || error.name === 'AbortError') {
+        if (snapshot.sync) snapshot.reject?.(build?.error ? new Error(build.error) : error);
+        return result;
+      }
 
       let failed = error.response?.statusCode === 422 && (
         error.response.body.errors.find(e => (
