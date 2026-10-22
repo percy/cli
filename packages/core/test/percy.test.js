@@ -1399,17 +1399,19 @@ describe('Percy', () => {
         }, callback ? { resolve, reject } : null).then(resolve, reject);
       });
 
-      // whichever uploads are still queued when the failure closes the queue are
-      // aborted, so they reject with the build error without reaching the API
-      let sent = [upload('Snapshot 1'), upload('Snapshot 2')];
+      // with a concurrency of 1, the first failure closes the queue while the rest
+      // wait (the next one may already be dequeued by then); every sync caller,
+      // sent or aborted while queued, must reject with the build error
+      let failed = [upload('Snapshot 1'), upload('Snapshot 2')];
       let noCallback = upload('Snapshot 3', false);
       let queued = upload('Snapshot 4');
 
       await Promise.all([
-        ...[...sent, queued].map(u => expectAsync(u).toBeRejectedWithError('Build has failed')),
+        ...[...failed, queued].map(u => expectAsync(u).toBeRejectedWithError('Build has failed')),
         // a queued sync upload without callbacks is aborted without throwing
         expectAsync(noCallback).toBeResolved()
       ]);
+      // at least the last queued uploads never reached the API
       expect(api.requests['/snapshots/4567/comparisons'].length).toBeLessThan(4);
     });
 
@@ -1434,7 +1436,9 @@ describe('Percy', () => {
       upload('Snapshot 1').catch(() => {});
       let queued = upload('Snapshot 2');
 
-      let aborted = expectAsync(queued).toBeRejectedWithError('Snapshot upload was cancelled (AbortError)');
+      let aborted = expectAsync(queued).toBeRejectedWithError(
+        'Snapshot upload was cancelled before it finished, because Percy stopped or a newer snapshot with the same name replaced it'
+      );
       await percy.stop(true);
       await aborted;
     });

@@ -420,6 +420,12 @@ export async function uploadSnapshotLog(percy, buildId, snapshotId, meta = {}) {
   }
 }
 
+// What a sync caller is told when its upload never ran, by queue error name
+const CANCELLED_REASONS = {
+  QueueClosedError: 'Snapshot was not uploaded because Percy is no longer accepting snapshots',
+  AbortError: 'Snapshot upload was cancelled before it finished, because Percy stopped or a newer snapshot with the same name replaced it'
+};
+
 // Creates a snapshots queue that manages a Percy build and uploads snapshots.
 export function createSnapshotsQueue(percy) {
   let { concurrency } = percy.config.discovery;
@@ -558,7 +564,7 @@ export function createSnapshotsQueue(percy) {
       // a closed or aborted queue never runs the task, so settle any sync caller
       // here or the SDK request waiting on it hangs until its own timeout
       if (error.name === 'QueueClosedError' || error.name === 'AbortError') {
-        if (snapshot.sync) snapshot.reject?.(new Error(build?.error || `Snapshot upload was cancelled (${error.name})`));
+        if (snapshot.sync) snapshot.reject?.(new Error(build?.error || CANCELLED_REASONS[error.name]));
         return result;
       }
 
