@@ -558,7 +558,7 @@ export function createSnapshotsQueue(percy) {
       // a closed or aborted queue never runs the task, so settle any sync caller
       // here or the SDK request waiting on it hangs until its own timeout
       if (error.name === 'QueueClosedError' || error.name === 'AbortError') {
-        if (snapshot.sync) snapshot.reject?.(build?.error ? new Error(build.error) : error);
+        if (snapshot.sync) snapshot.reject?.(new Error(build?.error || `Snapshot upload was cancelled: ${error.message}`));
         return result;
       }
 
@@ -594,7 +594,7 @@ export function createSnapshotsQueue(percy) {
         { message: error?.message, meta }
       ];
       await percy.suggestionsForFix(snapshotErrors, { snapshotLevel: true, snapshotName: name });
-      if (snapshot.sync) snapshot.reject(error);
+      if (snapshot.sync) snapshot.reject?.(error);
       return result;
     });
 }

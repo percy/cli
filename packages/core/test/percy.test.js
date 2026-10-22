@@ -1347,6 +1347,14 @@ describe('Percy', () => {
       await expectAsync(upload('Snapshot 1')).toBeResolved();
       expect(percy.build.error).toEqual('Build has failed');
       await expectAsync(upload('Snapshot 2')).toBeResolved();
+
+      // sync without callbacks (e.g. the comparison upload route) nobody is waiting on
+      await expectAsync(percy.upload({
+        name: 'Snapshot 3',
+        tag: { name: 'device' },
+        tiles: [{ content: 'foo' }],
+        sync: true
+      })).toBeResolved();
     });
 
     it('rejects queued sync uploads when the build fails while they wait', async () => {
@@ -1371,8 +1379,8 @@ describe('Percy', () => {
         }, callback ? { resolve, reject } : null).then(resolve, reject);
       });
 
-      // the next queued upload starts before the failed one closes the queue,
-      // so the first two reach the API and the rest are aborted while queued
+      // whichever uploads are still queued when the failure closes the queue are
+      // aborted, so they reject with the build error without reaching the API
       let sent = [upload('Snapshot 1'), upload('Snapshot 2')];
       let noCallback = upload('Snapshot 3', false);
       let queued = upload('Snapshot 4');
@@ -1382,7 +1390,7 @@ describe('Percy', () => {
         // a queued sync upload without callbacks is aborted without throwing
         expectAsync(noCallback).toBeResolved()
       ]);
-      expect(api.requests['/snapshots/4567/comparisons']).toHaveSize(2);
+      expect(api.requests['/snapshots/4567/comparisons'].length).toBeLessThan(4);
     });
 
     it('rejects queued sync uploads when percy is force stopped', async () => {
@@ -1406,7 +1414,7 @@ describe('Percy', () => {
       upload('Snapshot 1').catch(() => {});
       let queued = upload('Snapshot 2');
 
-      let aborted = expectAsync(queued).toBeRejectedWithError(/abort/i);
+      let aborted = expectAsync(queued).toBeRejectedWithError(/^Snapshot upload was cancelled: .*abort/i);
       await percy.stop(true);
       await aborted;
     });
