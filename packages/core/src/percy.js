@@ -706,10 +706,11 @@ export class Percy {
   upload(options, callback = null, screenshotFlow = null) {
     if (this.readyState !== 1) {
       throw new Error('Not running');
-    } else if (this.build?.error) {
-      throw new Error(this.build.error);
     } else if (Array.isArray(options)) {
       return yieldAll(options.map(o => this.yield.upload(o)));
+    } else if (this.build?.error && this.syncMode(options)) {
+      // a sync caller waits on the result, so fail it now instead of queueing it
+      throw new Error(this.build.error);
     }
     // validate comparison uploads and warn about any errors
 

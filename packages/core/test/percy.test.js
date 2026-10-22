@@ -1329,6 +1329,26 @@ describe('Percy', () => {
       await expectAsync(upload('Snapshot 2')).toBeRejectedWithError('Build has failed');
     });
 
+    it('does not reject non-sync uploads once the build has failed upstream', async () => {
+      api.reply('/snapshots/4567/comparisons', () => [422, {
+        errors: [
+          { detail: 'Build has failed', source: { pointer: '/data/attributes/build' } }
+        ]
+      }]);
+
+      await percy.start();
+
+      let upload = name => percy.upload({
+        name,
+        tag: { name: 'device' },
+        tiles: [{ content: 'foo' }]
+      });
+
+      await expectAsync(upload('Snapshot 1')).toBeResolved();
+      expect(percy.build.error).toEqual('Build has failed');
+      await expectAsync(upload('Snapshot 2')).toBeResolved();
+    });
+
     it('rejects queued sync uploads when the build fails while they wait', async () => {
       api.reply('/snapshots/4567/comparisons', req => {
         // hold the failure so the other uploads queue behind it
