@@ -1411,8 +1411,8 @@ describe('Percy', () => {
         // a queued sync upload without callbacks is aborted without throwing
         expectAsync(noCallback).toBeResolved()
       ]);
-      // at least the last queued uploads never reached the API
-      expect(api.requests['/snapshots/4567/comparisons'].length).toBeLessThan(4);
+      // the uploads queued behind the first two (Snapshots 3 and 4) never reached the API
+      expect(api.requests['/snapshots/4567/comparisons'].length).toBeLessThan(3);
     });
 
     it('rejects queued sync uploads when percy is force stopped', async () => {
