@@ -1322,6 +1322,26 @@ describe('Percy', () => {
       expect(logger.stderr).toEqual([]);
     });
 
+    it('does not throw for failed sync uploads nobody is waiting for', async () => {
+      api.reply('/snapshots/4567/comparisons', () => [422, {
+        errors: [{ detail: 'Invalid comparison' }]
+      }]);
+
+      await percy.start();
+
+      await expectAsync(percy.upload({
+        name: 'Snapshot',
+        tag: { name: 'device' },
+        tiles: [{ content: 'foo' }],
+        sync: true
+      })).toBeResolved();
+
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
+        '[percy] Encountered an error uploading snapshot: Snapshot'
+      ]));
+      expect(logger.stderr.join()).not.toContain('TypeError');
+    });
+
     it('rejects sync uploads once the build has failed upstream', async () => {
       api.reply('/snapshots/4567/comparisons', () => [422, {
         errors: [

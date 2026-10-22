@@ -581,13 +581,13 @@ export function createSnapshotsQueue(percy) {
       let duplicate = errors?.length > 1 && errors[1].detail.includes('must be unique');
       if (duplicate) {
         let errMsg = `Ignored duplicate snapshot. ${errors[1].detail}`;
+        // no comparison was created, so a sync caller has nothing to wait for
+        if (snapshot.sync) snapshot.reject?.(new Error(errMsg));
         if (process.env.PERCY_IGNORE_DUPLICATES !== 'true') {
           percy.log.warn(errMsg, meta);
 
           await percy.suggestionsForFix(errMsg, { snapshotLevel: true, snapshotName: name });
         }
-        // no comparison was created, so a sync caller has nothing to wait for
-        if (snapshot.sync) snapshot.reject?.(new Error(errMsg));
         return result;
       }
 
@@ -600,7 +600,7 @@ export function createSnapshotsQueue(percy) {
         { message: error?.message, meta }
       ];
       await percy.suggestionsForFix(snapshotErrors, { snapshotLevel: true, snapshotName: name });
-      if (snapshot.sync) snapshot.reject(error);
+      if (snapshot.sync) snapshot.reject?.(error);
       return result;
     });
 }
