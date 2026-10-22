@@ -457,10 +457,11 @@ describe('serializeDOM', () => {
 
       const html = serializeDOM({ forceShadowAsLightDOM: true }).html;
 
-      // When forceShadowAsLightDOM is true, shadow content becomes light DOM
-      // The slot element from shadow DOM will be present, and slotted content remains in light DOM
+      // When forceShadowAsLightDOM is true, shadow content becomes light DOM and
+      // slotted content is projected into the slot's position. The <slot> itself
+      // is dropped — outside a shadow root it renders nothing.
       expect(html).toMatch('Slotted content as light DOM');
-      expect(html).toMatch('<slot name="title"></slot>');
+      expect(html).not.toMatch('<slot');
       expect(html).not.toMatch('<template shadowrootmode="open"');
       expect(html).not.toMatch('shadowrootserializable');
     });
@@ -653,17 +654,22 @@ describe('serializeDOM', () => {
 
   describe('error handling', () => {
     it('adds node details in error message and rethrow it', () => {
-      let oldURL = window.URL;
-      window.URL = undefined;
       withExample(`
           <img id="test" class="test1 test2" src="data:image/png;base64,iVBORw0KGgo" alt="Example Image">
           `);
+
+      // Fail inside the img's own serialization step (the base64 serializer is
+      // the only thing that sets this attribute) so the decorated error names it.
+      let setAttribute = window.Element.prototype.setAttribute;
+      spyOn(window.Element.prototype, 'setAttribute').and.callFake(function(name, value) {
+        if (name === 'data-percy-serialized-attribute-src') throw new Error('boom');
+        return setAttribute.call(this, name, value);
+      });
 
       expect(() => serializeDOM()).toThrowMatching((error) => {
         return error.message.includes('Error cloning node:') &&
             error.message.includes('{"nodeName":"IMG","classNames":"test1 test2","id":"test"}');
       });
-      window.URL = oldURL;
     });
 
     it('ignores canvas serialization errors when flag is enabled', () => {
@@ -799,7 +805,7 @@ describe('serializeDOM', () => {
         '<button class="cbtn later">go</button>',
         { withShadow: false }
       );
-      let html = serializeDOM().html;
+      let html = serializeDOM({ enablePseudoClassSerialization: true }).html;
       let sourceIdx = html.indexOf('.cbtn:hover');
       let copyIdx = html.indexOf('[data-percy-hover]');
       let laterIdx = html.indexOf('.cbtn.later');
@@ -809,11 +815,92 @@ describe('serializeDOM', () => {
     });
   });
 
-  describe('stylesheet <link> stamping (PER-10077 cascade anchoring)', () => {
-    it('stamps only stylesheet <link>s with a percy element id', () => {
-      // The pseudo-class serializer anchors its rewritten rules after a sheet's
-      // clone element, found via data-percy-element-id — so stylesheet links
-      // need one. Non-stylesheet links (preload, icon, …) do not.
+  describe('interactive-state serialization opt-in gate (PER-10588)', () => {
+    const HOVER_PAGE =
+      '<style>.gbtn:hover { color: red }</style>' +
+      '<button id="gbtn" class="gbtn">go</button>';
+
+    it('is off by default — no rewritten copy and no state stamps', () => {
+      withExample(HOVER_PAGE, { withShadow: false });
+      let html = serializeDOM().html;
+      expect(html).not.toContain('data-percy-interactive-states');
+      expect(html).not.toContain('[data-percy-hover]');
+      expect(html).not.toContain('data-percy-focus');
+    });
+
+    it('is on when enablePseudoClassSerialization is set', () => {
+      withExample(HOVER_PAGE, { withShadow: false });
+      let html = serializeDOM({ enablePseudoClassSerialization: true }).html;
+      expect(html).toContain('data-percy-interactive-states');
+      expect(html).toContain('[data-percy-hover]');
+    });
+
+    it('accepts the snake_case option name', () => {
+      withExample(HOVER_PAGE, { withShadow: false });
+      let html = serializeDOM({ enable_pseudo_class_serialization: true }).html;
+      expect(html).toContain('[data-percy-hover]');
+    });
+
+    it('is on when pseudoClassEnabledElements is configured, without the flag', () => {
+      withExample(HOVER_PAGE, { withShadow: false });
+      let html = serializeDOM({ pseudoClassEnabledElements: { id: ['gbtn'] } }).html;
+      expect(html).toContain('[data-percy-hover]');
+      expect(html).toContain('data-percy-pseudo-element-id');
+    });
+
+    it('stays on for configured elements even when the flag is materialized false', () => {
+      withExample(HOVER_PAGE, { withShadow: false });
+      let html = serializeDOM({
+        enablePseudoClassSerialization: false,
+        pseudoClassEnabledElements: { id: ['gbtn'] }
+      }).html;
+      expect(html).toContain('[data-percy-hover]');
+    });
+
+    it('still stamps open popovers while disabled — the renderer requires it', () => {
+      withExample(
+        '<div id="gpop" popover="manual">hi</div>',
+        { withShadow: false }
+      );
+      let popover = document.getElementById('gpop');
+      if (typeof popover.showPopover !== 'function') return;
+      popover.showPopover();
+
+      let html = serializeDOM().html;
+      expect(html).not.toContain('data-percy-interactive-states');
+      expect(html).toContain('data-percy-popover-open');
+    });
+
+    it('still rewrites custom element :state() while disabled', () => {
+      withExample(
+        '<style>.gstate:state(checked) { color: red }</style><div class="gstate"></div>',
+        { withShadow: false }
+      );
+      let html = serializeDOM().html;
+      expect(html).not.toContain('data-percy-interactive-states');
+      expect(html).toContain('[data-percy-custom-state~="checked"]');
+    });
+
+    it('leaves no data-percy-* state attributes on the live DOM either way', () => {
+      withExample(HOVER_PAGE, { withShadow: false });
+      serializeDOM({ enablePseudoClassSerialization: true });
+      expect(document.querySelector('[data-percy-hover]')).toBeNull();
+      expect(document.querySelector('[data-percy-focus]')).toBeNull();
+    });
+  });
+
+  describe('stylesheet <link> handling (PER-10610)', () => {
+    it('leaves a live stylesheet <link> equal to what a head manager rendered', () => {
+      withExample('<link rel="stylesheet" href="data:text/css,.lx{color:red}">', { withShadow: false });
+      let link = document.querySelector('link[rel="stylesheet"][href^="data:text/css,.lx"]');
+      let rendered = link.cloneNode();
+
+      serializeDOM();
+
+      expect(link.isEqualNode(rendered)).toBe(true);
+    });
+
+    it('does not stamp stylesheet <link>s in the serialized output', () => {
       withExample(
         '<link rel="stylesheet" href="data:text/css,.lx{color:red}">' +
         '<link rel="preload" as="style" href="data:text/css,.ly{color:red}">' +
@@ -821,9 +908,47 @@ describe('serializeDOM', () => {
         { withShadow: false }
       );
       let $ = parseDOM(serializeDOM().html, 'plain');
-      expect($('link[rel="stylesheet"]')[0].getAttribute('data-percy-element-id')).toBeTruthy();
+      expect($('link[rel="stylesheet"]')[0].getAttribute('data-percy-element-id')).toBeNull();
       expect($('link[rel="preload"]')[0].getAttribute('data-percy-element-id')).toBeNull();
       expect($('link:not([rel])')[0].getAttribute('data-percy-element-id')).toBeNull();
+    });
+
+    it('does not accumulate <link>s when a head manager reconciles between snapshots', () => {
+      withExample('<link rel="stylesheet" href="data:text/css,.lrec{color:red}">', { withShadow: false });
+      let link = document.querySelector('link[rel="stylesheet"][href^="data:text/css,.lrec"]');
+      let rendered = link.cloneNode();
+      let reconcile = () => {
+        if (!link.isEqualNode(rendered)) link.after(rendered.cloneNode());
+      };
+
+      serializeDOM();
+      reconcile();
+      let html = serializeDOM().html;
+
+      expect(html.split('data:text/css,.lrec{').length - 1).toEqual(1);
+    });
+
+    it('still anchors a rewritten copy after its source <link>, not at end of head (PER-10077)', async () => {
+      withExample(
+        '<link rel="stylesheet" href="base/test/assets/hover-anchor.css">' +
+        '<style>.lbtn.later { color: blue }</style>' +
+        '<button class="lbtn later">go</button>',
+        { withShadow: false }
+      );
+      let link = document.querySelector('link[href="base/test/assets/hover-anchor.css"]');
+      await new Promise((resolve, reject) => {
+        if (link.sheet) return resolve();
+        link.addEventListener('load', resolve, { once: true });
+        link.addEventListener('error', () => reject(new Error('hover-anchor.css failed to load')), { once: true });
+      });
+
+      let html = serializeDOM({ enablePseudoClassSerialization: true }).html;
+      let sourceIdx = html.indexOf('hover-anchor.css');
+      let copyIdx = html.indexOf('.lbtn[data-percy-hover]');
+      let laterIdx = html.indexOf('.lbtn.later');
+      expect(copyIdx).toBeGreaterThan(-1);
+      expect(copyIdx).toBeGreaterThan(sourceIdx);
+      expect(copyIdx).toBeLessThan(laterIdx);
     });
   });
 

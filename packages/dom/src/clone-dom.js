@@ -49,7 +49,7 @@ function cloneElementWithoutLifecycle(element) {
 }
 
 export function cloneNodeAndShadow(ctx) {
-  let { dom, disableShadowDOM, forceShadowAsLightDOM, resources, cache, enableJavaScript } = ctx;
+  let { dom, disableShadowDOM, forceShadowAsLightDOM, resources, cache, enableJavaScript, styleSheetClones } = ctx;
   // clones shadow DOM and light DOM for a given node
   let cloneNode = (node, parent) => {
     try {
@@ -62,9 +62,35 @@ export function cloneNodeAndShadow(ctx) {
         }
       };
 
+      // A comment inside a <style> is raw text, not markup: templating libraries
+      // such as Lit leave empty marker comments there around bindings. Cloned, it
+      // serializes as a literal `<!---->` in the CSS, which the parser reads as a
+      // CDO/CDC token that swallows the declaration after it (PER-11066).
+      if (node.nodeType === 8 /* COMMENT_NODE */ && /^style$/i.test(node.parentNode.nodeName)) {
+        return;
+      }
+
       if (node.nodeName === 'BASE') {
         let clone = node.cloneNode(false);
         parent.appendChild(clone);
+        return;
+      }
+
+      // Slotted content lives in the host's light DOM and is only *rendered* at
+      // the slot's position by the shadow root. Flattening the root away leaves
+      // an inert <slot> and strands that content outside its container, so
+      // resolve the projection here instead (PER-10812). Every shadow root is
+      // flattened when forceShadowAsLightDOM is set, so any slot belonging to
+      // one needs resolving — including slots reached indirectly, as projected
+      // content nested inside another component's slotted markup. The slot
+      // itself never renders and isn't cloned.
+      if (forceShadowAsLightDOM && node.nodeName === 'SLOT' &&
+          typeof node.assignedNodes === 'function' && node.getRootNode()?.host) {
+        for (let assigned of node.assignedNodes({ flatten: true })) {
+          if (!ignoreTags.includes(assigned.nodeName)) {
+            cloneNode(assigned, parent);
+          }
+        }
         return;
       }
 
@@ -73,27 +99,30 @@ export function cloneNodeAndShadow(ctx) {
 
       let clone = cloneElementWithoutLifecycle(node);
 
+      if (styleSheetClones && (node.nodeName === 'LINK' || node.nodeName === 'STYLE')) {
+        styleSheetClones.set(node, clone);
+      }
+
       // Custom-element :state() is captured by the fallback path in
       // serialize-custom-states.js (live el.matches against state names
       // discovered in CSS) — no clone-time fast path remains.
 
       // Handle <style> tag specifically for media queries
       if (node.nodeName === 'STYLE' && !enableJavaScript) {
-        let cssText = node.textContent?.trim() || '';
-        if (!cssText && node.sheet) {
+        let ownText = node.textContent?.trim() || '';
+        if (!ownText && node.sheet) {
           try {
             const cssRules = node.sheet.cssRules;
             if (cssRules && cssRules.length > 0) {
-              cssText = Array.from(cssRules).map(rule => rule.cssText).join('\n');
+              let cssText = Array.from(cssRules).map(rule => rule.cssText).join('\n');
+              if (cssText) {
+                clone.textContent = cssText;
+                clone.setAttribute('data-percy-cssom-serialized', 'true');
+              }
             }
           } catch (_) {
             // ignore errors
           }
-        }
-
-        if (cssText) {
-          clone.textContent = cssText;
-          clone.setAttribute('data-percy-cssom-serialized', 'true');
         }
       }
 
@@ -113,8 +142,10 @@ export function cloneNodeAndShadow(ctx) {
       // clone shadow DOM (including closed shadow roots captured via CDP
       // and stored on window.__percyClosedShadowRoots)
       let nodeShadowRoot = node.shadowRoot || getClosedShadowRoot(node);
+      let flattenedHost = false;
       if (nodeShadowRoot && !disableShadowDOM) {
-        if (forceShadowAsLightDOM) {
+        flattenedHost = !!forceShadowAsLightDOM;
+        if (flattenedHost) {
           // When forceShadowAsLightDOM is true, treat shadow content as normal DOM
           walkTree(nodeShadowRoot.firstChild, clone);
         } else {
@@ -133,8 +164,12 @@ export function cloneNodeAndShadow(ctx) {
         }
       }
 
-      // clone light DOM
-      walkTree(node.firstChild, clone);
+      // clone light DOM — skipped for a flattened host, whose light children were
+      // already placed at their <slot> positions above. Children assigned to no
+      // slot are dropped, matching what the browser renders for them: nothing.
+      if (!flattenedHost) {
+        walkTree(node.firstChild, clone);
+      }
     } catch (err) {
       if (!err.handled) {
         handleErrors(err, 'Error cloning node: ', node);

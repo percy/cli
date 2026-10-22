@@ -22,11 +22,7 @@ export async function isPercyEnabled() {
       error = e;
     }
 
-    if (percy.enabled && percy.version.major !== 1) {
-      log.info('Unsupported Percy CLI version, disabling snapshots');
-      log.debug(`Found version: ${percy.version}`);
-      percy.enabled = false;
-    } else if (!percy.enabled) {
+    if (!percy.enabled) {
       log.info('Percy is not running, disabling snapshots');
       log.debug(error);
     }

@@ -2,7 +2,14 @@
 
 // Serializes pseudo-class state into Percy's clone via two paths:
 //
-//   1. Auto-detect path (every snapshot). For :focus / :focus-within we
+// Both paths below are gated on ctx.pseudoClassSerialization, which is off
+// unless the snapshot sets enablePseudoClassSerialization or configures
+// pseudoClassEnabledElements. Open-popover stamping and custom element
+// :state() rewriting are NOT gated — the renderer requires
+// data-percy-popover-open, and :state() is rewritten in place so it cannot
+// reorder the cascade.
+//
+//   1. Auto-detect path (when enabled). For :focus / :focus-within we
 //      stamp the live DOM with the corresponding data-percy-* attribute
 //      and rewrite matching CSS rules to use those attribute selectors.
 //      :focus-within stamps the focused element's ancestor chain across
@@ -77,6 +84,47 @@ function selectorContainsPseudo(selectorText, pseudoList) {
     re.lastIndex = 0;
     return re.test(selectorText);
   });
+}
+
+function splitSelectorList(selectorText) {
+  const parts = [];
+  let depth = 0;
+  let quote = null;
+  let start = 0;
+
+  for (let i = 0; i < selectorText.length; i++) {
+    const char = selectorText[i];
+
+    if (quote) {
+      if (char === '\\') i++;
+      else if (char === quote) quote = null;
+      continue;
+    }
+
+    if (char === '"' || char === "'") quote = char;
+    else if (char === '(' || char === '[') depth++;
+    else if (char === ')' || char === ']') depth--;
+    else if (char === ',' && depth === 0) {
+      parts.push(selectorText.slice(start, i));
+      start = i + 1;
+    }
+  }
+
+  parts.push(selectorText.slice(start));
+  return parts;
+}
+
+function rewritePseudoSelectorList(selectorText, pseudoList) {
+  const pseudoParts = [];
+
+  for (const part of splitSelectorList(selectorText)) {
+    const trimmed = part.trim();
+    if (trimmed && selectorContainsPseudo(trimmed, pseudoList)) {
+      pseudoParts.push(rewritePseudoSelector(trimmed));
+    }
+  }
+
+  return pseudoParts.length ? pseudoParts.join(', ') : null;
 }
 
 export function rewritePseudoSelector(selectorText) {
@@ -288,8 +336,9 @@ export function getElementsToProcess(ctx, config, markWithId = false) {
 // the data-attributes are copied through to the clone via cloneNode.
 export function markPseudoClassElements(ctx, config) {
   ctx._liveMutations = [];
-  markInteractiveStates(ctx);
   markOpenPopovers(ctx);
+  if (!ctx.pseudoClassSerialization) return;
+  markInteractiveStates(ctx);
   if (config) getElementsToProcess(ctx, config, true);
 }
 
@@ -426,9 +475,9 @@ function extractPseudoClassRules(ctx) {
       // interactive pseudo. Skips most rules on most stylesheets without
       // touching the regex bank.
       if (!rule.selectorText.includes(':')) continue;
-      if (!selectorContainsPseudo(rule.selectorText, ALL_INTERACTIVE_PSEUDO)) continue;
 
-      const rewrittenSelector = rewritePseudoSelector(rule.selectorText);
+      const rewrittenSelector = rewritePseudoSelectorList(rule.selectorText, ALL_INTERACTIVE_PSEUDO);
+      if (!rewrittenSelector) continue;
 
       const cssText = `${rewrittenSelector} { ${rule.style.cssText} }`;
       const wrapped = rule.wrapper ? `${rule.wrapper} { ${cssText} }` : cssText;
@@ -461,11 +510,11 @@ function extractPseudoClassRules(ctx) {
     styleElement.textContent = rewrittenRules.join('\n');
 
     if (owner === null) {
-      injectAtSheetPosition(ctx.clone, sheet, styleElement, ctx.clone.head || ctx.clone.querySelector('head'));
+      injectAtSheetPosition(ctx, ctx.clone, sheet, styleElement, ctx.clone.head || ctx.clone.querySelector('head'));
     } else {
       const cloneHost = cloneByPercyId.get(owner.getAttribute('data-percy-element-id'));
       if (cloneHost && cloneHost.shadowRoot) {
-        injectAtSheetPosition(cloneHost.shadowRoot, sheet, styleElement, cloneHost.shadowRoot);
+        injectAtSheetPosition(ctx, cloneHost.shadowRoot, sheet, styleElement, cloneHost.shadowRoot);
       }
     }
   }
@@ -474,13 +523,16 @@ function extractPseudoClassRules(ctx) {
 // Insert an interactive-states <style> immediately AFTER its source sheet's
 // clone element so the copy keeps the sheet's original source-order rank —
 // later stylesheets still win equal-specificity ties, exactly as on the live
-// page (PER-10077). The sheet's ownerNode (<style> / <link rel=stylesheet>) is
-// stamped with a data-percy-element-id, which serialize-cssom preserves on any
-// node it rebuilds in place. Falls back to appending at the scope's end when
-// the sheet has no locatable clone anchor.
-function injectAtSheetPosition(scopeRoot, sheet, styleElement, fallbackTarget) {
-  const anchorId = sheet.ownerNode.getAttribute('data-percy-element-id');
-  const anchor = anchorId ? scopeRoot.querySelector(`[data-percy-element-id="${anchorId}"]`) : null;
+// page (PER-10077).
+function injectAtSheetPosition(ctx, scopeRoot, sheet, styleElement, fallbackTarget) {
+  const ownerNode = sheet.ownerNode;
+  let anchor = ownerNode ? ctx.styleSheetClones?.get(ownerNode) : null;
+
+  if (!anchor?.parentNode && ownerNode) {
+    const anchorId = ownerNode.getAttribute('data-percy-element-id');
+    anchor = anchorId ? scopeRoot.querySelector(`[data-percy-element-id="${anchorId}"]`) : null;
+  }
+
   const anchorParent = anchor ? anchor.parentNode : null;
   if (anchorParent) {
     anchorParent.insertBefore(styleElement, anchor.nextSibling);
@@ -490,10 +542,11 @@ function injectAtSheetPosition(scopeRoot, sheet, styleElement, fallbackTarget) {
 }
 
 export function serializePseudoClasses(ctx) {
-  // Auto-detect path runs unconditionally so `:focus`/`:focus-within`
-  // rules are rewritten regardless of whether the user configured a
-  // pseudoClassEnabledElements list (and regardless of whether that list
-  // matched anything on this page).
+  if (!ctx.pseudoClassSerialization) return;
+
+  // Auto-detect path rewrites `:focus`/`:focus-within` rules whether or not
+  // a pseudoClassEnabledElements list was configured (and regardless of
+  // whether that list matched anything on this page).
   extractPseudoClassRules(ctx);
 
   if (!ctx.pseudoClassEnabledElements) return;

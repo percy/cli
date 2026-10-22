@@ -1,5 +1,5 @@
 import { setupTest, logger } from '../helpers/index.js';
-import { Network, AbortCodes, pickCookieSession, shouldAttachAuth, raceWithTimeout, resolveDirectFetchMime, flattenLookupAddresses, MetadataBlockedError } from '../../src/network.js';
+import { Network, AbortCodes, pickCookieSession, shouldAttachAuth, raceWithTimeout, resolveDirectFetchMime, flattenLookupAddresses, originURL, MetadataBlockedError } from '../../src/network.js';
 import { AbortError } from '../../src/utils.js';
 
 describe('Unit / Network', () => {
@@ -132,6 +132,77 @@ describe('Unit / Network', () => {
     it('falls back to application/octet-stream when neither header nor URL extension is recognized', () => {
       expect(resolveDirectFetchMime({}, '/no-ext')).toBe('application/octet-stream');
       expect(resolveDirectFetchMime({ 'content-type': '' }, '/no-ext')).toBe('application/octet-stream');
+    });
+  });
+
+  describe('originURL', () => {
+    // The abandoned https leg of Chrome's upgrade fallback must not become the
+    // resource key — that hid the snapshot's own root resource and leaked the
+    // fetched page to later snapshots of the same URL.
+    it('ignores the abandoned https leg of an HTTPS-upgrade fallback', () => {
+      expect(originURL({
+        url: 'http://example.test/page',
+        redirectChain: [{ url: 'https://example.test/page' }]
+      })).toEqual('http://example.test/page');
+    });
+
+    it('still reports the referenced URL for a real server redirect', () => {
+      expect(originURL({
+        url: 'http://example.test/b',
+        redirectChain: [{ url: 'http://example.test/a' }]
+      })).toEqual('http://example.test/a');
+    });
+
+    it('skips the upgrade fallback but keeps a following server redirect', () => {
+      expect(originURL({
+        url: 'http://example.test/b',
+        redirectChain: [
+          { url: 'https://example.test/a' },
+          { url: 'http://example.test/a' }
+        ]
+      })).toEqual('http://example.test/a');
+    });
+
+    it('does not treat a differing path as an upgrade fallback', () => {
+      expect(originURL({
+        url: 'http://example.test/b',
+        redirectChain: [{ url: 'https://example.test/a' }]
+      })).toEqual('https://example.test/a');
+    });
+
+    it('leaves a genuine https request alone', () => {
+      expect(originURL({
+        url: 'https://example.test/page',
+        redirectChain: []
+      })).toEqual('https://example.test/page');
+    });
+
+    it('normalizes away the hash and keeps the query', () => {
+      expect(originURL({
+        url: 'http://example.test/page?a=1#frag',
+        redirectChain: []
+      })).toEqual('http://example.test/page?a=1');
+    });
+
+    it('treats a default-port https hop as a fallback of the same http URL', () => {
+      expect(originURL({
+        url: 'http://example.test/page',
+        redirectChain: [{ url: 'https://example.test:443/page' }]
+      })).toEqual('http://example.test/page');
+    });
+
+    it('treats matching explicit non-default ports as a fallback', () => {
+      expect(originURL({
+        url: 'http://example.test:8080/page',
+        redirectChain: [{ url: 'https://example.test:8080/page' }]
+      })).toEqual('http://example.test:8080/page');
+    });
+
+    it('does not treat a differing query string as a fallback', () => {
+      expect(originURL({
+        url: 'http://example.test/page?a=2',
+        redirectChain: [{ url: 'https://example.test/page?a=1' }]
+      })).toEqual('https://example.test/page?a=1');
     });
   });
 

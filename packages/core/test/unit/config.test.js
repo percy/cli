@@ -116,6 +116,66 @@ describe('SnapshotSchema', () => {
     expect(errors[0].path).toBe('scope');
     expect(errors[0].message).toBe('must have property scope when property scopeOptions is present');
   });
+
+  // Structural, not a validate() round-trip: onlyAutomate is evaluated when AJV COMPILES
+  // the schema, so flipping PERCY_TOKEN inside a spec cannot change the outcome.
+  it('declares scaleToFit as an automate-only boolean', () => {
+    // The config schema is the one entry with no $id; index into that rather than [0].
+    const configSchema = CoreConfig.schemas.find(s => !s.$id);
+    expect(configSchema.snapshot.properties.scaleToFit)
+      .toEqual({ type: 'boolean', onlyAutomate: true });
+  });
+
+  // ...and this proves it is wired into validation, not inert. Asserted RELATIVE to
+  // fullPage: onlyAutomate is compiled in from PERCY_TOKEN, which differs between a local
+  // run and CI, so an absolute expectation here passes locally and breaks in CI.
+  it('gates scaleToFit exactly like fullPage', () => {
+    PercyConfig.addSchema(CoreConfig.schemas);
+    const errors = PercyConfig.validate({ fullPage: true, scaleToFit: true }, '/config/snapshot') || [];
+    const messagesFor = (path) => errors.filter(e => e.path === path).map(e => e.message);
+
+    expect(messagesFor('scaleToFit')).toEqual(messagesFor('fullPage'));
+    // An undeclared key would draw 'unknown property' here while fullPage drew none, so
+    // this still fails if the schema entry goes missing.
+    expect(messagesFor('scaleToFit')).not.toContain('unknown property');
+  });
+});
+
+describe('ComparisonSchema - scaleToFit metadata', () => {
+  beforeEach(() => {
+    PercyConfig.addSchema(CoreConfig.schemas);
+  });
+
+  // metadata sets additionalProperties:false and PercyConfig.validate DELETES unknown keys
+  // from the object it is handed, so an undeclared key is dropped before upload -- silently,
+  // with the build still green. A structural assertion would not catch that; this asserts
+  // the value survives the round trip.
+  it('keeps scaleToFit and appliedScaleFactor on the validated object', () => {
+    const options = {
+      name: 'snap',
+      tag: { name: 'Pixel 10' },
+      tiles: [],
+      metadata: { screenshotType: 'fullpage', scaleToFit: true, appliedScaleFactor: 0.380952 }
+    };
+
+    expect(PercyConfig.validate(options, '/comparison')).toBe(undefined);
+    expect(options.metadata).toEqual({
+      screenshotType: 'fullpage', scaleToFit: true, appliedScaleFactor: 0.380952
+    });
+  });
+
+  it('rejects a factor outside (0, 1]', () => {
+    const build = (appliedScaleFactor) => PercyConfig.validate({
+      name: 'snap',
+      tag: { name: 'Pixel 10' },
+      tiles: [],
+      metadata: { scaleToFit: true, appliedScaleFactor }
+    }, '/comparison') || [];
+
+    expect(build(2).map(e => e.path)).toContain('metadata.appliedScaleFactor');
+    expect(build(0).map(e => e.path)).toContain('metadata.appliedScaleFactor');
+    expect(build(0.380952)).toEqual([]);
+  });
 });
 
 describe('ComparisonSchema - elementSelectorsData', () => {

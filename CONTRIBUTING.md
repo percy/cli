@@ -81,6 +81,8 @@ $ git remote add upstream https://github.com/percy/cli
 $ yarn
 ```
 
+Use `yarn`, not `npm install`. The repo's `.npmrc` sets `ignore-scripts=true`, so `npm install` exits cleanly without running `@percy/core`'s post-install step — leaving you without the Chromium build Percy needs at runtime.
+
 ### Lint
 
 [@percy/cli](https://github.com/percy/cli) uses [eslint](https://github.com/eslint/eslint) for linting.

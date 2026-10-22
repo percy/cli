@@ -134,7 +134,8 @@ function parseVisualConfigFromEnv(log) {
   validateBoolean(visualConfig.compareWithPreviousRun, 'compareWithPreviousRun');
   validateBoolean(visualConfig.diffIgnoreEnabled, 'diffIgnoreEnabled');
   validateNumberInRange(visualConfig.diffIgnorePercentage, 'diffIgnorePercentage');
-  validateIntegerRange(visualConfig.diffSensitivity, 'diffSensitivity', 1, 5);
+  // 0-indexed like the project setting: 0 = Very Strict ... 4 = Very Relaxed
+  validateIntegerRange(visualConfig.diffSensitivity, 'diffSensitivity', 0, 4);
 
   if (visualConfig.browsers != null) {
     if (!Array.isArray(visualConfig.browsers) || !visualConfig.browsers.every(b => typeof b === 'string')) {
@@ -383,6 +384,14 @@ export class PercyClient {
           'skip-base-build': this.config.percy?.skipBaseBuild,
           'testhub-build-uuid': this.env.testhubBuildUuid,
           'testhub-build-run-id': this.env.testhubBuildRunId,
+          // machine identity for slow-build diagnostics (server-validated;
+          // percy-api may discard any of these)
+          ...(this.env.machine?.id ? {
+            'machine-id': this.env.machine.id,
+            'machine-hostname': this.env.machine.hostname,
+            'machine-ci-run-url': this.env.machine.runUrl,
+            'machine-ci-platform': this.env.machine.platform
+          } : {}),
           ...(dropinBaselineCandidate ? { 'dropin-baseline-candidate': true } : {}),
           ...(dropinBaselineSetup ? { 'dropin-baseline-setup': true } : {}),
           ...(visualConfig ? { 'visual-config': visualConfig } : {}),
@@ -405,13 +414,21 @@ export class PercyClient {
     });
   }
 
+  // Machine-identity header for per-machine liveness on parallel builds.
+  // Attached per-call (never in headers()) so it only ever reaches percy.io
+  // API endpoints — headers() is also used for off-domain requests.
+  machineHeaders() {
+    let id = this.env.machine?.id;
+    return id ? { 'X-Percy-Machine-Id': id } : {};
+  }
+
   // Finalizes the active build. When `all` is true, `all-shards=true` is
   // added as a query param so the API finalizes all other build shards.
   async finalizeBuild(buildId, { all = false } = {}) {
     validateId('build', buildId);
     let qs = all ? 'all-shards=true' : '';
     this.log.debug(`Finalizing build ${buildId}...`);
-    return this.post(`builds/${buildId}/finalize?${qs}`, {}, { identifier: 'build.finalze' });
+    return this.post(`builds/${buildId}/finalize?${qs}`, {}, { identifier: 'build.finalze' }, this.machineHeaders());
   }
 
   // Retrieves build data by id. Requires a read access token.
@@ -712,7 +729,7 @@ export class PercyClient {
           }
         }
       }
-    }, { identifier: 'snapshot.post', ...meta });
+    }, { identifier: 'snapshot.post', ...meta }, this.machineHeaders());
   }
 
   // Finalizes a snapshot.
@@ -941,6 +958,21 @@ export class PercyClient {
     return this.post('logs', {
       data: body
     }, { identifier: 'build.send_logs', ...meta });
+  }
+
+  async sendSnapshotLog(buildId, snapshotId, content, meta = {}) {
+    validateId('build', buildId);
+    validateId('snapshot', snapshotId);
+    this.log.debug('Sending Snapshot Log', meta);
+    return this.post('logs', {
+      data: {
+        content,
+        build_id: buildId,
+        reference_id: snapshotId,
+        service_name: 'snapshot',
+        base64encoded: true
+      }
+    }, { identifier: 'snapshot.send_log', ...meta });
   }
 
   async getErrorAnalysis(errors, meta = {}) {

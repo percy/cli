@@ -4,7 +4,7 @@ import { normalize } from '@percy/config/utils';
 import { ServerError } from './server.js';
 import { encodeURLSearchParams } from './utils.js';
 import { handleSyncJob } from './snapshot.js';
-import { locateScreenshot, appAutomateTmpDir } from './maestro-screenshot-file.js';
+import { locateScreenshot, appAutomateTmpDir, bsScopeRootOverride } from './maestro-screenshot-file.js';
 import { validateRegionInputs, resolveRegions } from './maestro-regions.js';
 import { deriveDeviceInsets } from './maestro-hierarchy.js';
 
@@ -98,6 +98,7 @@ export async function handleMaestroScreenshot(req, res, percy) {
   // realpath + prefix check inside locateScreenshot enforces the security
   // invariant at whichever root applies; the boundary is relocated, not removed.
   let scopeRoot;
+  let recursiveScope = false;
   if (selfHosted) {
     // Reject filePath outright in self-hosted mode. The SDK never emits it (it
     // sends a relative SCREENSHOT_NAME); honoring an absolute filePath against
@@ -124,10 +125,21 @@ export async function handleMaestroScreenshot(req, res, percy) {
       throw new ServerError(400, `PERCY_MAESTRO_SCREENSHOT_DIR is not an existing directory: ${dir}`);
     }
     scopeRoot = dir;
+    recursiveScope = true;
   } else {
-    scopeRoot = platform === 'ios'
-      ? `${appAutomateTmpDir()}/${sessionId}`
-      : `${appAutomateTmpDir()}/${sessionId}_test_suite`;
+    let overrideRoot = bsScopeRootOverride();
+    if (overrideRoot) {
+      recursiveScope = true;
+      let sessionScoped = `${overrideRoot}/${sessionId}`;
+      let sessionStat;
+      try { sessionStat = await fs.promises.stat(sessionScoped); } catch { sessionStat = null; }
+      scopeRoot = sessionStat?.isDirectory() ? sessionScoped : overrideRoot;
+      percy.log.debug(`maestro screenshot scope root: ${scopeRoot}`);
+    } else {
+      scopeRoot = platform === 'ios'
+        ? `${appAutomateTmpDir()}/${sessionId}`
+        : `${appAutomateTmpDir()}/${sessionId}_test_suite`;
+    }
   }
 
   // Validate regions input shape early (before file I/O and ADB work) so
@@ -137,7 +149,7 @@ export async function handleMaestroScreenshot(req, res, percy) {
   // Locate the screenshot on disk (supplied filePath, BS session glob, or
   // self-hosted PERCY_MAESTRO_SCREENSHOT_DIR recursive glob) and confirm it
   // resolves under scopeRoot. Throws ServerError(404) when missing/out-of-root.
-  let realPath = await locateScreenshot({ platform, sessionId, name, filePath: suppliedFilePath, scopeRoot, selfHosted });
+  let realPath = await locateScreenshot({ platform, sessionId, name, filePath: suppliedFilePath, scopeRoot, selfHosted, recursiveScope });
 
   // Read and base64-encode the screenshot
   let fileContent = await fs.promises.readFile(realPath);

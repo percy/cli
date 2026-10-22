@@ -1,6 +1,7 @@
 import logger from '@percy/logger';
 import PercyConfig from '@percy/config';
 import micromatch from 'micromatch';
+import Pako from 'pako';
 import { configSchema } from './config.js';
 import Queue from './queue.js';
 import {
@@ -10,7 +11,9 @@ import {
   snapshotLogName,
   decodeAndEncodeURLWithLogging,
   compareObjectTypes,
-  normalizeOptions
+  normalizeOptions,
+  base64encode,
+  redactSecrets
 } from './utils.js';
 import { JobData } from './wait-for-job.js';
 
@@ -393,6 +396,30 @@ async function runDoctorOnFailure(percy) {
   }
 }
 
+// Uploads a single web snapshot's CLI log to the logs endpoint, keyed by the
+// snapshot id, so it lands directly in the log bucket instead of travelling as a
+// snapshot resource. Best-effort: a failure here must never fail the snapshot.
+export async function uploadSnapshotLog(percy, buildId, snapshotId, meta = {}) {
+  try {
+    if (!buildId || !snapshotId) return;
+
+    // Redact secrets before egress (CWE-532) — this per-snapshot log is a
+    // parallel egress path to sendBuildLogs and must scrub tokens/credentials.
+    let logs = redactSecrets(logger.snapshotLogs(meta.snapshot));
+    if (!logs.length) return;
+
+    let content = base64encode(Pako.gzip(JSON.stringify(logs)));
+    await percy.client.sendSnapshotLog(buildId, snapshotId, content, meta);
+    percy.log.debug(`Snapshot log sent for ${meta.snapshot?.name}`, meta);
+  } catch (err) {
+    percy.log.debug(`Could not send the snapshot log for ${meta.snapshot?.name}`, meta);
+    percy.log.debug(err);
+  } finally {
+    // drop this snapshot's cached logs regardless of upload outcome
+    logger.evictSnapshot(meta.snapshot);
+  }
+}
+
 // Creates a snapshots queue that manages a Percy build and uploads snapshots.
 export function createSnapshotsQueue(percy) {
   let { concurrency } = percy.config.discovery;
@@ -505,6 +532,13 @@ export function createSnapshotsQueue(percy) {
       let send = 'tag' in snapshot ? 'sendComparison' : 'sendSnapshot';
       let response = yield percy.client[send](build.id, snapshot);
       if (percy.deferUploads) percy.log.info(`Snapshot uploaded: ${name}`, meta);
+
+      // upload the per-snapshot CLI log directly to the logs endpoint (web
+      // snapshots only; automate/app comparisons carry no snapshot log). For
+      // sendSnapshot, response.data.id is the snapshot id. Best-effort.
+      if (send === 'sendSnapshot') {
+        yield uploadSnapshotLog(percy, build.id, response.data.id, meta);
+      }
 
       // Pushing to syncQueue, that will check for
       // snapshot processing status, and will resolve once done

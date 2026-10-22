@@ -92,6 +92,28 @@ describe('Discovery', () => {
     jasmine.DEFAULT_TIMEOUT_INTERVAL = originalTimeout;
   });
 
+  it('uploads the snapshot log to the logs endpoint instead of as a resource', async () => {
+    await percy.snapshot({
+      name: 'test snapshot',
+      url: 'http://localhost:8000',
+      domSnapshot: testDOM
+    });
+
+    await percy.idle();
+
+    // the per-snapshot log is no longer one of the captured resources
+    expect(captured[0].map(r => r.attributes['resource-url']))
+      .not.toContain(jasmine.stringMatching(/\/percy\.\d+\.log$/));
+
+    // it is uploaded via POST /logs with service_name 'snapshot' keyed by snapshot id
+    let snapshotLogReq = (api.requests['/logs'] || [])
+      .find(r => r.body?.data?.service_name === 'snapshot');
+    expect(snapshotLogReq).toBeDefined();
+    expect(snapshotLogReq.body.data.reference_id).toEqual('4567');
+    expect(snapshotLogReq.body.data.build_id).toEqual('123');
+    expect(snapshotLogReq.body.data.base64encoded).toBe(true);
+  });
+
   it('gathers resources for a snapshot in GZIP format', async () => {
     process.env.PERCY_GZIP = true;
 
@@ -110,11 +132,6 @@ describe('Discovery', () => {
     expect(paths).toContain('/img.gif');
 
     expect(captured[0]).toEqual([
-      jasmine.objectContaining({
-        attributes: jasmine.objectContaining({
-          'resource-url': jasmine.stringMatching(/^\/percy\.\d+\.log$/)
-        })
-      }),
       jasmine.objectContaining({
         id: sha256hash(Pako.gzip(testDOM)),
         attributes: jasmine.objectContaining({
@@ -152,11 +169,6 @@ describe('Discovery', () => {
     expect(paths).toContain('/img.gif');
 
     expect(captured[0]).toEqual([
-      jasmine.objectContaining({
-        attributes: jasmine.objectContaining({
-          'resource-url': jasmine.stringMatching(/^\/percy\.\d+\.log$/)
-        })
-      }),
       jasmine.objectContaining({
         id: sha256hash(testDOM),
         attributes: jasmine.objectContaining({
@@ -418,11 +430,6 @@ describe('Discovery', () => {
 
     expect(captured[0]).toEqual([
       jasmine.objectContaining({
-        attributes: jasmine.objectContaining({
-          'resource-url': jasmine.stringMatching(/^\/percy\.\d+\.log$/)
-        })
-      }),
-      jasmine.objectContaining({
         id: sha256hash(prefetchDOM),
         attributes: jasmine.objectContaining({
           'resource-url': 'http://localhost:8000/'
@@ -673,11 +680,6 @@ describe('Discovery', () => {
     expect(captured[0]).toEqual([
       jasmine.objectContaining({
         attributes: jasmine.objectContaining({
-          'resource-url': jasmine.stringMatching(/^\/percy\.\d+\.log$/)
-        })
-      }),
-      jasmine.objectContaining({
-        attributes: jasmine.objectContaining({
           'resource-url': 'http://localhost:8000/'
         })
       }),
@@ -706,11 +708,6 @@ describe('Discovery', () => {
     await percy.idle();
 
     expect(captured[0]).toEqual([
-      jasmine.objectContaining({
-        attributes: jasmine.objectContaining({
-          'resource-url': jasmine.stringMatching(/^\/percy\.\d+\.log$/)
-        })
-      }),
       jasmine.objectContaining({
         attributes: jasmine.objectContaining({
           'resource-url': 'http://localhost:8000/'
@@ -742,11 +739,6 @@ describe('Discovery', () => {
     expect(captured[0]).toEqual([
       jasmine.objectContaining({
         attributes: jasmine.objectContaining({
-          'resource-url': jasmine.stringMatching(/^\/percy\.\d+\.log$/)
-        })
-      }),
-      jasmine.objectContaining({
-        attributes: jasmine.objectContaining({
           'resource-url': 'http://localhost:8000/'
         })
       }),
@@ -775,11 +767,6 @@ describe('Discovery', () => {
       await percy.idle();
 
       expect(captured[0]).toEqual([
-        jasmine.objectContaining({
-          attributes: jasmine.objectContaining({
-            'resource-url': jasmine.stringMatching(/^\/percy\.\d+\.log$/)
-          })
-        }),
         jasmine.objectContaining({
           attributes: jasmine.objectContaining({
             'resource-url': 'http://localhost:8000/'
@@ -817,11 +804,6 @@ describe('Discovery', () => {
     await percy.idle();
 
     expect(captured[0]).toEqual([
-      jasmine.objectContaining({
-        attributes: jasmine.objectContaining({
-          'resource-url': jasmine.stringMatching(/^\/percy\.\d+\.log$/)
-        })
-      }),
       jasmine.objectContaining({
         attributes: jasmine.objectContaining({
           'resource-url': 'http://localhost:8000/'
@@ -882,11 +864,6 @@ describe('Discovery', () => {
 
     expect(captured[0]).toEqual([
       jasmine.objectContaining({
-        attributes: jasmine.objectContaining({
-          'resource-url': jasmine.stringMatching(/^\/percy\.\d+\.log$/)
-        })
-      }),
-      jasmine.objectContaining({
         id: sha256hash(Pako.gzip(testDOM.replace('style.css', 'large.css'))),
         attributes: jasmine.objectContaining({
           'resource-url': 'http://localhost:8000/'
@@ -928,11 +905,6 @@ describe('Discovery', () => {
     expect(captured[0]).toEqual([
       jasmine.objectContaining({
         attributes: jasmine.objectContaining({
-          'resource-url': jasmine.stringMatching(/^\/percy\.\d+\.log$/)
-        })
-      }),
-      jasmine.objectContaining({
-        attributes: jasmine.objectContaining({
           'resource-url': 'http://localhost:8000/'
         })
       }),
@@ -968,11 +940,6 @@ describe('Discovery', () => {
     await percy.idle();
 
     expect(captured[0]).toEqual([
-      jasmine.objectContaining({
-        attributes: jasmine.objectContaining({
-          'resource-url': jasmine.stringMatching(/^\/percy\.\d+\.log$/)
-        })
-      }),
       jasmine.objectContaining({
         attributes: jasmine.objectContaining({
           'resource-url': 'http://localhost:8000/'
@@ -1343,11 +1310,6 @@ describe('Discovery', () => {
     await percy.idle();
 
     expect(captured[0]).toEqual([
-      jasmine.objectContaining({
-        attributes: jasmine.objectContaining({
-          'resource-url': jasmine.stringMatching(/^\/percy\.\d+\.log$/)
-        })
-      }),
       jasmine.objectContaining({
         attributes: jasmine.objectContaining({
           'resource-url': 'http://localhost:8000/',
@@ -1750,7 +1712,6 @@ describe('Discovery', () => {
 
     expect(captured).toHaveSize(1);
     expect(captured[0].map(r => r.attributes['resource-url'])).toEqual([
-      jasmine.stringMatching(/\/percy\.\d+\.log$/),
       'http://localhost:8000/'
     ]);
 
@@ -2688,6 +2649,186 @@ describe('Discovery', () => {
     });
   });
 
+  describe('with a browser proxy', () => {
+    // `tunnel.test` never resolves (RFC 2606), so like a host behind a BrowserStack Local
+    // tunnel it is reachable only through the proxy. The test server doubles as that proxy:
+    // it routes absolute-form requests (`GET http://tunnel.test/font.woff`) by path.
+    const proxiedFontDOM = dedent`
+      <html>
+      <head>
+        <style>
+          @font-face { font-family: "test"; src: url("http://tunnel.test/font.woff") format("woff"); }
+          body { font-family: "test", "sans-serif"; }
+        </style>
+      </head>
+      <body>
+        <p>Hello Percy!<p>
+        ${' '.repeat(1000)}
+      </body>
+      </html>
+    `;
+
+    beforeEach(async () => {
+      await percy.stop(true);
+
+      percy = await Percy.start({
+        token: 'PERCY_TOKEN',
+        snapshot: { widths: [1000] },
+        discovery: {
+          concurrency: 1,
+          allowedHostnames: ['tunnel.test'],
+          launchOptions: { args: ['--proxy-server=http://localhost:8000'] }
+        }
+      });
+
+      percy.loglevel('debug');
+    });
+
+    it('re-fetches fonts through the proxy the browser was launched with', async () => {
+      await percy.snapshot({
+        name: 'proxied font snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot: proxiedFontDOM
+      });
+
+      await percy.idle();
+
+      expect(logger.stderr).toContain(
+        '[percy:core:discovery] - Requesting directly through the browser proxy'
+      );
+      expect(logger.stderr).not.toContain(jasmine.stringContaining('ENOTFOUND'));
+      expect(captured[0]).toEqual(jasmine.arrayContaining([
+        jasmine.objectContaining({
+          id: sha256hash('<font>'),
+          attributes: jasmine.objectContaining({
+            'resource-url': 'http://tunnel.test/font.woff'
+          })
+        })
+      ]));
+    });
+
+    describe('when the proxy fails the direct fetch', () => {
+      // localhost is proxied too (<-loopback>), so both the browser and the direct font fetch
+      // reach the test server as a proxy; only the direct fetch sends `sec-fetch-user: ?1`
+      const loopbackFontDOM = proxiedFontDOM.replace('http://tunnel.test/font.woff', 'http://localhost:8000/lb-font.woff');
+      let directFetches;
+
+      beforeEach(async () => {
+        await percy.stop(true);
+        directFetches = 0;
+
+        percy = await Percy.start({
+          token: 'PERCY_TOKEN',
+          snapshot: { widths: [1000] },
+          discovery: {
+            concurrency: 1,
+            launchOptions: { args: ['--proxy-server=http://localhost:8000', '--proxy-bypass-list=<-loopback>'] }
+          }
+        });
+
+        percy.loglevel('debug');
+      });
+
+      it('falls back to the default route when the proxy requires auth', async () => {
+        // like an authenticated proxy: the browser got through, the direct fetch gets a 407
+        server.reply('/lb-font.woff', req => req.headers['sec-fetch-user'] === '?1' && directFetches++ === 0
+          ? [407, { 'Proxy-Authenticate': 'Basic' }, 'proxy auth required']
+          : [200, 'font/woff', '<font>']);
+
+        await percy.snapshot({ name: 'proxy 407 snapshot', url: 'http://localhost:8000', domSnapshot: loopbackFontDOM });
+        await percy.idle();
+
+        expect(directFetches).toEqual(2);
+        expect(logger.stderr).toContain(jasmine.stringMatching(
+          /- Browser proxy failed \(407 Proxy Authentication Required\), retrying via the default route/));
+        expect(captured[0]).toEqual(jasmine.arrayContaining([
+          jasmine.objectContaining({
+            id: sha256hash('<font>'),
+            attributes: jasmine.objectContaining({ 'resource-url': 'http://localhost:8000/lb-font.woff' })
+          })
+        ]));
+      });
+
+      it('falls back to the default route when the proxy stalls', async () => {
+        let release;
+        server.reply('/lb-font.woff', req => {
+          if (req.headers['sec-fetch-user'] === '?1' && directFetches++ === 0) {
+            // accept the request through the proxy, then never answer it
+            return new Promise(resolve => (release = resolve));
+          }
+          return [200, 'font/woff', '<font>'];
+        });
+
+        await percy.snapshot({ name: 'proxy stall snapshot', url: 'http://localhost:8000', domSnapshot: loopbackFontDOM });
+        await percy.idle();
+        release([200, 'font/woff', '<font>']);
+
+        expect(directFetches).toEqual(2);
+        expect(logger.stderr).toContain(jasmine.stringMatching(
+          /- Browser proxy failed \(Request to http:\/\/localhost:8000\/lb-font\.woff timed out after 5000ms\), retrying via the default route/));
+        expect(captured[0]).toEqual(jasmine.arrayContaining([
+          jasmine.objectContaining({
+            id: sha256hash('<font>'),
+            attributes: jasmine.objectContaining({ 'resource-url': 'http://localhost:8000/lb-font.woff' })
+          })
+        ]));
+      });
+
+      it('leaves time for the fallback when a worker-path direct fetch stalls at the proxy', async () => {
+        // drop the CDP response so the resource goes through captureResourceDirectly, whose
+        // overall timeout must cover the stalled proxied attempt plus the default-route retry
+        spyOn(percy.browser, '_handleMessage').and.callFake(function(data) {
+          let parsed; try { parsed = JSON.parse(data); } catch { /* binary frame */ }
+          if (parsed?.method === 'Network.responseReceived' &&
+              parsed.params?.response?.url?.endsWith('/lb-style.css')) return;
+          this._handleMessage.and.originalFn.call(this, data);
+        });
+
+        let release;
+        server.reply('/lb-style.css', req => {
+          if (req.headers['sec-fetch-user'] === '?1' && directFetches++ === 0) {
+            return new Promise(resolve => (release = resolve));
+          }
+          return [200, 'text/css', 'p { color: purple; }'];
+        });
+
+        let dom = '<html><head><link href="lb-style.css" rel="stylesheet"/></head><body>x</body></html>';
+        await percy.snapshot({ name: 'proxy stall worker snapshot', url: 'http://localhost:8000', domSnapshot: dom });
+        await percy.idle();
+        release([200, 'text/css', 'p { color: purple; }']);
+
+        expect(directFetches).toEqual(2);
+        expect(logger.stderr).toContain(jasmine.stringMatching(/- Browser proxy failed \(.*timed out after 5000ms\), retrying via the default route/));
+        expect(logger.stderr).not.toContain(jasmine.stringContaining('Direct fetch timed out'));
+        expect(captured[0]).toEqual(jasmine.arrayContaining([
+          jasmine.objectContaining({
+            attributes: jasmine.objectContaining({ 'resource-url': 'http://localhost:8000/lb-style.css' })
+          })
+        ]));
+      });
+
+      it('does not fall back on an error response from the target', async () => {
+        server.reply('/lb-font.woff', req => {
+          // the browser gets the font; the direct fetch gets a 404 from the target
+          if (req.headers['sec-fetch-user'] !== '?1') return [200, 'font/woff', '<font>'];
+          directFetches++;
+          return [404, 'text/plain', 'not found'];
+        });
+
+        await percy.snapshot({ name: 'proxy 404 snapshot', url: 'http://localhost:8000', domSnapshot: loopbackFontDOM });
+        await percy.idle();
+
+        expect(directFetches).toEqual(1);
+        expect(logger.stderr).not.toContain(jasmine.stringContaining('retrying via the default route'));
+        expect(captured[0]).not.toEqual(jasmine.arrayContaining([
+          jasmine.objectContaining({
+            attributes: jasmine.objectContaining({ 'resource-url': 'http://localhost:8000/lb-font.woff' })
+          })
+        ]));
+      });
+    });
+  });
+
   describe('resource caching', () => {
     let snapshot = async n => {
       await percy.snapshot({
@@ -2709,10 +2850,9 @@ describe('Discovery', () => {
       expect(paths.sort()).toEqual(['/img.gif', '/style.css']);
 
       // both snapshots' captured resources should match
-      // the first captured resource is the log file which is dynamic
+      expect(captured[0][0]).toEqual(captured[1][0]);
       expect(captured[0][1]).toEqual(captured[1][1]);
       expect(captured[0][2]).toEqual(captured[1][2]);
-      expect(captured[0][3]).toEqual(captured[1][3]);
     });
 
     it('does not cache resource requests when disabled', async () => {
@@ -2726,11 +2866,10 @@ describe('Discovery', () => {
       let paths = server.requests.map(r => r[0]);
       expect(paths.sort()).toEqual(['/img.gif', '/img.gif', '/style.css', '/style.css']);
 
-      // bot snapshots' captured resources should match
-      // the first captured resource is the log file which is dynamic
+      // both snapshots' captured resources should match
+      expect(captured[0][0]).toEqual(captured[1][0]);
       expect(captured[0][1]).toEqual(captured[1][1]);
       expect(captured[0][2]).toEqual(captured[1][2]);
-      expect(captured[0][3]).toEqual(captured[1][3]);
     });
 
     it('does not cache root resource', async () => {
@@ -3787,11 +3926,6 @@ describe('Discovery', () => {
       expect(captured[0]).toEqual([
         jasmine.objectContaining({
           attributes: jasmine.objectContaining({
-            'resource-url': jasmine.stringMatching(/^\/percy\.\d+\.log$/)
-          })
-        }),
-        jasmine.objectContaining({
-          attributes: jasmine.objectContaining({
             'resource-url': 'http://localhost:8000/'
           })
         }),
@@ -3897,11 +4031,6 @@ describe('Discovery', () => {
       expect(captured[0]).toEqual([
         jasmine.objectContaining({
           attributes: jasmine.objectContaining({
-            'resource-url': jasmine.stringMatching(/^\/percy\.\d+\.log$/)
-          })
-        }),
-        jasmine.objectContaining({
-          attributes: jasmine.objectContaining({
             'resource-url': 'http://localhost:8000/'
           })
         }),
@@ -3936,11 +4065,6 @@ describe('Discovery', () => {
       await percy.idle();
 
       expect(captured[0]).toEqual([
-        jasmine.objectContaining({
-          attributes: jasmine.objectContaining({
-            'resource-url': jasmine.stringMatching(/^\/percy\.\d+\.log$/)
-          })
-        }),
         jasmine.objectContaining({
           attributes: jasmine.objectContaining({
             'resource-url': 'http://localhost:8000/'

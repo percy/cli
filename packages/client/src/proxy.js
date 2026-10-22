@@ -86,17 +86,20 @@ export function href(options) {
     (path || `${pathname || ''}${search || ''}${hash || ''}`);
 };
 
-// Returns the proxy URL for a set of request options
-export function getProxy(options) {
-  let proxyUrl = (options.protocol === 'https:' &&
+// Returns the proxy URL for a set of request options. An explicit `override` proxy URL is
+// used as-is, without consulting the proxy env vars or NO_PROXY; the caller owns bypassing.
+export function getProxy(options, override) {
+  let envProxyUrl = (options.protocol === 'https:' &&
     (process.env.https_proxy || process.env.HTTPS_PROXY)) ||
     (process.env.http_proxy || process.env.HTTP_PROXY);
 
-  let shouldProxy = !!proxyUrl && !hostnameMatches(
+  let shouldProxy = !!override || (!!envProxyUrl && !hostnameMatches(
     stripQuotesAndSpaces(process.env.no_proxy || process.env.NO_PROXY)
-    , href(options));
+    , href(options)));
 
-  if (proxyUrl && typeof proxyUrl === 'string') { proxyUrl = stripQuotesAndSpaces(proxyUrl); }
+  // only env values may carry stray quotes/spaces; an explicit override is used verbatim
+  if (envProxyUrl && typeof envProxyUrl === 'string') { envProxyUrl = stripQuotesAndSpaces(envProxyUrl); }
+  let proxyUrl = override || envProxyUrl;
 
   if (shouldProxy) {
     proxyUrl = new URL(proxyUrl);
@@ -128,10 +131,16 @@ export class ProxyHttpAgent extends http.Agent {
   // needed for https proxies
   httpsAgent = new https.Agent({ keepAlive: true });
 
+  // an optional `proxy` URL takes precedence over the proxy env vars
+  constructor({ proxy, ...options } = {}) {
+    super(options);
+    this.proxy = proxy;
+  }
+
   addRequest(request, options) {
-    let proxy = getProxy(options);
+    let proxy = getProxy(options, this.proxy);
     if (!proxy) return super.addRequest(request, options);
-    logger('client:proxy').debug(`Proxying request: ${options.href}`);
+    logger('client:proxy').debug(`Proxying request: ${href(options)}`);
 
     // modify the request for proxying
     request.path = href(options);
@@ -168,13 +177,15 @@ export class ProxyHttpAgent extends http.Agent {
 
 // Proxified https agent
 export class ProxyHttpsAgent extends https.Agent {
-  constructor(options) {
+  // an optional `proxy` URL takes precedence over the proxy env vars
+  constructor({ proxy, ...options } = {}) {
     // default keep-alive
     super({ keepAlive: true, ...options });
+    this.proxy = proxy;
   }
 
   createConnection(options, callback) {
-    let proxy = getProxy(options);
+    let proxy = getProxy(options, this.proxy);
     if (!proxy) return super.createConnection(options, callback);
     logger('client:proxy').debug(`Proxying request: ${href(options)}`);
 
@@ -192,7 +203,11 @@ export class ProxyHttpsAgent extends https.Agent {
     // start the proxy connection and setup listeners
     let socket = proxy.connect();
 
+    // destroying the socket re-emits 'error' and 'close'; only the first failure counts
+    let failed = false;
     let handleError = err => {
+      if (failed) return;
+      failed = true;
       socket.destroy(err);
       logger('client:proxy').error(`Proxying request ${href(options)} failed: ${err}`);
 
@@ -210,6 +225,12 @@ export class ProxyHttpsAgent extends https.Agent {
       new Error('Connection closed while sending request to upstream proxy')
     );
 
+    // a request's `timeout` only starts once it has a socket, which is handed over after the
+    // CONNECT reply; bound the handshake itself so a silent proxy cannot hang the request
+    let handleTimeout = () => handleError(Object.assign(new Error(
+      `Request to ${href(options)} timed out after ${options.timeout}ms waiting for the proxy`
+    ), { code: 'ETIMEDOUT' }));
+
     let buffer = '';
     let handleData = data => {
       buffer += data.toString();
@@ -225,11 +246,16 @@ export class ProxyHttpsAgent extends https.Agent {
         ));
       }
 
+      // the tunnel is established; its later close (e.g. keep-alive teardown) is not a failure
+      socket.off('error', handleError).off('close', handleClose).off('timeout', handleTimeout);
+      socket.setTimeout(0);
       options.socket = socket;
       options.servername = options.hostname;
       // callback not passed in so not to be added as a listener
       callback(null, super.createConnection(options));
     };
+
+    if (options.timeout) socket.setTimeout(options.timeout, handleTimeout);
 
     // send and handle the connect message
     socket
@@ -244,6 +270,7 @@ export function proxyAgentFor(url, options) {
   let cache = (proxyAgentFor.cache ||= new Map());
   let { protocol, hostname } = new URL(url);
   let cachekey = `${protocol}//${hostname}`;
+  if (options?.proxy) cachekey += ` via ${options.proxy}`;
 
   // If we already have a cached agent, return it
   if (cache.has(cachekey)) {
@@ -254,8 +281,8 @@ export function proxyAgentFor(url, options) {
     let agent;
     const pacUrl = process.env.PERCY_PAC_FILE_URL;
 
-    // If PAC URL is provided, use PAC proxy
-    if (pacUrl) {
+    // If PAC URL is provided, use PAC proxy (an explicit proxy takes precedence)
+    if (pacUrl && !options?.proxy) {
       logger('client:proxy').info(`Using PAC file from: ${pacUrl}`);
       agent = createPacAgent(pacUrl, options);
     } else {

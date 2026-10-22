@@ -54,6 +54,10 @@ export function serializeCanvas(ctx) {
       // skip empty canvases
       if (!dataUrl || dataUrl === 'data:,') continue;
 
+      // no counterpart in the clone means the canvas wasn't serialized — e.g.
+      // light DOM content no <slot> projected, which the browser doesn't render
+      if (!clone.querySelector(`[data-percy-element-id=${percyElementId}]`)) continue;
+
       // create a resource for the canvas data
       let resource = resourceFromDataURL(percyElementId, dataUrl);
       resources.add(resource);

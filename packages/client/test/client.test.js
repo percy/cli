@@ -195,6 +195,14 @@ describe('PercyClient', () => {
 
   describe('#createBuild()', () => {
     let cliStartTime = new Date().toISOString();
+    // the wire mapping for machine identity, kept in one place so a renamed key
+    // is one edit rather than one per expectation
+    let machineAttrs = env => ({
+      'machine-id': env.machine.id,
+      'machine-hostname': env.machine.hostname,
+      'machine-ci-run-url': env.machine.runUrl,
+      'machine-ci-platform': env.machine.platform
+    });
     beforeEach(() => {
       delete process.env.PERCY_AUTO_ENABLED_GROUP_BUILD;
       delete process.env.PERCY_ORIGINATED_SOURCE;
@@ -235,6 +243,7 @@ describe('PercyClient', () => {
             'cli-start-time': null,
             'testhub-build-uuid': client.env.testhubBuildUuid,
             'testhub-build-run-id': client.env.testhubBuildRunId,
+            ...machineAttrs(client.env),
             source: 'user_created',
             partial: client.env.partial,
             tags: []
@@ -255,6 +264,18 @@ describe('PercyClient', () => {
       await client.createBuild();
 
       expect(api.requests['/builds'][0].body.data.attributes.priority).toBeUndefined();
+    });
+
+    it('omits machine attributes when no machine identity is available', async () => {
+      spyOnProperty(client.env, 'machine').and.returnValue({ id: null });
+
+      await client.createBuild();
+
+      let attributes = api.requests['/builds'][0].body.data.attributes;
+      expect(attributes['machine-id']).toBeUndefined();
+      expect(attributes['machine-hostname']).toBeUndefined();
+      expect(attributes['machine-ci-run-url']).toBeUndefined();
+      expect(attributes['machine-ci-platform']).toBeUndefined();
     });
 
     it('creates a new build with projectType passed as null', async () => {
@@ -288,6 +309,7 @@ describe('PercyClient', () => {
             'cli-start-time': null,
             'testhub-build-uuid': client.env.testhubBuildUuid,
             'testhub-build-run-id': client.env.testhubBuildRunId,
+            ...machineAttrs(client.env),
             source: 'user_created',
             partial: client.env.partial,
             tags: []
@@ -373,6 +395,7 @@ describe('PercyClient', () => {
             'cli-start-time': null,
             'testhub-build-uuid': client.env.testhubBuildUuid,
             'testhub-build-run-id': client.env.testhubBuildRunId,
+            ...machineAttrs(client.env),
             source: 'user_created',
             partial: client.env.partial,
             tags: []
@@ -415,6 +438,7 @@ describe('PercyClient', () => {
             'cli-start-time': null,
             'testhub-build-uuid': client.env.testhubBuildUuid,
             'testhub-build-run-id': client.env.testhubBuildRunId,
+            ...machineAttrs(client.env),
             source: 'user_created',
             partial: client.env.partial,
             tags: [{ id: null, name: 'tag1' }, { id: null, name: 'tag2' }]
@@ -458,6 +482,7 @@ describe('PercyClient', () => {
             'cli-start-time': cliStartTime,
             'testhub-build-uuid': client.env.testhubBuildUuid,
             'testhub-build-run-id': client.env.testhubBuildRunId,
+            ...machineAttrs(client.env),
             source: 'auto_enabled_group',
             partial: client.env.partial,
             tags: [{ id: null, name: 'tag1' }, { id: null, name: 'tag2' }]
@@ -500,6 +525,7 @@ describe('PercyClient', () => {
             'cli-start-time': null,
             'testhub-build-uuid': client.env.testhubBuildUuid,
             'testhub-build-run-id': client.env.testhubBuildRunId,
+            ...machineAttrs(client.env),
             source: 'user_created',
             partial: client.env.partial,
             'skip-base-build': true,
@@ -540,6 +566,7 @@ describe('PercyClient', () => {
             'cli-start-time': null,
             'testhub-build-uuid': 'test-uuid-123',
             'testhub-build-run-id': client.env.testhubBuildRunId,
+            ...machineAttrs(client.env),
             source: 'user_created',
             partial: client.env.partial,
             tags: []
@@ -579,6 +606,7 @@ describe('PercyClient', () => {
             'cli-start-time': null,
             'testhub-build-uuid': client.env.testhubBuildUuid,
             'testhub-build-run-id': 'test-run-id-123',
+            ...machineAttrs(client.env),
             source: 'user_created',
             partial: client.env.partial,
             tags: []
@@ -618,6 +646,7 @@ describe('PercyClient', () => {
             'cli-start-time': null,
             'testhub-build-uuid': client.env.testhubBuildUuid,
             'testhub-build-run-id': client.env.testhubBuildRunId,
+            ...machineAttrs(client.env),
             source: 'bstack_sdk_created',
             partial: client.env.partial,
             tags: []
@@ -740,13 +769,30 @@ describe('PercyClient', () => {
         .toBeRejectedWithError('Invalid PERCY_VISUAL_CONFIG: value must be valid JSON');
     });
 
+    it('accepts diffSensitivity 0 (Very Strict)', async () => {
+      process.env.PERCY_VISUAL_CONFIG = JSON.stringify({ diffSensitivity: 0 });
+
+      await expectAsync(client.createBuild({ projectType: 'web' })).toBeResolved();
+
+      expect(api.requests['/builds'][0].body.data.attributes['visual-config'])
+        .toEqual({ diffSensitivity: 0 });
+    });
+
     it('throws when PERCY_VISUAL_CONFIG contains invalid types', async () => {
       process.env.PERCY_VISUAL_CONFIG = JSON.stringify({
         diffSensitivity: 'high'
       });
 
       await expectAsync(client.createBuild({ projectType: 'web' })).toBeRejectedWithError(
-        "Invalid PERCY_VISUAL_CONFIG: 'diffSensitivity' must be an integer between 1 and 5"
+        "Invalid PERCY_VISUAL_CONFIG: 'diffSensitivity' must be an integer between 0 and 4"
+      );
+    });
+
+    it('throws when PERCY_VISUAL_CONFIG diffSensitivity is out of range', async () => {
+      process.env.PERCY_VISUAL_CONFIG = JSON.stringify({ diffSensitivity: 5 });
+
+      await expectAsync(client.createBuild({ projectType: 'web' })).toBeRejectedWithError(
+        "Invalid PERCY_VISUAL_CONFIG: 'diffSensitivity' must be an integer between 0 and 4"
       );
     });
 
@@ -1192,6 +1238,22 @@ describe('PercyClient', () => {
       expect(api.requests['/builds/123/finalize']).toBeDefined();
     });
 
+    it('sends the machine identity header for per-machine liveness', async () => {
+      await expectAsync(client.finalizeBuild(123)).toBeResolved();
+      expect(api.requests['/builds/123/finalize'][0].headers).toEqual(
+        jasmine.objectContaining({
+          'X-Percy-Machine-Id': client.env.machine.id
+        }));
+    });
+
+    it('omits the machine header when no machine identity is available', async () => {
+      spyOnProperty(client.env, 'machine').and.returnValue({ id: null });
+
+      await expectAsync(client.finalizeBuild(123)).toBeResolved();
+      expect(api.requests['/builds/123/finalize'][0].headers['X-Percy-Machine-Id'])
+        .toBeUndefined();
+    });
+
     it('can finalize all shards of a build', async () => {
       await expectAsync(client.finalizeBuild(123, { all: true })).toBeResolved();
       expect(api.requests['/builds/123/finalize?all-shards=true']).toBeDefined();
@@ -1338,6 +1400,14 @@ describe('PercyClient', () => {
         .toBeRejectedWithError('Missing build ID');
       await expectAsync(client.createSnapshot({}))
         .toBeRejectedWithError('Invalid build ID');
+    });
+
+    it('sends the machine identity header for per-machine liveness', async () => {
+      await expectAsync(client.createSnapshot(123, { name: 'snap' })).toBeResolved();
+      expect(api.requests['/builds/123/snapshots'][0].headers).toEqual(
+        jasmine.objectContaining({
+          'X-Percy-Machine-Id': client.env.machine.id
+        }));
     });
 
     it('creates a snapshot', async () => {
@@ -2679,6 +2749,31 @@ describe('PercyClient', () => {
           base64encoded: true
         }
       });
+    });
+  });
+
+  describe('#sendSnapshotLog', () => {
+    it('should send the snapshot log to the logs API with service_name snapshot', async () => {
+      await expectAsync(client.sendSnapshotLog(1234, 5678, 'abcd')).toBeResolved();
+
+      expect(api.requests['/logs']).toBeDefined();
+      expect(api.requests['/logs'][0].method).toBe('POST');
+      expect(api.requests['/logs'][0].body).toEqual({
+        data: {
+          content: 'abcd',
+          build_id: 1234,
+          reference_id: 5678,
+          service_name: 'snapshot',
+          base64encoded: true
+        }
+      });
+    });
+
+    it('validates the build and snapshot ids', async () => {
+      await expectAsync(client.sendSnapshotLog(null, 5678, 'abcd'))
+        .toBeRejectedWithError('Missing build ID');
+      await expectAsync(client.sendSnapshotLog(1234, null, 'abcd'))
+        .toBeRejectedWithError('Missing snapshot ID');
     });
   });
 

@@ -9,7 +9,7 @@ import rimraf from 'rimraf';
 import logger from '@percy/logger';
 import install from './install.js';
 import { MAX_CDP_PAYLOAD } from './network.js';
-import Session from './session.js';
+import Session, { cdpTimeout, cdpTimeoutMessage } from './session.js';
 import Page from './page.js';
 
 // Chrome features Percy disables for v143 new-headless asset discovery.
@@ -152,6 +152,7 @@ export class Browser extends EventEmitter {
     // Reset state for fresh launch
     this.readyState = null;
     this._closed = null;
+    // close() above already cleared every pending callback and its deadline
     this.#callbacks.clear();
     this.sessions.clear();
 
@@ -204,6 +205,7 @@ export class Browser extends EventEmitter {
 
     // reject any pending callbacks
     for (let callback of this.#callbacks.values()) {
+      clearTimeout(callback.timer);
       callback.reject(Object.assign(callback.error, {
         message: `Protocol error (${callback.method}): Browser closed.`
       }));
@@ -294,9 +296,26 @@ export class Browser extends EventEmitter {
       // send the message payload
       this.ws.send(JSON.stringify({ id, method, params }));
 
-      // will resolve or reject when a matching response is received
+      // will resolve or reject when a matching response is received, or when
+      // the deadline below expires because no response is ever coming. The
+      // browser process can go silent the same way a renderer can - target
+      // creation and attachment strand here otherwise, before any page exists.
       return new Promise((resolve, reject) => {
-        this.#callbacks.set(id, { error: new Error(), resolve, reject, method });
+        let callback = { error: new Error(), resolve, reject, method };
+        let timeout = cdpTimeout();
+
+        if (timeout > 0) {
+          callback.timer = setTimeout(() => {
+            this.#callbacks.delete(id);
+            this.log.debug(`Protocol timeout (${method}) after ${timeout}ms`);
+
+            reject(Object.assign(callback.error, {
+              message: cdpTimeoutMessage(method, timeout)
+            }));
+          }, timeout);
+        }
+
+        this.#callbacks.set(id, callback);
       });
     }
   }
@@ -368,6 +387,7 @@ export class Browser extends EventEmitter {
       // resolve or reject a pending promise created with #send()
       let callback = this.#callbacks.get(data.id);
       this.#callbacks.delete(data.id);
+      clearTimeout(callback.timer);
 
       /* istanbul ignore next: races with page._handleMessage() */
       if (data.error) {

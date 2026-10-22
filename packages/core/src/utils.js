@@ -2,6 +2,7 @@ import EventEmitter from 'events';
 import { sha256hash, request } from '@percy/client/utils';
 import { camelcase, merge } from '@percy/config/utils';
 import YAML from 'yaml';
+import net from 'net';
 import path from 'path';
 import url from 'url';
 import { readFileSync } from 'fs';
@@ -150,6 +151,113 @@ export function isMetadataTarget(rawUrl) {
 // is still blocked here. No DNS needed: the input is already an IP literal.
 export function isMetadataIP(remoteIP) {
   return matchMetadataHost(remoteIP);
+}
+
+// Returns the proxy URL Chrome would route `url` through, given the browser's launch `args`
+// (`--proxy-server` and `--proxy-bypass-list`), so Node-side fetches made on the browser's behalf
+// take the same route. Hosts reachable only through that proxy (e.g. a BrowserStack Local tunnel)
+// otherwise fail DNS from Node. Only http(s) proxies are supported: SOCKS and `direct://` rules,
+// like a bypassed host, return undefined and leave the fetch to the proxy env vars. Only the first
+// proxy of a fallback list is used; Chrome's failover to later entries is not mirrored.
+export function browserProxyFor(args, url) {
+  // Chrome honours the last occurrence of a repeated switch
+  let flag = name => [].concat(args ?? []).reverse()
+    .find(arg => arg.startsWith(`--${name}=`))?.slice(name.length + 3);
+
+  let server = flag('proxy-server');
+  if (!server) return;
+
+  let { protocol, hostname, port } = new URL(url);
+  let scheme = protocol.slice(0, -1);
+
+  // rules are `[<url-scheme>=]<proxy>[,<fallback>...]` separated by `;`, where the `socks=`
+  // mapping is the fallback for schemes without a mapping of their own
+  let rules = server.split(';').map(rule => rule.trim());
+  let mapping = name => rules.find(rule => rule.toLowerCase().startsWith(`${name}=`));
+  let rule = mapping(scheme) ?? rules.find(rule => !rule.includes('=')) ?? mapping('socks');
+  if (!rule) return;
+
+  // a proxy without a scheme is http, or SOCKS4 within the `socks=` mapping
+  let proxy = rule.replace(/^\w+=/, '').split(',')[0].trim();
+  if (!proxy.includes('://')) proxy = `${rule === mapping('socks') ? 'socks4' : 'http'}://${proxy}`;
+  if (!/^https?:\/\//.test(proxy)) return;
+
+  port ||= scheme === 'https' ? '443' : '80';
+  if (bypassesBrowserProxy(flag('proxy-bypass-list'), { scheme, hostname, port })) return;
+  return proxy;
+}
+
+// Mirrors Chrome's `--proxy-bypass-list` matching: `,`/`;` separated rules that are either an IP
+// range in CIDR notation or a host glob with an optional scheme and port (`.host` meaning
+// `*.host`), plus `<local>` for dotless hosts. Loopback and link-local hosts are bypassed
+// implicitly unless the list contains `<-loopback>`.
+function bypassesBrowserProxy(list = '', { scheme, hostname, port }) {
+  let rules = list.split(/[,;]/).map(rule => rule.trim()).filter(Boolean);
+
+  if (!rules.includes('<-loopback>') && (
+    /^(localhost|127(\.\d+){3}|169\.254(\.\d+){2}|\[::1\])$|\.localhost$/.test(hostname) ||
+    /^\[fe[89ab][0-9a-f]:/.test(hostname)
+  )) return true;
+
+  return rules.some(rule => {
+    if (rule === '<local>') return !hostname.includes('.');
+    if (rule === '<-loopback>') return false;
+
+    let host = rule.toLowerCase();
+    let sep = host.indexOf('://');
+    if (sep !== -1) {
+      if (host.slice(0, sep) !== scheme) return false;
+      host = host.slice(sep + 3);
+    }
+
+    if (host.includes('/')) return cidrMatches(host, hostname);
+
+    let colon = host.lastIndexOf(':');
+    if (colon > host.lastIndexOf(']') && /^\d+$/.test(host.slice(colon + 1))) {
+      if (host.slice(colon + 1) !== port) return false;
+      host = host.slice(0, colon);
+    }
+
+    if (host.startsWith('.')) host = `*${host}`;
+    return globMatches(host, hostname);
+  });
+}
+
+// Returns true when the IP-literal `hostname` falls within the `cidr` range (IPv4 or IPv6)
+function cidrMatches(cidr, hostname) {
+  let [ip, prefix, ...extra] = cidr.split('/');
+  let address = hostname.replace(/^\[/, '').replace(/\]$/, '');
+  let family = net.isIP(ip);
+  // only a plain decimal prefix is valid; Number() would read '' as 0 (matching everything)
+  // and also accept forms like '1e1' or '0x8'
+  let bits = !extra.length && /^\d{1,3}$/.test(prefix) ? Number(prefix) : NaN;
+
+  // net.BlockList needs Node >= 14.18; without it CIDR rules are left unmatched
+  /* istanbul ignore next: CI runs a Node version that has net.BlockList */
+  if (typeof net.BlockList !== 'function') return false;
+  if (!family || net.isIP(address) !== family) return false;
+  if (!(bits <= (family === 4 ? 32 : 128))) return false;
+
+  let range = new net.BlockList();
+  range.addSubnet(ip, bits, `ipv${family}`);
+  return range.check(address, `ipv${family}`);
+}
+
+// Returns true when `subject` matches `glob`, where `*` matches any run of characters and `?` any
+// single one (as in Chrome's MatchPattern). A linear greedy matcher with single-star
+// backtracking, so user-supplied patterns need no RegExp.
+function globMatches(glob, subject) {
+  let [g, s, star, mark] = [0, 0, -1, 0];
+
+  while (s < subject.length) {
+    if (glob[g] === '*') [star, mark] = [g++, s];
+    else if (glob[g] === '?' || glob[g] === subject[s]) [g, s] = [g + 1, s + 1];
+    else if (star !== -1) [g, s] = [star + 1, ++mark];
+    else return false;
+  }
+
+  while (glob[g] === '*') g++;
+  return g === glob.length;
 }
 
 // Throws when the URL points at a cloud instance-metadata endpoint. Used to
@@ -412,6 +520,9 @@ export function percyAutomateRequestHandler(req, percy) {
 
   req.body.options = merge([{
     fullPage: percy.config.snapshot.fullPage,
+    // Must be listed here or a .percy.yml `snapshot.scaleToFit` validates and is then
+    // silently dropped -- the page truncates as before while the build stays green.
+    scaleToFit: percy.config.snapshot.scaleToFit,
     percyCSS: percy.config.snapshot.percyCSS,
     freezeAnimatedImage: percy.config.snapshot.freezeAnimatedImage || percy.config.snapshot.freezeAnimation,
     freezeImageBySelectors: percy.config.snapshot.freezeAnimatedImageOptions?.freezeImageBySelectors,
@@ -485,16 +596,101 @@ export function createRootResource(url, content, attrs = {}) {
   return createResource(normalizeURL(url), content, 'text/html', { ...attrs, root: true });
 }
 
+// Escapes HTML-special characters for TEXT context. Snapshot names reach the
+// wrapper's <title>, and a name containing `</title><script>` would otherwise
+// be injected into the DOM Percy's renderer loads.
+function escapeHtml(value) {
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+// Escapes for ATTRIBUTE context, and deliberately escapes less than escapeHtml.
+//
+// The `src` value is compared byte-for-byte against the registered resource URL
+// by percy-api's extractor, so any character we rewrite here that the URL itself
+// still carries breaks the match. The value sits inside double quotes, so only
+// `&` and `"` can actually break out of the attribute -- `<`, `>` and `'` are
+// all inert here and must be left alone.
+//
+// `'` is the one that bit us: encodeURIComponent does NOT encode it, so a
+// document named "Jack's Resume" produced src="...Jack&#39;s..." against a
+// resource URL of "...Jack's...". The extractor found no match, percy-api
+// rescued, and every page silently fell back to being rendered.
+//
+// Callers must pass an already percent-encoded URL (see
+// createImageSnapshotResources), which leaves `&` and `"` unreachable in
+// practice -- this escape is the backstop that keeps the DOM well-formed if one
+// ever slips through, not a substitute for encoding.
+function escapeAttr(value) {
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;');
+}
+
+// The canonical wrapper DOM for an image-backed snapshot: one image at its
+// native size, with no margins, padding or font metrics that could shift
+// between renders.
+//
+// THIS SHAPE IS A CONTRACT WITH percy-api. When a build's User-Agent contains
+// `@percy/cli-upload` and the root resource URL starts `http://local/`,
+// Comparison#upload_snapshot? routes the comparison down the extraction path,
+// which recovers the image by matching this HTML against
+//
+//   /<img\s+src="([^"]+)"\s+width="(\d+)px"\s+height="(\d+)px"/
+//
+// and skips the renderer entirely -- measured at ~1s per page versus ~9-19s
+// rendered. A mismatch is not an error: extraction raises, percy-api rescues,
+// and the snapshot silently falls back to being rendered. So the attribute
+// order (src, width, height), the `px` suffixes and the integer dimensions all
+// matter, and there must only ever be one definition of them.
+export function buildImageSnapshotHtml({ name, imageUrl, width, height }) {
+  return `
+      <!doctype html>
+      <html lang="en">
+        <head>
+          <meta charset="utf-8">
+          <title>${escapeHtml(name)}</title>
+          <style>
+            *, *::before, *::after { margin: 0; padding: 0; font-size: 0; }
+            html, body { width: 100%; }
+            img { max-width: 100%; }
+          </style>
+        </head>
+        <body>
+          <img src="${escapeAttr(imageUrl)}" width="${width}px" height="${height}px"/>
+        </body>
+      </html>
+    `;
+}
+
+// Builds the root + image resource pair for an image-backed snapshot.
+//
+// `imageUrl` MUST already be percent-encoded (encodeURIComponent over the
+// varying segment). It is neither re-encoded nor text-escaped here, because the
+// resource is registered under this exact string and percy-api's extractor
+// compares the two byte-for-byte:
+//   - re-encoding turns %20 into %2520, so the img src matches no registered
+//     resource and the snapshot renders blank;
+//   - text-escaping rewrites characters encodeURIComponent leaves literal (`'`
+//     most notably), so extraction misses and the page is silently re-rendered.
+// Only escapeAttr's `&`/`"` backstop is applied. See buildImageSnapshotHtml.
+export function createImageSnapshotResources({
+  name, rootUrl, imageUrl, width, height, content, mimetype
+}) {
+  return [
+    createRootResource(rootUrl, buildImageSnapshotHtml({ name, imageUrl, width, height })),
+    createResource(imageUrl, content, mimetype)
+  ];
+}
+
 // Creates a Percy CSS resource object.
 export function createPercyCSSResource(url, css) {
   let { href, pathname } = new URL(`/percy-specific.${Date.now()}.css`, url);
   return createResource(href, css, 'text/css', { pathname });
-}
-
-// Creates a log resource object.
-export function createLogResource(logs) {
-  let [url, content] = [`/percy.${Date.now()}.log`, JSON.stringify(logs)];
-  return createResource(url, content, 'text/plain', { log: true });
 }
 
 // Returns true or false if the provided object is a generator or not

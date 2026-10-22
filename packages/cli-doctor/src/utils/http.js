@@ -3,6 +3,10 @@ import http from 'http';
 import net from 'net';
 import tls from 'tls';
 import { URL } from 'url';
+import { dropDistrustedRoots } from '@percy/client/utils';
+
+// probes send PERCY_TOKEN before any other module may have loaded the client utils
+dropDistrustedRoots();
 
 // Default request timeout (10 seconds)
 const DEFAULT_TIMEOUT = 10000;

@@ -71,3 +71,16 @@ scripts/register-hooks.mjs
 # Published (see @percy/config `files`/`exports`) but test-only: the paths joined
 # here are virtual modules mockfs() created in-process, not user input.
 packages/config/test/helpers.js
+
+# The PDF byte-comparison regression track (test/regression/pdf-render.test.js
+# and its helper) joins paths from three local sources only: `platformKey()`,
+# which is `${process.platform}-${process.arch}`; a slug that slugify() has
+# already reduced to [a-z0-9-] via basename(); and PDF filenames read straight
+# out of the committed fixture directory with fs.readdirSync. No request or
+# user input reaches these joins — the track runs offline against checked-in
+# fixtures and creates no Percy build. semgrep's
+# javascript.lang.security.audit.path-traversal.path-join-resolve-traversal
+# rule flags the joins regardless, and inline `// nosemgrep` is not honored by
+# the CI semgrep version — suppress at the file level with this rationale.
+test/regression/lib/pdf-render.js
+test/regression/pdf-render.test.js

@@ -1,3 +1,4 @@
+import os from 'os';
 import command from '@percy/cli-command';
 import logger from '@percy/logger';
 import start from './start.js';
@@ -160,16 +161,40 @@ async function* spawn(cmd, args, percy) {
       });
     }
 
-    proc.on('error', err => (error = err));
+    // wake the current wait as soon as the child errors or closes. A child killed by a signal
+    // closes with a null code, so report it the way shells do (128 + signal number); `| 0`
+    // keeps an unmapped signal at a non-zero 128 rather than NaN
+    let done = false;
+    let wake;
 
-    proc.on('close', code => {
-      closed = code;
+    proc.on('error', err => {
+      done = true;
+      error = err;
+      wake();
     });
 
-    // run until an event is triggered
+    proc.on('close', (code, signal) => {
+      done = true;
+      closed = code ?? 128 + (os.constants.signals[signal] | 0);
+      wake();
+    });
+
+    // run until an event is triggered. Waiting on the exit event rather than spinning on
+    // setImmediate keeps an idle child from costing a CPU core (percy/cli#2460), and the
+    // periodic wake lets an abort signal interrupt the generator promptly. Each tick waits on
+    // a fresh promise: racing one long-lived exit promise would retain a reaction per tick.
     /* eslint-disable-next-line no-unmodified-loop-condition */
-    while (closed == null && error == null) {
-      yield new Promise(r => setImmediate(r));
+    while (!done) {
+      let timer;
+
+      try {
+        yield new Promise(resolve => {
+          wake = resolve;
+          timer = setTimeout(resolve, 100);
+        });
+      } finally {
+        clearTimeout(timer);
+      }
     }
 
     if (error) throw error;

@@ -1,4 +1,5 @@
 import path from 'path';
+import crypto from 'crypto';
 import logger from '@percy/logger/test/helpers';
 import { mockfs, fs } from '@percy/config/test/helpers';
 import { mockRequests } from '@percy/client/test/helpers';
@@ -6,6 +7,19 @@ import install from '../../src/install.js';
 import { mockgit } from '@percy/env/test/helpers';
 
 const CHROMIUM_REVISIONS = install.chromium.revisions;
+const CHROMIUM_CHECKSUMS = install.chromium.checksums;
+// sha256 of the empty archive served by default mocked downloads
+const EMPTY_SHA256 = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
+
+// expect the default revisions' archives to be the empty mocked download
+function mockChromiumChecksums() {
+  install.chromium.checksums = Object.fromEntries(
+    Object.keys(CHROMIUM_CHECKSUMS).map(platform => [platform, EMPTY_SHA256]));
+}
+
+afterEach(() => {
+  install.chromium.checksums = CHROMIUM_CHECKSUMS;
+});
 
 describe('Unit / Install', () => {
   let dl, options;
@@ -112,6 +126,28 @@ describe('Unit / Install', () => {
     );
   });
 
+  it('extracts the archive when it matches the expected checksum', async () => {
+    dl.and.returnValue([200, 'archive contents']);
+    options.sha256 = crypto.createHash('sha256').update('archive contents').digest('hex');
+
+    await install.download(options);
+
+    expect(options.extract).toHaveBeenCalled();
+  });
+
+  it('refuses to extract an archive that does not match the expected checksum', async () => {
+    dl.and.returnValue([200, 'tampered contents']);
+    options.sha256 = EMPTY_SHA256;
+
+    await expectAsync(install.download(options)).toBeRejectedWithError(
+      `Checksum mismatch for Archive v0: expected sha256 ${EMPTY_SHA256}, got ` +
+      '1ff92f20b7f26122c860265576fa1eeb2dec5e550a955c90a56e0bd9e443a712' +
+      ' - https://fake-download.org/archive.zip');
+
+    expect(options.extract).not.toHaveBeenCalled();
+    expect(fs.existsSync(path.join('.downloads', 'v0', 'archive.zip'))).toBe(false);
+  });
+
   it('returns the full path of the executable', async () => {
     await expectAsync(install.download(options)).toBeResolvedTo(
       path.join('.downloads', 'v0', 'extracted', 'bin.exe'));
@@ -127,6 +163,7 @@ describe('Unit / Install', () => {
       // stub the unzip module using esm loader mocks
       extractZip = jasmine.createSpy('exports').and.resolveTo();
       global.__MOCK_IMPORTS__.set('./unzip.js', { default: extractZip });
+      mockChromiumChecksums();
 
       // make getters for jasmine property spy
       let { platform, arch } = process;
@@ -148,6 +185,29 @@ describe('Unit / Install', () => {
       expect(extractZip).toHaveBeenCalledOnceWith(jasmine.any(String), {
         dir: jasmine.stringMatching('(/|\\\\).local-chromium(/|\\\\)')
       });
+    });
+
+    it('pins a sha256 checksum for every default revision', () => {
+      expect(Object.keys(CHROMIUM_CHECKSUMS)).toEqual(Object.keys(CHROMIUM_REVISIONS));
+      for (let checksum of Object.values(CHROMIUM_CHECKSUMS)) {
+        expect(checksum).toMatch(/^[0-9a-f]{64}$/);
+      }
+    });
+
+    it('refuses to extract a default revision that does not match its checksum', async () => {
+      install.chromium.checksums = CHROMIUM_CHECKSUMS;
+
+      await expectAsync(install.chromium()).toBeRejectedWithError(
+        /^Checksum mismatch for Chromium \d+: expected sha256 [0-9a-f]{64}, got /);
+      expect(extractZip).not.toHaveBeenCalled();
+    });
+
+    it('does not verify custom revisions', async () => {
+      install.chromium.checksums = CHROMIUM_CHECKSUMS;
+
+      await install.chromium({ revision: '123456' });
+
+      expect(extractZip).toHaveBeenCalled();
     });
 
     for (let [platform, expected] of Object.entries({
@@ -213,6 +273,7 @@ describe('Unit / Install', () => {
       // stub the unzip module using esm loader mocks
       extractZip = jasmine.createSpy('exports').and.resolveTo();
       global.__MOCK_IMPORTS__.set('./unzip.js', { default: extractZip });
+      mockChromiumChecksums();
 
       // make getters for jasmine property spy
       let { platform, arch } = process;
@@ -418,6 +479,7 @@ describe('Unit / Install in executable', () => {
       // stub the unzip module using esm loader mocks
       extractZip = jasmine.createSpy('exports').and.resolveTo();
       global.__MOCK_IMPORTS__.set('./unzip.js', { default: extractZip });
+      mockChromiumChecksums();
 
       // make getters for jasmine property spy
       let { platform, arch } = process;

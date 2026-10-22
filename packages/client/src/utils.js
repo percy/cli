@@ -5,6 +5,10 @@ import path from 'path';
 import crypto from 'crypto';
 import logger from '@percy/logger';
 import { snakecase } from '@percy/config/utils';
+import { dropDistrustedRoots } from './trust.js';
+
+// every network path in the CLI imports these utils, so distrust compromised roots process-wide
+dropDistrustedRoots();
 
 // Formats a raw byte integer as a string
 export function formatBytes(int) {
@@ -155,7 +159,8 @@ export function flattenAggregateError(error) {
 // and any received error details. Server 500 errors are retried up to 5 times at 50ms intervals by
 // default, and 404 errors may also be optionally retried. If a callback is provided, it is called
 // with the parsed response body and response details. If the callback returns a value, that value
-// will be returned in the final resolved promise instead of the response body.
+// will be returned in the final resolved promise instead of the response body. A `proxy` URL
+// routes the request through that proxy regardless of the proxy env vars.
 export async function request(url, options = {}, callback) {
   // accept `request(url, callback)`
   if (typeof options === 'function') [options, callback] = [{}, options];
@@ -163,7 +168,7 @@ export async function request(url, options = {}, callback) {
   // gather request options
   let {
     body, headers, retries, retryNotFound,
-    interval, noProxy, buffer, meta = {}, ...requestOptions
+    interval, noProxy, proxy, buffer, meta = {}, ...requestOptions
   } = options;
   let { protocol, hostname, port, pathname, search, hash } = new URL(url);
 
@@ -182,7 +187,8 @@ export async function request(url, options = {}, callback) {
 
   // combine request options
   Object.assign(requestOptions, {
-    agent: requestOptions.agent || (!noProxy && proxyAgentFor(url)) || null,
+    agent: requestOptions.agent || (proxy && proxyAgentFor(url, { proxy })) ||
+      (!noProxy && proxyAgentFor(url)) || null,
     // Node >=17 defaults dns.lookup to verbatim, so `localhost` can resolve ::1
     // before 127.0.0.1 and fail against IPv4-only dev servers. Restore Node 14
     // ordering for Percy's own requests only -- dns.setDefaultResultOrder() is
@@ -336,3 +342,11 @@ export {
   ProxyHttpsAgent,
   proxyAgentFor
 } from './proxy.js';
+
+export {
+  DISTRUSTED_ROOTS,
+  isTrustedCertificate,
+  trustedCertificates,
+  usesOpenSSLStore,
+  dropDistrustedRoots
+} from './trust.js';

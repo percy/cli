@@ -7,8 +7,6 @@ import {
   createResource,
   createRootResource,
   createPercyCSSResource,
-  createLogResource,
-  redactSecrets,
   yieldAll,
   snapshotLogName,
   waitForTimeout,
@@ -80,6 +78,7 @@ function debugSnapshotOptions(snapshot) {
   debugProp(snapshot, 'ignoreCanvasSerializationErrors');
   debugProp(snapshot, 'ignoreStyleSheetSerializationErrors');
   debugProp(snapshot, 'pseudoClassEnabledElements', JSON.stringify);
+  debugProp(snapshot, 'enablePseudoClassSerialization');
   debugProp(snapshot, 'discovery.autoConfigureAllowedHostnames');
 
   if (Array.isArray(snapshot.domSnapshot)) {
@@ -219,12 +218,6 @@ function processSnapshotResources({ domSnapshot, resources, ...snapshot }) {
 
   // For multi dom root resources are stored as array
   resources = resources.flat();
-
-  // include associated snapshot logs matched by meta information. Redact
-  // secrets before egress — this per-snapshot log resource is a parallel
-  // egress path to sendBuildLogs and must scrub tokens/credentials too (CWE-532).
-  resources.push(createLogResource(redactSecrets(logger.snapshotLogs(snapshot.meta.snapshot))));
-  logger.evictSnapshot(snapshot.meta.snapshot);
 
   if (process.env.PERCY_GZIP) {
     const kept = [];
@@ -467,8 +460,30 @@ function readWarnThresholdBytes() {
 // the actual coldest entry if needed. DISK_SPILL_KEY is only set when the
 // ByteLRU tier is active (see createDiscoveryQueue 'start' handler), so the
 // cache here is guaranteed to be a ByteLRU when we enter this branch.
-export function lookupCacheResource(percy, snapshotResources, cache, url, width) {
-  let resource = snapshotResources.get(url) || cache.get(url);
+export function lookupCacheResource(percy, snapshotResources, cache, url, width, rootUrl) {
+  let resource = snapshotResources.get(url);
+
+  // @percy/dom keys the resources it fabricates by a root-relative URL
+  // (/__serialized__/<uid>.<ext>) so no host or scheme is baked into the
+  // snapshot; the discovery browser requests the resolved absolute form.
+  // Match on the origin-less form (path + query), but only for requests from
+  // the snapshot's own origin: a root-relative href can resolve nowhere else,
+  // and an allowed cross-origin request must never be answered with the
+  // snapshot's bytes. Both snapshot lookups run before the shared cache so a
+  // snapshot's own provided bytes always win over whatever an earlier fetch
+  // of the same URL left cached.
+  if (!resource && rootUrl) {
+    try {
+      let { origin, pathname, search } = new URL(url);
+      if (origin === new URL(rootUrl).origin) {
+        resource = snapshotResources.get(pathname + search);
+      }
+    } catch (e) {
+      // url is not absolute -- nothing further to try
+    }
+  }
+  if (!resource) resource = cache.get(url);
+
   const disk = percy[DISK_SPILL_KEY];
   if (!resource && disk) {
     resource = disk.get(url);
@@ -659,7 +674,7 @@ export function createDiscoveryQueue(percy) {
               allowedHostnames: snapshot.discovery.allowedHostnames,
               disallowedHostnames: snapshot.discovery.disallowedHostnames,
               getResource: (u, width = null) => (
-                lookupCacheResource(percy, snapshot.resources, cache, u, width)
+                lookupCacheResource(percy, snapshot.resources, cache, u, width, snapshot.url)
               ),
               saveResource: r => {
                 const limitResources = process.env.LIMIT_SNAPSHOT_RESOURCES || false;

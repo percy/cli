@@ -70,6 +70,41 @@ describe('AutomateProvider', () => {
     });
   });
 
+  describe('createDriver on a native app session', () => {
+    const nativeError = 'Percy on Automate captures browser sessions; this is a native app session. ' +
+      'Use App Percy for native apps (an app project token with `percy app:exec`).';
+
+    it('rejects an Android native session', async () => {
+      spyOn(Driver.prototype, 'getCapabilites').and.returnValue(Promise.resolve({
+        platformName: 'Android', appPackage: 'org.wikipedia.alpha', automationName: 'uiautomator2'
+      }));
+      await expectAsync(new AutomateProvider(args).createDriver()).toBeRejectedWithError(nativeError);
+    });
+
+    it('rejects an iOS native session reporting an empty browserName', async () => {
+      spyOn(Driver.prototype, 'getCapabilites').and.returnValue(Promise.resolve({
+        platformName: 'iOS', browserName: '', desired: { bundleId: 'com.example.app' }
+      }));
+      await expectAsync(new AutomateProvider(args).createDriver()).toBeRejectedWithError(nativeError);
+    });
+
+    it('accepts a mobile browser session', async () => {
+      spyOn(Driver.prototype, 'getCapabilites').and.returnValue(Promise.resolve({
+        platformName: 'Android', browserName: 'chrome', appPackage: 'com.android.chrome'
+      }));
+      const automateProvider = new AutomateProvider(args);
+      await automateProvider.createDriver();
+      expect(automateProvider.metaData).toBeDefined();
+    });
+
+    it('accepts a session without browserName or an app identifier', async () => {
+      spyOn(Driver.prototype, 'getCapabilites').and.returnValue(Promise.resolve({ platformName: 'Android' }));
+      const automateProvider = new AutomateProvider(args);
+      await automateProvider.createDriver();
+      expect(automateProvider.metaData).toBeDefined();
+    });
+  });
+
   describe('supports', () => {
     it('returns true for browserstack automate', () => {
       expect(AutomateProvider.supports('http:browserstack')).toEqual(true);
@@ -329,6 +364,47 @@ describe('AutomateProvider', () => {
         expect(browserstackExecutorSpy).toHaveBeenCalledTimes(1);
         expect(executeScriptSpy).toHaveBeenCalledTimes(1);
         expect(res).toEqual(expectedOutput);
+      });
+
+      // percy-api relaxes its tile-count limit by this factor, so it must reach the payload.
+      it('forwards scaleToFit and the applied factor into metadata when scaling happened', async () => {
+        const response = {
+          success: true,
+          result: JSON.stringify({
+            tiles: [{ sha: 'abc', index: 0 }],
+            dom_sha: 'def',
+            scale_to_fit: true,
+            applied_scale_factor: 0.38095238095
+          })
+        };
+        spyOn(AutomateProvider.prototype, 'browserstackExecutor')
+          .and.returnValue(Promise.resolve({ value: JSON.stringify(response) }));
+        await automateProvider.createDriver();
+        const res = await automateProvider.getTiles(false);
+
+        expect(res.metadata).toEqual({
+          screenshotType: 'fullpage',
+          scaleToFit: true,
+          appliedScaleFactor: 0.38095238095
+        });
+      });
+
+      // These land in the largest table on the platform; don't grow every row.
+      it('omits the scaleToFit metadata keys when mobile-common did not scale', async () => {
+        const response = {
+          success: true,
+          result: JSON.stringify({
+            tiles: [{ sha: 'abc', index: 0 }],
+            dom_sha: 'def',
+            scale_to_fit: false
+          })
+        };
+        spyOn(AutomateProvider.prototype, 'browserstackExecutor')
+          .and.returnValue(Promise.resolve({ value: JSON.stringify(response) }));
+        await automateProvider.createDriver();
+        const res = await automateProvider.getTiles(false);
+
+        expect(res.metadata).toEqual({ screenshotType: 'fullpage' });
       });
 
       it('should return default values of header and footer if not in response', async () => {
