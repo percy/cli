@@ -108,7 +108,16 @@ export const exec = command('exec', {
   }
 
   // provide SDKs with useful env vars
-  env.PERCY_SERVER_ADDRESS = percy?.address();
+  let address = percy?.address();
+  env.PERCY_SERVER_ADDRESS = address;
+
+  if (address) {
+    // the Python and .NET SDKs read PERCY_CLI_API, and Cypress only forwards CYPRESS_-prefixed
+    // vars to the browser; without these a non-default --port leaves those SDKs on 5338
+    env.PERCY_CLI_API ||= address;
+    env.CYPRESS_PERCY_SERVER_ADDRESS ||= address;
+  }
+
   env.PERCY_BUILD_ID = percy?.build?.id;
   env.PERCY_BUILD_URL = percy?.build?.url;
   env.PERCY_LOGLEVEL = log.loglevel();
