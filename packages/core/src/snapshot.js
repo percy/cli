@@ -558,7 +558,7 @@ export function createSnapshotsQueue(percy) {
       // a closed or aborted queue never runs the task, so settle any sync caller
       // here or the SDK request waiting on it hangs until its own timeout
       if (error.name === 'QueueClosedError' || error.name === 'AbortError') {
-        if (snapshot.sync) snapshot.reject?.(new Error(build?.error || `Snapshot upload was cancelled: ${error.message}`));
+        if (snapshot.sync) snapshot.reject?.(new Error(build?.error || `Snapshot upload was cancelled (${error.name})`));
         return result;
       }
 
@@ -576,12 +576,14 @@ export function createSnapshotsQueue(percy) {
       let errors = error.response?.body?.errors;
       let duplicate = errors?.length > 1 && errors[1].detail.includes('must be unique');
       if (duplicate) {
+        let errMsg = `Ignored duplicate snapshot. ${errors[1].detail}`;
         if (process.env.PERCY_IGNORE_DUPLICATES !== 'true') {
-          let errMsg = `Ignored duplicate snapshot. ${errors[1].detail}`;
           percy.log.warn(errMsg, meta);
 
           await percy.suggestionsForFix(errMsg, { snapshotLevel: true, snapshotName: name });
         }
+        // no comparison was created, so a sync caller has nothing to wait for
+        if (snapshot.sync) snapshot.reject?.(new Error(errMsg));
         return result;
       }
 

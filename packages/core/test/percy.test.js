@@ -1329,6 +1329,26 @@ describe('Percy', () => {
       await expectAsync(upload('Snapshot 2')).toBeRejectedWithError('Build has failed');
     });
 
+    it('rejects sync uploads the API ignores as duplicates', async () => {
+      api.reply('/snapshots/4567/comparisons', () => [400, {
+        errors: [{ status: 'bad_request' },
+          { detail: 'The name of each snapshot must be unique ...' }]
+      }]);
+
+      await percy.start();
+
+      await expectAsync(new Promise((resolve, reject) => {
+        percy.upload({
+          name: 'Snapshot',
+          tag: { name: 'device' },
+          tiles: [{ content: 'foo' }],
+          sync: true
+        }, { resolve, reject }).catch(reject);
+      })).toBeRejectedWithError(
+        'Ignored duplicate snapshot. The name of each snapshot must be unique ...'
+      );
+    });
+
     it('does not reject non-sync uploads once the build has failed upstream', async () => {
       api.reply('/snapshots/4567/comparisons', () => [422, {
         errors: [
@@ -1414,7 +1434,7 @@ describe('Percy', () => {
       upload('Snapshot 1').catch(() => {});
       let queued = upload('Snapshot 2');
 
-      let aborted = expectAsync(queued).toBeRejectedWithError(/^Snapshot upload was cancelled: .*abort/i);
+      let aborted = expectAsync(queued).toBeRejectedWithError('Snapshot upload was cancelled (AbortError)');
       await percy.stop(true);
       await aborted;
     });
