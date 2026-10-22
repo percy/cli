@@ -2,11 +2,22 @@ name: Build Executables
 on:
   release:
     types: [published]
+  # Backfill SHA256SUMS for an already-published release (no attestation)
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to publish checksums for (e.g. v1.32.12)'
+        required: true
+# Never let a backfill hash a release's assets while its build is replacing them
+concurrency:
+  group: executable-${{ github.event.release.tag_name || inputs.tag }}
+  cancel-in-progress: false
 permissions:
   contents: read
 jobs:
   build:
     name: Build Executables
+    if: github.event_name == 'release'
     runs-on: macos-latest
     permissions:
       contents: write # upload release assets via softprops/action-gh-release
@@ -41,6 +52,7 @@ jobs:
   notify:
     needs: build
     name: Sign Win Executable
+    if: github.event_name == 'release'
     runs-on: windows-2022
     permissions:
       contents: write # upload signed Windows executable to the release
@@ -117,3 +129,42 @@ jobs:
             percy-win.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  checksums:
+    # Runs after both upload jobs so the hashes cover the final (signed) zips
+    # exactly as published, letting consumers pin a version and its hash.
+    needs: [build, notify]
+    name: Publish Checksums
+    if: >-
+      !cancelled() && (github.event_name == 'workflow_dispatch' ||
+      (needs.build.result == 'success' && needs.notify.result == 'success'))
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # upload SHA256SUMS to the release
+      id-token: write # sign attestations with Sigstore
+      attestations: write # store attestations for `gh attestation verify`
+    steps:
+      - name: Download release assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.event.release.tag_name || inputs.tag }}
+        run: gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern 'percy-*.zip'
+      - name: Generate SHA256SUMS
+        run: |
+          sha256sum percy-linux.zip percy-osx.zip percy-win.zip > SHA256SUMS
+          cat SHA256SUMS
+      - name: Attest release assets
+        # only this run's build and signing jobs produced the zips; a backfill
+        # did not build them, so it must not claim their provenance
+        if: github.event_name == 'release'
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: |
+            percy-linux.zip
+            percy-osx.zip
+            percy-win.zip
+            SHA256SUMS
+      - name: Upload SHA256SUMS
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.event.release.tag_name || inputs.tag }}
+        run: gh release upload "$TAG" SHA256SUMS --repo "$GITHUB_REPOSITORY" --clobber
