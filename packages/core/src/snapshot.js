@@ -420,11 +420,8 @@ export async function uploadSnapshotLog(percy, buildId, snapshotId, meta = {}) {
   }
 }
 
-// What a sync caller is told when its upload never ran, by queue error name
-const CANCELLED_REASONS = {
-  QueueClosedError: 'Snapshot was not uploaded because Percy is no longer accepting snapshots',
-  AbortError: 'Snapshot upload was cancelled before it finished, because Percy stopped or a newer snapshot with the same name replaced it'
-};
+// What a sync caller is told when its upload never ran and the build has not failed
+const SYNC_CANCELLED = 'Snapshot upload was cancelled before it finished, because Percy stopped or a newer snapshot with the same name replaced it';
 
 // Creates a snapshots queue that manages a Percy build and uploads snapshots.
 export function createSnapshotsQueue(percy) {
@@ -548,7 +545,8 @@ export function createSnapshotsQueue(percy) {
 
       // Pushing to syncQueue, that will check for
       // snapshot processing status, and will resolve once done
-      if (snapshot.sync) {
+      // (only when someone waits on it: a job without callbacks would throw in the poller)
+      if (snapshot.sync && snapshot.resolve) {
         percy.log.info(`Waiting for snapshot '${name}' to be completed`, meta);
         const data = new JobData(response.data.id, null, snapshot.resolve, snapshot.reject);
         percy.syncQueue.push(data);
@@ -564,7 +562,7 @@ export function createSnapshotsQueue(percy) {
       // a closed or aborted queue never runs the task, so settle any sync caller
       // here or the SDK request waiting on it hangs until its own timeout
       if (error.name === 'QueueClosedError' || error.name === 'AbortError') {
-        if (snapshot.sync) snapshot.reject?.(new Error(build?.error || CANCELLED_REASONS[error.name]));
+        if (snapshot.sync) snapshot.reject?.(new Error(build?.error || SYNC_CANCELLED));
         return result;
       }
 
@@ -602,7 +600,7 @@ export function createSnapshotsQueue(percy) {
         { message: error?.message, meta }
       ];
       await percy.suggestionsForFix(snapshotErrors, { snapshotLevel: true, snapshotName: name });
-      if (snapshot.sync) snapshot.reject?.(error);
+      if (snapshot.sync) snapshot.reject(error);
       return result;
     });
 }

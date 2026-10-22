@@ -1305,6 +1305,23 @@ describe('Percy', () => {
       ]);
     });
 
+    it('does not wait on sync snapshot comparisons nobody is waiting for', async () => {
+      await percy.start();
+
+      // e.g. the comparison upload route, which passes no callbacks
+      await percy.upload({
+        name: 'Snapshot',
+        tag: { name: 'device' },
+        tiles: [{ content: 'foo' }],
+        sync: true
+      });
+
+      await percy.idle();
+      expect(api.requests['/comparisons/891011/finalize']).toHaveSize(1);
+      expect(percy.syncQueue.jobs).toHaveSize(0);
+      expect(logger.stderr).toEqual([]);
+    });
+
     it('rejects sync uploads once the build has failed upstream', async () => {
       api.reply('/snapshots/4567/comparisons', () => [422, {
         errors: [
