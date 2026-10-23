@@ -62,6 +62,16 @@ packages/cli-command/src/intelliStory.js
 # literals, no user input flows here. semgrep flags the path.join() anyway.
 packages/cli-command/test/noRequireBinding.test.js
 
+# ESM test harness (dev-only, never shipped): path joins derive from the repo's own
+# layout, not user input. File-level because inline nosemgrep is ignored in CI.
+scripts/loader.js
+scripts/loader-alias.js
+scripts/register-hooks.mjs
+
+# Published (see @percy/config `files`/`exports`) but test-only: the paths joined
+# here are virtual modules mockfs() created in-process, not user input.
+packages/config/test/helpers.js
+
 # The PDF byte-comparison regression track (test/regression/pdf-render.test.js
 # and its helper) joins paths from three local sources only: `platformKey()`,
 # which is `${process.platform}-${process.arch}`; a slug that slugify() has

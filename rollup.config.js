@@ -4,7 +4,7 @@ import alias from '@rollup/plugin-alias';
 import { babel } from '@rollup/plugin-babel';
 import resolve from '@rollup/plugin-node-resolve';
 import commonjs from '@rollup/plugin-commonjs';
-import { LOADER_ALIAS } from './scripts/loader.js';
+import { LOADER_ALIAS } from './scripts/loader-alias.js';
 
 const cwd = process.cwd();
 const pkg = JSON.parse(fs.readFileSync(path.join(cwd, 'package.json')));

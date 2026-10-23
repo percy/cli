@@ -2,10 +2,11 @@ import { createRequire } from 'module';
 import logger from '@percy/logger';
 
 // snyk-nodejs-lockfile-parser is a CommonJS optionalDependency. It requires
-// Node >=20.19 while the CLI supports Node >=14, so we defer the require to call
-// time — that way importing this module never throws on older Node versions
-// (or when the optional install was skipped for any other reason). Cached on
-// first successful load so the require only resolves once per process.
+// Node ^20.19 || ^22.13 || >=24 while the CLI supports Node >=20, so we defer the
+// require to call time — that way importing this module never throws on older
+// Node 20 releases (or when the optional install was skipped for any other
+// reason). Cached on first successful load so the require only resolves once
+// per process.
 // Bound to a non-`require` name on purpose: when this ESM file is transpiled to
 // CommonJS for the packaged binary, naming it `require` collides with two Babel
 // transforms at once — preset-env renames the local `require` to `_require`, and
@@ -14,16 +15,17 @@ import logger from '@percy/logger';
 // initializer (TypeError: _require is not a function). See PER intelliStory binary.
 const cjsRequire = createRequire(import.meta.url);
 let _snykModule;
-/* istanbul ignore next: snyk-backed path — the parser requires Node >=20.19 while
-   CI runs the suite on Node 14, so these lines can't execute there; they're
-   exercised by the describeSnyk tests on Node >=18 */
+/* istanbul ignore next: snyk-backed path. Executable on the CI Node and
+   exercised by the describeSnyk tests; the ignore covers the require-failure
+   branch, which only triggers on Node 20 releases before 20.19 or when the
+   optional install was skipped. */
 function loadSnyk() {
   if (_snykModule) return _snykModule;
   try {
     _snykModule = cjsRequire('snyk-nodejs-lockfile-parser');
     return _snykModule;
   } catch (e) {
-    const err = new Error(`snyk-nodejs-lockfile-parser is not available (requires Node >=20.19, or the optional install was skipped): ${e.message}`);
+    const err = new Error(`snyk-nodejs-lockfile-parser is not available (requires Node ^20.19, ^22.13 or >=24, or the optional install was skipped): ${e.message}`);
     err.code = 'SNYK_LOCKFILE_PARSER_UNAVAILABLE';
     throw err;
   }
