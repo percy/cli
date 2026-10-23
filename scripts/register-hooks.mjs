@@ -20,7 +20,6 @@ import path from 'node:path';
 // Captured now, before any test calls mockfs() — which spies every method on
 // `fs` and routes it through memfs. The manifest and the materialised modules
 // must land on the REAL filesystem or the hooks worker cannot read them.
-const realMkdirSync = fs.mkdirSync;
 const realWriteFileSync = fs.writeFileSync;
 const realRenameSync = fs.renameSync;
 const realRmSync = fs.rmSync;
@@ -33,8 +32,9 @@ const CJS_REG = /(^|\n)(module\.)?(exports)/;
 // Node hands the resolved (real) path back when it reads a module, so an
 // uncanonicalized DIR makes the mockfs $bypass prefix-match miss and the read
 // falls through to memfs as ENOENT.
-realMkdirSync(path.join(os.tmpdir(), `percy-test-${process.pid}`), { recursive: true });
-export const DIR = realRealpathSync(path.join(os.tmpdir(), `percy-test-${process.pid}`));
+// mkdtemp, not a pid-derived name: the directory holds modules the hooks load
+// and execute, so it must be unique and private (0700) on a shared tmpdir.
+export const DIR = realRealpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'percy-test-')));
 export const MANIFEST_PATH = path.join(DIR, 'manifest.json');
 
 // mocks: { <specifier>: [exportName, …] }  — names only; values stay in-thread

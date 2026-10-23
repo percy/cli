@@ -141,9 +141,13 @@ const RETRY_ERROR_CODES = [
 export function flattenAggregateError(error) {
   if (!Array.isArray(error?.errors) || !error.errors.length) return error;
 
-  // prefer a retryable cause when the addresses failed for different reasons
-  let cause = error.errors.find(e => RETRY_ERROR_CODES.includes(e?.code)) ?? error.errors[0];
-  error.code ??= cause?.code;
+  // prefer a retryable cause when the addresses failed for different reasons.
+  // Node copies the FIRST sub-error's code onto the aggregate, so a retryable
+  // cause must also replace a non-retryable code or the retry gate never fires.
+  let retryable = error.errors.find(e => RETRY_ERROR_CODES.includes(e?.code));
+  let cause = retryable ?? error.errors[0];
+  if (retryable && !RETRY_ERROR_CODES.includes(error.code)) error.code = retryable.code;
+  else error.code ??= cause?.code;
 
   if (!error.message) {
     error.message = cause?.message || 'connection failed';

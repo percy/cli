@@ -697,6 +697,19 @@ describe('Unit / flattenAggregateError', () => {
     expect(error.message).toEqual('no route to host');
   });
 
+  it('replaces a non-retryable code Node copied from the first sub-error', () => {
+    // what Node 20 actually produces: IPv6 unroutable, IPv4 refused
+    let error = agg([sub('ENETUNREACH', 'no route'), sub('ECONNREFUSED', 'connect ECONNREFUSED 127.0.0.1:5883')],
+      { code: 'ENETUNREACH' });
+    expect(flattenAggregateError(error).code).toEqual('ECONNREFUSED');
+    expect(error.message).toEqual('connect ECONNREFUSED 127.0.0.1:5883');
+  });
+
+  it('keeps a retryable code Node already set', () => {
+    let error = agg([sub('ENETUNREACH', 'no route'), sub('EPIPE', 'broken')], { code: 'ECONNRESET' });
+    expect(flattenAggregateError(error).code).toEqual('ECONNRESET');
+  });
+
   it('keeps a code Node already set rather than overwriting it', () => {
     let error = agg([sub('ENETUNREACH', 'no route')], { code: 'ECONNREFUSED' });
     expect(flattenAggregateError(error).code).toEqual('ECONNREFUSED');
