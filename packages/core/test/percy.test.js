@@ -1305,6 +1305,181 @@ describe('Percy', () => {
       ]);
     });
 
+    it('does not wait on sync snapshot comparisons nobody is waiting for', async () => {
+      await percy.start();
+
+      // e.g. the comparison upload route, which passes no callbacks
+      await percy.upload({
+        name: 'Snapshot',
+        tag: { name: 'device' },
+        tiles: [{ content: 'foo' }],
+        sync: true
+      });
+
+      await percy.idle();
+      expect(api.requests['/comparisons/891011/finalize']).toHaveSize(1);
+      expect(percy.syncQueue.jobs).toHaveSize(0);
+      expect(logger.stderr).toEqual([]);
+    });
+
+    it('does not throw for failed sync uploads nobody is waiting for', async () => {
+      api.reply('/snapshots/4567/comparisons', () => [422, {
+        errors: [{ detail: 'Invalid comparison' }]
+      }]);
+
+      await percy.start();
+
+      await expectAsync(percy.upload({
+        name: 'Snapshot',
+        tag: { name: 'device' },
+        tiles: [{ content: 'foo' }],
+        sync: true
+      })).toBeResolved();
+
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
+        '[percy] Encountered an error uploading snapshot: Snapshot'
+      ]));
+      expect(logger.stderr.join()).not.toContain('TypeError');
+    });
+
+    it('rejects sync uploads once the build has failed upstream', async () => {
+      api.reply('/snapshots/4567/comparisons', () => [422, {
+        errors: [
+          { detail: 'Cannot create snapshot in failed builds' },
+          { detail: 'Build has failed', source: { pointer: '/data/attributes/build' } }
+        ]
+      }]);
+
+      await percy.start();
+
+      let upload = name => new Promise((resolve, reject) => {
+        percy.upload({
+          name,
+          tag: { name: 'device' },
+          tiles: [{ content: 'foo' }],
+          sync: true
+        }, { resolve, reject }).catch(reject);
+      });
+
+      // the upload the API rejects, then one sent after the build has failed
+      await expectAsync(upload('Snapshot 1')).toBeRejectedWithError('Build has failed');
+      await expectAsync(upload('Snapshot 2')).toBeRejectedWithError('Build has failed');
+    });
+
+    it('rejects sync uploads the API ignores as duplicates', async () => {
+      api.reply('/snapshots/4567/comparisons', () => [400, {
+        errors: [{ status: 'bad_request' },
+          { detail: 'The name of each snapshot must be unique ...' }]
+      }]);
+
+      await percy.start();
+
+      await expectAsync(new Promise((resolve, reject) => {
+        percy.upload({
+          name: 'Snapshot',
+          tag: { name: 'device' },
+          tiles: [{ content: 'foo' }],
+          sync: true
+        }, { resolve, reject }).catch(reject);
+      })).toBeRejectedWithError(
+        'Ignored duplicate snapshot. The name of each snapshot must be unique ...'
+      );
+    });
+
+    it('does not reject non-sync uploads once the build has failed upstream', async () => {
+      api.reply('/snapshots/4567/comparisons', () => [422, {
+        errors: [
+          { detail: 'Build has failed', source: { pointer: '/data/attributes/build' } }
+        ]
+      }]);
+
+      await percy.start();
+
+      let upload = name => percy.upload({
+        name,
+        tag: { name: 'device' },
+        tiles: [{ content: 'foo' }]
+      });
+
+      await expectAsync(upload('Snapshot 1')).toBeResolved();
+      expect(percy.build.error).toEqual('Build has failed');
+      await expectAsync(upload('Snapshot 2')).toBeResolved();
+
+      // sync without callbacks (e.g. the comparison upload route) nobody is waiting on
+      await expectAsync(percy.upload({
+        name: 'Snapshot 3',
+        tag: { name: 'device' },
+        tiles: [{ content: 'foo' }],
+        sync: true
+      })).toBeResolved();
+    });
+
+    it('rejects queued sync uploads when the build fails while they wait', async () => {
+      api.reply('/snapshots/4567/comparisons', req => {
+        // hold the failure so the other uploads queue behind it
+        req.delay = 500;
+        return [422, {
+          errors: [
+            { detail: 'Build has failed', source: { pointer: '/data/attributes/build' } }
+          ]
+        }];
+      });
+
+      await percy.start();
+
+      let upload = (name, callback = true) => new Promise((resolve, reject) => {
+        percy.upload({
+          name,
+          tag: { name: 'device' },
+          tiles: [{ content: 'foo' }],
+          sync: true
+        }, callback ? { resolve, reject } : null).then(resolve, reject);
+      });
+
+      // with a concurrency of 1, the first failure closes the queue while the rest
+      // wait (the next one may already be dequeued by then); every sync caller,
+      // sent or aborted while queued, must reject with the build error
+      let failed = [upload('Snapshot 1'), upload('Snapshot 2')];
+      let noCallback = upload('Snapshot 3', false);
+      let queued = upload('Snapshot 4');
+
+      await Promise.all([
+        ...[...failed, queued].map(u => expectAsync(u).toBeRejectedWithError('Build has failed')),
+        // a queued sync upload without callbacks is aborted without throwing
+        expectAsync(noCallback).toBeResolved()
+      ]);
+      // the uploads queued behind the first two (Snapshots 3 and 4) never reached the API
+      expect(api.requests['/snapshots/4567/comparisons'].length).toBeLessThan(3);
+    });
+
+    it('rejects queued sync uploads when percy is force stopped', async () => {
+      api.reply('/snapshots/4567/comparisons', req => {
+        // hold the first upload so the next one stays queued
+        req.delay = 500;
+        return [201, { data: { id: '891011' } }];
+      });
+
+      await percy.start();
+
+      let upload = name => new Promise((resolve, reject) => {
+        percy.upload({
+          name,
+          tag: { name: 'device' },
+          tiles: [{ content: 'foo' }],
+          sync: true
+        }, { resolve, reject }).catch(reject);
+      });
+
+      upload('Snapshot 1').catch(() => {});
+      let queued = upload('Snapshot 2');
+
+      let aborted = expectAsync(queued).toBeRejectedWithError(
+        'Snapshot upload was cancelled before it finished, because Percy stopped or a newer snapshot with the same name replaced it'
+      );
+      await percy.stop(true);
+      await aborted;
+    });
+
     it('should raise warning in case of upload command with sync', async () => {
       percy = new Percy({
         token: 'PERCY_TOKEN',

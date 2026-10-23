@@ -691,6 +691,9 @@ export class Percy {
             snapshotPromise[snapshot.name] = new Promise((resolve, reject) => {
               Object.assign(snapshot, { resolve, reject });
             });
+            // only the requested snapshot's promise is awaited, so a rejected extra
+            // (additional snapshots, array bodies) must not surface as unhandled
+            snapshotPromise[snapshot.name].catch(() => {});
           }
           // push each finished snapshot to the snapshots queue
           this.#snapshots.push(snapshot);
@@ -708,6 +711,9 @@ export class Percy {
       throw new Error('Not running');
     } else if (Array.isArray(options)) {
       return yieldAll(options.map(o => this.yield.upload(o)));
+    } else if (this.build?.error && callback && this.syncMode(options)) {
+      // a sync caller waits on the result, so fail it now instead of queueing it
+      throw new Error(this.build.error);
     }
     // validate comparison uploads and warn about any errors
 

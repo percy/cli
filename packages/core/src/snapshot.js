@@ -420,6 +420,9 @@ export async function uploadSnapshotLog(percy, buildId, snapshotId, meta = {}) {
   }
 }
 
+// What a sync caller is told when its upload never ran and the build has not failed
+const SYNC_CANCELLED = 'Snapshot upload was cancelled before it finished, because Percy stopped or a newer snapshot with the same name replaced it';
+
 // Creates a snapshots queue that manages a Percy build and uploads snapshots.
 export function createSnapshotsQueue(percy) {
   let { concurrency } = percy.config.discovery;
@@ -542,7 +545,8 @@ export function createSnapshotsQueue(percy) {
 
       // Pushing to syncQueue, that will check for
       // snapshot processing status, and will resolve once done
-      if (snapshot.sync) {
+      // (only when someone waits on it: a job without callbacks would throw in the poller)
+      if (snapshot.sync && snapshot.resolve) {
         percy.log.info(`Waiting for snapshot '${name}' to be completed`, meta);
         const data = new JobData(response.data.id, null, snapshot.resolve, snapshot.reject);
         percy.syncQueue.push(data);
@@ -555,8 +559,12 @@ export function createSnapshotsQueue(percy) {
       let result = { ...snapshot, error };
       let { name, meta } = snapshot;
 
-      if (error.name === 'QueueClosedError') return result;
-      if (error.name === 'AbortError') return result;
+      // a closed or aborted queue never runs the task, so settle any sync caller
+      // here or the SDK request waiting on it hangs until its own timeout
+      if (error.name === 'QueueClosedError' || error.name === 'AbortError') {
+        if (snapshot.sync) snapshot.reject?.(new Error(build?.error || SYNC_CANCELLED));
+        return result;
+      }
 
       let failed = error.response?.statusCode === 422 && (
         error.response.body.errors.find(e => (
@@ -572,8 +580,10 @@ export function createSnapshotsQueue(percy) {
       let errors = error.response?.body?.errors;
       let duplicate = errors?.length > 1 && errors[1].detail.includes('must be unique');
       if (duplicate) {
+        let errMsg = `Ignored duplicate snapshot. ${errors[1].detail}`;
+        // no comparison was created, so a sync caller has nothing to wait for
+        if (snapshot.sync) snapshot.reject?.(new Error(errMsg));
         if (process.env.PERCY_IGNORE_DUPLICATES !== 'true') {
-          let errMsg = `Ignored duplicate snapshot. ${errors[1].detail}`;
           percy.log.warn(errMsg, meta);
 
           await percy.suggestionsForFix(errMsg, { snapshotLevel: true, snapshotName: name });
@@ -590,7 +600,7 @@ export function createSnapshotsQueue(percy) {
         { message: error?.message, meta }
       ];
       await percy.suggestionsForFix(snapshotErrors, { snapshotLevel: true, snapshotName: name });
-      if (snapshot.sync) snapshot.reject(error);
+      if (snapshot.sync) snapshot.reject?.(error);
       return result;
     });
 }
