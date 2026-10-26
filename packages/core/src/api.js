@@ -234,10 +234,19 @@ export function createPercyServer(percy, port) {
     .route('post', '/percy/snapshot', async (req, res) => {
       let data;
       const snapshotPromise = {};
+      const isAsync = req.url.searchParams.has('async');
       const snapshot = percy.snapshot(req.body, snapshotPromise);
-      if (!req.url.searchParams.has('async')) await snapshot;
+      if (!isAsync) await snapshot;
 
-      if (percy.syncMode(req.body)) data = await handleSyncJob(snapshotPromise[req.body.name], percy, 'snapshot');
+      if (percy.syncMode(req.body)) {
+        if (isAsync) {
+          // the sync job is only registered once the snapshot has been processed
+          logger('core:server').warn('Sync mode results are not available for ?async snapshot requests');
+          data = { error: 'Sync mode is not supported with the async parameter' };
+        } else {
+          data = await handleSyncJob(snapshotPromise[req.body.name], percy, 'snapshot');
+        }
+      }
 
       return res.json(200, { success: true, data: data });
     })
