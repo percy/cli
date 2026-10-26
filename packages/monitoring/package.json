@@ -32,6 +32,6 @@
     "@percy/config": "1.32.13-beta.0",
     "@percy/logger": "1.32.13-beta.0",
     "@percy/sdk-utils": "1.32.13-beta.0",
-    "systeminformation": "^5.25.11"
+    "systeminformation": "^5.31.6"
   }
 }
