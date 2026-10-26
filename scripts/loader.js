@@ -47,14 +47,16 @@ export async function resolve(specifier, context, nextResolve) {
   let mocks = manifest();
 
   // registry mocks — source is synthesized in load()
-  if (Object.prototype.hasOwnProperty.call(mocks.mocks, specifier)) {
+  // keys are stored stripped of mock:// and ?query (MOCK_REG in register-hooks.mjs)
+  let key = specifier.replace(/^mock:\/\/|\?.+$/g, '');
+  if (Object.prototype.hasOwnProperty.call(mocks.mocks, key)) {
     // The specifier is percent-encoded into a single path segment because some
     // keys are themselves file:// URLs (see mockLegacyCommands). Interpolating
     // one raw yields `mock://file:///…`, which is not a parseable URL — the new
     // hooks API validates the returned url and rejects it, where the pre-16.12
     // API did not.
     return {
-      url: `mock:///${encodeURIComponent(specifier)}?__mock__=${mocks.uid}`,
+      url: `mock:///${encodeURIComponent(key)}?__mock__=${mocks.uid}`,
       format: 'module',
       shortCircuit: true
     };
@@ -173,6 +175,9 @@ export async function load(loadURL, context, nextLoad) {
   // nearestPackageType() failed to answer would strip the source from genuinely
   // ESM files it knows nothing about — which broke cli, cli-build, cli-snapshot
   // and cli-upload the first time round.
+
+  // data: and other non-file URLs have no path to transform
+  if (!loadURL.startsWith('file:')) return result;
 
   // strip the ?__mock__ cache-buster: fileURLToPath throws on a query string
   let filename = url.fileURLToPath(loadURL.split('?')[0]);

@@ -256,8 +256,11 @@ export class ProxyHttpsAgent extends https.Agent {
       socket.destroy(err);
       logger('sdk-utils:proxy').error(`Proxying request ${href(options)} failed: ${err}`);
 
-      // We don't get statusCode here, relying on checking error message only
-      if (!!err.message && (err.message?.includes('ECONNREFUSED') || err.message?.includes('EHOSTUNREACH'))) {
+      // We don't get statusCode here, relying on checking error message only.
+      // Node >=20 fails a dual-stack connect with an AggregateError whose own
+      // message is empty, so the per-address errors are checked too.
+      let message = [err.message, ...(err.errors ?? []).map(e => e.message)].join(' ');
+      if (message.includes('ECONNREFUSED') || message.includes('EHOSTUNREACH')) {
         logger('sdk-utils:proxy').warn('If needed, please verify that your proxy credentials are correct.');
         logger('sdk-utils:proxy').warn('Please check that your proxy is configured correctly and reachable.');
       }

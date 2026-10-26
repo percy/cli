@@ -53,7 +53,7 @@ const plugins = {
     presets: [
       ['@babel/env', {
         targets: {
-          node: '14',
+          node: '20',
           browsers: [
             'last 2 versions and supports async-functions'
           ]
