@@ -582,6 +582,35 @@ describe('sdk-utils proxy', () => {
       }, 20);
     });
 
+    it('should classify a dual-stack AggregateError by its sub-errors', (done) => {
+      process.env.https_proxy = 'http://proxy.example.com:8080';
+      const logSpy = spyOn(logger, 'log');
+
+      // what Node >=20 emits when every address of the proxy host refuses:
+      // the aggregate's own message is empty
+      const error = new AggregateError([new Error('connect ECONNREFUSED ::1:8080')]);
+
+      const mockSocket = {};
+      mockSocket.on = jasmine.createSpy('on').and.callFake((event, handler) => {
+        if (event === 'error') setTimeout(() => handler(error), 0);
+        return mockSocket;
+      });
+      mockSocket.write = jasmine.createSpy('write');
+      mockSocket.destroy = jasmine.createSpy('destroy');
+      mockSocket.off = jasmine.createSpy('off');
+      spyOn(net, 'connect').and.returnValue(mockSocket);
+
+      agent.createConnection({ protocol: 'https:', hostname: 'example.com', port: 443 },
+        jasmine.createSpy('callback'));
+
+      setTimeout(() => {
+        const warnMessages = logSpy.calls.all()
+          .filter(call => call.args[1] === 'warn').map(call => call.args[2]);
+        expect(warnMessages).toContain('Please check that your proxy is configured correctly and reachable.');
+        done();
+      }, 20);
+    });
+
     it('should handle non-200 proxy response correctly', (done) => {
       process.env.https_proxy = 'http://proxy.example.com:8080';
 

@@ -60,6 +60,14 @@ export async function mockfs({
   });
 
   let bypass = [
+    // The harness scratch dir (mock manifest + materialised mock modules) must
+    // reach the real filesystem: it is the only channel the off-thread ESM
+    // hooks worker can read on Node >=18.19/20. Same rationale as the ~/.percy
+    // bypass in @percy/core's helpers — infrastructure, not fixture data.
+    p => {
+      let dir = global.__MOCK_IMPORTS__?.__dir__;
+      return !!dir && typeof p === 'string' && p.startsWith(dir);
+    },
     // bypass babel config for runtime registration
     path.resolve(url.fileURLToPath(import.meta.url), '../../../../babel.config.cjs'),
     // bypass descriptors that don't exist in the current volume
@@ -96,6 +104,12 @@ export async function mockfs({
 
 // Mock module loading to avoid node using internal C++ fs bindings
 function mockFileModule(filepath, content = '') {
+  // Node >=18.19/20 runs ESM module hooks on a dedicated worker thread, which
+  // cannot read this in-memory volume. Hand the module to the harness so it can
+  // keep a real on-disk copy for the hooks to resolve. No-op when the harness
+  // is absent (e.g. an SDK importing these helpers without our loader).
+  global.__MOCK_IMPORTS__?.__materialize__?.(path.resolve(filepath), content);
+
   if (!jasmine.isSpy(Module._load)) {
     spyOn(Module, '_load').and.callThrough();
     spyOn(Module, '_resolveFilename').and.callThrough();

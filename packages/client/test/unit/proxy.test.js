@@ -1,4 +1,5 @@
 import { ProxyHttpAgent, ProxyHttpsAgent, createPacAgent, getProxy, proxyAgentFor } from '../../src/proxy.js';
+import net from 'net';
 import { PacProxyAgent } from 'pac-proxy-agent';
 import logger from '@percy/logger/test/helpers';
 
@@ -108,7 +109,42 @@ describe('proxy', () => {
       const url = 'http://example.com';
       const options = {};
       process.env.PERCY_PAC_FILE_URL = 'invalid-url';
-      expect(() => proxyAgentFor(url, options)).toThrowError('Failed to initialize PAC proxy: Invalid URL: invalid-url');
+      // Assert on the prefix we own, not on Node's wording: Node <18 threw
+      // "Invalid URL: invalid-url" and Node >=18 dropped the offending input,
+      // leaving just "Invalid URL".
+      expect(() => proxyAgentFor(url, options))
+        .toThrowError(/^Failed to initialize PAC proxy: Invalid URL/);
+    });
+  });
+
+  describe('ProxyHttpsAgent', () => {
+    beforeEach(async () => {
+      await logger.mock({ level: 'debug' });
+    });
+
+    it('classifies a dual-stack AggregateError from the proxy by its sub-errors', async () => {
+      // what Node >=20 emits when every address of the proxy host refuses: the
+      // aggregate's own message is empty, so the reachability hint was skipped
+      let error = new AggregateError([new Error('connect ECONNREFUSED ::1:8080')]);
+      error.code = 'ECONNREFUSED';
+
+      let socket = jasmine.createSpyObj('socket', ['write', 'destroy', 'off']);
+      socket.on = jasmine.createSpy('on').and.callFake((event, handler) => {
+        if (event === 'error') setTimeout(() => handler(error));
+        return socket;
+      });
+      spyOn(net, 'connect').and.returnValue(socket);
+
+      let agent = new ProxyHttpsAgent({ proxy: 'http://localhost:8080' });
+      let failure = await new Promise(resolve => agent.createConnection(
+        { protocol: 'https:', hostname: 'example.com', port: 443 }, resolve));
+
+      expect(failure).toBe(error);
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
+        '[percy:client:proxy] Proxying request https://example.com:443 failed: ' +
+          'AggregateError: connect ECONNREFUSED ::1:8080',
+        '[percy:client:proxy] Please check if your proxy is set correctly and reachable'
+      ]));
     });
   });
 });

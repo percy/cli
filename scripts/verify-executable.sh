@@ -1,14 +1,8 @@
 #!/bin/bash
 # Smoke-test a packaged percy executable.
 #
-# Why this isn't just `./percy --version`: the executables are built on Node 14,
-# where an unhandled promise rejection is reported as a *warning* and the process
-# still exits 0. So a binary that throws on startup (e.g. a bad require produced
-# by the CJS transpile) prints a stack trace yet a bare `--version` exit-code
-# check passes — and the release pipeline happily uploads a broken binary.
-#
-# This script treats the binary as broken if `--version` either exits non-zero,
-# fails to print a real version, or emits any runtime-error marker on stdout/stderr.
+# Treats the binary as broken if `--version` exits non-zero, prints no version,
+# or emits a runtime-error marker — a bare exit-code check misses startup crashes.
 #
 # Usage: scripts/verify-executable.sh [path-to-binary]   (default: ./percy)
 set -u -o pipefail
@@ -29,8 +23,7 @@ if [ "$status" -ne 0 ]; then
   exit 1
 fi
 
-# Node 14 turns startup crashes into non-fatal warnings, so scan the output for
-# the error signatures a broken binary leaves behind.
+# Scan for the signatures a binary that crashed on startup leaves behind.
 if echo "$output" | grep -qiE 'UnhandledPromiseRejection|is not a function|TypeError|ReferenceError|SyntaxError|Cannot find module|Error:'; then
   echo "::error::'$BIN --version' emitted a runtime error (binary is broken)"
   exit 1
@@ -43,3 +36,11 @@ if ! echo "$output" | grep -qE '[0-9]+\.[0-9]+\.[0-9]+'; then
 fi
 
 echo "OK: $BIN is healthy"
+
+# pkg's default targets follow the host arch, so assert explicitly.
+arch_info="$(file "$BIN")"
+if ! echo "$arch_info" | grep -qE 'x86[-_]64|PE32\+'; then
+  echo "::error::'$BIN' is not an x86-64 binary: $arch_info"
+  exit 1
+fi
+echo "OK: $BIN is x86-64"
