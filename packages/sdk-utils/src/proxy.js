@@ -3,7 +3,7 @@ import tls from 'tls';
 import http from 'http';
 import https from 'https';
 import logger from './logger.js';
-import { PacProxyAgent } from 'pac-proxy-agent';
+import { PacProxyAgent } from './pac-agent.js';
 
 const CRLF = '\r\n';
 const STATUS_REG = /^HTTP\/1.[01] (\d*)/;
@@ -38,7 +38,7 @@ const STATUS_REG = /^HTTP\/1.[01] (\d*)/;
  *
  * WHAT'S DIFFERENT FROM CLIENT VERSION:
  * ====================================
- * - Removed PAC proxy support (pac-proxy-agent dependency)
+ * - PAC support uses a local copy of the client PacProxyAgent (pac-agent.js)
  * - Removed @percy/env dependency (inlined stripQuotesAndSpaces function)
  * - Uses local logger instead of @percy/logger
  * - Simplified error handling and logging

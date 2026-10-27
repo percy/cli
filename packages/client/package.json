@@ -36,7 +36,12 @@
     "@percy/config": "1.32.13-beta.0",
     "@percy/env": "1.32.13-beta.0",
     "@percy/logger": "1.32.13-beta.0",
-    "pac-proxy-agent": "^7.0.2",
-    "pako": "^2.1.0"
+    "@tootallnate/quickjs-emscripten": "^0.23.0",
+    "agent-base": "^7.1.2",
+    "http-proxy-agent": "^7.0.0",
+    "https-proxy-agent": "^7.0.6",
+    "pac-resolver": "^7.0.1",
+    "pako": "^2.1.0",
+    "socks-proxy-agent": "^8.0.5"
   }
 }

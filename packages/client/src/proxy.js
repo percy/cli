@@ -4,7 +4,7 @@ import http from 'http';
 import https from 'https';
 import logger from '@percy/logger';
 import { stripQuotesAndSpaces } from '@percy/env/utils';
-import { PacProxyAgent } from 'pac-proxy-agent';
+import { PacProxyAgent } from './pac-agent.js';
 
 /**
  * Primary proxy implementation for Percy CLI

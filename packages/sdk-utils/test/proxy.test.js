@@ -10,7 +10,7 @@ import {
   proxyAgentFor,
   createPacAgent
 } from '../src/proxy.js';
-import { PacProxyAgent } from 'pac-proxy-agent';
+import { PacProxyAgent } from '../src/pac-agent.js';
 import http from 'http';
 import https from 'https';
 import net from 'net';
