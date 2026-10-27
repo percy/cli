@@ -1,6 +1,6 @@
 import logger from '@percy/logger';
 import PercyConfig from '@percy/config';
-import micromatch from 'micromatch';
+import picomatch from 'picomatch';
 import Pako from 'pako';
 import { configSchema } from './config.js';
 import Queue from './queue.js';
@@ -69,7 +69,7 @@ function snapshotMatches(snapshot, include, exclude) {
     if (predicate && typeof predicate === 'string') {
       // exact match is always safe; glob matching is only run on bounded input
       let result = snapshot.name === predicate ||
-        (patternSafe && micromatch.isMatch(snapshot.name, predicate));
+        (patternSafe && picomatch.isMatch(snapshot.name, predicate));
 
       // snapshot might match a string-based regexp pattern (bounded input only)
       if (!result && patternSafe) {

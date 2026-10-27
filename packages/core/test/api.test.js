@@ -20,7 +20,7 @@ describe('API Server', () => {
     process.env.PERCY_FORCE_PKG_VALUE = JSON.stringify({ name: '@percy/client', version: '1.0.0' });
     jasmine.DEFAULT_TIMEOUT_INTERVAL = 150000;
     // The self-hosted maestro tests exercise a recursive `**` + `dot:true`
-    // fast-glob against a `.maestro/` directory. fast-glob's recursive-dot
+    // glob against a `.maestro/` directory. The glob's recursive-dot
     // traversal is unreliable against memfs across volume resets in the full
     // suite (works in isolation; returns [] mid-suite), so route the
     // self-hosted root to the REAL filesystem — this also tests the true
@@ -1892,7 +1892,7 @@ describe('API Server', () => {
     // PERCY_APP_AUTOMATE_TMP_DIR override — BS hosts that relocate the
     // session tmp root away from /tmp inject the new root via this env var,
     // so the location is never hardcoded in the CLI.
-    // Real-fs root (matched by the top-level $bypass) — fast-glob caches its
+    // Real-fs root (matched by the top-level $bypass) — the glob caches its
     // fs bindings on first import, so a memfs-only root created in a later
     // test is invisible to it; real-fs fixtures sidestep the staleness.
     describe('PERCY_APP_AUTOMATE_TMP_DIR override', () => {

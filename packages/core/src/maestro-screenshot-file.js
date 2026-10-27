@@ -25,7 +25,7 @@ export function bsScopeRootOverride() {
 }
 
 /* istanbul ignore next — defensive manual directory walker invoked only when
-   fast-glob import fails (broken install / FS corruption). Unit tests
+   tinyglobby import fails (broken install / FS corruption). Unit tests
    exercise the primary glob path; integration tests on BS hosts exercise
    the walker against real session layouts. Path-traversal sinks inside this
    function are suppressed at file level in .semgrepignore with the same
@@ -96,7 +96,7 @@ export async function locateScreenshot({ platform, sessionId, name, filePath, sc
     //     by the caller, so it cannot contain separators or traversal chars.
     let searchPattern;
     if (scopedGlob) {
-      // fast-glob requires forward-slashes in patterns on every platform; on
+      // tinyglobby requires forward-slashes in patterns on every platform; on
       // Windows scopeRoot contains backslashes, so normalize before embedding.
       // Production-code Windows portability — verified by the CI Windows runner.
       const globRoot = scopeRoot.replace(/\\/g, '/');
@@ -112,14 +112,18 @@ export async function locateScreenshot({ platform, sessionId, name, filePath, sc
 
     let files;
     try {
-      let { default: glob } = await import('fast-glob');
-      files = await glob(searchPattern, scopedGlob ? { dot: true, deep: MAX_SEARCH_DEPTH } : undefined);
+      let { glob } = await import('tinyglobby');
+      files = await glob(searchPattern, {
+        absolute: true,
+        expandDirectories: false,
+        ...(scopedGlob ? { dot: true, deep: MAX_SEARCH_DEPTH } : {})
+      });
     } catch {
-      // Fast-glob import / glob call failed — fall back to manual walker (BS
+      // tinyglobby import / glob call failed — fall back to manual walker (BS
       // only; self-hosted has no fixed-layout convention, so empty → 404 with
       // the actionable PERCY_MAESTRO_SCREENSHOT_DIR guidance from the caller).
       // See manualScreenshotWalk() at file top + the file-level .semgrepignore.
-      /* istanbul ignore next — only fires when fast-glob import throws
+      /* istanbul ignore next — only fires when tinyglobby import throws
          (broken install / FS corruption); integration-test territory. */
       files = selfHosted
         ? []
