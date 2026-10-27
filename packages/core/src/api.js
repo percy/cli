@@ -102,6 +102,27 @@ function assertNotCrossOrigin(req) {
 const SDK_LOG_LEVELS = new Set(['debug', 'info', 'warn', 'error']);
 
 // Create a Percy CLI API server instance
+const exactWidthNoticeLogged = new WeakSet();
+
+// SDKs that size responsive captures from the healthcheck's snapshot.exactResponsiveWidth
+// produce exact viewport widths, which can shift some existing baselines once
+function logExactResponsiveWidthNotice(percy, body) {
+  if (exactWidthNoticeLogged.has(percy)) return;
+
+  let snapshot = [].concat(body).find(s => Array.isArray(s?.domSnapshot) && s.domSnapshot.length > 1);
+  if (!snapshot) return;
+
+  let exact = snapshot.exactResponsiveWidth ?? snapshot.exact_responsive_width ??
+    percy.config.snapshot.exactResponsiveWidth;
+  if (exact === false) return;
+
+  exactWidthNoticeLogged.add(percy);
+  logger('core:server').info([
+    'Responsive snapshots now use exact viewport widths; Edge, Firefox and remote-Chrome',
+    'baselines may shift once. Set snapshot.exactResponsiveWidth: false to keep the previous behaviour.'
+  ].join(' '));
+}
+
 export function createPercyServer(percy, port) {
   let pkg = getPackageJSON(import.meta.url);
 
@@ -234,6 +255,7 @@ export function createPercyServer(percy, port) {
     .route('post', '/percy/snapshot', async (req, res) => {
       let data;
       const snapshotPromise = {};
+      logExactResponsiveWidthNotice(percy, req.body);
       const snapshot = percy.snapshot(req.body, snapshotPromise);
       if (!req.url.searchParams.has('async')) await snapshot;
 

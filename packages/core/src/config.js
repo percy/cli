@@ -181,6 +181,10 @@ export const configSchema = {
         type: 'boolean',
         default: false
       },
+      exactResponsiveWidth: {
+        type: 'boolean',
+        default: true
+      },
       testCase: {
         type: 'string'
       },
@@ -564,6 +568,7 @@ export const snapshotSchema = {
         sync: { $ref: '/config/snapshot#/properties/sync' },
         readiness: { $ref: '/config/snapshot#/properties/readiness' },
         responsiveSnapshotCapture: { $ref: '/config/snapshot#/properties/responsiveSnapshotCapture' },
+        exactResponsiveWidth: { $ref: '/config/snapshot#/properties/exactResponsiveWidth' },
         testCase: { $ref: '/config/snapshot#/properties/testCase' },
         labels: { $ref: '/config/snapshot#/properties/labels' },
         thTestCaseExecutionId: { $ref: '/config/snapshot#/properties/thTestCaseExecutionId' },

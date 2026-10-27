@@ -107,19 +107,18 @@ export const exec = command('exec', {
     }
   }
 
-  // provide SDKs with useful env vars
-  let address = percy?.address();
-  env.PERCY_SERVER_ADDRESS = address;
+  // provide SDKs with useful env vars; env is process.env, so assigning undefined would
+  // store the string "undefined" when percy is disabled
+  let sdkEnv = {
+    PERCY_SERVER_ADDRESS: percy?.address(),
+    PERCY_BUILD_ID: percy?.build?.id,
+    PERCY_BUILD_URL: percy?.build?.url
+  };
 
-  if (address) {
-    // the Python and .NET SDKs read PERCY_CLI_API, and Cypress only forwards CYPRESS_-prefixed
-    // vars to the browser; without these a non-default --port leaves those SDKs on 5338
-    env.PERCY_CLI_API ||= address;
-    env.CYPRESS_PERCY_SERVER_ADDRESS ||= address;
+  for (let [key, value] of Object.entries(sdkEnv)) {
+    if (value != null) env[key] = value;
   }
 
-  env.PERCY_BUILD_ID = percy?.build?.id;
-  env.PERCY_BUILD_URL = percy?.build?.url;
   env.PERCY_LOGLEVEL = log.loglevel();
 
   // run the provided command

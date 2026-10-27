@@ -197,6 +197,24 @@ describe('Snapshot', () => {
     ]);
   });
 
+  it('accepts exactResponsiveWidth as a per-snapshot option', async () => {
+    await percy.snapshot([
+      { name: 'exact camel', url: 'http://localhost:8000', exactResponsiveWidth: false },
+      { name: 'exact snake', url: 'http://localhost:8000', exact_responsive_width: false }
+    ]);
+
+    expect(logger.stderr).toEqual([]);
+  });
+
+  it('warns if exactResponsiveWidth is not a boolean', async () => {
+    await percy.snapshot({ name: 'exact invalid', url: 'http://localhost:8000', exactResponsiveWidth: 'no' });
+
+    expect(logger.stderr).toEqual([
+      '[percy] Invalid snapshot options:',
+      '[percy] - exactResponsiveWidth: must be a boolean, received a string'
+    ]);
+  });
+
   it('warns on deprecated options', async () => {
     await percy.snapshot([
       { url: 'http://localhost:8000/a', devicePixelRatio: 2 }

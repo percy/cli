@@ -86,6 +86,7 @@ describe('Percy', () => {
       disableShadowDOM: false,
       cliEnableJavaScript: true,
       responsiveSnapshotCapture: false,
+      exactResponsiveWidth: true,
       ignoreCanvasSerializationErrors: false,
       ignoreStyleSheetSerializationErrors: false,
       forceShadowAsLightDOM: false,

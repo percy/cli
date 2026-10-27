@@ -27,8 +27,7 @@ describe('percy exec', () => {
     delete process.env.PERCY_ENABLE;
     delete process.env.PERCY_BUILD_ID;
     delete process.env.PERCY_SERVER_ADDRESS;
-    delete process.env.PERCY_CLI_API;
-    delete process.env.CYPRESS_PERCY_SERVER_ADDRESS;
+    delete process.env.PERCY_BUILD_URL;
     delete process.env.PERCY_PARALLEL_TOTAL;
     delete process.env.PERCY_PARTIAL_BUILD;
     delete process.env.PERCY_CLIENT_ERROR_LOGS;
@@ -430,32 +429,19 @@ describe('percy exec', () => {
     ]));
   });
 
-  it('provides the child process with the percy server address in every form SDKs read', async () => {
-    await expectAsync(exec(['--port=4567', '--', 'node', '--eval', [
-      'let e = process.env, a = "http://localhost:4567";',
-      '(e.PERCY_SERVER_ADDRESS === a && e.PERCY_CLI_API === a &&',
-      ' e.CYPRESS_PERCY_SERVER_ADDRESS === a) || process.exit(2)'
-    ].join('')])).toBeResolved();
-  });
-
-  it('does not override server address env vars the user already set', async () => {
-    process.env.PERCY_CLI_API = 'http://custom:1111';
-    process.env.CYPRESS_PERCY_SERVER_ADDRESS = 'http://custom:2222';
-
-    await expectAsync(exec(['--port=4567', '--', 'node', '--eval', [
-      'let e = process.env;',
-      '(e.PERCY_SERVER_ADDRESS === "http://localhost:4567" &&',
-      ' e.PERCY_CLI_API === "http://custom:1111" &&',
-      ' e.CYPRESS_PERCY_SERVER_ADDRESS === "http://custom:2222") || process.exit(2)'
-    ].join('')])).toBeResolved();
-  });
-
-  it('does not export the alternate server address env vars when percy is disabled', async () => {
+  it('does not set percy env vars to "undefined" when percy is disabled', async () => {
     process.env.PERCY_ENABLE = '0';
 
     await expectAsync(exec(['--', 'node', '--eval', [
-      '(process.env.PERCY_CLI_API || process.env.CYPRESS_PERCY_SERVER_ADDRESS) && process.exit(2)'
+      'let e = process.env;',
+      '[e.PERCY_SERVER_ADDRESS, e.PERCY_BUILD_ID, e.PERCY_BUILD_URL]',
+      '.includes("undefined") && process.exit(2)'
     ].join('')])).toBeResolved();
+
+    expect(logger.stderr).toEqual(['[percy] Percy is disabled']);
+    expect(process.env.PERCY_SERVER_ADDRESS).toBeUndefined();
+    expect(process.env.PERCY_BUILD_ID).toBeUndefined();
+    expect(process.env.PERCY_BUILD_URL).toBeUndefined();
   });
 
   it('provides the child process with a percy build id env var', async () => {
