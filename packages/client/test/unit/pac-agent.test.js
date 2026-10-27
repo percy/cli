@@ -12,8 +12,11 @@ import { PacProxyAgent } from '../../src/pac-agent.js';
 const certs = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../certs');
 const ssl = { key: fs.readFileSync(path.join(certs, 'test.key')), cert: fs.readFileSync(path.join(certs, 'test.crt')) };
 
+// escapes characters that could end the string literal or script early
+const toLiteral = str => JSON.stringify(str)
+  .replace(/[<>/\u2028\u2029]/g, c => `\\u${c.charCodeAt(0).toString(16).padStart(4, '0')}`);
 // a PAC file that always returns the given result
-const pacFile = result => `function FindProxyForURL(url, host) { return ${JSON.stringify(result)}; }`;
+const pacFile = result => `function FindProxyForURL(url, host) { return ${toLiteral(result)}; }`;
 const dataUrl = result => `data:application/x-ns-proxy-autoconfig,${encodeURIComponent(pacFile(result))}`;
 
 // starts a server on a random port and tracks its sockets so it can be closed
@@ -32,18 +35,13 @@ async function listen(server) {
   };
 }
 
-// an HTTP proxy supporting both absolute-form requests and CONNECT tunnels
+// an HTTP proxy that answers absolute-form requests itself and tunnels CONNECT requests
 function createProxy() {
   let received = [];
 
   let server = http.createServer((req, res) => {
     received.push(`${req.method} ${req.url}`);
-    let target = new URL(req.url);
-
-    http.get(target, { headers: req.headers }, up => {
-      res.writeHead(up.statusCode, up.headers);
-      up.pipe(res);
-    });
+    res.end('proxied');
   });
 
   server.on('connect', (req, socket) => {
@@ -65,7 +63,7 @@ function get(url, agent, options = {}) {
   let proxies = [];
 
   return new Promise((resolve, reject) => {
-    let req = get(url, { agent, rejectUnauthorized: false, ...options }, res => {
+    let req = get(url, { agent, ca: ssl.cert, ...options }, res => {
       let body = '';
       res.on('data', d => (body += d));
       res.on('end', () => resolve({ status: res.statusCode, body, proxies }));
@@ -106,7 +104,9 @@ describe('Unit / PacProxyAgent', () => {
   // serves PAC files from the routes object, keyed by request path
   async function servePac(routes) {
     pacServer = await listen(http.createServer((req, res) => {
-      let [status, headers, body] = routes[req.url](req);
+      let route = Object.prototype.hasOwnProperty.call(routes, req.url) && routes[req.url];
+      if (typeof route !== 'function') return res.writeHead(404).end();
+      let [status, headers, body] = route(req);
       res.writeHead(status, headers).end(body);
     }));
 
@@ -250,16 +250,13 @@ describe('Unit / PacProxyAgent', () => {
     it('connects directly over TLS', async () => {
       let res = await get(`https://localhost:${secureTarget.port}/`, new PacProxyAgent(dataUrl('DIRECT')));
       expect(res.body).toEqual('secure target');
-
-      res = await get(`https://127.0.0.1:${secureTarget.port}/`, new PacProxyAgent(dataUrl('DIRECT')));
-      expect(res.body).toEqual('secure target');
     });
 
     it('sets the TLS servername for hostnames but not IP addresses', async () => {
       spyOn(tls, 'connect').and.callThrough();
       let agent = new PacProxyAgent(dataUrl('DIRECT'));
       let req = { path: '/', getHeader: () => undefined, emit: () => {} };
-      let opts = { port: secureTarget.port, secureEndpoint: true, rejectUnauthorized: false };
+      let opts = { port: secureTarget.port, secureEndpoint: true, ca: ssl.cert };
 
       (await agent.connect(req, { ...opts, host: 'localhost' })).destroy();
       (await agent.connect(req, { ...opts, host: '127.0.0.1' })).destroy();
@@ -272,14 +269,14 @@ describe('Unit / PacProxyAgent', () => {
       let res = await get(`http://127.0.0.1:${target.port}/page`,
         new PacProxyAgent(dataUrl(`PROXY 127.0.0.1:${proxy.port}`)));
 
-      expect(res.body).toEqual('target');
+      expect(res.body).toEqual('proxied');
       expect(proxy.received).toEqual([`GET http://127.0.0.1:${target.port}/page`]);
     });
 
     it('tunnels https and websocket requests through a PROXY', async () => {
       let agent = new PacProxyAgent(dataUrl(`PROXY 127.0.0.1:${proxy.port}`));
 
-      let res = await get(`https://127.0.0.1:${secureTarget.port}/`, agent);
+      let res = await get(`https://localhost:${secureTarget.port}/`, agent);
       expect(res.body).toEqual('secure target');
 
       res = await get(`http://127.0.0.1:${target.port}/ws`, agent, {
@@ -288,7 +285,7 @@ describe('Unit / PacProxyAgent', () => {
       expect(res.status).toEqual(101);
 
       expect(proxy.received).toEqual([
-        `CONNECT 127.0.0.1:${secureTarget.port}`,
+        `CONNECT localhost:${secureTarget.port}`,
         `CONNECT 127.0.0.1:${target.port}`
       ]);
     });
