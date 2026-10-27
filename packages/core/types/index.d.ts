@@ -60,6 +60,7 @@ interface CommonSnapshotOptions {
   enableLayout?: boolean;
   sync?: boolean;
   responsiveSnapshotCapture?: boolean;
+  exactResponsiveWidth?: boolean;
   testCase?: string;
   labels?: string;
   reshuffleInvalidTags?: boolean;

@@ -335,6 +335,57 @@ describe('API Server', () => {
     );
   });
 
+  describe('exact responsive width notice', () => {
+    const notice = '[percy] Responsive snapshots now use exact viewport widths; ' +
+      'Edge, Firefox and remote-Chrome baselines may shift once. ' +
+      'Set snapshot.exactResponsiveWidth: false to keep the previous behaviour.';
+    const responsive = (extra = {}) => ({
+      name: 'responsive',
+      url: 'http://localhost:8000',
+      domSnapshot: [{ html: '', width: 375 }, { html: '', width: 1280 }],
+      ...extra
+    });
+
+    function post(body) {
+      return request('/percy/snapshot', { method: 'POST', body });
+    }
+
+    beforeEach(async () => {
+      spyOn(percy, 'snapshot').and.resolveTo();
+    });
+
+    it('exposes the exactResponsiveWidth default through the healthcheck config', async () => {
+      await percy.start();
+      let { config } = await request('/percy/healthcheck');
+      expect(config.snapshot.exactResponsiveWidth).toBe(true);
+    });
+
+    it('logs once per percy instance on the first responsive DOM snapshot', async () => {
+      await percy.start();
+      await post({ name: 'single', url: 'http://localhost:8000', domSnapshot: { html: '' } });
+      await post({ name: 'one', url: 'http://localhost:8000', domSnapshot: [{ html: '', width: 375 }] });
+      expect(logger.stdout).not.toContain(notice);
+
+      await post([responsive()]);
+      await post(responsive({ name: 'again' }));
+      expect(logger.stdout.filter(l => l === notice).length).toBe(1);
+    });
+
+    it('does not log when exactResponsiveWidth is disabled in the config', async () => {
+      percy.config.snapshot.exactResponsiveWidth = false;
+      await percy.start();
+      await post(responsive());
+      expect(logger.stdout).not.toContain(notice);
+    });
+
+    it('does not log when a snapshot opts out of exactResponsiveWidth', async () => {
+      await percy.start();
+      await post(responsive({ exactResponsiveWidth: false }));
+      await post(responsive({ exact_responsive_width: false }));
+      expect(logger.stdout).not.toContain(notice);
+    });
+  });
+
   it('has a /snapshot endpoint that calls #snapshot() with provided options in sync mode', async () => {
     spyOn(percy.client, 'getSnapshotDetails').and.returnValue(getSnapshotDetailsResponse);
     spyOn(percy, 'snapshot').and.callFake((_, promise) => promise.test = new Promise((resolve, reject) => setTimeout(() => resolve(), 100)));

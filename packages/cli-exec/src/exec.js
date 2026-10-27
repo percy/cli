@@ -107,10 +107,26 @@ export const exec = command('exec', {
     }
   }
 
-  // provide SDKs with useful env vars
-  env.PERCY_SERVER_ADDRESS = percy?.address();
-  env.PERCY_BUILD_ID = percy?.build?.id;
-  env.PERCY_BUILD_URL = percy?.build?.url;
+  // provide SDKs with useful env vars; env is process.env, so assigning undefined would
+  // store the string "undefined" when percy is disabled
+  let sdkEnv = {
+    PERCY_SERVER_ADDRESS: percy?.address(),
+    PERCY_BUILD_ID: percy?.build?.id,
+    PERCY_BUILD_URL: percy?.build?.url
+  };
+
+  // Cypress is the one SDK that cannot read PERCY_SERVER_ADDRESS itself: its specs run in the
+  // browser, which only receives CYPRESS_-prefixed OS vars (via cy.env/Cypress.env), and
+  // Cypress 16 removed cy.exec, the last zero-config way to read the runner's env. Without
+  // this, `percy exec --port N -- cypress run` silently snapshots against :5338. Every other
+  // SDK reads PERCY_SERVER_ADDRESS directly, so no other alias is exported. Always overwrite
+  // so a stale inherited value can't point Cypress at a different server than the live one.
+  if (sdkEnv.PERCY_SERVER_ADDRESS) sdkEnv.CYPRESS_PERCY_SERVER_ADDRESS = sdkEnv.PERCY_SERVER_ADDRESS;
+
+  for (let [key, value] of Object.entries(sdkEnv)) {
+    if (value != null) env[key] = value;
+  }
+
   env.PERCY_LOGLEVEL = log.loglevel();
 
   // run the provided command
