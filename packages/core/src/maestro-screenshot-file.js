@@ -94,28 +94,34 @@ export async function locateScreenshot({ platform, sessionId, name, filePath, sc
     //   Self-hosted: recursive glob under the customer's --test-output-dir
     //     (scopeRoot = PERCY_MAESTRO_SCREENSHOT_DIR). `name` is SAFE_ID-validated
     //     by the caller, so it cannot contain separators or traversal chars.
-    let searchPattern;
+    // Glob a relative pattern under an explicit cwd rather than an absolute
+    // pattern, so Windows drive letters never end up inside the pattern.
+    // Roots are normalized to forward-slashes for the error message only.
+    let globCwd, globPattern;
     if (scopedGlob) {
-      // tinyglobby requires forward-slashes in patterns on every platform; on
-      // Windows scopeRoot contains backslashes, so normalize before embedding.
-      // Production-code Windows portability — verified by the CI Windows runner.
-      const globRoot = scopeRoot.replace(/\\/g, '/');
-      searchPattern = `${globRoot}/**/${name}.png`;
+      globCwd = scopeRoot;
+      globPattern = `**/${name}.png`;
     } else {
-      // Same forward-slash normalization as the self-hosted branch — the env
-      // override could carry backslashes when exercised on Windows CI.
-      const tmpRoot = appAutomateTmpDir().replace(/\\/g, '/');
-      searchPattern = platform === 'ios'
-        ? `${tmpRoot}/${sessionId}/*_maestro_debug_*/**/${name}.png`
-        : `${tmpRoot}/${sessionId}_test_suite/logs/*/screenshots/${name}.png`;
+      let tmpRoot = appAutomateTmpDir();
+      if (platform === 'ios') {
+        globCwd = path.join(tmpRoot, sessionId);
+        globPattern = `*_maestro_debug_*/**/${name}.png`;
+      } else {
+        globCwd = path.join(tmpRoot, `${sessionId}_test_suite`);
+        globPattern = `logs/*/screenshots/${name}.png`;
+      }
     }
+    let searchPattern = `${globCwd.replace(/\\/g, '/')}/${globPattern}`;
 
     let files;
     try {
       let { glob } = await import('tinyglobby');
-      files = await glob(searchPattern, {
+      // pass `fs` explicitly: tinyglobby binds fs functions at import time
+      files = await glob(globPattern, {
+        cwd: globCwd,
         absolute: true,
         expandDirectories: false,
+        fs,
         ...(scopedGlob ? { dot: true, deep: MAX_SEARCH_DEPTH } : {})
       });
     } catch {
