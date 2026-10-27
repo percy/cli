@@ -103,12 +103,12 @@ describe('Unit / PacProxyAgent', () => {
 
   // serves PAC files from the routes object, keyed by request path
   async function servePac(routes) {
-    let handlers = new Map(Object.entries(routes));
+    let handlers = Object.entries(routes);
 
     pacServer = await listen(http.createServer((req, res) => {
-      let route = handlers.get(req.url);
-      if (!route) return res.writeHead(404).end();
-      let [status, headers, body] = route(req);
+      let [, handler] = handlers.find(([path]) => path === req.url) || [];
+      if (!handler) return res.writeHead(404).end();
+      let [status, headers, body] = handler(req);
       res.writeHead(status, headers).end(body);
     }));
 
