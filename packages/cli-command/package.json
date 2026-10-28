@@ -43,7 +43,7 @@
     "glob-to-regexp": "^0.4.1"
   },
   "peerDependencies": {
-    "snyk-nodejs-lockfile-parser": "2.10.4"
+    "snyk-nodejs-lockfile-parser": "^2.10.4"
   },
   "peerDependenciesMeta": {
     "snyk-nodejs-lockfile-parser": {

@@ -367,4 +367,12 @@ describe('Unit / PacProxyAgent', () => {
       expect(String(resolved.calls.argsFor(0)[0])).toEqual('http://[::1]/a');
     });
   });
+
+  it('stays in sync with the @percy/sdk-utils copy', () => {
+    // the copies differ only in the comment naming the other one
+    let read = file => fs.readFileSync(fileURLToPath(new URL(file, import.meta.url)), 'utf-8')
+      .split('\n').filter(line => !line.startsWith(' * NOTE: ')).join('\n');
+
+    expect(read('../../../sdk-utils/src/pac-agent.js')).toEqual(read('../../src/pac-agent.js'));
+  });
 });

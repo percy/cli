@@ -24,7 +24,7 @@ function loadSnyk() {
     _snykModule = cjsRequire('snyk-nodejs-lockfile-parser');
     return _snykModule;
   } catch (e) {
-    const err = new Error(`snyk-nodejs-lockfile-parser is not available (install snyk-nodejs-lockfile-parser@2.10.4 on Node >=20.19 to enable lockfile diffing): ${e.message}`);
+    const err = new Error(`snyk-nodejs-lockfile-parser is not available (install snyk-nodejs-lockfile-parser@^2.10.4 on Node >=20.19 to enable lockfile diffing): ${e.message}`);
     err.code = 'SNYK_LOCKFILE_PARSER_UNAVAILABLE';
     throw err;
   }
