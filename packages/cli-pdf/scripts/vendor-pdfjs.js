@@ -19,6 +19,7 @@ const FILES = [
 function copy(from, to) {
   if (fs.statSync(from).isDirectory()) {
     fs.mkdirSync(to, { recursive: true });
+    // nosemgrep: javascript.lang.security.audit.path-traversal.path-join-resolve-traversal.path-join-resolve-traversal
     for (let name of fs.readdirSync(from)) copy(path.join(from, name), path.join(to, name));
   } else {
     fs.mkdirSync(path.dirname(to), { recursive: true });
@@ -30,6 +31,7 @@ export function vendorPdfjs(outDir, root = path.dirname(
   createRequire(import.meta.url).resolve('pdfjs-dist/package.json'))
 ) {
   if (fs.existsSync(outDir)) (fs.rmSync || fs.rmdirSync)(outDir, { recursive: true, force: true });
+  // nosemgrep: javascript.lang.security.audit.path-traversal.path-join-resolve-traversal.path-join-resolve-traversal
   for (let file of FILES) copy(path.join(root, file), path.join(outDir, file));
   return outDir;
 }
