@@ -144,6 +144,13 @@ describe('Unit / PacProxyAgent', () => {
       expect(await base64('http://example.com/')).toEqual('PROXY a:1');
     });
 
+    it('keeps a % that does not start an escape in data URLs', async () => {
+      let code = 'function FindProxyForURL(url, host) { return host.length % 2 ? "PROXY e:5" : "DIRECT"; }';
+      let resolver = await new PacProxyAgent(`data:,${code}`).getResolver();
+      expect(await resolver('http://abc/')).toEqual('PROXY e:5');
+      expect(await resolver('http://ab/')).toEqual('DIRECT');
+    });
+
     it('rejects a malformed data URL', async () => {
       await expectAsync(new PacProxyAgent('data:no-comma').getResolver())
         .toBeRejectedWithError('Invalid data URL for PAC file');
@@ -181,6 +188,29 @@ describe('Unit / PacProxyAgent', () => {
 
       await expectAsync(new PacProxyAgent(`${base}/loop.pac`).getResolver())
         .toBeRejectedWithError(/^Too many redirects loading PAC file/);
+    });
+
+    it('refuses to leave https or http when redirected', async () => {
+      let base = await servePac({
+        '/old.pac': () => [302, { location: 'http://127.0.0.1:1/proxy.pac' }],
+        '/file.pac': () => [302, { location: 'file:///etc/passwd' }]
+      });
+      // serve the https URL from the plain http server so no certificate is needed
+      spyOn(https, 'get').and.callFake((url, opts, cb) => http.get(`${base}${url.pathname}`, opts, cb));
+
+      await expectAsync(new PacProxyAgent('https://pac.test/old.pac').getResolver())
+        .toBeRejectedWithError('Refusing to follow a redirect from https://pac.test/old.pac ' +
+          'to http://127.0.0.1:1/proxy.pac loading PAC file');
+      await expectAsync(new PacProxyAgent(`${base}/file.pac`).getResolver())
+        .toBeRejectedWithError(/^Refusing to follow a redirect .* to file:\/\/\/etc\/passwd/);
+    });
+
+    it('gives up on a PAC server that never answers', async () => {
+      pacServer = await listen(http.createServer(() => {}));
+      let url = `http://127.0.0.1:${pacServer.port}/proxy.pac`;
+
+      await expectAsync(new PacProxyAgent(url, { pacTimeout: 50 }).getResolver())
+        .toBeRejectedWithError(`Timed out after 50ms loading PAC file from ${url}`);
     });
 
     it('rejects non-2xx responses', async () => {

@@ -22,6 +22,8 @@ import { getQuickJS } from '@tootallnate/quickjs-emscripten';
  */
 
 const MAX_REDIRECTS = 5;
+// every request waits on the PAC file, so a server that never answers must not hang them
+const PAC_TIMEOUT = 30000;
 const PROTOCOLS = ['data:', 'file:', 'http:', 'https:'];
 
 function setServernameFromNonIpHost(options) {
@@ -32,18 +34,18 @@ function setServernameFromNonIpHost(options) {
   return options;
 }
 
-// decodes a `data:[<mediatype>][;base64],<data>` URL
+// decodes a `data:[<mediatype>][;base64],<data>` URL. A `%` that does not start
+// an escape is kept as is, so scripts like `h.length % 2` load unencoded.
 function readDataUrl(url) {
   let match = url.href.match(/^data:([^,]*?)(;base64)?,(.*)$/s);
   if (!match) throw new Error('Invalid data URL for PAC file');
-  return match[2]
-    ? Buffer.from(decodeURIComponent(match[3]), 'base64').toString('utf8')
-    : decodeURIComponent(match[3]);
+  let data = decodeURIComponent(match[3].replace(/%(?![0-9a-f]{2})/gi, '%25'));
+  return match[2] ? Buffer.from(data, 'base64').toString('utf8') : data;
 }
 
 // GETs a PAC file, following redirects. Sends the validators from the previous
 // response so an unchanged file comes back as a 304 with no body.
-function requestPacFile(url, cache, redirects = 0) {
+function requestPacFile(url, cache, timeout, redirects = 0) {
   return new Promise((resolve, reject) => {
     let { get } = url.protocol === 'https:' ? https : http;
     let headers = {};
@@ -51,13 +53,20 @@ function requestPacFile(url, cache, redirects = 0) {
     if (cache?.etag) headers['if-none-match'] = cache.etag;
     if (cache?.lastModified) headers['if-modified-since'] = cache.lastModified;
 
-    get(url, { headers }, res => {
+    let req = get(url, { headers }, res => {
       let { statusCode, headers: resHeaders } = res;
 
       if (statusCode >= 300 && statusCode < 400 && statusCode !== 304 && resHeaders.location) {
         res.resume();
         if (redirects >= MAX_REDIRECTS) return reject(new Error(`Too many redirects loading PAC file: ${url.href}`));
-        return resolve(requestPacFile(new URL(resHeaders.location, url), null, redirects + 1));
+        let next = new URL(resHeaders.location, url);
+
+        // the PAC file decides where all traffic goes, so never trade https for a weaker scheme
+        if (next.protocol !== 'https:' && (url.protocol === 'https:' || next.protocol !== 'http:')) {
+          return reject(new Error(`Refusing to follow a redirect from ${url.href} to ${next.href} loading PAC file`));
+        }
+
+        return resolve(requestPacFile(next, null, timeout, redirects + 1));
       }
 
       // only a conditional request can be answered with "not modified"
@@ -80,6 +89,9 @@ function requestPacFile(url, cache, redirects = 0) {
         lastModified: resHeaders['last-modified']
       }));
     }).on('error', reject);
+
+    req.setTimeout(timeout, () => req.destroy(
+      new Error(`Timed out after ${timeout}ms loading PAC file from ${url.href}`)));
   });
 }
 
@@ -101,6 +113,7 @@ export class PacProxyAgent extends Agent {
     }
 
     this.opts = { filename: this.uri.href, ...opts };
+    this.pacTimeout = opts?.pacTimeout ?? PAC_TIMEOUT;
     this.cache = undefined;
     this.resolver = undefined;
     this.resolverHash = '';
@@ -138,7 +151,7 @@ export class PacProxyAgent extends Agent {
     if (protocol === 'data:') return readDataUrl(this.uri);
     if (protocol === 'file:') return fs.promises.readFile(fileURLToPath(this.uri), 'utf8');
 
-    let res = await requestPacFile(this.uri, this.resolver && this.cache);
+    let res = await requestPacFile(this.uri, this.resolver && this.cache, this.pacTimeout);
     if (res.notModified) return null;
 
     this.cache = { etag: res.etag, lastModified: res.lastModified };
