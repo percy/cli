@@ -2330,11 +2330,6 @@
     node-addon-api "^3.2.1"
     node-gyp-build "^4.3.0"
 
-"@percy/logger@1.32.12-beta.2":
-  version "1.32.12-beta.2"
-  resolved "https://registry.yarnpkg.com/@percy/logger/-/logger-1.32.12-beta.2.tgz#36aff3decd9934fca3c2af379f5623f94367866a"
-  integrity sha512-a5PqFJAvouUIncqoDUIgOOlxUuv1lMTTBpok0CciaqdQHgS3UxIMb53hV/aRUMLysx1QvfehByFQ69P4yb9Fvw==
-
 "@phenomnomnominal/tsquery@4.1.1":
   version "4.1.1"
   resolved "https://registry.npmjs.org/@phenomnomnominal/tsquery/-/tsquery-4.1.1.tgz"

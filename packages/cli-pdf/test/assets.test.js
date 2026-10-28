@@ -1,8 +1,14 @@
 import fs from 'fs';
+import os from 'os';
 import path from 'path';
+import { createRequire } from 'module';
 import { pdfjsAssets } from '../src/assets.js';
+import { vendorPdfjs } from '../scripts/vendor-pdfjs.js';
+
+const pdfjsRoot = path.dirname(createRequire(import.meta.url).resolve('pdfjs-dist/package.json'));
 
 describe('@percy/cli-pdf assets', () => {
+  // the source checkout has no dist/pdfjs, so this resolves pdfjs-dist
   let assets = pdfjsAssets();
 
   it('resolves the installed pdfjs-dist root', () => {
@@ -31,5 +37,35 @@ describe('@percy/cli-pdf assets', () => {
     let lib = fs.readFileSync(path.join(assets.buildDir, assets.libFile), 'utf-8');
     expect(lib).toContain('getDocument');
     expect(lib).toContain('globalThis.pdfjsLib');
+  });
+
+  describe('when pdf.js is vendored into the package', () => {
+    let tmp, vendored;
+
+    beforeAll(() => {
+      tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'percy-pdfjs-'));
+      // run twice to cover replacing an earlier copy
+      vendorPdfjs(path.join(tmp, 'pdfjs'));
+      vendored = pdfjsAssets({ vendoredDir: vendorPdfjs(path.join(tmp, 'pdfjs')) });
+    });
+
+    afterAll(() => {
+      (fs.rmSync || fs.rmdirSync)(tmp, { recursive: true, force: true });
+    });
+
+    it('prefers the vendored copy over the pdfjs-dist dependency', () => {
+      expect(vendored.root).toEqual(path.join(tmp, 'pdfjs'));
+      expect(assets.root).toEqual(pdfjsRoot);
+    });
+
+    it('carries every file the page loads, unchanged', () => {
+      for (let file of [vendored.libFile, vendored.workerFile]) {
+        expect(fs.readFileSync(path.join(vendored.buildDir, file)))
+          .toEqual(fs.readFileSync(path.join(assets.buildDir, file)));
+      }
+      expect(fs.readdirSync(vendored.standardFontsDir)).toEqual(fs.readdirSync(assets.standardFontsDir));
+      expect(fs.readdirSync(vendored.cmapsDir)).toEqual(fs.readdirSync(assets.cmapsDir));
+      expect(fs.existsSync(path.join(vendored.root, 'LICENSE'))).toBe(true);
+    });
   });
 });
