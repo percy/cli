@@ -329,6 +329,9 @@ export function proxyAgentFor(url, options) {
     cache.set(cachekey, agent);
     return agent;
   } catch (error) {
+    // remember the failure before logging it: an error log is sent to the CLI with this
+    // same function, and without the cached result it would fail and log again, forever
+    cache.set(cachekey, null);
     logger('sdk-utils:proxy').error(`Failed to create proxy agent: ${error.message}`);
     throw error;
   }
