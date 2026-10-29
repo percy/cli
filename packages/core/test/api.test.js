@@ -387,7 +387,7 @@ describe('API Server', () => {
 
     expect(percy.client.getSnapshotDetails).not.toHaveBeenCalled();
     expect(logger.stderr).toEqual(jasmine.arrayContaining([
-      jasmine.stringContaining('Sync mode results are not available for ?async')
+      jasmine.stringContaining('Sync mode results are not available for async')
     ]));
     await expectAsync(test).toBePending();
     resolve(); // no hanging promises
