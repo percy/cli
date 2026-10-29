@@ -22,13 +22,15 @@
   "type": "module",
   "exports": "./dist/index.js",
   "scripts": {
-    "build": "node ../../scripts/build",
+    "build": "node ../../scripts/build && node scripts/vendor-pdfjs.js",
     "lint": "eslint --ignore-path ../../.gitignore .",
     "test": "node ../../scripts/test",
     "test:coverage": "yarn test --coverage"
   },
   "dependencies": {
-    "@percy/logger": "1.32.13-beta.1",
-    "pdfjs-dist": "^2.16.105"
+    "@percy/logger": "1.32.13-beta.1"
+  },
+  "devDependencies": {
+    "pdfjs-dist": "^4.10.38"
   }
 }

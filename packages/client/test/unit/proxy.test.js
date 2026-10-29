@@ -1,5 +1,5 @@
 import { ProxyHttpAgent, ProxyHttpsAgent, createPacAgent, getProxy, proxyAgentFor } from '../../src/proxy.js';
-import { PacProxyAgent } from 'pac-proxy-agent';
+import { PacProxyAgent } from '../../src/pac-agent.js';
 import logger from '@percy/logger/test/helpers';
 
 describe('proxy', () => {

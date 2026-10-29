@@ -1,5 +1,5 @@
 {
-  "generated": "2026-09-11T05:57:29.845Z",
+  "generated": "2026-10-15T11:47:16.205Z",
   "platform": "darwin-arm64",
   "browser": "Chrome/143.0.7499.0",
   "pdfs": {
@@ -12,8 +12,8 @@
           "page": 1,
           "width": 1191,
           "height": 1684,
-          "bytes": 470788,
-          "sha256": "4d7a640bc93744620eb8f6bb61b211a0656ffda73ef7693ef2a59e191b1e78d7"
+          "bytes": 470336,
+          "sha256": "552e90c8b1581fccaa12ca5137cc478ea73671c1f3254e4256e1292c895bb0ee"
         }
       ]
     },
@@ -26,22 +26,22 @@
           "page": 1,
           "width": 1224,
           "height": 1584,
-          "bytes": 482333,
-          "sha256": "13375a4c2a74fc707e1b3747e964f433b98f25cebacb52bea995942cbbf262fe"
+          "bytes": 482141,
+          "sha256": "8be8f1aec14f7c194ba3bc823e256430b5ccb80e43d3b1dea792315562809160"
         },
         {
           "page": 2,
           "width": 1224,
           "height": 1584,
-          "bytes": 528854,
-          "sha256": "a21a60255b97e79dc3e408a2d90717e6eb51cc0c4ca9d196ae0b11de0696d751"
+          "bytes": 528837,
+          "sha256": "d3385075c955a164b917eae98fc4ccfefb8253f8efc118f48b58dd4ed5f504e5"
         },
         {
           "page": 3,
           "width": 1224,
           "height": 1584,
-          "bytes": 402184,
-          "sha256": "b42084cd9dfca9ff61c4c3518808ec0fdb55cf767a998d532d26647c05dba0fc"
+          "bytes": 402244,
+          "sha256": "440991358f7f88114e9abdecc351e3d46431ca7318242345c91b25815da528ec"
         }
       ]
     },
@@ -54,8 +54,8 @@
           "page": 1,
           "width": 1224,
           "height": 1584,
-          "bytes": 411537,
-          "sha256": "08783e272c4880f8e63e42500fd65b80c596813024cb315bebc3cb81d5746a38"
+          "bytes": 411452,
+          "sha256": "1fb7654c3dbd9dba8c05c80681deb7c716dba846da418118f7b726cee601b7e9"
         }
       ]
     }
