@@ -372,6 +372,27 @@ describe('API Server', () => {
     resolve(); // no hanging promises
   });
 
+  it('warns and skips sync details when ?async is combined with sync mode', async () => {
+    let resolve, test = new Promise(r => (resolve = r));
+    spyOn(percy, 'snapshot').and.returnValue(test);
+    spyOn(percy.client, 'getSnapshotDetails');
+    await percy.start();
+
+    await expectAsync(request('/percy/snapshot?async', {
+      method: 'POST', body: { name: 'test', sync: true }
+    })).toBeResolvedTo({
+      success: true,
+      data: { error: 'Sync mode is not supported with the async parameter' }
+    });
+
+    expect(percy.client.getSnapshotDetails).not.toHaveBeenCalled();
+    expect(logger.stderr).toEqual(jasmine.arrayContaining([
+      jasmine.stringContaining('Sync mode results are not available for async')
+    ]));
+    await expectAsync(test).toBePending();
+    resolve(); // no hanging promises
+  });
+
   it('has a /comparison endpoint that calls #upload() async with provided options', async () => {
     let resolve, test = new Promise(r => (resolve = r));
     spyOn(percy, 'upload').and.returnValue(test);
