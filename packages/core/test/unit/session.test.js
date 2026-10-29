@@ -30,6 +30,28 @@ function makeSession(browser) {
   });
 }
 
+// Captures the timers a block creates, so the deadline itself can be inspected.
+// Waits inside the block must use the real setTimeout handed to the callback,
+// otherwise they are captured too and there is no telling which timer is which.
+async function captureTimers(fn) {
+  let created = [];
+  let realSetTimeout = global.setTimeout;
+
+  global.setTimeout = (handler, ms, ...rest) => {
+    let timer = realSetTimeout(handler, ms, ...rest);
+    created.push(timer);
+    return timer;
+  };
+
+  try {
+    await fn(realSetTimeout);
+  } finally {
+    global.setTimeout = realSetTimeout;
+  }
+
+  return created;
+}
+
 describe('Unit / Session', () => {
   let browser, session;
 
@@ -105,6 +127,25 @@ describe('Unit / Session', () => {
     await new Promise(r => setTimeout(r, 200));
     expect(settled).toBe(false);
   });
+
+  // An orphaned send - one whose reply is never coming - would otherwise keep
+  // the event loop alive for the whole deadline after the real work is done,
+  // so `percy snapshot` can sit idle for two minutes past "Finalized build".
+  it('does not let the deadline hold the event loop open', async () => {
+    process.env.PERCY_CDP_TIMEOUT = '5000';
+
+    let timers = await captureTimers(async realSetTimeout => {
+      // handled up front: _handleClose() below rejects this send, and an
+      // unhandled rejection would surface as a failure in a later spec
+      session.send('Runtime.evaluate', {}).catch(() => {});
+      await new Promise(r => realSetTimeout(r, 10));
+    });
+
+    expect(timers.length).toEqual(1);
+    expect(timers[0].hasRef()).toBe(false);
+
+    session._handleClose();
+  });
 });
 
 // The browser process can go silent the same way a renderer can. Target
@@ -169,5 +210,17 @@ describe('Unit / Browser CDP deadline', () => {
 
     await new Promise(r => setTimeout(r, 200));
     expect(settled).toBe(false);
+  });
+
+  it('does not let the deadline hold the event loop open', async () => {
+    process.env.PERCY_CDP_TIMEOUT = '5000';
+
+    let timers = await captureTimers(async realSetTimeout => {
+      browser.send('Target.createBrowserContext', {}).catch(() => {});
+      await new Promise(r => realSetTimeout(r, 10));
+    });
+
+    expect(timers.length).toEqual(1);
+    expect(timers[0].hasRef()).toBe(false);
   });
 });
