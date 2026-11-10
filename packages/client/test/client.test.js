@@ -1796,6 +1796,35 @@ describe('PercyClient', () => {
   });
 
   describe('#createComparison()', () => {
+    // PPLT-6313
+    it('sends Dynamic Island fields when present', async () => {
+      await expectAsync(client.createComparison(4567, {
+        tag: { name: 'iPhone 17 Pro Max' },
+        tiles: [{ sha: sha256hash('somesha') }],
+        dynamicIsland: true,
+        dynamicIslandRect: { x: 157.33, y: 14, width: 125.33, height: 36.67 },
+        screenSizePoints: { width: 440, height: 956 },
+        deviceOrientation: 'UIA_DEVICE_ORIENTATION_LANDSCAPERIGHT'
+      })).toBeResolved();
+
+      expect(api.requests['/snapshots/4567/comparisons'][0].body.data.attributes).toEqual(jasmine.objectContaining({
+        'dynamic-island': true,
+        'dynamic-island-rect': { x: 157.33, y: 14, width: 125.33, height: 36.67 },
+        'screen-size-points': { width: 440, height: 956 },
+        'device-orientation': 'UIA_DEVICE_ORIENTATION_LANDSCAPERIGHT'
+      }));
+    });
+
+    it('omits Dynamic Island fields when absent', async () => {
+      await expectAsync(client.createComparison(4567, {
+        tag: { name: 'iPhone 17 Pro Max' },
+        tiles: [{ sha: sha256hash('somesha') }]
+      })).toBeResolved();
+
+      expect(Object.keys(api.requests['/snapshots/4567/comparisons'][0].body.data.attributes))
+        .not.toContain('dynamic-island');
+    });
+
     it('throws when missing a snapshot id', async () => {
       await expectAsync(client.createComparison())
         .toBeRejectedWithError('Missing snapshot ID');
