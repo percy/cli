@@ -3,6 +3,7 @@ import path from 'path';
 import http from 'http';
 import mime from 'mime-types';
 import disposition from 'content-disposition';
+import logger from '@percy/logger';
 import {
   pathToRegexp,
   match as pathToMatch,
@@ -26,6 +27,14 @@ export function isLoopbackOrigin(origin) {
   } catch {
     return false;
   }
+}
+
+// Returns true when a socket peer address is on the loopback interface,
+// including IPv4 loopback addresses mapped into an IPv6 socket.
+export function isLoopbackAddress(address) {
+  if (!address || typeof address !== 'string') return false;
+  address = address.toLowerCase().replace(/^::ffff:/, '');
+  return address === '::1' || /^127(\.\d{1,3}){3}$/.test(address);
 }
 
 // custom incoming message adds a `url` and `body` properties containing the parsed URL and message
@@ -118,6 +127,7 @@ export class Server extends http.Server {
   #sockets = new Set();
   #defaultPort;
   #host;
+  #remoteWarned = false;
 
   constructor({ port, host } = {}) {
     super({ IncomingMessage, ServerResponse });
@@ -143,6 +153,15 @@ export class Server extends http.Server {
   // has widened PERCY_SERVER_HOST for the API server.
   get host() {
     return this.#host || process.env.PERCY_SERVER_HOST || '::';
+  }
+
+  // Without an explicit host or PERCY_SERVER_HOST the server still binds every
+  // interface, so `localhost` works whichever address family a client resolves
+  // it to, but it only answers loopback peers. The local API can run scripts in
+  // the snapshot browser, so other machines must not reach it unless an
+  // operator opts in by setting PERCY_SERVER_HOST (e.g. to 0.0.0.0).
+  get loopbackOnly() {
+    return !this.#host && !process.env.PERCY_SERVER_HOST;
   }
 
   // return the listening port or any default port
@@ -346,6 +365,19 @@ export class Server extends http.Server {
   async #handleRequest(req, res) {
     // support node < 15.7.0
     res.req ??= req;
+
+    if (this.loopbackOnly && !isLoopbackAddress(req.socket.remoteAddress)) {
+      if (!this.#remoteWarned) {
+        this.#remoteWarned = true;
+        logger('core:server').warn(
+          `Rejected a request from ${req.socket.remoteAddress}: the Percy server only accepts ` +
+          'connections from this machine by default. If your tests run on a different host or ' +
+          'container, set PERCY_SERVER_HOST=0.0.0.0 to accept them.'
+        );
+      }
+
+      return res.json(403, { success: false, error: 'Percy server only accepts local connections' });
+    }
 
     try {
       // invoke routes like middleware

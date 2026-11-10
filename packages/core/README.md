@@ -83,6 +83,10 @@ await percy.start()
 Starting a `Percy` instance will start a local API server unless `server` is `false`. The server can
 be found at `http://localhost:5338/` or at the provided `port` number.
 
+By default the server only answers requests from the same machine and responds `403` to anything
+else. When your tests run in a different container or host than the Percy CLI, set
+`PERCY_SERVER_HOST` (for example `PERCY_SERVER_HOST=0.0.0.0`) to accept those connections.
+
 - GET `/percy/healthcheck` – Responds with information about the running instance
 - GET `/percy/dom.js` – Responds with the [`@percy/dom`](./packages/dom) library
 - GET `/percy/idle` - Responds when the running instance is [idle](#idle)
