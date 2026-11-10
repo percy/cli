@@ -151,6 +151,53 @@ describe('serializeCSSOM', () => {
         shadowEl.shadowRoot.adoptedStyleSheets = [];
       });
 
+      it('captures adoptedStylesheets inside document when JS is enabled', () => {
+        if (platform !== 'plain') {
+          return;
+        }
+        withExample('<div>AdoptedStyle</div>', { withShadow: false });
+        const sheet = new window.CSSStyleSheet();
+        sheet.replaceSync('div { background: blue; }');
+        dom.adoptedStyleSheets = [sheet];
+        const capture = serializeDOM({ enableJavaScript: true });
+        let $ = parseDOM(capture, 'plain');
+        dom.adoptedStyleSheets = [];
+        expect($('body')[0].innerHTML).toMatch(`<link rel="stylesheet" data-percy-adopted-stylesheets-serialized="true" href="${capture.resources[0].url}">`);
+      });
+
+      it('captures adoptedStylesheets in shadow roots when JS is enabled', () => {
+        if (platform === 'plain') {
+          return;
+        }
+
+        withExample('<div id="box"></div>', { withShadow: false });
+        const box = document.querySelector('#box');
+        const sheet = new window.CSSStyleSheet();
+        const style = 'p { color: blue; }';
+        sheet.replaceSync(style);
+        const shadowEl = createShadowEl();
+        shadowEl.shadowRoot.adoptedStyleSheets = [sheet];
+        box.appendChild(shadowEl);
+
+        const capture = serializeDOM({ enableJavaScript: true });
+        let $ = parseDOM(capture, 'plain');
+        shadowEl.shadowRoot.adoptedStyleSheets = [];
+
+        expect(capture.resources).toEqual([{
+          url: jasmine.stringMatching('\\.css$'),
+          content: style,
+          mimetype: 'text/css'
+        }]);
+        expect($('#Percy-0')[0].innerHTML).toEqual([
+          '<template shadowrootmode="open" shadowrootserializable="">',
+          `<link rel="stylesheet" data-percy-adopted-stylesheets-serialized="true" href="${capture.resources[0].url}">`,
+          '<p>Percy-0</p>',
+          '</template>'
+        ].join(''));
+        // the rest of the CSSOM is still left to the page's JS
+        expect($('[data-percy-cssom-serialized]')).toHaveSize(0);
+      });
+
       it('uses single resource for same adoptedStylesheet', () => {
         if (platform === 'plain') {
           return;

@@ -51,7 +51,7 @@ function createStyleResource(styleSheet) {
 }
 
 export function serializeCSSOM(ctx) {
-  let { dom, clone, resources, cache, warnings, ignoreStyleSheetSerializationErrors, styleSheetClones } = ctx;
+  let { dom, clone, resources, warnings, ignoreStyleSheetSerializationErrors, styleSheetClones } = ctx;
   // in-memory CSSOM into their respective DOM nodes.
   let styleSheets = null;
   // catch error in case styleSheets property is not available (overwritten to throw error)
@@ -113,7 +113,15 @@ export function serializeCSSOM(ctx) {
     }
   }
 
-  // clone Adopted Stylesheets
+  serializeAdoptedStyleSheets(ctx);
+}
+
+// Serializes constructed stylesheets adopted by a document or shadow root into <link> tags
+// backed by CSS resources. Unlike the rest of the CSSOM, this also runs when JavaScript is
+// enabled: adopted sheets have no DOM representation, so without this they are lost whenever
+// the page's own JS doesn't re-adopt them at render time.
+export function serializeAdoptedStyleSheets(ctx) {
+  let { dom, clone, resources, cache, warnings } = ctx;
   // Regarding ordering of the adopted stylesheets - https://github.com/WICG/construct-stylesheets/issues/93
   /* istanbul ignore next: tested, but coverage is stripped */
   if (dom.adoptedStyleSheets) {
