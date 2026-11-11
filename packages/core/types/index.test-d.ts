@@ -18,7 +18,8 @@ const percyOptions: PercyOptions = {
     enableJavaScript: false,
     scope: '.percy',
     scopeOptions: { scroll: true },
-    devicePixelRatio: 2
+    devicePixelRatio: 2,
+    dynamicIsland: true
   },
   discovery: {
     requestHeaders: { Authorization: 'foobar' },

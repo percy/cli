@@ -1526,6 +1526,171 @@ describe('Percy', () => {
       })).toThrowError('Missing required tag name for comparison');
     });
 
+    describe('with Dynamic Island options', () => {
+      // shapes as sent by the App Percy Python SDK (snake_case)
+      let rect = { x: 157.33, y: 14, width: 125.33, height: 36.67 };
+      let screen = { width: 440, height: 956 };
+      let island = () => ({
+        name: 'Snapshot',
+        tag: { name: 'iPhone', osName: 'iOS' },
+        tiles: [{ sha: 'abc-123' }],
+        dynamic_island_rect: { ...rect },
+        screen_size_points: { ...screen },
+        device_orientation: 'LANDSCAPE'
+      });
+
+      let attributes = () => api.requests['/snapshots/4567/comparisons'][0].body.data.attributes;
+      let islandAttributes = () => Object.keys(attributes()).filter(k => /^(dynamic-island|screen-size|device-orient)/.test(k));
+
+      let startWithConfig = async snapshot => {
+        percy = new Percy({ token: 'PERCY_TOKEN', snapshot });
+        await percy.start();
+      };
+
+      it('passes the fields through to the comparison', async () => {
+        await percy.start();
+        await percy.upload({ ...island(), dynamic_island: true });
+
+        expect(attributes()).toEqual(jasmine.objectContaining({
+          'dynamic-island': true,
+          'dynamic-island-rect': rect,
+          'screen-size-points': screen,
+          'device-orientation': 'LANDSCAPE'
+        }));
+        expect(logger.stderr).not.toContain('[percy] Invalid upload options:');
+      });
+
+      it('accepts every supported orientation', async () => {
+        await percy.start();
+
+        for (let orientation of ['PORTRAIT', 'LANDSCAPE', 'UIA_DEVICE_ORIENTATION_LANDSCAPERIGHT']) {
+          await percy.upload({ ...island(), device_orientation: orientation });
+        }
+
+        expect(api.requests['/snapshots/4567/comparisons'].map(r => (
+          r.body.data.attributes['device-orientation']
+        ))).toEqual(['PORTRAIT', 'LANDSCAPE', 'UIA_DEVICE_ORIENTATION_LANDSCAPERIGHT']);
+        expect(logger.stderr).not.toContain('[percy] Invalid upload options:');
+      });
+
+      it('does not send the fields for comparisons without them', async () => {
+        await startWithConfig({ dynamicIsland: true });
+        await percy.upload({ name: 'Snapshot', tag: { name: 'Pixel' }, tiles: [{ sha: 'abc-123' }] });
+
+        expect(islandAttributes()).toEqual([]);
+      });
+
+      it('applies the config default when only geometry is sent', async () => {
+        await startWithConfig({ dynamicIsland: true });
+        await percy.upload(island());
+
+        expect(attributes()).toEqual(jasmine.objectContaining({
+          'dynamic-island': true,
+          'dynamic-island-rect': rect
+        }));
+      });
+
+      it('sends the geometry turned off without a config default', async () => {
+        await percy.start();
+        await percy.upload(island());
+
+        expect(attributes()).toEqual(jasmine.objectContaining({
+          'dynamic-island': false,
+          'dynamic-island-rect': rect
+        }));
+      });
+
+      it('lets the per-screenshot value win over the config default', async () => {
+        await startWithConfig({ dynamicIsland: true });
+        await percy.upload({ ...island(), dynamic_island: false });
+        expect(attributes()['dynamic-island']).toBe(false);
+      });
+
+      it('sends a per-screenshot opt-in even without geometry', async () => {
+        await percy.start();
+        await percy.upload({ name: 'Snapshot', tag: { name: 'iPhone' }, tiles: [{ sha: 'abc-123' }], dynamic_island: true });
+
+        expect(attributes()).toEqual(jasmine.objectContaining({
+          'dynamic-island': true,
+          'dynamic-island-rect': null,
+          'screen-size-points': null,
+          'device-orientation': null
+        }));
+      });
+
+      it('drops an unknown orientation instead of sending it', async () => {
+        await percy.start();
+        await percy.upload({ ...island(), dynamic_island: true, device_orientation: 'SIDEWAYS' });
+
+        expect(logger.stderr).toEqual(jasmine.arrayContaining([
+          '[percy] Invalid upload options:',
+          jasmine.stringMatching(/- deviceOrientation: /)
+        ]));
+        expect(attributes()).toEqual(jasmine.objectContaining({
+          'dynamic-island': true,
+          'dynamic-island-rect': rect,
+          'device-orientation': null
+        }));
+      });
+
+      it('drops a non-boolean opt-in and falls back to the config default', async () => {
+        await startWithConfig({ dynamicIsland: true });
+        await percy.upload({ ...island(), dynamic_island: 'yes' });
+
+        expect(logger.stderr).toEqual(jasmine.arrayContaining([
+          '[percy] - dynamicIsland: must be a boolean, received a string'
+        ]));
+        expect(attributes()['dynamic-island']).toBe(true);
+      });
+
+      for (let [desc, invalid, message] of [
+        ['is missing a member', { x: 1, y: 2, width: 3 }, '- dynamicIslandRect.height: missing required property'],
+        ['has a negative position', { ...rect, x: -1 }, '- dynamicIslandRect.x: must be >= 0'],
+        ['has a zero size', { ...rect, width: 0 }, '- dynamicIslandRect.width: must be > 0'],
+        ['has a non-number member', { ...rect, y: '14' }, '- dynamicIslandRect.y: must be a number, received a string'],
+        ['has an unknown member', { ...rect, radius: 18 }, '- dynamicIslandRect.radius: unknown property'],
+        ['is not an object', 'rect', '- dynamicIslandRect: must be an object, received a string']
+      ]) {
+        it(`drops the whole rect when it ${desc}`, async () => {
+          await startWithConfig({ dynamicIsland: true });
+          await percy.upload({ ...island(), dynamic_island_rect: invalid });
+
+          expect(logger.stderr).toEqual(jasmine.arrayContaining([`[percy] ${message}`]));
+          // not clamped or partially sent, and the config default needs geometry to apply
+          expect(islandAttributes()).toEqual([]);
+        });
+      }
+
+      it('drops the whole screen size when it is invalid', async () => {
+        await percy.start();
+        await percy.upload({ ...island(), screen_size_points: { width: 440, height: -1 } });
+
+        expect(logger.stderr).toEqual(jasmine.arrayContaining([
+          '[percy] - screenSizePoints.height: must be > 0'
+        ]));
+        expect(attributes()).toEqual(jasmine.objectContaining({
+          'dynamic-island-rect': rect,
+          'screen-size-points': null
+        }));
+      });
+
+      it('keeps the config default out of web snapshots', async () => {
+        await startWithConfig({ dynamicIsland: true });
+        await percy.snapshot({ name: 'Web', url: 'http://localhost:8000', domSnapshot: '<html></html>' });
+
+        expect(logger.stderr).not.toEqual(jasmine.arrayContaining([
+          jasmine.stringMatching(/dynamicIsland/)
+        ]));
+        expect(api.requests['/builds/123/snapshots'][0].body.data.attributes)
+          .not.toEqual(jasmine.objectContaining({ 'dynamic-island': jasmine.anything() }));
+      });
+
+      it('validates the config option', () => {
+        expect(new Percy({ snapshot: { dynamicIsland: true } }).config.snapshot.dynamicIsland).toBe(true);
+        expect(new Percy({ snapshot: { dynamicIsland: 'yes' } }).config.snapshot.dynamicIsland).toBeUndefined();
+      });
+    });
+
     it('warns about invalid snapshot comparison options', async () => {
       await percy.start();
 
