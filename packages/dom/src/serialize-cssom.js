@@ -142,11 +142,13 @@ export function serializeAdoptedStyleSheets(ctx) {
         // handle document and iframe
         // We are checking if we have multiple stylesheets present for the same clone or clone.body then we add
         // them in the same order in which we receive them.
-        const lastLink = clone.body.querySelector('link[data-percy-adopted-stylesheets-serialized]:last-of-type');
+        // a document fragment, or a document without a <body> (e.g. a frameset), has no clone.body
+        const container = clone.body || clone.documentElement || clone;
+        const lastLink = container.querySelector('link[data-percy-adopted-stylesheets-serialized]:last-of-type');
         if (lastLink) {
           lastLink.after(styleLink);
         } else {
-          clone.body.prepend(styleLink);
+          container.prepend(styleLink);
         }
       } else if (clone.constructor.name === 'ShadowRoot') {
         const lastLink = clone.querySelector('link[data-percy-adopted-stylesheets-serialized]:last-of-type');
@@ -157,7 +159,8 @@ export function serializeAdoptedStyleSheets(ctx) {
         }
       }
     }
-  } else {
+  } else if (!ctx.enableJavaScript) {
+    // with JS enabled this runs for every document and shadow root, so stay quiet there
     warnings.add('Skipping `adoptedStyleSheets` as it is not supported.');
   }
 }

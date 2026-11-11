@@ -159,9 +159,13 @@ describe('serializeCSSOM', () => {
         const sheet = new window.CSSStyleSheet();
         sheet.replaceSync('div { background: blue; }');
         dom.adoptedStyleSheets = [sheet];
-        const capture = serializeDOM({ enableJavaScript: true });
+        let capture;
+        try {
+          capture = serializeDOM({ enableJavaScript: true });
+        } finally {
+          dom.adoptedStyleSheets = [];
+        }
         let $ = parseDOM(capture, 'plain');
-        dom.adoptedStyleSheets = [];
         expect($('body')[0].innerHTML).toMatch(`<link rel="stylesheet" data-percy-adopted-stylesheets-serialized="true" href="${capture.resources[0].url}">`);
       });
 
@@ -179,9 +183,13 @@ describe('serializeCSSOM', () => {
         shadowEl.shadowRoot.adoptedStyleSheets = [sheet];
         box.appendChild(shadowEl);
 
-        const capture = serializeDOM({ enableJavaScript: true });
+        let capture;
+        try {
+          capture = serializeDOM({ enableJavaScript: true });
+        } finally {
+          shadowEl.shadowRoot.adoptedStyleSheets = [];
+        }
         let $ = parseDOM(capture, 'plain');
-        shadowEl.shadowRoot.adoptedStyleSheets = [];
 
         expect(capture.resources).toEqual([{
           url: jasmine.stringMatching('\\.css$'),
