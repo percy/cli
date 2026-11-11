@@ -125,10 +125,11 @@ export function serializeAdoptedStyleSheets(ctx) {
   // Regarding ordering of the adopted stylesheets - https://github.com/WICG/construct-stylesheets/issues/93
   /* istanbul ignore next: tested, but coverage is stripped */
   if (dom.adoptedStyleSheets) {
-    // A document or iframe clone takes the links at the start of its body (its head when it has no
-    // body); a shadow root or fragment takes them directly.
+    // Document and iframe clones are fragments carrying body/head/documentElement references; links
+    // go at the start of the body, else the head, else inside documentElement (the only part that is
+    // serialized). A shadow root has none of these and takes the links directly.
     let container = clone && ['HTMLDocument', 'DocumentFragment', 'ShadowRoot'].includes(clone.constructor.name)
-      ? (clone.body || clone.head || clone)
+      ? (clone.body || clone.head || clone.documentElement || clone)
       : null;
     // each link goes after the one before it, so the links keep the order the sheets were adopted in
     let prevLink = null;
@@ -144,6 +145,8 @@ export function serializeAdoptedStyleSheets(ctx) {
       }
       styleLink.setAttribute('data-percy-adopted-stylesheets-serialized', 'true');
       styleLink.setAttribute('data-percy-serialized-attribute-href', cache.get(sheet));
+      // a constructed sheet can carry a media condition (new CSSStyleSheet({ media })); keep it
+      if (sheet.media?.mediaText) styleLink.setAttribute('media', sheet.media.mediaText);
 
       if (!container) continue;
       if (prevLink) {

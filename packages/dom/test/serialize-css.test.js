@@ -205,6 +205,24 @@ describe('serializeCSSOM', () => {
         expect(hrefs).toEqual([urlFor('div { color: red; }'), urlFor('div { color: blue; }')]);
       });
 
+      it('keeps an adopted sheet\'s media condition when JS is enabled', () => {
+        if (platform !== 'plain') {
+          return;
+        }
+        withExample('<div>AdoptedStyle</div>', { withShadow: false });
+        const sheet = new window.CSSStyleSheet({ media: 'print' });
+        sheet.replaceSync('div { color: red; }');
+        dom.adoptedStyleSheets = [sheet];
+        let capture;
+        try {
+          capture = serializeDOM({ enableJavaScript: true });
+        } finally {
+          dom.adoptedStyleSheets = [];
+        }
+        let $ = parseDOM(capture, 'plain');
+        expect($('link[data-percy-adopted-stylesheets-serialized]')[0].getAttribute('media')).toBe('print');
+      });
+
       it('does not fail a JS-enabled snapshot when adoptedStyleSheets throws', () => {
         if (platform !== 'plain') {
           return;
