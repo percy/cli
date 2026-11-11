@@ -116,13 +116,6 @@ export function serializeCSSOM(ctx) {
   serializeAdoptedStyleSheets(ctx);
 }
 
-// The most recently inserted adopted-sheet link. Not `:last-of-type`, which matches on the tag alone
-// and misses when any other <link> follows, so later sheets would be inserted in reverse order.
-function lastAdoptedLink(container) {
-  let links = container.querySelectorAll('link[data-percy-adopted-stylesheets-serialized]');
-  return links[links.length - 1];
-}
-
 // Serializes constructed stylesheets adopted by a document or shadow root into <link> tags
 // backed by CSS resources. Unlike the rest of the CSSOM, this also runs when JavaScript is
 // enabled: adopted sheets have no DOM representation, so without this they are lost whenever
@@ -132,6 +125,14 @@ export function serializeAdoptedStyleSheets(ctx) {
   // Regarding ordering of the adopted stylesheets - https://github.com/WICG/construct-stylesheets/issues/93
   /* istanbul ignore next: tested, but coverage is stripped */
   if (dom.adoptedStyleSheets) {
+    // A document or iframe clone takes the links at the start of its body (its head when it has no
+    // body); a shadow root or fragment takes them directly.
+    let container = clone && ['HTMLDocument', 'DocumentFragment', 'ShadowRoot'].includes(clone.constructor.name)
+      ? (clone.body || clone.head || clone)
+      : null;
+    // each link goes after the one before it, so the links keep the order the sheets were adopted in
+    let prevLink = null;
+
     for (let sheet of dom.adoptedStyleSheets) {
       const styleLink = document.createElement('link');
       styleLink.setAttribute('rel', 'stylesheet');
@@ -144,27 +145,13 @@ export function serializeAdoptedStyleSheets(ctx) {
       styleLink.setAttribute('data-percy-adopted-stylesheets-serialized', 'true');
       styleLink.setAttribute('data-percy-serialized-attribute-href', cache.get(sheet));
 
-      /* istanbul ignore next: tested, but coverage is stripped */
-      if (clone.constructor.name === 'HTMLDocument' || clone.constructor.name === 'DocumentFragment') {
-        // handle document and iframe
-        // We are checking if we have multiple stylesheets present for the same clone or clone.body then we add
-        // them in the same order in which we receive them.
-        // a cloned fragment, or a document without a <body>, has no clone.body
-        const container = clone.body || clone.head || clone;
-        const lastLink = lastAdoptedLink(container);
-        if (lastLink) {
-          lastLink.after(styleLink);
-        } else {
-          container.prepend(styleLink);
-        }
-      } else if (clone.constructor.name === 'ShadowRoot') {
-        const lastLink = lastAdoptedLink(clone);
-        if (lastLink) {
-          lastLink.after(styleLink);
-        } else {
-          clone.prepend(styleLink);
-        }
+      if (!container) continue;
+      if (prevLink) {
+        prevLink.after(styleLink);
+      } else {
+        container.prepend(styleLink);
       }
+      prevLink = styleLink;
     }
   } else {
     warnings.add('Skipping `adoptedStyleSheets` as it is not supported.');
