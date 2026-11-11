@@ -177,6 +177,34 @@ describe('serializeCSSOM', () => {
         expect($('body')[0].innerHTML).toContain(`<link rel="stylesheet" data-percy-adopted-stylesheets-serialized="true" href="${capture.resources[0].url}">`);
       });
 
+      it('keeps adopted sheet order when the body has other links and JS is enabled', () => {
+        if (platform !== 'plain') {
+          return;
+        }
+        withExample('<div>AdoptedStyle</div>', { withShadow: false });
+        // an authored <link> as a sibling of the serialized ones defeats a `:last-of-type` lookup
+        const authored = dom.createElement('link');
+        authored.rel = 'stylesheet';
+        authored.href = 'data:text/css,p{}';
+        dom.body.appendChild(authored);
+        const first = new window.CSSStyleSheet();
+        first.replaceSync('div { color: red; }');
+        const second = new window.CSSStyleSheet();
+        second.replaceSync('div { color: blue; }');
+        dom.adoptedStyleSheets = [first, second];
+        let capture;
+        try {
+          capture = serializeDOM({ enableJavaScript: true });
+        } finally {
+          dom.adoptedStyleSheets = [];
+          authored.remove();
+        }
+        let $ = parseDOM(capture, 'plain');
+        let hrefs = Array.from($('link[data-percy-adopted-stylesheets-serialized]')).map(l => l.getAttribute('href'));
+        let urlFor = css => capture.resources.find(r => r.content === css).url;
+        expect(hrefs).toEqual([urlFor('div { color: red; }'), urlFor('div { color: blue; }')]);
+      });
+
       it('does not fail a JS-enabled snapshot when adoptedStyleSheets throws', () => {
         if (platform !== 'plain') {
           return;
@@ -194,7 +222,7 @@ describe('serializeCSSOM', () => {
         }
         expect(capture.html).toContain('AdoptedStyle');
         expect(capture.resources).toEqual([]);
-        expect(capture.warnings).toContain('Skipping `adoptedStyleSheets`: adopted boom');
+        expect(capture.warnings).toContain('Error serializing `adoptedStyleSheets`, some may be missing: adopted boom');
       });
 
       it('captures adoptedStylesheets in shadow roots when JS is enabled', () => {

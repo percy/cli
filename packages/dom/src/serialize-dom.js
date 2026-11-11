@@ -50,7 +50,7 @@ function serializeElements(ctx) {
     try {
       serializeAdoptedStyleSheets(ctx);
     } catch (err) {
-      ctx.warnings.add(`Skipping \`adoptedStyleSheets\`: ${err.message}`);
+      ctx.warnings.add(`Error serializing \`adoptedStyleSheets\`, some may be missing: ${err.message}`);
     }
   }
   // Only process shadow hosts if forceShadowAsLightDOM is not enabled

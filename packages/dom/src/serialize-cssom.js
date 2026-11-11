@@ -1,12 +1,6 @@
 import { resourceFromText, styleSheetFromNode, handleErrors } from './utils';
 import { uid } from './prepare-dom';
 
-// Where serialized stylesheet links go in a cloned document or fragment: the body, or the head
-// for a document without one (e.g. a frameset); a fragment has neither, so the fragment itself.
-function linkContainer(clone) {
-  return clone.body || clone.head || clone;
-}
-
 // Returns true if a stylesheet is a CSSOM-based stylesheet.
 function isCSSOM(styleSheet) {
   // no href, has a rulesheet, and has an owner node
@@ -106,7 +100,7 @@ export function serializeCSSOM(ctx) {
           /* istanbul ignore next: tested, but coverage is stripped */
           if (clone.constructor.name === 'HTMLDocument' || clone.constructor.name === 'DocumentFragment') {
             // handle document and iframe
-            linkContainer(clone).prepend(styleLink);
+            clone.body.prepend(styleLink);
           } else if (clone.constructor.name === 'ShadowRoot') {
             clone.prepend(styleLink);
           }
@@ -120,6 +114,13 @@ export function serializeCSSOM(ctx) {
   }
 
   serializeAdoptedStyleSheets(ctx);
+}
+
+// The most recently inserted adopted-sheet link. Not `:last-of-type`, which matches on the tag alone
+// and misses when any other <link> follows, so later sheets would be inserted in reverse order.
+function lastAdoptedLink(container) {
+  let links = container.querySelectorAll('link[data-percy-adopted-stylesheets-serialized]');
+  return links[links.length - 1];
 }
 
 // Serializes constructed stylesheets adopted by a document or shadow root into <link> tags
@@ -148,15 +149,16 @@ export function serializeAdoptedStyleSheets(ctx) {
         // handle document and iframe
         // We are checking if we have multiple stylesheets present for the same clone or clone.body then we add
         // them in the same order in which we receive them.
-        const container = linkContainer(clone);
-        const lastLink = container.querySelector('link[data-percy-adopted-stylesheets-serialized]:last-of-type');
+        // a cloned fragment, or a document without a <body>, has no clone.body
+        const container = clone.body || clone.head || clone;
+        const lastLink = lastAdoptedLink(container);
         if (lastLink) {
           lastLink.after(styleLink);
         } else {
           container.prepend(styleLink);
         }
       } else if (clone.constructor.name === 'ShadowRoot') {
-        const lastLink = clone.querySelector('link[data-percy-adopted-stylesheets-serialized]:last-of-type');
+        const lastLink = lastAdoptedLink(clone);
         if (lastLink) {
           lastLink.after(styleLink);
         } else {
