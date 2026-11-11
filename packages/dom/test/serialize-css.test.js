@@ -223,6 +223,27 @@ describe('serializeCSSOM', () => {
         expect($('link[data-percy-adopted-stylesheets-serialized]')[0].getAttribute('media')).toBe('print');
       });
 
+      it('skips disabled adopted sheets when JS is enabled', () => {
+        if (platform !== 'plain') {
+          return;
+        }
+        withExample('<div>AdoptedStyle</div>', { withShadow: false });
+        const active = new window.CSSStyleSheet();
+        active.replaceSync('div { color: red; }');
+        const disabled = new window.CSSStyleSheet();
+        disabled.replaceSync('div { color: blue; }');
+        disabled.disabled = true;
+        dom.adoptedStyleSheets = [active, disabled];
+        let capture;
+        try {
+          capture = serializeDOM({ enableJavaScript: true });
+        } finally {
+          dom.adoptedStyleSheets = [];
+        }
+        expect(capture.resources.map(r => r.content)).toEqual(['div { color: red; }']);
+        expect(parseDOM(capture, 'plain')('link[data-percy-adopted-stylesheets-serialized]')).toHaveSize(1);
+      });
+
       it('does not fail a JS-enabled snapshot when adoptedStyleSheets throws', () => {
         if (platform !== 'plain') {
           return;

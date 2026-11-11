@@ -135,6 +135,8 @@ export function serializeAdoptedStyleSheets(ctx) {
     let prevLink = null;
 
     for (let sheet of dom.adoptedStyleSheets) {
+      // a disabled sheet doesn't apply on the live page, so it must not apply in the render
+      if (sheet.disabled) continue;
       const styleLink = document.createElement('link');
       styleLink.setAttribute('rel', 'stylesheet');
 
