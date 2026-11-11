@@ -1,6 +1,12 @@
 import { resourceFromText, styleSheetFromNode, handleErrors } from './utils';
 import { uid } from './prepare-dom';
 
+// Where serialized stylesheet links go in a cloned document or fragment: the body, or the head
+// for a document without one (e.g. a frameset); a fragment has neither, so the fragment itself.
+function linkContainer(clone) {
+  return clone.body || clone.head || clone;
+}
+
 // Returns true if a stylesheet is a CSSOM-based stylesheet.
 function isCSSOM(styleSheet) {
   // no href, has a rulesheet, and has an owner node
@@ -99,8 +105,8 @@ export function serializeCSSOM(ctx) {
 
           /* istanbul ignore next: tested, but coverage is stripped */
           if (clone.constructor.name === 'HTMLDocument' || clone.constructor.name === 'DocumentFragment') {
-            // handle document and iframe; a fragment or frameset document has no clone.body
-            (clone.body || clone.documentElement || clone).prepend(styleLink);
+            // handle document and iframe
+            linkContainer(clone).prepend(styleLink);
           } else if (clone.constructor.name === 'ShadowRoot') {
             clone.prepend(styleLink);
           }
@@ -142,8 +148,7 @@ export function serializeAdoptedStyleSheets(ctx) {
         // handle document and iframe
         // We are checking if we have multiple stylesheets present for the same clone or clone.body then we add
         // them in the same order in which we receive them.
-        // a document fragment, or a document without a <body> (e.g. a frameset), has no clone.body
-        const container = clone.body || clone.documentElement || clone;
+        const container = linkContainer(clone);
         const lastLink = container.querySelector('link[data-percy-adopted-stylesheets-serialized]:last-of-type');
         if (lastLink) {
           lastLink.after(styleLink);

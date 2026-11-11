@@ -45,8 +45,13 @@ function serializeElements(ctx) {
     serializeCSSOM(ctx);
     serializeCanvas(ctx);
   } else {
-    // adopted stylesheets exist only in memory, so they must be captured even with JS enabled
-    serializeAdoptedStyleSheets(ctx);
+    // adopted stylesheets exist only in memory, so they must be captured even with JS enabled.
+    // This path is new for JS-enabled pages, so a failure here must not fail the snapshot.
+    try {
+      serializeAdoptedStyleSheets(ctx);
+    } catch (err) {
+      ctx.warnings.add(`Skipping \`adoptedStyleSheets\`: ${err.message}`);
+    }
   }
   // Only process shadow hosts if forceShadowAsLightDOM is not enabled
   if (!ctx.forceShadowAsLightDOM) {

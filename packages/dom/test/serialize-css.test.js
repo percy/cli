@@ -174,7 +174,27 @@ describe('serializeCSSOM', () => {
           mimetype: 'text/css'
         }]);
         expect($('[data-percy-cssom-serialized]')).toHaveSize(0);
-        expect($('body')[0].innerHTML).toMatch(`<link rel="stylesheet" data-percy-adopted-stylesheets-serialized="true" href="${capture.resources[0].url}">`);
+        expect($('body')[0].innerHTML).toContain(`<link rel="stylesheet" data-percy-adopted-stylesheets-serialized="true" href="${capture.resources[0].url}">`);
+      });
+
+      it('does not fail a JS-enabled snapshot when adoptedStyleSheets throws', () => {
+        if (platform !== 'plain') {
+          return;
+        }
+        withExample('<div>AdoptedStyle</div>', { withShadow: false });
+        Object.defineProperty(dom, 'adoptedStyleSheets', {
+          configurable: true,
+          get() { throw new Error('adopted boom'); }
+        });
+        let capture;
+        try {
+          capture = serializeDOM({ enableJavaScript: true });
+        } finally {
+          delete dom.adoptedStyleSheets;
+        }
+        expect(capture.html).toContain('AdoptedStyle');
+        expect(capture.resources).toEqual([]);
+        expect(capture.warnings).toContain('Skipping `adoptedStyleSheets`: adopted boom');
       });
 
       it('captures adoptedStylesheets in shadow roots when JS is enabled', () => {
