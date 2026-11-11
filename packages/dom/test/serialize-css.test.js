@@ -156,6 +156,8 @@ describe('serializeCSSOM', () => {
           return;
         }
         withExample('<div>AdoptedStyle</div>', { withShadow: false });
+        // a CSSOM-only rule, which must still be left to the page's JS
+        withCSSOM('div { color: red; }', () => {}, { withShadow: false });
         const sheet = new window.CSSStyleSheet();
         sheet.replaceSync('div { background: blue; }');
         dom.adoptedStyleSheets = [sheet];
@@ -166,6 +168,12 @@ describe('serializeCSSOM', () => {
           dom.adoptedStyleSheets = [];
         }
         let $ = parseDOM(capture, 'plain');
+        expect(capture.resources).toEqual([{
+          url: jasmine.stringMatching('\\.css$'),
+          content: 'div { background: blue; }',
+          mimetype: 'text/css'
+        }]);
+        expect($('[data-percy-cssom-serialized]')).toHaveSize(0);
         expect($('body')[0].innerHTML).toMatch(`<link rel="stylesheet" data-percy-adopted-stylesheets-serialized="true" href="${capture.resources[0].url}">`);
       });
 

@@ -99,8 +99,8 @@ export function serializeCSSOM(ctx) {
 
           /* istanbul ignore next: tested, but coverage is stripped */
           if (clone.constructor.name === 'HTMLDocument' || clone.constructor.name === 'DocumentFragment') {
-            // handle document and iframe
-            clone.body.prepend(styleLink);
+            // handle document and iframe; a fragment or frameset document has no clone.body
+            (clone.body || clone.documentElement || clone).prepend(styleLink);
           } else if (clone.constructor.name === 'ShadowRoot') {
             clone.prepend(styleLink);
           }
@@ -159,8 +159,7 @@ export function serializeAdoptedStyleSheets(ctx) {
         }
       }
     }
-  } else if (!ctx.enableJavaScript) {
-    // with JS enabled this runs for every document and shadow root, so stay quiet there
+  } else {
     warnings.add('Skipping `adoptedStyleSheets` as it is not supported.');
   }
 }
