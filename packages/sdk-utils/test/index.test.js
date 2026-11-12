@@ -787,10 +787,18 @@ describe('SDK Utils', () => {
     describe('isUnsupportedIframeSrc(src)', () => {
       it('exposes the canonical scheme prefix list', () => {
         expect(UNSUPPORTED_IFRAME_SRCS).toEqual([
-          'about:', 'chrome:', 'chrome-extension:', 'devtools:', 'edge:',
+          'about:', 'chrome:', 'chrome-error:', 'chrome-extension:', 'devtools:', 'edge:',
           'opera:', 'view-source:', 'data:', 'javascript:', 'blob:',
           'vbscript:', 'file:', 'ws:', 'wss:', 'ftp:'
         ]);
+      });
+
+      it("skips Chromium's error page for a frame that failed to load", () => {
+        // Chrome/Edge give a failed frame's document this URL; Firefox gives
+        // about:neterror, which 'about:' already covers.
+        expect(isUnsupportedIframeSrc('chrome-error://chromewebdata/')).toBe(true);
+        expect(isUnsupportedIframeSrc('CHROME-ERROR://chromewebdata/')).toBe(true);
+        expect(isUnsupportedIframeSrc('about:neterror?e=connectionFailure')).toBe(true);
       });
 
       it('treats a missing/empty src as unsupported', () => {
