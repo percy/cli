@@ -3,7 +3,7 @@ import http from 'http';
 import net from 'net';
 import tls from 'tls';
 import { URL } from 'url';
-import { dropDistrustedRoots } from '@percy/client/utils';
+import { dropDistrustedRoots, flattenAggregateError } from '@percy/client/utils';
 
 // probes send PERCY_TOKEN before any other module may have loaded the client utils
 dropDistrustedRoots();
@@ -64,11 +64,14 @@ export class HttpProber {
       result.latencyMs = Date.now() - start;
       return result;
     } catch (err) {
+      // Node >=20 fails a dual-stack connect with an AggregateError: empty
+      // message, and the first address's code even when a later one was refused
+      const error = flattenAggregateError(err);
       return {
         ok: false,
         status: 0,
-        error: err.message,
-        errorCode: /* istanbul ignore next */ err.code ?? 'UNKNOWN',
+        error: error.message,
+        errorCode: /* istanbul ignore next */ error.code ?? 'UNKNOWN',
         latencyMs: Date.now() - start
       };
     }

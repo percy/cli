@@ -8,7 +8,9 @@ function cleanup {
 }
 
 brew install gnu-sed
-npm install -g pkg
+# vercel/pkg is archived and cannot build node20. Pinned to 6.19.0: later
+# versions use pkg-fetch 3.6+, which ships no node20 prebuilt.
+npm install -g @yao-pkg/pkg@6.19.0
 
 yarn install
 yarn build
@@ -53,12 +55,16 @@ cp -R ./build/* packages/
 # Create executables. (No `-d`/`--debug`: it only adds per-file "included as
 # DISCLOSED code / asset content" logging — thousands of lines — without
 # changing the output binaries.)
-pkg ./packages/cli/bin/run.js
+# Targets are explicit: pkg otherwise follows the HOST arch, silently shipping
+# arm64 binaries to x64 customers. `node20` must stay a range, not an exact patch.
+pkg ./packages/cli/bin/run.js \
+  --targets node20-linux-x64,node20-macos-x64,node20-win-x64
 
-# Rename executables
-mv run-linux percy && chmod +x percy
-mv run-macos percy-osx && chmod +x percy-osx
-mv run-win.exe percy.exe && chmod +x percy.exe
+# Rename executables. Match by prefix: pkg appends `-<arch>` when it differs
+# from the host.
+mv "$(ls run-linux* | head -1)" percy && chmod +x percy
+mv "$(ls run-macos* | head -1)" percy-osx && chmod +x percy-osx
+mv "$(ls run-win*.exe | head -1)" percy.exe && chmod +x percy.exe
 
 # Sign, notarize and package the assets only when the Apple signing secrets are
 # present. Pull-request builds run without secrets: there we only want to prove

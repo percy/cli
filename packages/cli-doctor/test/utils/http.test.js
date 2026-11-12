@@ -8,6 +8,7 @@
  *   - SSL_ERROR_CODES: exported set membership
  */
 
+import http from 'http';
 import { httpProber, HttpProber } from '../../src/utils/http.js';
 import { createHttpServer, createProxyServer } from '../helpers.js';
 
@@ -150,6 +151,21 @@ describe('probeUrl — ECONNREFUSED', () => {
     expect(result.ok).toBe(false);
     expect(result.errorCode).toBe('ECONNREFUSED');
     expect(result.latencyMs).toBeGreaterThanOrEqual(0);
+  });
+
+  it('reports a dual-stack AggregateError by its refused address', async () => {
+    // Node >=20 shape: IPv6 unroutable, IPv4 refused; the aggregate copies the
+    // FIRST code and has an empty message
+    const error = new AggregateError([
+      Object.assign(new Error('connect ENETUNREACH ::1:1'), { code: 'ENETUNREACH' }),
+      Object.assign(new Error('connect ECONNREFUSED 127.0.0.1:1'), { code: 'ECONNREFUSED' })
+    ]);
+    error.code = 'ENETUNREACH';
+    spyOn(http, 'request').and.throwError(error);
+
+    const result = await httpProber.probeUrl('http://localhost:1/', { timeout: 3000 });
+    expect(result.errorCode).toBe('ECONNREFUSED');
+    expect(result.error).toBe('connect ECONNREFUSED 127.0.0.1:1');
   });
 });
 

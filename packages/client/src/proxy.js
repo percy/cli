@@ -4,6 +4,7 @@ import http from 'http';
 import https from 'https';
 import logger from '@percy/logger';
 import { stripQuotesAndSpaces } from '@percy/env/utils';
+import { flattenAggregateError } from './utils.js';
 import { PacProxyAgent } from 'pac-proxy-agent';
 
 /**
@@ -208,6 +209,9 @@ export class ProxyHttpsAgent extends https.Agent {
     let handleError = err => {
       if (failed) return;
       failed = true;
+      // a dual-stack proxy host fails with an AggregateError whose message is
+      // empty; restore it before the message checks below
+      err = flattenAggregateError(err);
       socket.destroy(err);
       logger('client:proxy').error(`Proxying request ${href(options)} failed: ${err}`);
 

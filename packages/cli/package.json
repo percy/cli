@@ -16,7 +16,7 @@
     "dist"
   ],
   "engines": {
-    "node": ">=14"
+    "node": ">=20"
   },
   "bin": {
     "percy": "./bin/run.cjs"
