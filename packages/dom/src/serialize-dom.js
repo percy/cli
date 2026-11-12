@@ -1,6 +1,6 @@
 import serializeInputs from './serialize-inputs';
 import serializeFrames from './serialize-frames';
-import serializeCSSOM from './serialize-cssom';
+import serializeCSSOM, { serializeAdoptedStyleSheets } from './serialize-cssom';
 import serializeCanvas from './serialize-canvas';
 import serializeVideos from './serialize-video';
 import { serializePseudoClasses, markPseudoClassElements, rewriteCustomStateCSS, cleanupInteractiveStateMarkers } from './serialize-pseudo-classes';
@@ -44,6 +44,14 @@ function serializeElements(ctx) {
   if (!ctx.enableJavaScript) {
     serializeCSSOM(ctx);
     serializeCanvas(ctx);
+  } else {
+    // adopted stylesheets exist only in memory, so they must be captured even with JS enabled.
+    // This path is new for JS-enabled pages, so a failure here must not fail the snapshot.
+    try {
+      serializeAdoptedStyleSheets(ctx);
+    } catch (err) {
+      ctx.warnings.add(`Error serializing \`adoptedStyleSheets\`, some may be missing: ${err.message}`);
+    }
   }
   // Only process shadow hosts if forceShadowAsLightDOM is not enabled
   if (!ctx.forceShadowAsLightDOM) {
