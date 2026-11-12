@@ -360,6 +360,7 @@ describe('Unit / Server', () => {
     });
 
     it('only accepts loopback peers by default', async () => {
+      expect(new Server().loopbackOnly).toBe(true);
       expect(server.loopbackOnly).toBe(true);
       await server.listen();
 
