@@ -86,6 +86,14 @@ be found at `http://localhost:5338/` or at the provided `port` number.
 By default the server only answers requests from the same machine and responds `403` to anything
 else. When your tests run in a different container or host than the Percy CLI, set
 `PERCY_SERVER_HOST` (for example `PERCY_SERVER_HOST=0.0.0.0`) to accept those connections.
+The API has no authentication and accepts snapshot options that run scripts in the snapshot
+browser, so this exposes it to every network that can reach the host. Only do this on an isolated
+container network or a firewalled interface.
+
+Requests must also be addressed to `localhost`, an IP address, the machine's hostname or
+`host.docker.internal`; other `Host` headers get a `403`, which blocks DNS rebinding from web pages.
+If you reach the server through another hostname, set `PERCY_SERVER_HOST` (for example
+`PERCY_SERVER_HOST=127.0.0.1`) to accept it.
 
 - GET `/percy/healthcheck` – Responds with information about the running instance
 - GET `/percy/dom.js` – Responds with the [`@percy/dom`](./packages/dom) library

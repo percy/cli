@@ -1,5 +1,6 @@
 import { fs, mockfs, logger } from '../helpers/index.js';
-import Server, { isLoopbackOrigin, isLoopbackAddress } from '../../src/server.js';
+import os from 'os';
+import Server, { isLoopbackOrigin, isLoopbackAddress, isLocalHostHeader } from '../../src/server.js';
 
 describe('Unit / Server', () => {
   let server;
@@ -378,7 +379,9 @@ describe('Unit / Server', () => {
       expect(logger.stderr).toEqual([
         '[percy] Rejected a request from 203.0.113.7: the Percy server only accepts ' +
         'connections from this machine by default. If your tests run on a different host or ' +
-        'container, set PERCY_SERVER_HOST=0.0.0.0 to accept them.'
+        'container, set PERCY_SERVER_HOST=0.0.0.0 to accept them. This exposes the ' +
+        'unauthenticated Percy API to every network that can reach this machine, so only ' +
+        'do it on an isolated container network or a firewalled interface.'
       ]);
     });
 
@@ -399,6 +402,74 @@ describe('Unit / Server', () => {
       await server.listen();
 
       await expectAsync(request('/test')).toBeResolvedTo('ok');
+    });
+  });
+
+  describe('isLocalHostHeader', () => {
+    it('accepts local names, IP literals and a missing header', () => {
+      expect(isLocalHostHeader('localhost:5338')).toBe(true);
+      expect(isLocalHostHeader('LOCALHOST')).toBe(true);
+      expect(isLocalHostHeader('localhost.:5338')).toBe(true);
+      expect(isLocalHostHeader('app.localhost:5338')).toBe(true);
+      expect(isLocalHostHeader('127.0.0.1:5338')).toBe(true);
+      expect(isLocalHostHeader('10.0.0.5')).toBe(true);
+      expect(isLocalHostHeader('[::1]:5338')).toBe(true);
+      expect(isLocalHostHeader('host.docker.internal:5338')).toBe(true);
+      expect(isLocalHostHeader(`${os.hostname()}:5338`)).toBe(true);
+      expect(isLocalHostHeader(undefined)).toBe(true);
+      expect(isLocalHostHeader('')).toBe(true);
+    });
+
+    it('rejects other hostnames', () => {
+      expect(isLocalHostHeader('attacker.example:5338')).toBe(false);
+      expect(isLocalHostHeader('localhost.attacker.example')).toBe(false);
+      expect(isLocalHostHeader('127.0.0.1.attacker.example')).toBe(false);
+      expect(isLocalHostHeader('bad host')).toBe(false);
+      expect(isLocalHostHeader(['localhost'])).toBe(false);
+    });
+  });
+
+  describe('Host header', () => {
+    beforeEach(async () => {
+      await logger.mock();
+      server.route('get', '/test', (req, res) => res.text('ok'));
+    });
+
+    afterEach(() => {
+      delete process.env.PERCY_SERVER_HOST;
+    });
+
+    function requestFor(host) {
+      return request('/test', { method: 'GET', headers: { host } }, true);
+    }
+
+    it('rejects loopback requests for a foreign hostname and warns once', async () => {
+      await server.listen();
+
+      let [body, res] = await requestFor('rebind.attacker.example:8000');
+      expect(res.statusCode).toEqual(403);
+      expect(body).toEqual({ success: false, error: 'Percy server only accepts requests for localhost' });
+      await requestFor('rebind.attacker.example:8000');
+
+      expect(logger.stderr).toEqual([
+        '[percy] Rejected a request for host "rebind.attacker.example:8000": the Percy server ' +
+        'only accepts requests addressed to localhost or an IP address by default. If you reach ' +
+        'it through another hostname, set PERCY_SERVER_HOST (for example ' +
+        'PERCY_SERVER_HOST=127.0.0.1) to accept it.'
+      ]);
+    });
+
+    it('accepts local hostnames', async () => {
+      await server.listen();
+      expect((await requestFor('localhost:8000'))[0]).toEqual('ok');
+      expect((await requestFor('host.docker.internal:8000'))[0]).toEqual('ok');
+      expect(logger.stderr).toEqual([]);
+    });
+
+    it('accepts any hostname when PERCY_SERVER_HOST is set', async () => {
+      process.env.PERCY_SERVER_HOST = '::';
+      await server.listen();
+      expect((await requestFor('percy.internal:8000'))[0]).toEqual('ok');
     });
   });
 
