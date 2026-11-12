@@ -151,6 +151,156 @@ describe('serializeCSSOM', () => {
         shadowEl.shadowRoot.adoptedStyleSheets = [];
       });
 
+      it('captures adoptedStylesheets inside document when JS is enabled', () => {
+        if (platform !== 'plain') {
+          return;
+        }
+        withExample('<div>AdoptedStyle</div>', { withShadow: false });
+        // a CSSOM-only rule, which must still be left to the page's JS
+        withCSSOM('div { color: red; }', () => {}, { withShadow: false });
+        const sheet = new window.CSSStyleSheet();
+        sheet.replaceSync('div { background: blue; }');
+        dom.adoptedStyleSheets = [sheet];
+        let capture;
+        try {
+          capture = serializeDOM({ enableJavaScript: true });
+        } finally {
+          dom.adoptedStyleSheets = [];
+        }
+        let $ = parseDOM(capture, 'plain');
+        expect(capture.resources).toEqual([{
+          url: jasmine.stringMatching('\\.css$'),
+          content: 'div { background: blue; }',
+          mimetype: 'text/css'
+        }]);
+        expect($('[data-percy-cssom-serialized]')).toHaveSize(0);
+        expect($('body')[0].innerHTML).toContain(`<link rel="stylesheet" data-percy-adopted-stylesheets-serialized="true" href="${capture.resources[0].url}">`);
+      });
+
+      it('keeps adopted sheet order when the body has other links and JS is enabled', () => {
+        if (platform !== 'plain') {
+          return;
+        }
+        withExample('<div>AdoptedStyle</div>', { withShadow: false });
+        // an authored <link> as a sibling of the serialized ones defeats a `:last-of-type` lookup
+        const authored = dom.createElement('link');
+        authored.rel = 'stylesheet';
+        authored.href = 'data:text/css,p{}';
+        dom.body.appendChild(authored);
+        const first = new window.CSSStyleSheet();
+        first.replaceSync('div { color: red; }');
+        const second = new window.CSSStyleSheet();
+        second.replaceSync('div { color: blue; }');
+        dom.adoptedStyleSheets = [first, second];
+        let capture;
+        try {
+          capture = serializeDOM({ enableJavaScript: true });
+        } finally {
+          dom.adoptedStyleSheets = [];
+          authored.remove();
+        }
+        let $ = parseDOM(capture, 'plain');
+        let hrefs = Array.from($('link[data-percy-adopted-stylesheets-serialized]')).map(l => l.getAttribute('href'));
+        let urlFor = css => capture.resources.find(r => r.content === css).url;
+        expect(hrefs).toEqual([urlFor('div { color: red; }'), urlFor('div { color: blue; }')]);
+      });
+
+      it('keeps an adopted sheet\'s media condition when JS is enabled', () => {
+        if (platform !== 'plain') {
+          return;
+        }
+        withExample('<div>AdoptedStyle</div>', { withShadow: false });
+        const sheet = new window.CSSStyleSheet({ media: 'print' });
+        sheet.replaceSync('div { color: red; }');
+        dom.adoptedStyleSheets = [sheet];
+        let capture;
+        try {
+          capture = serializeDOM({ enableJavaScript: true });
+        } finally {
+          dom.adoptedStyleSheets = [];
+        }
+        let $ = parseDOM(capture, 'plain');
+        expect($('link[data-percy-adopted-stylesheets-serialized]')[0].getAttribute('media')).toBe('print');
+      });
+
+      it('skips disabled adopted sheets when JS is enabled', () => {
+        if (platform !== 'plain') {
+          return;
+        }
+        withExample('<div>AdoptedStyle</div>', { withShadow: false });
+        const active = new window.CSSStyleSheet();
+        active.replaceSync('div { color: red; }');
+        const disabled = new window.CSSStyleSheet();
+        disabled.replaceSync('div { color: blue; }');
+        disabled.disabled = true;
+        dom.adoptedStyleSheets = [active, disabled];
+        let capture;
+        try {
+          capture = serializeDOM({ enableJavaScript: true });
+        } finally {
+          dom.adoptedStyleSheets = [];
+        }
+        expect(capture.resources.map(r => r.content)).toEqual(['div { color: red; }']);
+        expect(parseDOM(capture, 'plain')('link[data-percy-adopted-stylesheets-serialized]')).toHaveSize(1);
+      });
+
+      it('does not fail a JS-enabled snapshot when adoptedStyleSheets throws', () => {
+        if (platform !== 'plain') {
+          return;
+        }
+        withExample('<div>AdoptedStyle</div>', { withShadow: false });
+        Object.defineProperty(dom, 'adoptedStyleSheets', {
+          configurable: true,
+          get() { throw new Error('adopted boom'); }
+        });
+        let capture;
+        try {
+          capture = serializeDOM({ enableJavaScript: true });
+        } finally {
+          delete dom.adoptedStyleSheets;
+        }
+        expect(capture.html).toContain('AdoptedStyle');
+        expect(capture.resources).toEqual([]);
+        expect(capture.warnings).toContain('Error serializing `adoptedStyleSheets`, some may be missing: adopted boom');
+      });
+
+      it('captures adoptedStylesheets in shadow roots when JS is enabled', () => {
+        if (platform === 'plain') {
+          return;
+        }
+
+        withExample('<div id="box"></div>', { withShadow: false });
+        const box = document.querySelector('#box');
+        const sheet = new window.CSSStyleSheet();
+        const style = 'p { color: blue; }';
+        sheet.replaceSync(style);
+        const shadowEl = createShadowEl();
+        shadowEl.shadowRoot.adoptedStyleSheets = [sheet];
+        box.appendChild(shadowEl);
+
+        let capture;
+        try {
+          capture = serializeDOM({ enableJavaScript: true });
+        } finally {
+          shadowEl.shadowRoot.adoptedStyleSheets = [];
+        }
+        let $ = parseDOM(capture, 'plain');
+
+        expect(capture.resources).toEqual([{
+          url: jasmine.stringMatching('\\.css$'),
+          content: style,
+          mimetype: 'text/css'
+        }]);
+        expect($('#Percy-0')[0].innerHTML).toEqual([
+          '<template shadowrootmode="open" shadowrootserializable="">',
+          `<link rel="stylesheet" data-percy-adopted-stylesheets-serialized="true" href="${capture.resources[0].url}">`,
+          '<p>Percy-0</p>',
+          '</template>'
+        ].join(''));
+        // the rest of the CSSOM is still left to the page's JS
+        expect($('[data-percy-cssom-serialized]')).toHaveSize(0);
+      });
+
       it('uses single resource for same adoptedStylesheet', () => {
         if (platform === 'plain') {
           return;
