@@ -52,6 +52,11 @@
     }
   },
   "dependencies": {
-    "pac-proxy-agent": "^7.0.2"
+    "@tootallnate/quickjs-emscripten": "^0.23.0",
+    "agent-base": "^7.1.2",
+    "http-proxy-agent": "^7.0.0",
+    "https-proxy-agent": "^7.0.6",
+    "pac-resolver": "^7.0.1",
+    "socks-proxy-agent": "^8.0.5"
   }
 }

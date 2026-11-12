@@ -5,7 +5,6 @@ import { execFileSync } from 'child_process';
 import spawn from 'cross-spawn';
 import EventEmitter from 'events';
 import WebSocket from 'ws';
-import rimraf from 'rimraf';
 import logger from '@percy/logger';
 import install from './install.js';
 import { MAX_CDP_PAYLOAD } from './network.js';
@@ -190,10 +189,11 @@ export class Browser extends EventEmitter {
       /* istanbul ignore next:
        *   this might fail on some systems but ultimately it is just a temp file */
       if (this.profile) {
-        // attempt to clean up the profile directory
-        return new Promise((resolve, reject) => {
-          rimraf(this.profile, e => e ? reject(e) : resolve());
-        }).catch(error => {
+        // attempt to clean up the profile directory; fs.promises.rm arrived in Node 14.14
+        return Promise.resolve().then(() => fs.promises.rm
+          ? fs.promises.rm(this.profile, { recursive: true, force: true, maxRetries: 3 })
+          : fs.promises.rmdir(this.profile, { recursive: true, maxRetries: 3 })
+        ).catch(error => {
           this.log.debug('Could not clean up temporary browser profile directory.');
           this.log.debug(error);
         });

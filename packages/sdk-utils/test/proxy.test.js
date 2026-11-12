@@ -10,7 +10,7 @@ import {
   proxyAgentFor,
   createPacAgent
 } from '../src/proxy.js';
-import { PacProxyAgent } from 'pac-proxy-agent';
+import { PacProxyAgent } from '../src/pac-agent.js';
 import http from 'http';
 import https from 'https';
 import net from 'net';
@@ -860,6 +860,17 @@ describe('sdk-utils proxy', () => {
       expect(agent).toBeInstanceOf(PacProxyAgent);
       expect(logSpy).toHaveBeenCalledWith('sdk-utils:proxy', 'info', 'Using PAC file from: http://example.com/proxy.pac');
       expect(logSpy).toHaveBeenCalledWith('sdk-utils:proxy', 'info', 'Successfully loaded PAC file from: http://example.com/proxy.pac');
+    });
+
+    it('does not retry a PAC agent that failed to load, so logging the error cannot loop', () => {
+      process.env.PERCY_PAC_FILE_URL = 'ftp://example.com/proxy.pac';
+      const logSpy = spyOn(logger, 'log');
+
+      expect(() => proxyAgentFor('http://localhost:5338/percy/log'))
+        .toThrowError(/Unsupported PAC file protocol "ftp:"/);
+      // the error log is sent to the CLI through this same function, which now goes direct
+      expect(proxyAgentFor('http://localhost:5338/percy/log')).toBeNull();
+      expect(logSpy.calls.allArgs().filter(([, lvl]) => lvl === 'error').length).toEqual(2);
     });
 
     it('should have a cache property that is a Map', () => {

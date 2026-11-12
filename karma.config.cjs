@@ -39,6 +39,7 @@ module.exports = async config => {
     exclude: [
       '**/test/request.test.js',
       '**/test/proxy.test.js',
+      '**/test/pac-agent.test.js',
     ],
     proxies: {
       // useful when the contents of a fake asset do not matter

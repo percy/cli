@@ -1,5 +1,5 @@
 {
-  "generated": "2026-09-11T06:18:42.036Z",
+  "generated": "2026-10-15T11:45:18.818Z",
   "platform": "linux-x64",
   "browser": "Chrome/143.0.7499.0",
   "pdfs": {
@@ -12,8 +12,8 @@
           "page": 1,
           "width": 1191,
           "height": 1684,
-          "bytes": 461354,
-          "sha256": "0fb1414f82961173acbcb4acffd5b64da856ebb86ba3c4393aa7c7a63995841a"
+          "bytes": 461279,
+          "sha256": "d6307ee3b6aa26c7b0d51bbcc34ac4ec3172d83eed7e0064fe8e7bd375735762"
         }
       ]
     },
@@ -54,8 +54,8 @@
           "page": 1,
           "width": 1224,
           "height": 1584,
-          "bytes": 379684,
-          "sha256": "73de82e2d54dddca2e9219c8fe282ac372d4bd96347be5bd214902ac0109a7fd"
+          "bytes": 379630,
+          "sha256": "af6209757505407b8413b02124bcfdcdaf336575d9f2f9f9631be4a1144f80d2"
         }
       ]
     }

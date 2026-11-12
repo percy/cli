@@ -42,7 +42,15 @@
     "@percy/logger": "1.32.13-beta.1",
     "glob-to-regexp": "^0.4.1"
   },
-  "optionalDependencies": {
+  "peerDependencies": {
+    "snyk-nodejs-lockfile-parser": "^2.10.4"
+  },
+  "peerDependenciesMeta": {
+    "snyk-nodejs-lockfile-parser": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
     "snyk-nodejs-lockfile-parser": "2.10.4"
   }
 }

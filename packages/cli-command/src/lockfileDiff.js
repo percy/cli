@@ -1,10 +1,11 @@
 import { createRequire } from 'module';
 import logger from '@percy/logger';
 
-// snyk-nodejs-lockfile-parser is a CommonJS optionalDependency. It requires
-// Node >=20.19 while the CLI supports Node >=14, so we defer the require to call
-// time — that way importing this module never throws on older Node versions
-// (or when the optional install was skipped for any other reason). Cached on
+// snyk-nodejs-lockfile-parser is a CommonJS optional peer dependency: it requires
+// Node >=20.19 and pulls in deprecated lodash.* packages, so it is not installed
+// with the CLI. Projects that want IntelliStory lockfile diffing install it
+// themselves. We defer the require to call time so importing this module never
+// throws when it is missing or the Node version is too old. Cached on
 // first successful load so the require only resolves once per process.
 // Bound to a non-`require` name on purpose: when this ESM file is transpiled to
 // CommonJS for the packaged binary, naming it `require` collides with two Babel
@@ -23,7 +24,7 @@ function loadSnyk() {
     _snykModule = cjsRequire('snyk-nodejs-lockfile-parser');
     return _snykModule;
   } catch (e) {
-    const err = new Error(`snyk-nodejs-lockfile-parser is not available (requires Node >=20.19, or the optional install was skipped): ${e.message}`);
+    const err = new Error(`snyk-nodejs-lockfile-parser is not available (install snyk-nodejs-lockfile-parser@^2.10.4 on Node >=20.19 to enable lockfile diffing): ${e.message}`);
     err.code = 'SNYK_LOCKFILE_PARSER_UNAVAILABLE';
     throw err;
   }
