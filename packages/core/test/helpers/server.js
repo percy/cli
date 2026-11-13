@@ -2,7 +2,9 @@
 import Server from '../../dist/server.js';
 
 export function createTestServer({ default: defaultReply, ...replies }, port = 8000, options = {}) {
-  let server = new Server();
+  // An explicit host keeps the fixture out of the loopback-only peer and Host
+  // checks: discovery tests also use it as a forward proxy for other hostnames.
+  let server = new Server({ host: '::' });
 
   // alternate route handling
   let handleReply = (reply, options = {}) => async (req, res) => {
