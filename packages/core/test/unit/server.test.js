@@ -484,6 +484,19 @@ describe('Unit / Server', () => {
       expect(logger.stderr).toEqual([]);
     });
 
+    it('rejects a malformed Host header without crashing', async () => {
+      await server.listen();
+      let [body, res] = await requestFor('[');
+      expect(res.statusCode).toEqual(403);
+      expect(body).toEqual({ success: false, error: 'Percy server only accepts requests for localhost' });
+
+      process.env.PERCY_SERVER_HOST = '::';
+      [body, res] = await requestFor('[');
+      expect(res.statusCode).toEqual(400);
+      expect(body).toEqual({ success: false, error: 'Invalid Host header' });
+      expect((await requestFor('localhost:8000'))[0]).toEqual('ok');
+    });
+
     it('accepts any hostname when PERCY_SERVER_HOST is set', async () => {
       process.env.PERCY_SERVER_HOST = '::';
       await server.listen();
