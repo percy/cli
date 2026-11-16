@@ -386,6 +386,13 @@ describe('Unit / Server', () => {
       ]);
     });
 
+    it('rejects remote peers even when they address percy.cli', async () => {
+      await server.listen();
+      let [body, res] = await request('/test', { method: 'GET', headers: { host: 'percy.cli:5338' } }, true);
+      expect(res.statusCode).toEqual(403);
+      expect(body).toEqual({ success: false, error: 'Percy server only accepts local connections' });
+    });
+
     it('accepts remote peers when PERCY_SERVER_HOST is set', async () => {
       process.env.PERCY_SERVER_HOST = '::';
       expect(server.loopbackOnly).toBe(false);
@@ -416,6 +423,8 @@ describe('Unit / Server', () => {
       expect(isLocalHostHeader('10.0.0.5')).toBe(true);
       expect(isLocalHostHeader('[::1]:5338')).toBe(true);
       expect(isLocalHostHeader('host.docker.internal:5338')).toBe(true);
+      expect(isLocalHostHeader('percy.cli:5338')).toBe(true);
+      expect(isLocalHostHeader('Percy.CLI')).toBe(true);
       expect(isLocalHostHeader(`${os.hostname()}:5338`)).toBe(true);
       expect(isLocalHostHeader(undefined)).toBe(true);
       expect(isLocalHostHeader('')).toBe(true);
@@ -425,6 +434,7 @@ describe('Unit / Server', () => {
       expect(isLocalHostHeader('attacker.example:5338')).toBe(false);
       expect(isLocalHostHeader('localhost.attacker.example')).toBe(false);
       expect(isLocalHostHeader('127.0.0.1.attacker.example')).toBe(false);
+      expect(isLocalHostHeader('percy.cli.attacker.example')).toBe(false);
       expect(isLocalHostHeader('bad host')).toBe(false);
       expect(isLocalHostHeader(['localhost'])).toBe(false);
     });
@@ -464,6 +474,13 @@ describe('Unit / Server', () => {
       await server.listen();
       expect((await requestFor('localhost:8000'))[0]).toEqual('ok');
       expect((await requestFor('host.docker.internal:8000'))[0]).toEqual('ok');
+      expect(logger.stderr).toEqual([]);
+    });
+
+    it('accepts the App Percy device hostname from a loopback peer', async () => {
+      await server.listen();
+      expect((await requestFor('percy.cli:5338'))[0]).toEqual('ok');
+      expect((await requestFor('percy.cli'))[0]).toEqual('ok');
       expect(logger.stderr).toEqual([]);
     });
 

@@ -90,8 +90,9 @@ The API has no authentication and accepts snapshot options that run scripts in t
 browser, so this exposes it to every network that can reach the host. Only do this on an isolated
 container network or a firewalled interface.
 
-Requests must also be addressed to `localhost`, an IP address, the machine's hostname or
-`host.docker.internal`; other `Host` headers get a `403`, which blocks DNS rebinding from web pages.
+Requests must also be addressed to `localhost`, an IP address, the machine's hostname,
+`host.docker.internal` or `percy.cli` (used by the on-device App Percy SDKs); other `Host` headers
+get a `403`, which blocks DNS rebinding from web pages.
 If you reach the server through another hostname, set `PERCY_SERVER_HOST` (for example
 `PERCY_SERVER_HOST=127.0.0.1`) to accept it.
 

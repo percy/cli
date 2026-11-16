@@ -41,7 +41,11 @@ export function isLoopbackAddress(address) {
 // Hostnames other than `localhost` that may legitimately name this machine.
 // Docker Desktop forwards container traffic for these names from a loopback
 // peer, and a web page cannot make a browser send them as its Host.
-const LOCAL_HOSTNAMES = ['host.docker.internal', 'gateway.docker.internal'];
+// `percy.cli` is the fixed address the on-device App Percy SDKs (Espresso,
+// XCUI, Maestro) call; the device proxy on the host forwards it to the CLI
+// over loopback. `.cli` is not a public TLD, so it cannot be used for DNS
+// rebinding either.
+const LOCAL_HOSTNAMES = ['host.docker.internal', 'gateway.docker.internal', 'percy.cli'];
 
 // Returns true when a Host header names this machine rather than a domain an
 // arbitrary website controls. DNS rebinding points an attacker's domain at
