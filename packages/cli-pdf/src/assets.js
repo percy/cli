@@ -24,6 +24,7 @@ function resolvePdfjsRoot() {
   }
 }
 
+/* istanbul ignore next: unreachable on Node 14 for the same reason as above */
 export function pdfjsAssets() {
   let root = resolvePdfjsRoot();
   let buildDir = path.join(root, 'legacy/build');

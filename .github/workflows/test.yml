@@ -159,8 +159,8 @@ jobs:
   # Suites whose optionalDependencies need a newer Node than the Node 14 matrix
   # above, where those specs are xdescribe'd / bail:
   # - @percy/cli-command: snyk-nodejs-lockfile-parser (Node >=18). See PPLT-5844.
-  # - @percy/cli-pdf, @percy/core, @percy/sdk-utils: pdfjs-dist (Node >=20),
-  #   the only legs that actually rasterize PDFs. See PPLT-6120.
+  # - @percy/cli-pdf, @percy/core: pdfjs-dist (Node >=20), the only legs that
+  #   actually rasterize PDFs. See PPLT-6120.
   test-node20:
     name: Test ${{ matrix.package }} (Node ${{ matrix.node }})
     # Skip only for the automated release PR (see the build job for rationale).
@@ -178,7 +178,6 @@ jobs:
           - '@percy/cli-command'
           - '@percy/cli-pdf'
           - '@percy/core'
-          - '@percy/sdk-utils'
     runs-on: ${{ matrix.os }}
     # Collect failed node-test spec names so retries re-run only the specs that
     # flaked instead of the whole suite. Non-PERCY_ name so it doesn't trip
