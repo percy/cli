@@ -212,6 +212,13 @@ jobs:
           name: dist
           path: packages
       - run: yarn
+      # pdfjs-dist is optional, so a failed install doesn't fail `yarn` -- it only
+      # turns every PDF spec into a skip. These are the sole rasterization legs,
+      # so require it here. Resolved from @percy/cli-pdf, like assets.js does.
+      - name: Require pdfjs-dist
+        if: ${{ matrix.package != '@percy/cli-command' }}
+        run: |
+          node -e "require.resolve('pdfjs-dist/package.json', { paths: ['packages/cli-pdf'] })"
       - name: Install browser dependencies
         run: |
           sudo apt-get update
@@ -358,6 +365,12 @@ jobs:
           name: dist
           path: packages
       - run: yarn
+      # pdfjs-dist is optional, so a failed install doesn't fail `yarn` -- it only
+      # turns every PDF spec into a skip. These are the sole rasterization legs,
+      # so require it here. Resolved from @percy/cli-pdf, like assets.js does.
+      - name: Require pdfjs-dist
+        run: |
+          node -e "require.resolve('pdfjs-dist/package.json', { paths: ['packages/cli-pdf'] })"
       - name: Install browser dependencies
         run: |
           sudo apt-get update
