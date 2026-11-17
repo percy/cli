@@ -74,12 +74,13 @@ export class IncomingMessage extends http.IncomingMessage {
     let buffer = [];
 
     super(socket).on('data', d => buffer.push(d)).on('end', () => {
-      // a malformed Host header must not throw here, before any request checks run
+      // a malformed Host header or request target must not throw here, before any request checks
+      // run; a fixed placeholder is used and the request is rejected after the peer and Host checks
       try {
         this.url = new URL(this.url, `http://${this.headers.host}`);
       } catch {
-        this.url = new URL(this.url, 'http://localhost');
-        this.invalidHost = true;
+        this.url = new URL('http://localhost/');
+        this.invalidUrl = true;
       }
 
       if (buffer.length) this.body = Buffer.concat(buffer);
@@ -433,8 +434,8 @@ export class Server extends http.Server {
       return res.json(403, { success: false, error: 'Percy server only accepts requests for localhost' });
     }
 
-    if (req.invalidHost) {
-      return res.json(400, { success: false, error: 'Invalid Host header' });
+    if (req.invalidUrl) {
+      return res.json(400, { success: false, error: 'Invalid Host header or request target' });
     }
 
     try {

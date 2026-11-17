@@ -1,5 +1,6 @@
 import { fs, mockfs, logger } from '../helpers/index.js';
 import os from 'os';
+import net from 'net';
 import Server, { isLoopbackOrigin, isLoopbackAddress, isLocalHostHeader } from '../../src/server.js';
 
 describe('Unit / Server', () => {
@@ -493,7 +494,25 @@ describe('Unit / Server', () => {
       process.env.PERCY_SERVER_HOST = '::';
       [body, res] = await requestFor('[');
       expect(res.statusCode).toEqual(400);
-      expect(body).toEqual({ success: false, error: 'Invalid Host header' });
+      expect(body).toEqual({ success: false, error: 'Invalid Host header or request target' });
+      expect((await requestFor('localhost:8000'))[0]).toEqual('ok');
+    });
+
+    it('rejects a malformed request target without crashing', async () => {
+      await server.listen();
+
+      let raw = await new Promise((resolve, reject) => {
+        let data = '';
+        let socket = net.connect(server.port, 'localhost', () => {
+          socket.end('GET http://[ HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n');
+        });
+        socket.on('data', d => (data += d));
+        socket.on('end', () => resolve(data));
+        socket.on('error', reject);
+      });
+
+      expect(raw).toMatch(/^HTTP\/1\.1 400 /);
+      expect(raw).toContain('{"success":false,"error":"Invalid Host header or request target"}');
       expect((await requestFor('localhost:8000'))[0]).toEqual('ok');
     });
 
