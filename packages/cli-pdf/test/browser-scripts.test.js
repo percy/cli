@@ -1,7 +1,7 @@
 import {
   fitScale, assertRasterDimensions,
   MIN_DIMENSION, MAX_DIMENSION, DEFAULT_SCALE, MAX_SCALE,
-  openDocument, measurePages, renderPage, destroyDocument
+  loadLibrary, openDocument, measurePages, renderPage, destroyDocument
 } from '../src/browser-scripts.js';
 
 describe('@percy/cli-pdf browser scripts', () => {
@@ -41,7 +41,7 @@ describe('@percy/cli-pdf browser scripts', () => {
   // real logic in Node -- the fetch URLs pdf.js is handed, the white pre-fill,
   // and the page-handle cleanup -- rather than leaving it to an integration run.
   describe('page-context scripts', () => {
-    let doc, pages, renderCalls, createdCanvases;
+    let doc, pages, renderCalls, createdCanvases, appendedScripts;
 
     function fakePage(pageNumber, { width = 612, height = 792, renderError } = {}) {
       let page = {
@@ -61,6 +61,7 @@ describe('@percy/cli-pdf browser scripts', () => {
       pages = new Map();
       renderCalls = [];
       createdCanvases = [];
+      appendedScripts = [];
 
       doc = {
         numPages,
@@ -73,9 +74,12 @@ describe('@percy/cli-pdf browser scripts', () => {
         destroy: async () => { doc.destroyed = true; }
       };
 
-      global.window = lib === null ? {} : { 'pdfjs-dist/build/pdf': lib || stubLib() };
+      global.window = lib === null ? {} : { pdfjsLib: lib || stubLib() };
       global.document = {
+        head: { appendChild: (node) => appendedScripts.push(node) },
         createElement: (tag) => {
+          if (tag === 'script') return { tag };
+
           let canvas = {
             tag,
             width: 0,
@@ -110,16 +114,75 @@ describe('@percy/cli-pdf browser scripts', () => {
       delete global.document;
     });
 
+    // Stands in for the browser executing the inline module the script element
+    // carries -- there is no module loader behind the `document` stub.
+    function runAppendedScript(script, { fail } = {}) {
+      if (fail) return script.onerror();
+      global.window.pdfjsLib = stubLib();
+      global.window.__percyPdfLoad.resolve();
+    }
+
+    describe('loadLibrary', () => {
+      it('imports the served pdf.js module onto the window', async () => {
+        stubPageGlobals({ lib: null });
+
+        let loading = loadLibrary(null, {
+          origin: 'http://localhost:9999',
+          libFile: 'pdf.mjs'
+        });
+
+        expect(appendedScripts.length).toBe(1);
+        let [script] = appendedScripts;
+        expect(script.type).toBe('module');
+        expect(script.textContent)
+          .toContain("import * as lib from 'http://localhost:9999/pdfjs/pdf.mjs'");
+
+        runAppendedScript(script);
+
+        await expectAsync(loading).toBeResolvedTo(true);
+        expect(global.window.pdfjsLib).toBeDefined();
+        expect(global.window.__percyPdfLoad).toBeUndefined();
+      });
+
+      it('rejects when the module never loads', async () => {
+        stubPageGlobals({ lib: null });
+
+        let loading = loadLibrary(null, {
+          origin: 'http://localhost:1',
+          libFile: 'pdf.mjs'
+        });
+
+        runAppendedScript(appendedScripts[0], { fail: true });
+
+        await expectAsync(loading)
+          .toBeRejectedWithError('pdf.js failed to load in the page');
+        expect(global.window.__percyPdfLoad).toBeUndefined();
+      });
+
+      it('does not re-import an already loaded library', async () => {
+        stubPageGlobals();
+
+        await expectAsync(loadLibrary(null, {
+          origin: 'http://localhost:2',
+          libFile: 'pdf.mjs'
+        })).toBeResolvedTo(true);
+
+        expect(appendedScripts.length).toBe(0);
+      });
+    });
+
     describe('openDocument', () => {
       it('points pdf.js at the served worker, document, fonts and cmaps', async () => {
         stubPageGlobals({ numPages: 4 });
-        let lib = global.window['pdfjs-dist/build/pdf'];
+        let lib = global.window.pdfjsLib;
 
-        await expectAsync(openDocument(null, { origin: 'http://localhost:9999' }))
-          .toBeResolvedTo({ pageCount: 4 });
+        await expectAsync(openDocument(null, {
+          origin: 'http://localhost:9999',
+          workerFile: 'pdf.worker.mjs'
+        })).toBeResolvedTo({ pageCount: 4 });
 
         expect(lib.GlobalWorkerOptions.workerSrc)
-          .toBe('http://localhost:9999/pdfjs/pdf.worker.js');
+          .toBe('http://localhost:9999/pdfjs/pdf.worker.mjs');
 
         let [options] = lib.getDocumentCalls;
         expect(options.url).toBe('http://localhost:9999/doc.pdf');
@@ -135,16 +198,6 @@ describe('@percy/cli-pdf browser scripts', () => {
         await openDocument(null, { origin: 'http://localhost:1' });
 
         expect(global.window.__percyPdf.doc).toBe(doc);
-      });
-
-      it('falls back to the window.pdfjsLib global', async () => {
-        stubPageGlobals({ lib: null });
-        let lib = stubLib();
-        global.window.pdfjsLib = lib;
-
-        await expectAsync(openDocument(null, { origin: 'http://localhost:2' }))
-          .toBeResolvedTo({ pageCount: 3 });
-        expect(lib.getDocumentCalls.length).toBe(1);
       });
 
       it('throws when pdf.js did not initialise', async () => {

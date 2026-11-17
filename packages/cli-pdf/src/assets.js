@@ -26,13 +26,17 @@ function resolvePdfjsRoot() {
 
 export function pdfjsAssets() {
   let root = resolvePdfjsRoot();
+  let buildDir = path.join(root, 'legacy/build');
 
   return {
     root,
-    buildDir: path.join(root, 'legacy/build'),
+    buildDir,
     standardFontsDir: path.join(root, 'standard_fonts'),
     cmapsDir: path.join(root, 'cmaps'),
-    libPath: path.join(root, 'legacy/build/pdf.js'),
-    workerFile: 'pdf.worker.js'
+    // v4 ships ESM only, so the library and worker are imported as modules over
+    // the asset server rather than read off disk and eval'd (see loadLibrary).
+    libFile: 'pdf.mjs',
+    libPath: path.join(buildDir, 'pdf.mjs'),
+    workerFile: 'pdf.worker.mjs'
   };
 }
