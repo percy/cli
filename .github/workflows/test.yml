@@ -156,11 +156,12 @@ jobs:
         if: steps.retry0.outcome=='failure'
         run: echo "::warning title=Flaky tests::${{ matrix.package }} flaked on the first attempt and was recovered by a spec-level retry (tracked in PER-9011)."
 
-  # The Snyk-backed lockfile-diff path (resolveAffectedDeps in
-  # packages/cli-command/src/lockfileDiff.js) and its IntelliStory callers
-  # require snyk-nodejs-lockfile-parser, which needs Node >=18. On the Node 14
-  # matrix above those tests are xdescribe'd / bail, so this leg runs the
-  # @percy/cli-command suite on Node 20 to exercise that code in CI. See PPLT-5844.
+  # Suites whose optionalDependencies need a newer Node than the Node 14 matrix
+  # above, where those specs are xdescribe'd / bail:
+  # - @percy/cli-command: snyk-nodejs-lockfile-parser (Node >=18). See PPLT-5844.
+  # - @percy/cli-pdf, @percy/core: pdfjs-dist (Node >=20), the only legs that
+  #   actually rasterize PDFs. See PPLT-6120. core runs only its PDF specs, with
+  #   no coverage gate: the rest of its suite isn't Node 20 clean yet.
   test-node20:
     name: Test ${{ matrix.package }} (Node ${{ matrix.node }})
     # Skip only for the automated release PR (see the build job for rationale).
@@ -176,12 +177,18 @@ jobs:
         node: [20]
         package:
           - '@percy/cli-command'
+          - '@percy/cli-pdf'
+          - '@percy/core'
+        include:
+          - package: '@percy/core'
+            specs: 'pdf-*.test.js,unit/pdf-*.test.js'
     runs-on: ${{ matrix.os }}
     # Collect failed node-test spec names so retries re-run only the specs that
     # flaked instead of the whole suite. Non-PERCY_ name so it doesn't trip
     # cli-doctor's env-audit tests. See PER-9011.
     env:
       CLI_TEST_FAILURES_FILE: ${{ github.workspace }}/.cli-test-failures.json
+      CLI_TEST_SPEC_FILES: ${{ matrix.specs }}
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
       - uses: actions/setup-node@3235b876344d2a9aa001b8d1453c930bba69e610 # v3.9.1
@@ -205,6 +212,13 @@ jobs:
           name: dist
           path: packages
       - run: yarn
+      # pdfjs-dist is optional, so a failed install doesn't fail `yarn` -- it only
+      # turns every PDF spec into a skip. These are the sole rasterization legs,
+      # so require it here. Resolved from @percy/cli-pdf, like assets.js does.
+      - name: Require pdfjs-dist
+        if: ${{ matrix.package != '@percy/cli-command' }}
+        run: |
+          node -e "require.resolve('pdfjs-dist/package.json', { paths: ['packages/cli-pdf'] })"
       - name: Install browser dependencies
         run: |
           sudo apt-get update
@@ -215,7 +229,7 @@ jobs:
       - name: Run tests
         continue-on-error: true
         id: retry0
-        run: yarn workspace ${{ matrix.package }} test:coverage --colors
+        run: yarn workspace ${{ matrix.package }} ${{ matrix.specs && 'test' || 'test:coverage' }} --colors
       # Retries re-run ONLY the specs that failed in the previous attempt, and
       # WITHOUT coverage (a subset can't hit the 100% threshold). If retry0
       # failed with no recorded spec failures (e.g. a real coverage drop), the
@@ -303,15 +317,6 @@ jobs:
         run: yarn test:regression:config
       - name: Run functional discovery tests (token-free)
         run: yarn test:regression:functional
-      # Compares rendered PDF pages byte-for-byte against the linux-x64
-      # goldens. PNG bytes are only reproducible for one platform + Chromium
-      # build (Percy pins a different Chromium snapshot per platform, and glyph
-      # rasterization goes through CoreText on macOS vs FreeType on Linux), so
-      # these goldens were generated on this runner and only this job asserts on
-      # them. Regenerate after a Chromium bump by re-running this step with
-      # UPDATE_PDF_GOLDENS=1 and committing the result.
-      - name: Run PDF rasterization byte tests (token-free)
-        run: yarn test:regression:pdf
       # Visual track runs last and is the ONLY step that creates a Percy build,
       # so the PR's single build carries all visual snapshots (no stray build
       # superseding it on the same commit).
@@ -319,3 +324,70 @@ jobs:
         run: yarn test:regression
         env:
           PERCY_TOKEN: ${{ secrets.PERCY_REGRESSION_TOKEN }}
+
+  # Compares rendered PDF pages byte-for-byte against the linux-x64 goldens. PNG
+  # bytes are only reproducible for one platform + Chromium build (Percy pins a
+  # different Chromium snapshot per platform, and glyph rasterization goes
+  # through CoreText on macOS vs FreeType on Linux), so the goldens are generated
+  # on this runner and only this job asserts on them. Split from the Node 14
+  # regression job because pdfjs-dist needs Node >=20 (PPLT-6120).
+  regression-pdf:
+    name: Regression PDF (Node 20)
+    # Skip only for the automated release PR (see the build job for rationale).
+    if: >-
+      ${{ !(github.event_name == 'pull_request'
+      && github.event.pull_request.user.login == 'github-actions[bot]'
+      && github.event.pull_request.head.repo.full_name == github.repository
+      && startsWith(github.head_ref, 'release/')) }}
+    needs: [build]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - uses: actions/setup-node@3235b876344d2a9aa001b8d1453c930bba69e610 # v3.9.1
+        with:
+          node-version: 20
+      - uses: actions/cache@f4b3439a656ba812b8cb417d2d49f9c810103092 # v3.4.0
+        with:
+          path: |
+            node_modules
+            packages/*/node_modules
+            packages/core/.local-chromium
+          key: >
+            ${{ runner.os }}/node-20/
+            ${{ hashFiles('.github/.cache-key') }}/
+            ${{ hashFiles('**/yarn.lock') }}
+          restore-keys: >
+            ${{ runner.os }}/node-20/
+            ${{ hashFiles('.github/.cache-key') }}/
+      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
+        with:
+          name: dist
+          path: packages
+      - run: yarn
+      # pdfjs-dist is optional, so a failed install doesn't fail `yarn` -- it only
+      # turns every PDF spec into a skip. These are the sole rasterization legs,
+      # so require it here. Resolved from @percy/cli-pdf, like assets.js does.
+      - name: Require pdfjs-dist
+        run: |
+          node -e "require.resolve('pdfjs-dist/package.json', { paths: ['packages/cli-pdf'] })"
+      - name: Install browser dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --fix-missing libgbm-dev
+      - name: Run PDF rasterization byte tests (token-free)
+        id: pdf
+        run: yarn test:regression:pdf
+      # A pdf.js or Chromium bump legitimately changes the bytes, and the goldens
+      # can only be produced on this runner -- so on a mismatch, regenerate them
+      # here and publish them for review and commit.
+      - name: Regenerate PDF goldens
+        if: failure() && steps.pdf.outcome == 'failure'
+        run: yarn test:regression:pdf
+        env:
+          UPDATE_PDF_GOLDENS: '1'
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: failure() && steps.pdf.outcome == 'failure'
+        with:
+          name: pdf-goldens-linux-x64
+          path: test/regression/assets/pdfs/expected/linux-x64
