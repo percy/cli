@@ -42,7 +42,7 @@
     "@percy/env": "1.33.1",
     "@percy/logger": "1.33.1",
     "@percy/monitoring": "1.33.1",
-    "minimatch": "^9.0.0",
+    "minimatch": "^11.0.1",
     "ws": "^8.17.1"
   }
 }
