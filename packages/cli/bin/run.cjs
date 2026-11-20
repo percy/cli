@@ -8,10 +8,10 @@ if (parseInt(process.version.split('.')[0].substring(1), 10) < 14) {
   process.exit(1);
 }
 
-// heads up ahead of the next major release, which raises the minimum to Node 20
-console.warn('Heads up! The next major version of @percy/cli will require Node 20+. ' + (
-  'Either pin @percy/cli to its current major version, or make sure your setup runs ' +
-  'on Node 20+, before the next major release.'));
+// heads up ahead of the next major release, which raises the minimum to Node 24
+console.warn('Heads up! The next major version of @percy/cli will require Node 24+. ' + (
+  'To stay on your current Node version, pin @percy/cli to the current major ' +
+  '(e.g. "@percy/cli": "^1"), or move your setup to Node 24+ before the next major release.'));
 
 import('../dist/index.js')
   .then(async ({ percy, checkForUpdate }) => {
