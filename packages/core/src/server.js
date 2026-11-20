@@ -1,8 +1,10 @@
 import fs from 'fs';
+import os from 'os';
 import path from 'path';
 import http from 'http';
 import mime from 'mime-types';
 import disposition from 'content-disposition';
+import logger from '@percy/logger';
 import {
   pathToRegexp,
   match as pathToMatch,
@@ -28,6 +30,43 @@ export function isLoopbackOrigin(origin) {
   }
 }
 
+// Returns true when a socket peer address is on the loopback interface,
+// including IPv4 loopback addresses mapped into an IPv6 socket.
+export function isLoopbackAddress(address) {
+  if (!address || typeof address !== 'string') return false;
+  address = address.toLowerCase().replace(/^::ffff:/, '');
+  return address === '::1' || /^127(\.\d{1,3}){3}$/.test(address);
+}
+
+// Hostnames other than `localhost` that may legitimately name this machine.
+// Docker Desktop forwards container traffic for these names from a loopback
+// peer, and a web page cannot make a browser send them as its Host.
+// `percy.cli` is the fixed address the on-device App Percy SDKs (Espresso,
+// XCUI, Maestro) call; the device proxy on the host forwards it to the CLI
+// over loopback. `.cli` is not a public TLD, so it cannot be used for DNS
+// rebinding either.
+const LOCAL_HOSTNAMES = ['host.docker.internal', 'gateway.docker.internal', 'percy.cli'];
+
+// Returns true when a Host header names this machine rather than a domain an
+// arbitrary website controls. DNS rebinding points an attacker's domain at
+// 127.0.0.1, so its requests arrive from a loopback peer but still carry the
+// attacker's hostname. IP literals cannot be rebound and are always accepted,
+// as is a missing Host header (browsers always send one).
+export function isLocalHostHeader(host) {
+  if (host == null || host === '') return true;
+  if (typeof host !== 'string') return false;
+
+  let hostname;
+  try { hostname = new URL(`http://${host}`).hostname.toLowerCase(); } catch { return false; }
+  hostname = hostname.replace(/\.$/, '');
+
+  return hostname.startsWith('[') ||
+    /^\d{1,3}(\.\d{1,3}){3}$/.test(hostname) ||
+    hostname === 'localhost' || hostname.endsWith('.localhost') ||
+    hostname === os.hostname().toLowerCase() ||
+    LOCAL_HOSTNAMES.includes(hostname);
+}
+
 // custom incoming message adds a `url` and `body` properties containing the parsed URL and message
 // buffer respectively; both available after the 'end' event is emitted
 export class IncomingMessage extends http.IncomingMessage {
@@ -35,7 +74,15 @@ export class IncomingMessage extends http.IncomingMessage {
     let buffer = [];
 
     super(socket).on('data', d => buffer.push(d)).on('end', () => {
-      this.url = new URL(this.url, `http://${this.headers.host}`);
+      // a malformed Host header or request target must not throw here, before any request checks
+      // run; a fixed placeholder is used and the request is rejected after the peer and Host checks
+      try {
+        this.url = new URL(this.url, `http://${this.headers.host}`);
+      } catch {
+        this.url = new URL('http://localhost/');
+        this.invalidUrl = true;
+      }
+
       if (buffer.length) this.body = Buffer.concat(buffer);
 
       if (this.body && this.headers['content-type']?.includes('json')) {
@@ -118,6 +165,8 @@ export class Server extends http.Server {
   #sockets = new Set();
   #defaultPort;
   #host;
+  #remoteWarned = false;
+  #hostWarned = false;
 
   constructor({ port, host } = {}) {
     super({ IncomingMessage, ServerResponse });
@@ -143,6 +192,15 @@ export class Server extends http.Server {
   // has widened PERCY_SERVER_HOST for the API server.
   get host() {
     return this.#host || process.env.PERCY_SERVER_HOST || '::';
+  }
+
+  // Without an explicit host or PERCY_SERVER_HOST the server still binds every
+  // interface, so `localhost` works whichever address family a client resolves
+  // it to, but it only answers loopback peers. The local API can run scripts in
+  // the snapshot browser, so other machines must not reach it unless an
+  // operator opts in by setting PERCY_SERVER_HOST (e.g. to 0.0.0.0).
+  get loopbackOnly() {
+    return !this.#host && !process.env.PERCY_SERVER_HOST;
   }
 
   // return the listening port or any default port
@@ -346,6 +404,39 @@ export class Server extends http.Server {
   async #handleRequest(req, res) {
     // support node < 15.7.0
     res.req ??= req;
+
+    if (this.loopbackOnly && !isLoopbackAddress(req.socket.remoteAddress)) {
+      if (!this.#remoteWarned) {
+        this.#remoteWarned = true;
+        logger('core:server').warn(
+          `Rejected a request from ${req.socket.remoteAddress}: the Percy server only accepts ` +
+          'connections from this machine by default. If your tests run on a different host or ' +
+          'container, set PERCY_SERVER_HOST=0.0.0.0 to accept them. This exposes the ' +
+          'unauthenticated Percy API to every network that can reach this machine, so only ' +
+          'do it on an isolated container network or a firewalled interface.'
+        );
+      }
+
+      return res.json(403, { success: false, error: 'Percy server only accepts local connections' });
+    }
+
+    if (this.loopbackOnly && !isLocalHostHeader(req.headers.host)) {
+      if (!this.#hostWarned) {
+        this.#hostWarned = true;
+        logger('core:server').warn(
+          `Rejected a request for host "${req.headers.host}": the Percy server only accepts ` +
+          'requests addressed to localhost or an IP address by default. If you reach it ' +
+          'through another hostname, set PERCY_SERVER_HOST (for example ' +
+          'PERCY_SERVER_HOST=127.0.0.1) to accept it.'
+        );
+      }
+
+      return res.json(403, { success: false, error: 'Percy server only accepts requests for localhost' });
+    }
+
+    if (req.invalidUrl) {
+      return res.json(400, { success: false, error: 'Invalid Host header or request target' });
+    }
 
     try {
       // invoke routes like middleware
