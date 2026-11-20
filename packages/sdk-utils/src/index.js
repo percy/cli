@@ -44,8 +44,10 @@ function clampIframeDepth(raw) {
 // to recurse into. SINGLE SOURCE OF TRUTH — every SDK previously hand-copied
 // this list (it drifted into 4 divergent versions), so they now consume it
 // from here instead. `startsWith`, case-insensitive.
+// `chrome-error:` is the URL Chromium gives a frame whose navigation failed
+// (its "This site can't be reached" page). It does not start with `chrome:`.
 const UNSUPPORTED_IFRAME_SRCS = [
-  'about:', 'chrome:', 'chrome-extension:', 'devtools:', 'edge:',
+  'about:', 'chrome:', 'chrome-error:', 'chrome-extension:', 'devtools:', 'edge:',
   'opera:', 'view-source:', 'data:', 'javascript:', 'blob:',
   'vbscript:', 'file:', 'ws:', 'wss:', 'ftp:'
 ];
