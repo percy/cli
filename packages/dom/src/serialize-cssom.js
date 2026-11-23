@@ -51,7 +51,7 @@ function createStyleResource(styleSheet) {
 }
 
 export function serializeCSSOM(ctx) {
-  let { dom, clone, resources, cache, warnings, ignoreStyleSheetSerializationErrors, styleSheetClones } = ctx;
+  let { dom, clone, resources, warnings, ignoreStyleSheetSerializationErrors, styleSheetClones } = ctx;
   // in-memory CSSOM into their respective DOM nodes.
   let styleSheets = null;
   // catch error in case styleSheets property is not available (overwritten to throw error)
@@ -113,11 +113,30 @@ export function serializeCSSOM(ctx) {
     }
   }
 
-  // clone Adopted Stylesheets
+  serializeAdoptedStyleSheets(ctx);
+}
+
+// Serializes constructed stylesheets adopted by a document or shadow root into <link> tags
+// backed by CSS resources. Unlike the rest of the CSSOM, this also runs when JavaScript is
+// enabled: adopted sheets have no DOM representation, so without this they are lost whenever
+// the page's own JS doesn't re-adopt them at render time.
+export function serializeAdoptedStyleSheets(ctx) {
+  let { dom, clone, resources, cache, warnings } = ctx;
   // Regarding ordering of the adopted stylesheets - https://github.com/WICG/construct-stylesheets/issues/93
   /* istanbul ignore next: tested, but coverage is stripped */
   if (dom.adoptedStyleSheets) {
+    // Document and iframe clones are fragments carrying body/head/documentElement references; links
+    // go at the start of the body, else the head, else inside documentElement (the only part that is
+    // serialized). A shadow root has none of these and takes the links directly.
+    let container = clone && ['HTMLDocument', 'DocumentFragment', 'ShadowRoot'].includes(clone.constructor.name)
+      ? (clone.body || clone.head || clone.documentElement || clone)
+      : null;
+    // each link goes after the one before it, so the links keep the order the sheets were adopted in
+    let prevLink = null;
+
     for (let sheet of dom.adoptedStyleSheets) {
+      // a disabled sheet doesn't apply on the live page, so it must not apply in the render
+      if (sheet.disabled) continue;
       const styleLink = document.createElement('link');
       styleLink.setAttribute('rel', 'stylesheet');
 
@@ -128,26 +147,16 @@ export function serializeCSSOM(ctx) {
       }
       styleLink.setAttribute('data-percy-adopted-stylesheets-serialized', 'true');
       styleLink.setAttribute('data-percy-serialized-attribute-href', cache.get(sheet));
+      // a constructed sheet can carry a media condition (new CSSStyleSheet({ media })); keep it
+      if (sheet.media?.mediaText) styleLink.setAttribute('media', sheet.media.mediaText);
 
-      /* istanbul ignore next: tested, but coverage is stripped */
-      if (clone.constructor.name === 'HTMLDocument' || clone.constructor.name === 'DocumentFragment') {
-        // handle document and iframe
-        // We are checking if we have multiple stylesheets present for the same clone or clone.body then we add
-        // them in the same order in which we receive them.
-        const lastLink = clone.body.querySelector('link[data-percy-adopted-stylesheets-serialized]:last-of-type');
-        if (lastLink) {
-          lastLink.after(styleLink);
-        } else {
-          clone.body.prepend(styleLink);
-        }
-      } else if (clone.constructor.name === 'ShadowRoot') {
-        const lastLink = clone.querySelector('link[data-percy-adopted-stylesheets-serialized]:last-of-type');
-        if (lastLink) {
-          lastLink.after(styleLink);
-        } else {
-          clone.prepend(styleLink);
-        }
+      if (!container) continue;
+      if (prevLink) {
+        prevLink.after(styleLink);
+      } else {
+        container.prepend(styleLink);
       }
+      prevLink = styleLink;
     }
   } else {
     warnings.add('Skipping `adoptedStyleSheets` as it is not supported.');

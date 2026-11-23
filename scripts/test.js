@@ -108,7 +108,11 @@ async function main({
 
     jasmine.loadConfig({
       spec_dir: 'test',
-      spec_files: ['**/*.test.js'],
+      // CLI_TEST_SPEC_FILES (comma-separated globs under test/) narrows a run to
+      // a subset, e.g. a CI leg that only exercises one optional-dependency path.
+      spec_files: process.env.CLI_TEST_SPEC_FILES
+        ? process.env.CLI_TEST_SPEC_FILES.split(',')
+        : ['**/*.test.js'],
       requires: [path.resolve(filename, '../babel-register.cjs')],
       helpers: [path.resolve(filename, '../test-helpers.js')],
       random: false
