@@ -1,4 +1,4 @@
-import { normalizeBrowsers } from '@percy/client/utils';
+import { normalizeBrowsers, visualConfigSnapshotDefaults } from '@percy/client/utils';
 
 describe('utils', () => {
   describe('normalizeBrowsers', () => {
@@ -49,6 +49,36 @@ describe('utils', () => {
         ];
         expect(normalizeBrowsers(browserValues)).toEqual(expected);
       });
+    });
+  });
+
+  describe('visualConfigSnapshotDefaults', () => {
+    afterEach(() => { delete process.env.PERCY_VISUAL_CONFIG; });
+
+    it('returns nothing when the env var is unset', () => {
+      expect(visualConfigSnapshotDefaults()).toEqual({});
+    });
+
+    it('returns nothing for invalid JSON', () => {
+      process.env.PERCY_VISUAL_CONFIG = '{bad';
+      expect(visualConfigSnapshotDefaults()).toEqual({});
+    });
+
+    it('returns nothing for non-object JSON', () => {
+      process.env.PERCY_VISUAL_CONFIG = '[1]';
+      expect(visualConfigSnapshotDefaults()).toEqual({});
+    });
+
+    it('maps enableLayout and percyCssValue', () => {
+      process.env.PERCY_VISUAL_CONFIG = JSON.stringify({
+        enableLayout: false, percyCssValue: '.a{}'
+      });
+      expect(visualConfigSnapshotDefaults()).toEqual({ enableLayout: false, percyCSS: '.a{}' });
+    });
+
+    it('ignores wrongly typed or empty values', () => {
+      process.env.PERCY_VISUAL_CONFIG = JSON.stringify({ enableLayout: 'yes', percyCssValue: '' });
+      expect(visualConfigSnapshotDefaults()).toEqual({});
     });
   });
 });

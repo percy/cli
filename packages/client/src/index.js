@@ -1,1 +1,1 @@
-export { default, PercyClient, tokenType, visualConfigSnapshotDefaults } from './client.js';
+export { default, PercyClient, tokenType } from './client.js';
