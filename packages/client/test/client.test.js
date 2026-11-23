@@ -213,6 +213,39 @@ describe('PercyClient', () => {
       delete process.env.PERCY_PRIORITY;
     });
 
+    it('warns about labels the API did not add', async () => {
+      api.reply('/builds', () => [201, {
+        data: { id: '123' },
+        meta: {
+          warnings: [
+            {
+              type: 'label-skipped',
+              label: 'a|b',
+              reason: 'TagRefused',
+              message: 'Label "a|b" was not added: "|" cannot be used in a tag name'
+            },
+            // entries without a message are ignored
+            { type: 'label-skipped', label: 'c' },
+            null
+          ]
+        }
+      }]);
+
+      await expectAsync(client.createBuild()).toBeResolvedTo(jasmine.objectContaining({ data: { id: '123' } }));
+      let warnings = logger.stderr.filter(line => line.includes('was not added'));
+      expect(warnings).toEqual([
+        '[percy:client] Label "a|b" was not added: "|" cannot be used in a tag name'
+      ]);
+    });
+
+    it('does not warn when the response has no warnings list', async () => {
+      api.reply('/builds', () => [201, { data: { id: '123' }, meta: { warnings: 'not-a-list' } }]);
+      spyOn(client.log, 'warn');
+
+      await expectAsync(client.createBuild()).toBeResolved();
+      expect(client.log.warn).not.toHaveBeenCalled();
+    });
+
     it('creates a new build', async () => {
       await expectAsync(client.createBuild()).toBeResolvedTo({
         data: {
@@ -1408,6 +1441,26 @@ describe('PercyClient', () => {
         jasmine.objectContaining({
           'X-Percy-Machine-Id': client.env.machine.id
         }));
+    });
+
+    it('warns about labels the API did not add', async () => {
+      api.reply('/builds/123/snapshots', () => [201, {
+        data: { id: '4567' },
+        meta: {
+          warnings: [{
+            type: 'label-skipped',
+            label: 'x;y',
+            reason: 'TagRefused',
+            message: 'Label "x;y" was not added: ";" cannot be used in a tag name'
+          }]
+        }
+      }]);
+
+      await expectAsync(client.createSnapshot(123, { name: 'snap', labels: 'ok,x;y' }))
+        .toBeResolvedTo(jasmine.objectContaining({ data: { id: '4567' } }));
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
+        '[percy:client] Label "x;y" was not added: ";" cannot be used in a tag name'
+      ]));
     });
 
     it('creates a snapshot', async () => {

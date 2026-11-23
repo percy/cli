@@ -359,7 +359,7 @@ export class PercyClient {
     // for eligible internal build types, so it is a no-op for customer builds.
     let priority = process.env.PERCY_PRIORITY === 'true';
 
-    return this.post('builds', {
+    let build = await this.post('builds', {
       data: {
         type: 'builds',
         attributes: {
@@ -412,6 +412,22 @@ export class PercyClient {
         }
       }
     });
+
+    this.logApiWarnings(build);
+    return build;
+  }
+
+  // percy-api accepts some requests with a caveat and reports it in a top-level
+  // `meta.warnings` array: e.g. a label TestHub refused is dropped, and the build
+  // or snapshot is created without it. Surface those so the user knows why a
+  // label is missing, instead of it silently not showing up.
+  logApiWarnings(response, meta) {
+    let warnings = response?.meta?.warnings;
+    if (!Array.isArray(warnings)) return;
+
+    for (let warning of warnings) {
+      if (warning?.message) this.log.warn(warning.message, meta);
+    }
   }
 
   // Machine-identity header for per-machine liveness on parallel builds.
@@ -692,7 +708,7 @@ export class PercyClient {
 
     this.log.debug(`Creating snapshot: ${name}...`, meta);
 
-    return this.post(`builds/${buildId}/snapshots`, {
+    let snapshot = await this.post(`builds/${buildId}/snapshots`, {
       data: {
         type: 'snapshots',
         attributes: {
@@ -730,6 +746,9 @@ export class PercyClient {
         }
       }
     }, { identifier: 'snapshot.post', ...meta }, this.machineHeaders());
+
+    this.logApiWarnings(snapshot, meta);
+    return snapshot;
   }
 
   // Finalizes a snapshot.
