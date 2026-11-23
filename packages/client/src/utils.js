@@ -309,7 +309,7 @@ export function visualConfigSnapshotDefaults() {
 
   let defaults = {};
   if (typeof parsed.enableLayout === 'boolean') defaults.enableLayout = parsed.enableLayout;
-  if (typeof parsed.percyCssValue === 'string' && parsed.percyCssValue) {
+  if (typeof parsed.percyCssValue === 'string' && parsed.percyCssValue.trim()) {
     defaults.percyCSS = parsed.percyCssValue;
   }
   return defaults;

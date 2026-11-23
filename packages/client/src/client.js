@@ -192,16 +192,19 @@ function parseVisualConfigFromEnv(log) {
   return visualConfig;
 }
 
+const HTTP_PROTOCOLS = new Set(['http:', 'https:']);
+
 function isHttpUrl(value) {
   if (typeof value !== 'string') return false;
   try {
-    return ['http:', 'https:'].includes(new URL(value).protocol);
+    return HTTP_PROTOCOLS.has(new URL(value).protocol);
   } catch {
     return false;
   }
 }
 
 const SCAN_METADATA_MAX_BYTES = 4096;
+const SCAN_NAME_MAX_LENGTH = 255;
 const SCAN_METADATA_KEYS = new Set(['scanId', 'scanName', 'scanNumber']);
 
 // PERCY_SCAN_METADATA: display-only scan details (id, name, run number) for the build page.
@@ -229,15 +232,16 @@ function parseScanMetadataFromEnv(log) {
       log.warn(`Ignoring unknown PERCY_SCAN_METADATA key: '${key}'`);
       continue;
     }
-    metadata[key] = parsed[key];
+    // null means "not provided"; don't send it to the API
+    if (parsed[key] != null) metadata[key] = parsed[key];
   }
 
   if (metadata.scanId != null && typeof metadata.scanId !== 'string') {
     throw new Error("Invalid PERCY_SCAN_METADATA: 'scanId' must be a string");
   }
   if (metadata.scanName != null &&
-      (typeof metadata.scanName !== 'string' || metadata.scanName.length > 255)) {
-    throw new Error("Invalid PERCY_SCAN_METADATA: 'scanName' must be a string of at most 255 characters");
+      (typeof metadata.scanName !== 'string' || metadata.scanName.length > SCAN_NAME_MAX_LENGTH)) {
+    throw new Error(`Invalid PERCY_SCAN_METADATA: 'scanName' must be a string of at most ${SCAN_NAME_MAX_LENGTH} characters`);
   }
   if (metadata.scanNumber != null &&
       (!Number.isInteger(metadata.scanNumber) || metadata.scanNumber < 0)) {

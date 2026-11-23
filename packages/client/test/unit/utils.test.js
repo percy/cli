@@ -77,7 +77,7 @@ describe('utils', () => {
     });
 
     it('ignores wrongly typed or empty values', () => {
-      process.env.PERCY_VISUAL_CONFIG = JSON.stringify({ enableLayout: 'yes', percyCssValue: '' });
+      process.env.PERCY_VISUAL_CONFIG = JSON.stringify({ enableLayout: 'yes', percyCssValue: ' \n' });
       expect(visualConfigSnapshotDefaults()).toEqual({});
     });
   });

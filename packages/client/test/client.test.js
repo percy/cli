@@ -858,6 +858,15 @@ describe('PercyClient', () => {
         ]));
       });
 
+      it('drops null values instead of sending them', async () => {
+        process.env.PERCY_SCAN_METADATA = JSON.stringify({ scanId: null, scanName: 'Homepage' });
+
+        await expectAsync(client.createBuild({ projectType: 'web' })).toBeResolved();
+
+        expect(api.requests['/builds'][0].body.data.attributes['scan-metadata'])
+          .toEqual({ scanName: 'Homepage' });
+      });
+
       it('omits scan-metadata when no known keys remain', async () => {
         process.env.PERCY_SCAN_METADATA = JSON.stringify({ extra: 'nope' });
 
