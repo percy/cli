@@ -136,7 +136,10 @@ type ClientEnvInfo = {
 }
 
 export type PercyConfigOptions<C = Pojo> = C & {
-  snapshot?: CommonSnapshotOptions,
+  snapshot?: CommonSnapshotOptions & {
+    // App Percy iOS: default for drawing the Dynamic Island on screenshots
+    dynamicIsland?: boolean
+  },
   discovery?: AllDiscoveryOptions
 }
 

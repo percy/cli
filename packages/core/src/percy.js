@@ -43,6 +43,22 @@ const MAX_SUGGESTION_CALLS = 10;
 const MONITOR_ACTIVITY_TIMEOUT = 300000;
 const MONITORING_INTERVAL_MS = 5000; // 5 sec
 
+const DYNAMIC_ISLAND_KEYS = ['dynamicIsland', 'dynamicIslandRect', 'screenSizePoints', 'deviceOrientation'];
+
+// Dynamic Island data must never fail a comparison. Validation only scrubs a copy of the top-level
+// options and clamps or strips nested values, so drop any invalid island field whole rather than
+// send it or a partial rect. Then apply the config default for screenshots that carry island
+// geometry but no per-screenshot choice.
+function applyDynamicIslandOptions(options, errors, configDefault) {
+  for (let key of DYNAMIC_ISLAND_KEYS) {
+    if (errors?.some(e => e.path === key || e.path.startsWith(`${key}.`))) delete options[key];
+  }
+
+  if (options.dynamicIsland == null && options.dynamicIslandRect && configDefault != null) {
+    options.dynamicIsland = configDefault;
+  }
+}
+
 // A Percy instance will create a new build when started, handle snapshot creation, asset discovery,
 // and resource uploads, and will finalize the build when stopped. Snapshots are processed
 // concurrently and the build is not finalized until all snapshots have been handled.
@@ -736,6 +752,8 @@ export class Percy {
         this.log.warn('Invalid upload options:');
         for (let e of errors) this.log.warn(`- ${e.path}: ${e.message}`);
       }
+
+      applyDynamicIslandOptions(options, errors, this.config.snapshot.dynamicIsland);
     }
 
     // set meta for logging
