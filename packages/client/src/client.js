@@ -843,7 +843,8 @@ export class PercyClient {
   async createComparison(snapshotId, {
     tag, tiles = [], externalDebugUrl, ignoredElementsData,
     domInfoSha, consideredElementsData, elementSelectorsData, metadata, sync, regions, algorithm,
-    algorithmConfiguration, meta = {}
+    algorithmConfiguration, dynamicIsland, dynamicIslandRect, screenSizePoints, deviceOrientation,
+    meta = {}
   } = {}) {
     validateId('snapshot', snapshotId);
     // Remove post percy api deploy
@@ -872,7 +873,14 @@ export class PercyClient {
           'element-selectors-data': elementSelectorsData || null,
           'dom-info-sha': domInfoSha || null,
           sync: !!sync,
-          metadata: metadata || null
+          metadata: metadata || null,
+          // App Percy iOS Dynamic Island: only sent when present so other comparisons are unchanged
+          ...((dynamicIsland != null || dynamicIslandRect) && {
+            'dynamic-island': !!dynamicIsland,
+            'dynamic-island-rect': dynamicIslandRect || null,
+            'screen-size-points': screenSizePoints || null,
+            'device-orientation': deviceOrientation || null
+          })
         },
         relationships: {
           tag: {

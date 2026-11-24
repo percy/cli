@@ -135,6 +135,11 @@ export const configSchema = {
       sync: {
         type: 'boolean'
       },
+      // App Percy iOS: default for drawing the Dynamic Island on screenshots of devices that
+      // report one. A per-screenshot value overrides it.
+      dynamicIsland: {
+        type: 'boolean'
+      },
       readiness: {
         type: 'object',
         additionalProperties: false,
@@ -927,6 +932,33 @@ export const comparisonSchema = {
     },
     thTestCaseExecutionId: {
       type: 'string'
+    },
+    // App Percy iOS Dynamic Island. Geometry is read on the device, in portrait points;
+    // deviceOrientation is the raw device value, which tells landscape left from right.
+    dynamicIsland: { $ref: '/config/snapshot#/properties/dynamicIsland' },
+    dynamicIslandRect: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['x', 'y', 'width', 'height'],
+      properties: {
+        x: { type: 'number', minimum: 0 },
+        y: { type: 'number', minimum: 0 },
+        width: { type: 'number', exclusiveMinimum: 0 },
+        height: { type: 'number', exclusiveMinimum: 0 }
+      }
+    },
+    screenSizePoints: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['width', 'height'],
+      properties: {
+        width: { type: 'number', exclusiveMinimum: 0 },
+        height: { type: 'number', exclusiveMinimum: 0 }
+      }
+    },
+    deviceOrientation: {
+      type: 'string',
+      enum: ['PORTRAIT', 'LANDSCAPE', 'UIA_DEVICE_ORIENTATION_LANDSCAPERIGHT']
     },
     metadata: {
       type: 'object',
