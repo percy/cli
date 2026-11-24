@@ -69,6 +69,8 @@ describe('utils', () => {
       expect(visualConfigSnapshotDefaults()).toEqual({});
       process.env.PERCY_VISUAL_CONFIG = '"text"';
       expect(visualConfigSnapshotDefaults()).toEqual({});
+      process.env.PERCY_VISUAL_CONFIG = 'null';
+      expect(visualConfigSnapshotDefaults()).toEqual({});
     });
 
     it('maps enableLayout and percyCssValue', () => {

@@ -301,11 +301,12 @@ export function normalizeBrowsers(browserValues) {
 export function visualConfigSnapshotDefaults() {
   let parsed;
   try {
-    parsed = JSON.parse(process.env.PERCY_VISUAL_CONFIG || 'null');
+    // An unset variable throws here too
+    parsed = JSON.parse(process.env.PERCY_VISUAL_CONFIG);
   } catch {
     return {};
   }
-  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+  if (Object.prototype.toString.call(parsed) !== '[object Object]') return {};
 
   let defaults = {};
   if (typeof parsed.enableLayout === 'boolean') defaults.enableLayout = parsed.enableLayout;
