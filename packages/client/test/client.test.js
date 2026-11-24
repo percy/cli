@@ -810,6 +810,91 @@ describe('PercyClient', () => {
         .toBeRejectedWithError("Invalid PERCY_VISUAL_CONFIG: 'enableLayout' must be a boolean");
     });
 
+    it('sends branchPerScan and stagingBaseUrl in visual-config', async () => {
+      process.env.PERCY_VISUAL_CONFIG = JSON.stringify({
+        branchPerScan: true,
+        stagingBaseUrl: 'https://staging.example.com'
+      });
+
+      await expectAsync(client.createBuild({ projectType: 'web' })).toBeResolved();
+
+      expect(api.requests['/builds'][0].body.data.attributes['visual-config'])
+        .toEqual({ branchPerScan: true, stagingBaseUrl: 'https://staging.example.com' });
+    });
+
+    it('throws when PERCY_VISUAL_CONFIG branchPerScan is not a boolean', async () => {
+      process.env.PERCY_VISUAL_CONFIG = JSON.stringify({ branchPerScan: 'yes' });
+
+      await expectAsync(client.createBuild({ projectType: 'web' }))
+        .toBeRejectedWithError("Invalid PERCY_VISUAL_CONFIG: 'branchPerScan' must be a boolean");
+    });
+
+    it('throws when PERCY_VISUAL_CONFIG stagingBaseUrl is not an http(s) URL', async () => {
+      for (let stagingBaseUrl of ['ftp://staging.example.com', 'not a url', 42]) {
+        process.env.PERCY_VISUAL_CONFIG = JSON.stringify({ stagingBaseUrl });
+
+        await expectAsync(client.createBuild({ projectType: 'web' }))
+          .toBeRejectedWithError("Invalid PERCY_VISUAL_CONFIG: 'stagingBaseUrl' must be an http(s) URL");
+      }
+    });
+
+    describe('with PERCY_SCAN_METADATA', () => {
+      afterEach(() => { delete process.env.PERCY_SCAN_METADATA; });
+
+      it('sends scan-metadata and strips unknown keys', async () => {
+        process.env.PERCY_SCAN_METADATA = JSON.stringify({
+          scanId: 'scan-123',
+          scanName: 'Homepage',
+          scanNumber: 7,
+          extra: 'nope'
+        });
+
+        await expectAsync(client.createBuild({ projectType: 'web' })).toBeResolved();
+
+        expect(api.requests['/builds'][0].body.data.attributes['scan-metadata'])
+          .toEqual({ scanId: 'scan-123', scanName: 'Homepage', scanNumber: 7 });
+        expect(logger.stderr).toEqual(jasmine.arrayContaining([
+          "[percy:client] Ignoring unknown PERCY_SCAN_METADATA key: 'extra'"
+        ]));
+      });
+
+      it('drops null values instead of sending them', async () => {
+        process.env.PERCY_SCAN_METADATA = JSON.stringify({ scanId: null, scanName: 'Homepage' });
+
+        await expectAsync(client.createBuild({ projectType: 'web' })).toBeResolved();
+
+        expect(api.requests['/builds'][0].body.data.attributes['scan-metadata'])
+          .toEqual({ scanName: 'Homepage' });
+      });
+
+      it('omits scan-metadata when no known keys remain', async () => {
+        process.env.PERCY_SCAN_METADATA = JSON.stringify({ extra: 'nope' });
+
+        await expectAsync(client.createBuild({ projectType: 'web' })).toBeResolved();
+
+        expect(api.requests['/builds'][0].body.data.attributes['scan-metadata']).toBeUndefined();
+      });
+
+      it('throws for invalid values', async () => {
+        let cases = [
+          ['{ nope', 'Invalid PERCY_SCAN_METADATA: value must be valid JSON'],
+          ['[1]', 'Invalid PERCY_SCAN_METADATA: value must be a JSON object'],
+          [JSON.stringify({ scanId: 1 }), "Invalid PERCY_SCAN_METADATA: 'scanId' must be a string"],
+          [JSON.stringify({ scanName: 'x'.repeat(256) }),
+            "Invalid PERCY_SCAN_METADATA: 'scanName' must be a string of at most 255 characters"],
+          [JSON.stringify({ scanNumber: -1 }),
+            "Invalid PERCY_SCAN_METADATA: 'scanNumber' must be a non-negative integer"],
+          [JSON.stringify({ scanId: 'x'.repeat(5000) }),
+            'Invalid PERCY_SCAN_METADATA: value must be at most 4096 bytes']
+        ];
+
+        for (let [value, message] of cases) {
+          process.env.PERCY_SCAN_METADATA = value;
+          await expectAsync(client.createBuild({ projectType: 'web' })).toBeRejectedWithError(message);
+        }
+      });
+    });
+
     it('throws when PERCY_VISUAL_CONFIG percyCssValue is not a string', async () => {
       process.env.PERCY_VISUAL_CONFIG = JSON.stringify({ percyCssValue: 123 });
 

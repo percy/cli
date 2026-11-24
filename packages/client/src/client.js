@@ -66,7 +66,9 @@ const VISUAL_CONFIG_TOP_LEVEL_KEYS = new Set([
   'diffIgnorePercentage',
   'diffSensitivity',
   'browsers',
-  'intelliIgnore'
+  'intelliIgnore',
+  'branchPerScan',
+  'stagingBaseUrl'
 ]);
 
 const VISUAL_CONFIG_INTELLI_IGNORE_KEYS = new Set([
@@ -132,6 +134,10 @@ function parseVisualConfigFromEnv(log) {
     throw new Error("Invalid PERCY_VISUAL_CONFIG: 'percyCssValue' must be a string");
   }
   validateBoolean(visualConfig.compareWithPreviousRun, 'compareWithPreviousRun');
+  validateBoolean(visualConfig.branchPerScan, 'branchPerScan');
+  if (visualConfig.stagingBaseUrl != null && !isHttpUrl(visualConfig.stagingBaseUrl)) {
+    throw new Error("Invalid PERCY_VISUAL_CONFIG: 'stagingBaseUrl' must be an http(s) URL");
+  }
   validateBoolean(visualConfig.diffIgnoreEnabled, 'diffIgnoreEnabled');
   validateNumberInRange(visualConfig.diffIgnorePercentage, 'diffIgnorePercentage');
   // 0-indexed like the project setting: 0 = Very Strict ... 4 = Very Relaxed
@@ -184,6 +190,65 @@ function parseVisualConfigFromEnv(log) {
   }
 
   return visualConfig;
+}
+
+const HTTP_PROTOCOLS = new Set(['http:', 'https:']);
+
+function isHttpUrl(value) {
+  if (typeof value !== 'string') return false;
+  try {
+    return HTTP_PROTOCOLS.has(new URL(value).protocol);
+  } catch {
+    return false;
+  }
+}
+
+const SCAN_METADATA_MAX_BYTES = 4096;
+const SCAN_NAME_MAX_LENGTH = 255;
+const SCAN_METADATA_KEYS = new Set(['scanId', 'scanName', 'scanNumber']);
+
+// PERCY_SCAN_METADATA: display-only scan details (id, name, run number) for the build page.
+function parseScanMetadataFromEnv(log) {
+  let raw = process.env.PERCY_SCAN_METADATA;
+  if (!raw) return;
+
+  if (Buffer.byteLength(raw, 'utf8') > SCAN_METADATA_MAX_BYTES) {
+    throw new Error(`Invalid PERCY_SCAN_METADATA: value must be at most ${SCAN_METADATA_MAX_BYTES} bytes`);
+  }
+
+  let parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    throw new Error('Invalid PERCY_SCAN_METADATA: value must be valid JSON');
+  }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error('Invalid PERCY_SCAN_METADATA: value must be a JSON object');
+  }
+
+  let metadata = {};
+  for (let key of Object.keys(parsed)) {
+    if (!SCAN_METADATA_KEYS.has(key)) {
+      log.warn(`Ignoring unknown PERCY_SCAN_METADATA key: '${key}'`);
+      continue;
+    }
+    // null means "not provided"; don't send it to the API
+    if (parsed[key] != null) metadata[key] = parsed[key];
+  }
+
+  if (metadata.scanId != null && typeof metadata.scanId !== 'string') {
+    throw new Error("Invalid PERCY_SCAN_METADATA: 'scanId' must be a string");
+  }
+  if (metadata.scanName != null &&
+      (typeof metadata.scanName !== 'string' || metadata.scanName.length > SCAN_NAME_MAX_LENGTH)) {
+    throw new Error(`Invalid PERCY_SCAN_METADATA: 'scanName' must be a string of at most ${SCAN_NAME_MAX_LENGTH} characters`);
+  }
+  if (metadata.scanNumber != null &&
+      (!Number.isInteger(metadata.scanNumber) || metadata.scanNumber < 0)) {
+    throw new Error("Invalid PERCY_SCAN_METADATA: 'scanNumber' must be a non-negative integer");
+  }
+
+  return Object.keys(metadata).length ? metadata : undefined;
 }
 
 // Validate project path arguments
@@ -335,6 +400,7 @@ export class PercyClient {
   } = {}) {
     this.log.debug('Creating a new build...');
     let visualConfig = parseVisualConfigFromEnv(this.log);
+    let scanMetadata = parseScanMetadataFromEnv(this.log);
     let source = 'user_created';
 
     if (process.env.PERCY_ORIGINATED_SOURCE) {
@@ -395,6 +461,7 @@ export class PercyClient {
           ...(dropinBaselineCandidate ? { 'dropin-baseline-candidate': true } : {}),
           ...(dropinBaselineSetup ? { 'dropin-baseline-setup': true } : {}),
           ...(visualConfig ? { 'visual-config': visualConfig } : {}),
+          ...(scanMetadata ? { 'scan-metadata': scanMetadata } : {}),
           ...(priority ? { priority: true } : {})
         },
         relationships: {

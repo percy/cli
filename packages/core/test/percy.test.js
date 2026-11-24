@@ -51,6 +51,68 @@ describe('Percy', () => {
     expect(percy.client.config).toEqual(percy.config);
   });
 
+  describe('with PERCY_VISUAL_CONFIG snapshot defaults', () => {
+    afterEach(() => { delete process.env.PERCY_VISUAL_CONFIG; });
+
+    const newPercy = snapshot => new Percy({ token: 'PERCY_TOKEN', snapshot });
+
+    it('applies enableLayout and appends percyCssValue to configured Percy CSS', () => {
+      process.env.PERCY_VISUAL_CONFIG = JSON.stringify({
+        enableLayout: true,
+        percyCssValue: '.ad { display: none; }'
+      });
+
+      percy = newPercy({ widths: [1000], percyCSS: '.banner { opacity: 0; }' });
+
+      expect(percy.config.snapshot.enableLayout).toBe(true);
+      expect(percy.config.snapshot.percyCSS)
+        .toEqual('.banner { opacity: 0; }\n.ad { display: none; }');
+    });
+
+    it('uses percyCssValue alone when no Percy CSS is configured', () => {
+      process.env.PERCY_VISUAL_CONFIG = JSON.stringify({ percyCssValue: '.ad { display: none; }' });
+
+      percy = newPercy({ widths: [1000] });
+
+      expect(percy.config.snapshot.percyCSS).toEqual('.ad { display: none; }');
+    });
+
+    it('does not duplicate Percy CSS already in the snapshot config', () => {
+      process.env.PERCY_VISUAL_CONFIG = JSON.stringify({ percyCssValue: '.ad { display: none; }' });
+
+      percy = newPercy({ widths: [1000], percyCSS: '.ad { display: none; }' });
+
+      expect(percy.config.snapshot.percyCSS).toEqual('.ad { display: none; }');
+    });
+
+    it('still appends Percy CSS that only appears inside a comment', () => {
+      process.env.PERCY_VISUAL_CONFIG = JSON.stringify({ percyCssValue: '.ad { display: none; }' });
+
+      percy = newPercy({ widths: [1000], percyCSS: '/* .ad { display: none; } */' });
+
+      expect(percy.config.snapshot.percyCSS)
+        .toEqual('/* .ad { display: none; } */\n.ad { display: none; }');
+    });
+
+    it('lets enableLayout false override the snapshot config', () => {
+      process.env.PERCY_VISUAL_CONFIG = JSON.stringify({ enableLayout: false });
+
+      percy = newPercy({ widths: [1000], enableLayout: true });
+
+      expect(percy.config.snapshot.enableLayout).toBe(false);
+    });
+
+    it('leaves the snapshot config alone for invalid or unrelated visual config', () => {
+      process.env.PERCY_VISUAL_CONFIG = '{ invalid json }';
+      percy = newPercy({ widths: [1000], enableLayout: false });
+      expect(percy.config.snapshot.enableLayout).toBe(false);
+
+      process.env.PERCY_VISUAL_CONFIG = JSON.stringify({ diffSensitivity: 2, enableLayout: 'yes' });
+      percy = newPercy({ widths: [1000] });
+      expect(percy.config.snapshot.enableLayout).toBeUndefined();
+    });
+  });
+
   it('logs when a snapshot is missing env info', async () => {
     percy = new Percy({
       token: 'PERCY_TOKEN',
