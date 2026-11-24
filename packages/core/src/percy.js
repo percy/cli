@@ -1,7 +1,7 @@
 import PercyClient from '@percy/client';
 import PercyConfig from '@percy/config';
 import logger from '@percy/logger';
-import { getProxy } from '@percy/client/utils';
+import { getProxy, visualConfigSnapshotDefaults } from '@percy/client/utils';
 import Browser from './browser.js';
 import { acquireLock, releaseLockSync } from './lock.js';
 import Pako from 'pako';
@@ -42,6 +42,20 @@ const MAX_SUGGESTION_CALLS = 10;
 // system metric eg: (cpu load && memory usage)
 const MONITOR_ACTIVITY_TIMEOUT = 300000;
 const MONITORING_INTERVAL_MS = 5000; // 5 sec
+
+// Per-run enableLayout / Percy CSS from PERCY_VISUAL_CONFIG become snapshot defaults.
+// enableLayout overrides the config value; Percy CSS is appended to any configured CSS.
+function applyVisualConfigSnapshotDefaults(config) {
+  let { enableLayout, percyCSS } = visualConfigSnapshotDefaults();
+  if (enableLayout == null && !percyCSS) return;
+
+  config.snapshot ??= {};
+  if (enableLayout != null) config.snapshot.enableLayout = enableLayout;
+  // Skip CSS the run's .percy.yml already carries, so it is not applied twice
+  if (percyCSS && !config.snapshot.percyCSS?.includes(percyCSS)) {
+    config.snapshot.percyCSS = [config.snapshot.percyCSS, percyCSS].filter(Boolean).join('\n');
+  }
+}
 
 // A Percy instance will create a new build when started, handle snapshot creation, asset discovery,
 // and resource uploads, and will finalize the build when stopped. Snapshots are processed
@@ -97,6 +111,8 @@ export class Percy {
       overrides: options,
       path: configFile
     });
+
+    applyVisualConfigSnapshotDefaults(config);
 
     labels ??= config.percy?.labels;
     deferUploads ??= config.percy?.deferUploads;
