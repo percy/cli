@@ -296,25 +296,6 @@ export function normalizeBrowsers(browserValues) {
   return browserValues.map(browser => snakecase(browser));
 }
 
-// Snapshot defaults carried in PERCY_VISUAL_CONFIG (Website Scanner runs). Invalid JSON
-// returns nothing here; build creation reports it via parseVisualConfigFromEnv.
-export function visualConfigSnapshotDefaults() {
-  let parsed;
-  try {
-    parsed = JSON.parse(process.env.PERCY_VISUAL_CONFIG || 'null');
-  } catch {
-    return {};
-  }
-  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
-
-  let defaults = {};
-  if (typeof parsed.enableLayout === 'boolean') defaults.enableLayout = parsed.enableLayout;
-  if (typeof parsed.percyCssValue === 'string' && parsed.percyCssValue.trim()) {
-    defaults.percyCSS = parsed.percyCssValue;
-  }
-  return defaults;
-}
-
 export {
   hostnameMatches,
   getProxy,
