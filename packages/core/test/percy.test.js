@@ -85,6 +85,15 @@ describe('Percy', () => {
       expect(percy.config.snapshot.percyCSS).toEqual('.ad { display: none; }');
     });
 
+    it('still appends Percy CSS that only appears inside a comment', () => {
+      process.env.PERCY_VISUAL_CONFIG = JSON.stringify({ percyCssValue: '.ad { display: none; }' });
+
+      percy = newPercy({ widths: [1000], percyCSS: '/* .ad { display: none; } */' });
+
+      expect(percy.config.snapshot.percyCSS)
+        .toEqual('/* .ad { display: none; } */\n.ad { display: none; }');
+    });
+
     it('lets enableLayout false override the snapshot config', () => {
       process.env.PERCY_VISUAL_CONFIG = JSON.stringify({ enableLayout: false });
 
