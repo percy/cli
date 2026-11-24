@@ -51,8 +51,8 @@ function applyVisualConfigSnapshotDefaults(config) {
 
   config.snapshot ??= {};
   if (enableLayout != null) config.snapshot.enableLayout = enableLayout;
-  // Skip CSS the run's .percy.yml already carries, so it is not applied twice
-  if (percyCSS && !config.snapshot.percyCSS?.includes(percyCSS)) {
+  // Skip CSS identical to the run's .percy.yml CSS, so it is not applied twice
+  if (percyCSS && config.snapshot.percyCSS?.trim() !== percyCSS.trim()) {
     config.snapshot.percyCSS = [config.snapshot.percyCSS, percyCSS].filter(Boolean).join('\n');
   }
 }
